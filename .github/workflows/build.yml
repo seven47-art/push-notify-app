@@ -28,12 +28,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build APK (debug)
+      - name: Build APK (arm64 debug - 설치 가능, 소형)
         run: flutter build apk --debug --target-platform android-arm64 --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: push-notify-debug-apk
+          name: PushNotify-debug-arm64
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
