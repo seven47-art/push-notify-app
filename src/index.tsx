@@ -33,6 +33,46 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })
 })
 
+// APK 다운로드 페이지
+app.get('/download', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PushNotify APK 다운로드</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-gray-900 border border-indigo-500/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+    <div class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+      <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">PushNotify</h1>
+    <p class="text-gray-400 text-sm mb-1">폐쇄형 채널 구독 앱</p>
+    <p class="text-gray-500 text-xs mb-6">Android arm64 · debug v1.0.0</p>
+
+    <a href="/static/PushNotify-debug-arm64.apk"
+       download="PushNotify-debug-arm64.apk"
+       class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">
+      ⬇️ APK 다운로드 (41MB)
+    </a>
+
+    <div class="bg-yellow-900/30 border border-yellow-600/30 rounded-xl p-4 text-left text-xs text-yellow-300 space-y-1">
+      <p class="font-bold text-yellow-200 mb-2">📋 설치 방법</p>
+      <p>1. APK 파일 다운로드</p>
+      <p>2. 설정 → 보안 → <b>알 수 없는 앱 허용</b></p>
+      <p>3. 다운로드 폴더에서 파일 실행</p>
+    </div>
+
+    <p class="text-gray-600 text-xs mt-4">Android 5.0+ / arm64 기기 필요</p>
+  </div>
+</body>
+</html>`)
+})
+
 // =============================================
 // 채널 참여 랜딩 페이지 /join/:token
 // Flutter 앱에서 딥링크로 열리는 페이지
