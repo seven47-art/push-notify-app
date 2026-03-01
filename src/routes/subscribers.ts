@@ -9,9 +9,11 @@ subscribers.get('/', async (c) => {
   try {
     const channelId = c.req.query('channel_id')
     let query = `
-      SELECT s.*, ch.name as channel_name
+      SELECT s.*, ch.name as channel_name,
+             il.label as invite_label, il.invite_token as invite_token
       FROM subscribers s
       JOIN channels ch ON s.channel_id = ch.id
+      LEFT JOIN channel_invite_links il ON s.joined_via_invite_id = il.id
     `
     const params: any[] = []
     if (channelId) {

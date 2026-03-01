@@ -4,17 +4,28 @@ import type { Bindings } from '../types'
 
 const channels = new Hono<{ Bindings: Bindings }>()
 
-// GET /api/channels - 채널 목록 조회
+function generatePublicId(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let id = 'ch_'
+  for (let i = 0; i < 16; i++) {
+    id += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return id
+}
+
+// GET /api/channels
 channels.get('/', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
       SELECT 
-        ch.*,
+        ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
         COUNT(DISTINCT s.id) as subscriber_count,
-        COUNT(DISTINCT ct.id) as content_count
+        COUNT(DISTINCT ct.id) as content_count,
+        COUNT(DISTINCT il.id) as invite_link_count
       FROM channels ch
       LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
       LEFT JOIN contents ct ON ch.id = ct.channel_id
+      LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
       GROUP BY ch.id
       ORDER BY ch.created_at DESC
     `).all()
@@ -24,7 +35,7 @@ channels.get('/', async (c) => {
   }
 })
 
-// GET /api/channels/:id - 채널 상세 조회
+// GET /api/channels/:id
 channels.get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
@@ -33,15 +44,17 @@ channels.get('/:id', async (c) => {
         ch.*,
         COUNT(DISTINCT s.id) as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
+        COUNT(DISTINCT il.id) as invite_link_count,
         COUNT(DISTINCT nb.id) as batch_count
       FROM channels ch
       LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
       LEFT JOIN contents ct ON ch.id = ct.channel_id
+      LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
       LEFT JOIN notification_batches nb ON ch.id = nb.channel_id
       WHERE ch.id = ?
       GROUP BY ch.id
     `).bind(id).first()
-    
+
     if (!channel) return c.json({ success: false, error: 'Channel not found' }, 404)
     return c.json({ success: true, data: channel })
   } catch (e: any) {
@@ -49,34 +62,39 @@ channels.get('/:id', async (c) => {
   }
 })
 
-// POST /api/channels - 채널 생성
+// POST /api/channels
 channels.post('/', async (c) => {
   try {
     const body = await c.req.json()
     const { name, description, image_url, owner_id } = body
-    
+
     if (!name || !owner_id) {
       return c.json({ success: false, error: 'name and owner_id are required' }, 400)
     }
-    
+
+    const publicId = generatePublicId()
+
     const result = await c.env.DB.prepare(`
-      INSERT INTO channels (name, description, image_url, owner_id)
-      VALUES (?, ?, ?, ?)
-    `).bind(name, description || null, image_url || null, owner_id).run()
-    
-    return c.json({ success: true, data: { id: result.meta.last_row_id, name, description, owner_id } }, 201)
+      INSERT INTO channels (name, description, image_url, owner_id, public_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(name, description || null, image_url || null, owner_id, publicId).run()
+
+    return c.json({
+      success: true,
+      data: { id: result.meta.last_row_id, name, description, owner_id, public_id: publicId }
+    }, 201)
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
 })
 
-// PUT /api/channels/:id - 채널 수정
+// PUT /api/channels/:id
 channels.put('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
     const { name, description, image_url, is_active } = body
-    
+
     await c.env.DB.prepare(`
       UPDATE channels 
       SET name = COALESCE(?, name),
@@ -86,14 +104,14 @@ channels.put('/:id', async (c) => {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(name || null, description || null, image_url || null, is_active ?? null, id).run()
-    
+
     return c.json({ success: true, message: 'Channel updated' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
 })
 
-// DELETE /api/channels/:id - 채널 삭제
+// DELETE /api/channels/:id
 channels.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')

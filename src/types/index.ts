@@ -13,8 +13,22 @@ export interface Channel {
   image_url?: string
   owner_id: string
   is_active: number
+  public_id: string
   created_at: string
   updated_at: string
+}
+
+export interface ChannelInviteLink {
+  id: number
+  channel_id: number
+  invite_token: string
+  label?: string
+  max_uses?: number
+  use_count: number
+  expires_at?: string
+  is_active: number
+  created_by: string
+  created_at: string
 }
 
 export interface Subscriber {
@@ -25,6 +39,7 @@ export interface Subscriber {
   fcm_token: string
   platform: 'android' | 'ios' | 'web'
   is_active: number
+  joined_via_invite_id?: number
   accepted_count: number
   rejected_count: number
   last_seen_at?: string
@@ -63,18 +78,5 @@ export interface NotificationBatch {
   started_at?: string
   completed_at?: string
   created_by: string
-  created_at: string
-}
-
-export interface NotificationLog {
-  id: number
-  batch_id: number
-  subscriber_id: number
-  fcm_token: string
-  status: 'pending' | 'sent' | 'failed' | 'accepted' | 'rejected'
-  fcm_message_id?: string
-  error_message?: string
-  sent_at?: string
-  action_at?: string
   created_at: string
 }
