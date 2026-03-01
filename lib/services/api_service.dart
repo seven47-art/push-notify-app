@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // 실제 배포 후 URL 변경 필요
+  // ⚠️ 배포 후 실제 URL로 변경하세요
+  // Cloudflare Pages 배포 시: 'https://your-project.pages.dev'
+  // 로컬 테스트 시: 'http://10.0.2.2:3000' (Android 에뮬레이터)
   static const String _baseUrl = 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai';
   
   // SharedPreferences key
