@@ -57,7 +57,7 @@ app.get('/download', (c) => {
     <a href="/static/PushNotify-debug-arm64.apk"
        download="PushNotify-debug-arm64.apk"
        class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">
-      ⬇️ APK 다운로드 (41MB)
+      ⬇️ APK 다운로드 (55MB)
     </a>
 
     <div class="bg-yellow-900/30 border border-yellow-600/30 rounded-xl p-4 text-left text-xs text-yellow-300 space-y-1">
