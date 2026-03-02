@@ -401,9 +401,8 @@ const App = {
   // ── 알람 설정 모달 ──────────────────────
   openAlarmModal(chId, name) {
     currentAlarmChId = chId
-    document.getElementById('alarm-modal-title').textContent = name + ' · 알람 설정'
-    const btn = document.getElementById('alarm-toggle')
-    if (Store.getAlarm(chId)) btn.classList.add('on'); else btn.classList.remove('on')
+    const titleEl = document.getElementById('alarm-modal-title')
+    if (titleEl) titleEl.textContent = name + ' · 알람 설정'
 
     // 기본값 설정: 현재 시각 + 10분
     const now = new Date()
@@ -418,11 +417,10 @@ const App = {
     this.selectMsgSrc('youtube')
 
     // 입력 초기화
-    document.getElementById('alarm-youtube-url').value = ''
-    document.getElementById('alarm-title').value       = ''
-    document.getElementById('alarm-memo').value        = ''
-    document.getElementById('alarm-file-preview').style.display = 'none'
-    document.getElementById('alarm-file-preview').textContent   = ''
+    const ytUrl = document.getElementById('alarm-youtube-url')
+    if (ytUrl) ytUrl.value = ''
+    const fpEl = document.getElementById('alarm-file-preview')
+    if (fpEl) { fpEl.style.display = 'none'; fpEl.textContent = '' }
 
     this._renderCal()
     this._renderTime()
@@ -527,12 +525,11 @@ const App = {
       if (!srcValue) { toast('YouTube URL을 입력하세요'); return }
     }
 
-    const alarmOn = document.getElementById('alarm-toggle').classList.contains('on')
-    Store.setAlarm(currentAlarmChId, alarmOn)
+    Store.setAlarm(currentAlarmChId, true)
 
     const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
     const timeStr = String(alarmHour).padStart(2,'0') + ':' + String(alarmMin).padStart(2,'0')
-    const srcLabel = { youtube:'YouTube URL', audio:'오디오 녹음', video:'비디오 녹음', file:'파일 첨부' }[alarmMsgSrc]
+    const srcLabel = { youtube:'YouTube URL', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
 
     toast(`알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel}`, 3000)
     this.closeModal('modal-alarm')
