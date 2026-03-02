@@ -75,14 +75,98 @@ class _WebViewScreenState extends State<WebViewScreen> {
             setState(() => _loading = false);
           },
           onWebResourceError: (err) {
-            // 치명적 오류만 표시 (이미지 404 등 무시)
             if (err.isForMainFrame == true) {
               setState(() { _hasError = true; _loading = false; });
             }
           },
+          // ── 딥링크 가로채기: pushapp://join?token=XXX ──
+          onNavigationRequest: (NavigationRequest request) {
+            final uri = Uri.tryParse(request.url);
+            if (uri != null && uri.scheme == 'pushapp') {
+              _handleDeepLink(uri);
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
         ),
       )
       ..loadRequest(Uri.parse(_appUrl));
+  }
+
+  // 딥링크 처리: pushapp://join?token=XXX → /app#join?token=XXX 로 이동
+  void _handleDeepLink(Uri uri) {
+    if (uri.host == 'join') {
+      final token = uri.queryParameters['token'] ?? '';
+      if (token.isNotEmpty) {
+        // 웹앱 /join/:token 페이지로 이동 (웹에서 가입 처리)
+        final joinUrl = _appUrl.replaceFirst('/app', '/join/$token');
+        // 실제로는 앱 내부에서 채널 가입 다이얼로그 표시
+        _showJoinDialog(token);
+      }
+    }
+  }
+
+  // 채널 가입 확인 다이얼로그
+  void _showJoinDialog(String token) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1B4B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.notifications_active, color: Color(0xFF6C63FF)),
+            SizedBox(width: 10),
+            Text('채널 초대', style: TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '초대 링크를 통해 채널에 참여하시겠습니까?\n참여 후 새 콘텐츠 알림을 받을 수 있습니다.',
+              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14, height: 1.6),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0C29),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+              ),
+              child: Text(
+                token,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFFA5B4FC)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF94A3B8))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6C63FF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              // 웹뷰를 join 페이지로 이동 → 웹앱 JS가 가입 처리
+              _controller.loadRequest(
+                Uri.parse('$_appUrl?join_token=$token'),
+              );
+            },
+            child: const Text('참여하기', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // 뒤로가기 처리 (WebView 내부 히스토리 우선)
