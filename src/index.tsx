@@ -866,403 +866,332 @@ app.get('/app', (c) => {
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  :root {
-    --bg: #121212;
-    --bg2: #1E1E2E;
-    --bg3: #2A2A3E;
-    --primary: #6C63FF;
-    --primary-dim: rgba(108,99,255,0.15);
-    --teal: #26D0CE;
-    --text: #FFFFFF;
-    --text2: #B0B0C0;
-    --text3: #707080;
-    --border: #2E2E42;
-    --danger: #EF4444;
-    --success: #4CAF50;
-    --nav-h: 62px;
-  }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Noto Sans KR', sans-serif; height: 100dvh; overflow: hidden; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #121212; --bg2: #1E1E2E; --bg3: #2A2A3E;
+  --primary: #6C63FF; --primary-dim: rgba(108,99,255,0.15);
+  --teal: #26D0CE; --text: #FFFFFF; --text2: #B0B0C0;
+  --text3: #707080; --border: #2E2E42;
+  --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
+}
+body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto Sans KR',sans-serif; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
 
-  /* 앱바 */
-  .appbar {
-    height: 56px; display: flex; align-items: center; justify-content: space-between;
-    padding: 0 16px; background: var(--primary); flex-shrink: 0;
-    position: sticky; top: 0; z-index: 100;
-  }
-  .appbar-title { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; color: #fff; }
-  .appbar-icon { background: rgba(255,255,255,0.2); border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
-  .appbar-actions button { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; padding: 6px; }
+/* ── 앱바 ── */
+.appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:var(--primary); flex-shrink:0; }
+.appbar-left { display:flex; align-items:center; gap:10px; }
+.appbar-icon { background:rgba(255,255,255,0.2); border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
+.appbar-title { font-size:20px; font-weight:700; color:#fff; }
+.appbar-menu { background:none; border:none; color:#fff; font-size:22px; cursor:pointer; padding:6px; }
 
-  /* 하단 네비게이션 */
-  .bottom-nav {
-    height: var(--nav-h); display: flex; background: var(--bg2);
-    border-top: 1px solid var(--border); flex-shrink: 0;
-    position: sticky; bottom: 0; z-index: 100;
-  }
-  .nav-btn {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; background: none; border: none; color: var(--text3); cursor: pointer;
-    font-size: 10px; transition: color 0.15s; padding: 4px 0;
-  }
-  .nav-btn i { font-size: 20px; }
-  .nav-btn.active { color: var(--primary); }
-  .nav-btn.active i { text-shadow: 0 0 12px rgba(108,99,255,0.5); }
+/* ── 하단 네비 ── */
+.bottom-nav { height:var(--nav-h); display:flex; background:var(--bg2); border-top:1px solid var(--border); flex-shrink:0; }
+.nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:none; border:none; color:var(--text3); cursor:pointer; font-size:10px; transition:color 0.15s; padding:4px 0; }
+.nav-btn i { font-size:20px; }
+.nav-btn.active { color:var(--primary); }
 
-  /* 화면 래퍼 */
-  #screen-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-  .screen { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
-  .screen.active { display: flex; }
+/* ── 화면 ── */
+#screen-wrap { flex:1; overflow:hidden; position:relative; }
+.screen { display:none; position:absolute; inset:0; overflow-y:auto; flex-direction:column; }
+.screen.active { display:flex; }
 
-  /* 섹션 헤더 */
-  .section-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px 8px;
-  }
-  .section-title { font-size: 15px; font-weight: 700; }
-  .section-btn {
-    background: var(--bg3); border: 1px solid rgba(108,99,255,0.4);
-    color: var(--primary); font-size: 12px; font-weight: 600;
-    padding: 6px 12px; border-radius: 20px; cursor: pointer; white-space: nowrap;
-  }
+/* ── 섹션 헤더 ── */
+.section-header { display:flex; align-items:center; justify-content:space-between; padding:16px 16px 8px; }
+.section-title { font-size:16px; font-weight:700; }
+.section-btn { background:var(--bg3); border:1px solid rgba(108,99,255,0.4); color:var(--primary); font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; cursor:pointer; display:flex; align-items:center; gap:5px; }
 
-  /* 채널 타일 */
-  .channel-tile {
-    display: flex; align-items: center; gap: 12px;
-    background: var(--bg2); margin: 4px 14px;
-    padding: 10px 14px; border-radius: 12px; cursor: pointer;
-    transition: background 0.15s;
-  }
-  .channel-tile:active { background: var(--bg3); }
-  .channel-tile .info { flex: 1; min-width: 0; }
-  .channel-tile .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .channel-tile .sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .channel-tile .close-btn { background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; padding: 4px; }
-  .channel-tile .chevron { color: var(--text3); font-size: 14px; }
+/* ── 채널 타일 (운영) ── */
+.channel-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); }
+.channel-tile .info { flex:1; min-width:0; }
+.channel-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.channel-tile .ch-sub { font-size:11px; color:var(--text3); margin-top:2px; }
 
-  /* 아바타 */
-  .avatar {
-    width: 44px; height: 44px; border-radius: 22px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; font-weight: 700; overflow: hidden;
-  }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* 운영 채널 액션 버튼 3개 */
+.ch-actions { display:flex; gap:4px; flex-shrink:0; }
+.ch-action-btn { width:34px; height:34px; border-radius:8px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; transition:opacity 0.15s; }
+.ch-action-btn:active { opacity:0.7; }
+.btn-alarm  { background:rgba(38,208,206,0.15); color:var(--teal); }
+.btn-invite { background:rgba(108,99,255,0.15); color:var(--primary); }
+.btn-setting{ background:rgba(112,112,128,0.2); color:var(--text2); }
 
-  /* 빈 상태 */
-  .empty-box {
-    background: var(--bg2); margin: 4px 14px; border-radius: 12px;
-    padding: 18px; text-align: center; color: var(--text3); font-size: 13px; line-height: 1.6;
-  }
+/* ── 가입 채널 타일 ── */
+.joined-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); cursor:pointer; }
+.joined-tile:active { background:var(--bg3); }
+.joined-tile .info { flex:1; min-width:0; }
+.joined-tile .chevron { color:var(--text3); font-size:13px; }
 
-  /* 구분선 */
-  .divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+/* ── 아바타 ── */
+.avatar { border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
+.avatar img { width:100%; height:100%; object-fit:cover; }
 
-  /* 모달 오버레이 */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-    align-items: flex-end; justify-content: center;
-  }
-  .modal-overlay.active { display: flex; }
-  .modal-sheet {
-    width: 100%; max-width: 480px; background: var(--bg2);
-    border-radius: 20px 20px 0 0; padding: 0 0 24px; max-height: 90dvh; overflow-y: auto;
-    animation: slideUp 0.25s ease;
-  }
-  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  .modal-handle { width: 40px; height: 4px; background: var(--text3); border-radius: 2px; margin: 14px auto 0; }
-  .modal-title { font-size: 16px; font-weight: 700; padding: 14px 20px 8px; }
-  .modal-body { padding: 0 20px; }
+/* ── 더보기 버튼 ── */
+.more-btn { display:flex; align-items:center; justify-content:center; gap:6px; margin:6px 14px 2px; padding:10px; background:var(--bg2); border:1px dashed var(--border); border-radius:10px; color:var(--text3); font-size:13px; cursor:pointer; }
+.more-btn:active { background:var(--bg3); }
 
-  /* 폼 요소 */
-  .form-label { font-size: 13px; color: var(--text2); margin-bottom: 6px; margin-top: 16px; display: block; }
-  .form-input {
-    width: 100%; background: var(--bg3); border: 1px solid var(--border);
-    color: var(--text); font-size: 14px; padding: 12px 14px; border-radius: 12px;
-    outline: none; transition: border-color 0.15s;
-  }
-  .form-input:focus { border-color: var(--primary); }
-  .form-input::placeholder { color: var(--text3); }
-  .form-textarea { resize: none; }
-  .char-count { font-size: 11px; color: var(--text3); text-align: right; margin-top: 4px; }
+/* ── 빈 상태 ── */
+.empty-box { margin:12px 14px; padding:20px; background:var(--bg2); border-radius:12px; text-align:center; color:var(--text3); font-size:13px; line-height:1.6; }
 
-  /* 이미지 선택 박스 */
-  .img-picker {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--bg3); border: 1px solid var(--border);
-    padding: 12px 14px; border-radius: 12px; cursor: pointer;
-  }
-  .img-thumb {
-    width: 60px; height: 60px; border-radius: 10px; background: var(--bg2);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
-  }
-  .img-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .img-hint { font-size: 12px; color: var(--text3); }
+/* ── 로딩 ── */
+.loading { padding:24px; text-align:center; color:var(--text3); }
+@keyframes spin { to { transform:rotate(360deg); } }
+.spin { animation:spin 0.8s linear infinite; display:inline-block; }
 
-  /* 이미지 소스 선택 */
-  .img-source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
-  .img-source-btn {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
-    background: none; border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px 0; cursor: pointer; transition: background 0.15s;
-  }
-  .img-source-btn:active { background: var(--bg3); }
-  .img-source-icon { width: 60px; height: 60px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
-  .img-source-label { font-size: 13px; color: var(--text2); }
+/* ── 사이드 드로어 ── */
+.drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+.drawer-overlay.open { opacity:1; pointer-events:all; }
+.drawer { position:fixed; top:0; right:0; bottom:0; width:72vw; max-width:280px; background:var(--bg2); z-index:201; transform:translateX(100%); transition:transform 0.25s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+.drawer.open { transform:translateX(0); }
+.drawer-header { padding:20px 16px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.drawer-logo { width:36px; height:36px; background:var(--primary); border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.drawer-app-name { font-size:17px; font-weight:700; }
+.drawer-menu-label { font-size:11px; color:var(--text3); font-weight:600; letter-spacing:0.05em; padding:14px 16px 4px; text-transform:uppercase; }
+.drawer-menu-item { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; color:var(--text2); font-size:14px; font-weight:500; transition:background 0.15s; }
+.drawer-menu-item:active { background:var(--bg3); }
+.drawer-menu-item i { width:20px; text-align:center; color:var(--text3); font-size:15px; }
+.drawer-version { margin-top:auto; padding:12px 16px; font-size:11px; color:var(--text3); border-top:1px solid var(--border); }
 
-  /* 버튼 */
-  .btn-primary { background: var(--primary); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; padding: 14px; width: 100%; cursor: pointer; margin-top: 16px; }
-  .btn-teal { background: var(--teal); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; padding: 14px; width: 100%; cursor: pointer; margin-top: 16px; }
-  .btn-ghost { background: var(--bg3); color: var(--text2); border: none; border-radius: 12px; font-size: 14px; font-weight: 600; padding: 12px; width: 100%; cursor: pointer; margin-top: 8px; }
-  .btn-danger { background: var(--danger); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; padding: 8px 14px; cursor: pointer; }
-  .btn-sm { padding: 6px 12px; font-size: 12px; margin-top: 0; border-radius: 8px; }
+/* ── 모달 ── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:300; display:none; align-items:flex-end; justify-content:center; }
+.modal-overlay.active { display:flex; }
+.modal-sheet { background:var(--bg2); border-radius:20px 20px 0 0; width:100%; max-height:88vh; overflow-y:auto; padding-bottom:env(safe-area-inset-bottom,16px); }
+.modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:10px auto 4px; }
+.modal-title { font-size:17px; font-weight:700; padding:8px 16px 12px; }
+.modal-body { padding:0 16px 12px; }
+.form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; margin-top:12px; display:block; }
+.form-input { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; }
+.form-input:focus { border-color:var(--primary); }
+.form-textarea { min-height:80px; }
+.char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; }
+.img-picker { display:flex; align-items:center; gap:12px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px 14px; cursor:pointer; margin-top:4px; }
+.img-thumb { width:52px; height:52px; border-radius:8px; background:var(--bg2); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
+.img-thumb img { width:100%; height:100%; object-fit:cover; }
+.img-hint { font-size:12px; color:var(--text3); }
+.btn-teal { width:100%; background:var(--teal); color:#fff; font-size:16px; font-weight:700; padding:15px; border:none; border-radius:12px; cursor:pointer; margin-top:14px; }
+.btn-ghost { width:100%; background:transparent; border:1px solid var(--border); color:var(--text2); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
+.btn-danger-outline { width:100%; background:transparent; border:1px solid rgba(239,68,68,0.4); color:var(--danger); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
+.img-src-btn { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); cursor:pointer; color:var(--text); font-size:14px; }
+.img-src-btn:last-child { border-bottom:none; }
+.img-src-btn i { width:28px; text-align:center; color:var(--primary); font-size:18px; }
 
-  /* 알림 카드 */
-  .notif-card {
-    background: var(--bg2); margin: 6px 14px; border-radius: 14px; overflow: hidden;
-  }
-  .notif-header { display: flex; align-items: center; gap: 10px; padding: 14px; }
-  .notif-icon-wrap { width: 40px; height: 40px; border-radius: 10px; background: var(--primary-dim); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .notif-meta { flex: 1; min-width: 0; }
-  .notif-title { font-size: 13px; font-weight: 600; }
-  .notif-channel { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .notif-time { font-size: 11px; color: var(--text3); }
-  .notif-body { padding: 0 14px 12px; font-size: 12px; color: var(--text2); }
-  .notif-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 14px 14px; }
-  .btn-reject { background: rgba(239,68,68,0.12); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; }
-  .btn-accept { background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; }
-  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-  .badge-accepted { background: rgba(76,175,80,0.15); color: var(--success); }
-  .badge-rejected { background: rgba(239,68,68,0.15); color: var(--danger); }
-  .badge-pending { background: var(--primary-dim); color: var(--primary); }
+/* ── 수신함 ── */
+.notif-card { background:var(--bg2); margin:4px 14px; padding:13px; border-radius:12px; border:1px solid var(--border); }
+.notif-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:6px; }
+.notif-icon-wrap { width:36px; height:36px; background:var(--primary-dim); border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.notif-meta { flex:1; min-width:0; }
+.notif-title { font-size:14px; font-weight:600; }
+.notif-channel { font-size:11px; color:var(--text3); margin-top:2px; }
+.notif-time { font-size:11px; color:var(--text3); white-space:nowrap; }
+.notif-body { font-size:13px; color:var(--text2); line-height:1.5; }
+.notif-actions { display:flex; gap:8px; margin-top:10px; }
+.btn-accept { flex:1; background:rgba(76,175,80,0.15); border:1px solid rgba(76,175,80,0.4); color:var(--success); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
+.btn-reject { flex:1; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:var(--danger); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
+.status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:3px 7px; border-radius:20px; font-weight:600; margin-top:4px; }
+.badge-accepted { background:rgba(76,175,80,0.15); color:var(--success); }
+.badge-rejected { background:rgba(239,68,68,0.1); color:var(--danger); }
+.badge-pending { background:rgba(108,99,255,0.15); color:var(--primary); }
 
-  /* 설정 리스트 */
-  .settings-section { margin: 12px 14px 0; }
-  .settings-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; padding-left: 2px; }
-  .settings-card { background: var(--bg2); border-radius: 14px; overflow: hidden; }
-  .settings-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
-  .settings-item:last-child { border-bottom: none; }
-  .settings-item-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-  .settings-item-text { flex: 1; }
-  .settings-item-title { font-size: 14px; }
-  .settings-item-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .settings-item-value { font-size: 12px; color: var(--text3); }
-  .settings-toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--bg3); border: none; cursor: pointer; position: relative; flex-shrink: 0; transition: background 0.2s; }
-  .settings-toggle.on { background: var(--primary); }
-  .settings-toggle::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 10px; background: #fff; top: 3px; left: 3px; transition: left 0.2s; }
-  .settings-toggle.on::after { left: 21px; }
+/* ── 설정 화면 ── */
+.settings-menu-label { font-size:12px; color:var(--text3); font-weight:600; letter-spacing:0.05em; padding:16px 16px 6px; text-transform:uppercase; }
+.settings-menu-item { display:flex; align-items:center; gap:14px; padding:15px 16px; cursor:pointer; color:var(--text); font-size:15px; transition:background 0.15s; border-bottom:1px solid var(--border); }
+.settings-menu-item:active { background:var(--bg3); }
+.settings-menu-item i { width:22px; text-align:center; color:var(--primary); font-size:16px; }
+.settings-menu-item .menu-arrow { margin-left:auto; color:var(--text3); font-size:12px; }
+.settings-info-card { margin:12px 14px; background:var(--bg2); border-radius:12px; border:1px solid var(--border); overflow:hidden; }
+.settings-info-row { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); }
+.settings-info-row:last-child { border-bottom:none; }
+.settings-info-label { font-size:12px; color:var(--text3); }
+.settings-info-value { font-size:12px; color:var(--text2); font-family:monospace; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* 토스트 */
-  .toast { position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%); background: #323250; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 999; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-  .toast.show { opacity: 1; }
-
-  /* 앱바 다크 (채널만들기 등 서브화면) */
-  .appbar.dark { background: var(--bg2); }
-  .appbar.dark .appbar-title { font-size: 17px; color: var(--text); }
-
-  /* 로딩 */
-  .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text3); gap: 10px; }
-  .spin { animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* 인포 배너 */
-  .info-note { margin: 0 14px 6px; padding: 10px 14px; background: var(--bg3); border-radius: 10px; font-size: 11px; color: var(--text3); line-height: 1.5; }
+/* ── 토스트 ── */
+#toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:rgba(40,40,60,0.95); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:500; opacity:0; transition:all 0.25s; pointer-events:none; white-space:nowrap; z-index:999; }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
-<div style="display:flex; flex-direction:column; height:100dvh;">
 
-  <!-- 앱바 (동적으로 변경) -->
-  <div class="appbar" id="appbar">
-    <div class="appbar-title">
-      <div class="appbar-icon"><i class="fas fa-bell" style="color:#fff;font-size:14px;"></i></div>
-      <span>PushNotify</span>
-    </div>
-    <div class="appbar-actions">
-      <button onclick="App.refresh()"><i class="fas fa-rotate-right"></i></button>
-    </div>
+<!-- ══ 앱바 ══ -->
+<div class="appbar" id="appbar">
+  <div class="appbar-left">
+    <div class="appbar-icon"><i class="fas fa-bell" style="color:#fff;font-size:16px;"></i></div>
+    <span class="appbar-title">PushNotify</span>
   </div>
-
-  <!-- 화면 영역 -->
-  <div id="screen-wrap">
-
-    <!-- 홈 화면 -->
-    <div class="screen active" id="screen-home">
-      <div class="section-header">
-        <span class="section-title">나의 운영채널</span>
-        <button class="section-btn" onclick="App.openCreateChannel()">⊕ 채널 만들기</button>
-      </div>
-      <div id="owned-list"><div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div></div>
-
-      <hr class="divider" style="margin:10px 0;">
-
-      <div class="section-header">
-        <span class="section-title">나의 가입채널</span>
-        <button class="section-btn" onclick="App.openJoinChannel()">⊕ 채널 참여</button>
-      </div>
-      <div id="joined-list"><div class="empty-box">가입한 채널이 없습니다.<br>초대 링크로 참여해 보세요!</div></div>
-      <div style="height:16px;"></div>
-    </div>
-
-    <!-- 채널 화면 -->
-    <div class="screen" id="screen-channel">
-      <div class="section-header">
-        <span class="section-title">채널 목록</span>
-      </div>
-      <div id="channel-list-all"><div class="loading"><i class="fas fa-spinner spin"></i> 로딩 중...</div></div>
-      <div style="height:16px;"></div>
-    </div>
-
-    <!-- 수신함 화면 -->
-    <div class="screen" id="screen-inbox">
-      <div class="section-header">
-        <span class="section-title">수신함</span>
-        <button class="section-btn" style="border-color:rgba(239,68,68,0.4);color:#EF4444;" onclick="App.clearInbox()">모두 지우기</button>
-      </div>
-      <div id="inbox-list"><div class="empty-box">받은 알림이 없습니다.</div></div>
-      <div style="height:16px;"></div>
-    </div>
-
-    <!-- 발신함 화면 -->
-    <div class="screen" id="screen-send">
-      <div class="section-header"><span class="section-title">발신함</span></div>
-      <div id="send-list"><div class="empty-box">발신 내역이 없습니다.</div></div>
-      <div style="height:16px;"></div>
-    </div>
-
-    <!-- 설정 화면 -->
-    <div class="screen" id="screen-settings">
-      <!-- 앱 정보 카드 -->
-      <div style="margin:16px 14px 0;">
-        <div style="background:linear-gradient(135deg,var(--primary),#8B7FFF);border-radius:16px;padding:20px;display:flex;align-items:center;gap:16px;">
-          <div style="background:rgba(255,255,255,0.2);border-radius:12px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-bell" style="color:#fff;font-size:24px;"></i>
-          </div>
-          <div>
-            <div style="font-size:17px;font-weight:700;color:#fff;">PushNotify</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.75);">폐쇄형 채널 알림 앱 v1.0.0</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section" style="margin-top:20px;">
-        <div class="settings-label">알림 설정</div>
-        <div class="settings-card">
-          <div class="settings-item">
-            <div class="settings-item-icon" style="background:rgba(108,99,255,0.15);">
-              <i class="fas fa-bell" style="color:var(--primary);"></i>
-            </div>
-            <div class="settings-item-text">
-              <div class="settings-item-title">푸시 알림 받기</div>
-              <div class="settings-item-sub">채널에서 새 콘텐츠 알림을 받습니다</div>
-            </div>
-            <button class="settings-toggle on" id="notif-toggle" onclick="App.toggleNotif(this)"></button>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-label">기기 정보</div>
-        <div class="settings-card">
-          <div class="settings-item">
-            <div class="settings-item-icon" style="background:rgba(108,99,255,0.15);">
-              <i class="fas fa-user" style="color:var(--primary);"></i>
-            </div>
-            <div class="settings-item-text">
-              <div class="settings-item-title">사용자 ID</div>
-              <div class="settings-item-sub" id="settings-user-id">로딩 중...</div>
-            </div>
-          </div>
-          <div class="settings-item" onclick="App.showFcmToken()">
-            <div class="settings-item-icon" style="background:rgba(108,99,255,0.15);">
-              <i class="fas fa-key" style="color:var(--primary);"></i>
-            </div>
-            <div class="settings-item-text">
-              <div class="settings-item-title">FCM 토큰</div>
-              <div class="settings-item-sub" id="settings-fcm-token">터치하여 확인</div>
-            </div>
-            <i class="fas fa-chevron-right" style="color:var(--text3);font-size:12px;"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-label">서버 연결</div>
-        <div class="settings-card">
-          <div class="settings-item">
-            <div class="settings-item-icon" style="background:rgba(76,175,80,0.15);">
-              <i class="fas fa-cloud" style="color:var(--success);"></i>
-            </div>
-            <div class="settings-item-text">
-              <div class="settings-item-title">API 서버</div>
-              <div class="settings-item-sub">Cloudflare Workers / D1</div>
-            </div>
-            <span class="status-badge badge-accepted">연결됨</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-label">관리</div>
-        <div class="settings-card">
-          <div class="settings-item" onclick="App.resetDevice()" style="cursor:pointer;">
-            <div class="settings-item-icon" style="background:rgba(239,68,68,0.15);">
-              <i class="fas fa-trash" style="color:var(--danger);"></i>
-            </div>
-            <div class="settings-item-text">
-              <div class="settings-item-title" style="color:var(--danger);">기기 초기화</div>
-              <div class="settings-item-sub">모든 구독 정보 삭제</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style="height:24px;"></div>
-    </div>
-  </div>
-
-  <!-- 하단 네비게이션 -->
-  <div class="bottom-nav">
-    <button class="nav-btn active" id="nav-home" onclick="App.goto('home')">
-      <i class="fas fa-home"></i><span>홈</span>
-    </button>
-    <button class="nav-btn" id="nav-channel" onclick="App.goto('channel')">
-      <i class="fas fa-list"></i><span>채널</span>
-    </button>
-    <button class="nav-btn" id="nav-inbox" onclick="App.goto('inbox')">
-      <i class="fas fa-inbox"></i><span>수신함</span>
-    </button>
-    <button class="nav-btn" id="nav-send" onclick="App.goto('send')">
-      <i class="fas fa-paper-plane"></i><span>발신함</span>
-    </button>
-    <button class="nav-btn" id="nav-settings" onclick="App.goto('settings')">
-      <i class="fas fa-cog"></i><span>설정</span>
-    </button>
-  </div>
+  <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
 </div>
 
-<!-- ===================== 채널 만들기 모달 ===================== -->
+<!-- ══ 화면 영역 ══ -->
+<div id="screen-wrap">
+
+  <!-- 홈 화면 -->
+  <div class="screen active" id="screen-home">
+    <!-- 나의 운영채널 -->
+    <div class="section-header">
+      <span class="section-title">나의 운영채널</span>
+      <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
+    </div>
+    <div id="owned-list"></div>
+    <div id="owned-more" style="display:none;"></div>
+
+    <!-- 나의 가입채널 -->
+    <div class="section-header" style="margin-top:8px;">
+      <span class="section-title">나의 가입채널</span>
+      <button class="section-btn" onclick="App.openJoinChannel()"><i class="fas fa-plus"></i> 채널 참여</button>
+    </div>
+    <div id="joined-list"></div>
+    <div id="joined-more" style="display:none;"></div>
+    <div style="height:12px;"></div>
+  </div>
+
+  <!-- 채널 탭 -->
+  <div class="screen" id="screen-channel">
+    <div class="section-header">
+      <span class="section-title">채널</span>
+    </div>
+    <div id="channel-list-all"></div>
+    <div style="height:12px;"></div>
+  </div>
+
+  <!-- 수신함 -->
+  <div class="screen" id="screen-inbox">
+    <div class="section-header">
+      <span class="section-title">수신함</span>
+      <button class="section-btn" onclick="App.clearInbox()"><i class="fas fa-trash-alt"></i> 비우기</button>
+    </div>
+    <div id="inbox-list"></div>
+    <div style="height:12px;"></div>
+  </div>
+
+  <!-- 발신함 -->
+  <div class="screen" id="screen-send">
+    <div class="section-header">
+      <span class="section-title">발신함</span>
+    </div>
+    <div id="send-list"></div>
+    <div style="height:12px;"></div>
+  </div>
+
+  <!-- 설정 화면 -->
+  <div class="screen" id="screen-settings">
+    <div class="section-header">
+      <span class="section-title">설정</span>
+    </div>
+    <div class="settings-menu-label">메뉴</div>
+    <div class="settings-menu-item" onclick="App.goto('home')">
+      <i class="fas fa-satellite-dish"></i> 나의 운영 채널
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
+    <div class="settings-menu-item" onclick="App.openCreateChannel()">
+      <i class="fas fa-plus-circle"></i> 채널 만들기
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
+    <div class="settings-menu-item" onclick="App.goto('channel')">
+      <i class="fas fa-list"></i> 나의 가입 채널
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
+    <div class="settings-menu-item" onclick="App.openJoinChannel()">
+      <i class="fas fa-door-open"></i> 채널 참여
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
+    <div class="settings-menu-item" onclick="toast('준비 중입니다')">
+      <i class="fas fa-shield-alt"></i> 개인정보보호정책
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
+    <div class="settings-menu-item" onclick="toast('v1.0.0 (web)')">
+      <i class="fas fa-info-circle"></i> 버전
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.0</span>
+    </div>
+
+    <div class="settings-menu-label" style="margin-top:8px;">기기 정보</div>
+    <div class="settings-info-card">
+      <div class="settings-info-row">
+        <span class="settings-info-label">사용자 ID</span>
+        <span class="settings-info-value" id="settings-user-id">-</span>
+      </div>
+      <div class="settings-info-row" onclick="App.showFcmToken()" style="cursor:pointer;">
+        <span class="settings-info-label">FCM 토큰</span>
+        <span class="settings-info-value" id="settings-fcm-token">-</span>
+      </div>
+    </div>
+    <button class="btn-danger-outline" style="margin:12px 14px;width:calc(100% - 28px);" onclick="App.resetDevice()">
+      <i class="fas fa-trash-restore"></i> 기기 초기화
+    </button>
+    <div style="height:20px;"></div>
+  </div>
+
+</div><!-- /screen-wrap -->
+
+<!-- ══ 하단 네비 ══ -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-home" onclick="App.goto('home')">
+    <i class="fas fa-home"></i><span>홈</span>
+  </button>
+  <button class="nav-btn" id="nav-channel" onclick="App.goto('channel')">
+    <i class="fas fa-layer-group"></i><span>채널</span>
+  </button>
+  <button class="nav-btn" id="nav-inbox" onclick="App.goto('inbox')">
+    <i class="fas fa-inbox"></i><span>수신함</span>
+  </button>
+  <button class="nav-btn" id="nav-send" onclick="App.goto('send')">
+    <i class="fas fa-paper-plane"></i><span>발신함</span>
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="App.goto('settings')">
+    <i class="fas fa-cog"></i><span>설정</span>
+  </button>
+</div>
+
+<!-- ══ 사이드 드로어 ══ -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="App.closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-logo"><i class="fas fa-bell" style="color:#fff;font-size:18px;"></i></div>
+    <span class="drawer-app-name">PushNotify</span>
+  </div>
+  <div class="drawer-menu-label">메뉴</div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('home')">
+    <i class="fas fa-satellite-dish"></i> 나의 운영 채널
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openCreateChannel()">
+    <i class="fas fa-plus-circle"></i> 채널 만들기
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('channel')">
+    <i class="fas fa-list"></i> 나의 가입 채널
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openJoinChannel()">
+    <i class="fas fa-door-open"></i> 채널 참여
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
+    <i class="fas fa-shield-alt"></i> 개인정보보호정책
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.0 (web)')">
+    <i class="fas fa-info-circle"></i> 버전
+    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.0</span>
+  </div>
+  <div class="drawer-version">PushNotify Web v1.0.0</div>
+</div>
+
+<!-- ══ 모달: 채널 만들기 ══ -->
 <div class="modal-overlay" id="modal-create">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">채널 만들기</div>
     <div class="modal-body">
-      <label class="form-label">채널명</label>
-      <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10" oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
+      <label class="form-label">채널명 *</label>
+      <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
+        oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
 
       <label class="form-label">채널 전화번호</label>
       <input class="form-input" id="create-phone" type="tel" placeholder="010-0000-0000">
 
-      <label class="form-label">채널 소개</label>
-      <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50" oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
+      <label class="form-label">채널 소개 *</label>
+      <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
+        oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
       <label class="form-label">채널 대표이미지 선택</label>
-      <div class="img-picker" onclick="App.openImagePicker()">
+      <div class="img-picker" onclick="App.openImagePicker('create')">
         <div class="img-thumb" id="create-img-thumb">
           <i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>
         </div>
-        <span class="img-hint">미선택시 새이투두 이미지 적용</span>
+        <span class="img-hint">미선택시 기본 이미지 적용</span>
       </div>
 
       <label class="form-label">채널 홈페이지</label>
@@ -1275,92 +1204,126 @@ app.get('/app', (c) => {
   </div>
 </div>
 
-<!-- ===================== 이미지 소스 선택 모달 ===================== -->
-<div class="modal-overlay" id="modal-img-src">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-title">사용할 애플리케이션</div>
-    <div class="modal-body">
-      <div class="img-source-grid">
-        <button class="img-source-btn" onclick="App.pickImageFrom('gallery')">
-          <div class="img-source-icon" style="background:rgba(233,30,99,0.15);"><i class="fas fa-images" style="color:#E91E63;"></i></div>
-          <span class="img-source-label">갤러리</span>
-        </button>
-        <button class="img-source-btn" onclick="App.pickImageFrom('camera')">
-          <div class="img-source-icon" style="background:rgba(33,150,243,0.15);"><i class="fas fa-camera" style="color:#2196F3;"></i></div>
-          <span class="img-source-label">카메라</span>
-        </button>
-        <button class="img-source-btn" onclick="App.pickImageFrom('gallery')">
-          <div class="img-source-icon" style="background:rgba(76,175,80,0.15);"><i class="fas fa-photo-film" style="color:#4CAF50;"></i></div>
-          <span class="img-source-label">포토</span>
-        </button>
-        <button class="img-source-btn" onclick="App.closeModal('modal-img-src')">
-          <div class="img-source-icon" style="background:rgba(100,100,120,0.15);"><i class="fas fa-times" style="color:#888;"></i></div>
-          <span class="img-source-label">취소</span>
-        </button>
-      </div>
-      <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="App.onFileSelected(this)">
-      <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;" onchange="App.onFileSelected(this)">
-      <div style="height:8px;"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== 채널 참여 모달 ===================== -->
-<div class="modal-overlay" id="modal-join">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-title">채널 참여</div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">채널 운영자에게 받은 초대 링크 또는 초대 코드를 입력하세요.</p>
-      <input class="form-input" id="join-token" placeholder="inv_xxxx_xxxxxx 또는 전체 URL">
-      <button class="btn-primary" onclick="App.joinChannel()">확인</button>
-      <button class="btn-ghost" onclick="App.closeModal('modal-join')">취소</button>
-      <div style="height:8px;"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== 채널 수정 모달 ===================== -->
+<!-- ══ 모달: 채널 수정 ══ -->
 <div class="modal-overlay" id="modal-edit">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">채널 수정</div>
+    <div class="modal-title">채널 설정</div>
     <div class="modal-body">
       <input type="hidden" id="edit-channel-id">
-
       <label class="form-label">채널명</label>
       <input class="form-input" id="edit-name" maxlength="10">
 
       <label class="form-label">채널 소개</label>
-      <textarea class="form-input form-textarea" id="edit-desc" rows="3" maxlength="50"></textarea>
+      <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
 
-      <label class="form-label">비밀번호(이전 비밀번호) 공개 채널은 비워두도 됩니다.</label>
-      <input class="form-input" id="edit-pwd-old" type="password" placeholder="영문, 숫자가능, 6자이상">
-
-      <label class="form-label">비밀번호설정 (새로운 비밀번호)</label>
-      <input class="form-input" id="edit-pwd-new" type="password" placeholder="영문, 숫자가능, 6자이상">
-
-      <label class="form-label">채널 대표이미지 선택</label>
+      <label class="form-label">채널 대표이미지</label>
       <div class="img-picker" onclick="App.openImagePicker('edit')">
         <div class="img-thumb" id="edit-img-thumb">
           <i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>
         </div>
-        <span class="img-hint">미선택시 새이투두 이미지 적용</span>
+        <span class="img-hint">탭하여 변경</span>
       </div>
 
       <label class="form-label">채널 홈페이지</label>
       <input class="form-input" id="edit-homepage" type="url" placeholder="https://">
 
-      <button class="btn-primary" onclick="App.saveEditChannel()">저장</button>
+      <button class="btn-teal" onclick="App.saveEditChannel()">저장</button>
+      <button class="btn-danger-outline" onclick="App.confirmDeleteChannelFromEdit()">채널 삭제</button>
       <button class="btn-ghost" onclick="App.closeModal('modal-edit')">취소</button>
       <div style="height:8px;"></div>
     </div>
   </div>
 </div>
 
+<!-- ══ 모달: 알람 설정 ══ -->
+<div class="modal-overlay" id="modal-alarm">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="alarm-modal-title">알람 설정</div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:14px;">푸시 알림 수신</span>
+        <button class="toggle-btn" id="alarm-toggle" onclick="App.toggleAlarmInModal(this)">
+          <span></span>
+        </button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.6;">
+        채널에서 새 콘텐츠가 등록될 때 푸시 알림을 받습니다.
+      </p>
+      <button class="btn-ghost" onclick="App.closeModal('modal-alarm')" style="margin-top:14px;">닫기</button>
+      <div style="height:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 모달: 초대코드 ══ -->
+<div class="modal-overlay" id="modal-invite">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">초대 코드</div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:10px;" id="invite-channel-name-label"></p>
+      <div id="invite-code-box" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;font-family:monospace;font-size:13px;color:var(--primary);word-break:break-all;line-height:1.6;">
+        초대 링크를 불러오는 중...
+      </div>
+      <button class="btn-teal" onclick="App.copyInviteCode()" style="margin-top:12px;">
+        <i class="fas fa-copy"></i> 복사
+      </button>
+      <button class="btn-ghost" onclick="App.closeModal('modal-invite')">닫기</button>
+      <div style="height:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 모달: 채널 참여 ══ -->
+<div class="modal-overlay" id="modal-join">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">채널 참여</div>
+    <div class="modal-body">
+      <label class="form-label">초대 코드 또는 초대 링크</label>
+      <input class="form-input" id="join-token" placeholder="코드 또는 URL 붙여넣기">
+      <button class="btn-teal" onclick="App.joinChannel()">참여하기</button>
+      <button class="btn-ghost" onclick="App.closeModal('modal-join')">취소</button>
+      <div style="height:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 모달: 이미지 소스 선택 ══ -->
+<div class="modal-overlay" id="modal-img-src">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">이미지 선택</div>
+    <div class="modal-body">
+      <div class="img-src-btn" onclick="App.pickImageFrom('camera')">
+        <i class="fas fa-camera"></i> 카메라
+      </div>
+      <div class="img-src-btn" onclick="App.pickImageFrom('gallery')">
+        <i class="fas fa-images"></i> 갤러리
+      </div>
+      <div class="img-src-btn" onclick="App.closeModal('modal-img-src')">
+        <i class="fas fa-times"></i> 취소
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 파일 인풋 (hidden) -->
+<input type="file" id="file-input" accept="image/*" style="display:none" onchange="App.onFileSelected(this)">
+<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="App.onFileSelected(this)">
+
 <!-- 토스트 -->
-<div class="toast" id="toast"></div>
+<div id="toast"></div>
+
+<!-- 토글 버튼 스타일 -->
+<style>
+.toggle-btn { width:48px; height:26px; background:var(--border); border:none; border-radius:13px; cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0; }
+.toggle-btn span { position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 0.2s; }
+.toggle-btn.on { background:var(--primary); }
+.toggle-btn.on span { transform:translateX(22px); }
+</style>
 
 <script src="/static/mobile-app.js"></script>
 </body>
