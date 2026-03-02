@@ -1,15 +1,22 @@
-// lib/main.dart
+// lib/main.dart  – WebView 래퍼 앱
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'screens/splash_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/my_channels_screen.dart';
-import 'screens/notification_screen.dart';
-import 'screens/send_screen.dart';
-import 'screens/settings_screen.dart';
-import 'screens/join_channel_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-void main() async {
+// ── 서버 URL (배포 후 교체 가능) ──────────────────
+const String _appUrl =
+    'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai/app';
+
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // 상태바 투명 처리
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
   runApp(const PushNotifyApp());
 }
 
@@ -28,110 +35,197 @@ class PushNotifyApp extends StatelessWidget {
         ),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          backgroundColor: Color(0xFF1E1E2E),
-          foregroundColor: Colors.white,
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: const Color(0xFF1E1E2E),
-          indicatorColor: const Color(0xFF6C63FF).withOpacity(0.2),
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const TextStyle(
-                color: Color(0xFF6C63FF),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              );
-            }
-            return TextStyle(color: Colors.grey[400], fontSize: 11);
-          }),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: Color(0xFF6C63FF));
-            }
-            return IconThemeData(color: Colors.grey[500]);
-          }),
-        ),
       ),
-      initialRoute: '/splash',
-      routes: {
-        '/splash': (context) => const SplashScreen(),
-        '/home': (context) => const MainScreen(),
-        '/join': (context) => const JoinChannelScreen(),
-      },
-      onGenerateRoute: (settings) {
-        if (settings.name != null && settings.name!.startsWith('/join/')) {
-          final token = settings.name!.replaceFirst('/join/', '');
-          return MaterialPageRoute(
-            builder: (context) => JoinChannelScreen(inviteToken: token),
-          );
-        }
-        return null;
-      },
+      home: const WebViewScreen(),
     );
   }
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+// ═══════════════════════════════════════════════
+//  WebView 메인 화면
+// ═══════════════════════════════════════════════
+class WebViewScreen extends StatefulWidget {
+  const WebViewScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<WebViewScreen> createState() => _WebViewScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+class _WebViewScreenState extends State<WebViewScreen> {
+  late final WebViewController _controller;
+  bool  _loading = true;
+  bool  _hasError = false;
+  int   _loadingProgress = 0;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),       // 홈
-    MyChannelsScreen(), // 채널
-    NotificationScreen(), // 수신함
-    SendScreen(),       // 발신함
-    SettingsScreen(),   // 설정
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF121212))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            setState(() { _loading = true; _hasError = false; });
+          },
+          onProgress: (p) {
+            setState(() => _loadingProgress = p);
+          },
+          onPageFinished: (_) {
+            setState(() => _loading = false);
+          },
+          onWebResourceError: (err) {
+            // 치명적 오류만 표시 (이미지 404 등 무시)
+            if (err.isForMainFrame == true) {
+              setState(() { _hasError = true; _loading = false; });
+            }
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(_appUrl));
+  }
+
+  // 뒤로가기 처리 (WebView 내부 히스토리 우선)
+  Future<bool> _onWillPop() async {
+    if (await _controller.canGoBack()) {
+      await _controller.goBack();
+      return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // ── WebView ──
+              _hasError ? _buildErrorView() : WebViewWidget(controller: _controller),
+
+              // ── 로딩 바 ──
+              if (_loading)
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: LinearProgressIndicator(
+                    value: _loadingProgress / 100,
+                    minHeight: 3,
+                    backgroundColor: Colors.transparent,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                  ),
+                ),
+
+              // ── 첫 로딩 스플래시 ──
+              if (_loading && _loadingProgress < 10)
+                Container(
+                  color: const Color(0xFF121212),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _AppLogo(),
+                        SizedBox(height: 24),
+                        SizedBox(
+                          width: 32, height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: Color(0xFF6C63FF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
-        height: 62,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: '홈',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.view_list_outlined),
-            selectedIcon: Icon(Icons.view_list),
-            label: '채널',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            selectedIcon: Icon(Icons.inbox),
-            label: '수신함',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.send_outlined),
-            selectedIcon: Icon(Icons.send),
-            label: '발신함',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '설정',
-          ),
-        ],
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _AppLogo(),
+            const SizedBox(height: 32),
+            const Icon(Icons.wifi_off_rounded, color: Color(0xFF6C63FF), size: 56),
+            const SizedBox(height: 16),
+            const Text(
+              '서버에 연결할 수 없습니다',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '인터넷 연결을 확인하고 다시 시도해 주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C63FF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('다시 시도', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              onPressed: () {
+                setState(() { _hasError = false; _loading = true; });
+                _controller.reload();
+              },
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+// ── 앱 로고 위젯 ──────────────────────────────
+class _AppLogo extends StatelessWidget {
+  const _AppLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 80, height: 80,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6C63FF).withOpacity(0.4),
+                blurRadius: 20, offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.notifications_active, color: Colors.white, size: 40),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'PushNotify',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
     );
   }
 }
