@@ -61,8 +61,8 @@ invites.post('/', async (c) => {
     const body = await c.req.json()
     const { channel_id, label, max_uses, expires_days, created_by } = body
 
-    if (!channel_id || !created_by) {
-      return c.json({ success: false, error: 'channel_id and created_by are required' }, 400)
+    if (!channel_id) {
+      return c.json({ success: false, error: 'channel_id is required' }, 400)
     }
 
     // 채널 존재 확인
