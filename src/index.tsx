@@ -104,169 +104,147 @@ app.get('/join/:token', async (c) => {
   const isValid = status === 'valid'
   const channelName = linkData?.channel_name || '알 수 없는 채널'
   const channelDesc = linkData?.channel_description || ''
-  const channelImg = linkData?.channel_image_url || ''
-  const remaining = linkData?.max_uses ? linkData.max_uses - linkData.use_count : null
+  const channelImg  = linkData?.channel_image_url || ''
+  const remaining   = linkData?.max_uses ? linkData.max_uses - linkData.use_count : null
 
-  return c.html(`<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${isValid ? channelName + ' - 채널 참여' : '유효하지 않은 링크'}</title>
-<meta property="og:title" content="${isValid ? channelName + ' 채널에 초대되었습니다' : '유효하지 않은 초대 링크'}">
-<meta property="og:description" content="${isValid ? (channelDesc || '채널에 참여하여 알림을 받아보세요') : statusMsg}">
-${channelImg ? `<meta property="og:image" content="${channelImg}">` : ''}
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-<style>
-  body { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); min-height: 100vh; }
-  .card { background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(99,102,241,0.2); }
-  .btn-join { background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 8px 32px rgba(99,102,241,0.4); }
-  .btn-join:hover { background: linear-gradient(135deg, #4f46e5, #3730a3); transform: translateY(-1px); }
-  .btn-install { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 8px 32px rgba(16,185,129,0.3); }
-  .glow { box-shadow: 0 0 60px rgba(99,102,241,0.3); }
-  .float { animation: float 3s ease-in-out infinite; }
-  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-  .step-dot { width:8px;height:8px;border-radius:50%; }
-  .badge-token { font-family: monospace; letter-spacing: 0.05em; }
-</style>
-</head>
-<body class="flex items-center justify-center p-4 py-12">
-  <div class="w-full max-w-md">
+  // APK 다운로드 URL
+  const INSTALL_URL = 'https://8080-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai/PushNotify-debug-arm64.apk'
+  const DEEP_LINK   = 'pushapp://join?token=' + token
 
-    <!-- 앱 로고 -->
-    <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl float mb-4 glow">
-        <i class="fas fa-bell text-white text-2xl"></i>
-      </div>
-      <p class="text-slate-400 text-sm">Push Notification</p>
-    </div>
+  // 채널 이미지 HTML
+  const imgHtml = channelImg
+    ? '<div class="w-20 h-20 mx-auto mb-4 rounded-2xl overflow-hidden border-2 border-indigo-400/40 shadow-lg"><img src="' + channelImg + '" alt="' + channelName + '" class="w-full h-full object-cover"></div>'
+    : '<div class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-indigo-900/60 flex items-center justify-center border-2 border-indigo-400/40"><i class="fas fa-layer-group text-indigo-300 text-2xl"></i></div>'
 
-    ${isValid ? `
-    <!-- 유효한 초대 링크 -->
-    <div class="card rounded-3xl p-8 text-center mb-6">
+  const descHtml = channelDesc
+    ? '<p class="text-slate-400 text-sm leading-relaxed mb-4">' + channelDesc + '</p>'
+    : '<p class="text-slate-500 text-sm mb-4">이 채널에 가입하면 새 콘텐츠 알림을 받을 수 있습니다.</p>'
 
-      <!-- 채널 이미지 -->
-      ${channelImg ? `
-      <div class="w-24 h-24 mx-auto mb-5 rounded-2xl overflow-hidden border-2 border-indigo-500/50">
-        <img src="${channelImg}" alt="${channelName}" class="w-full h-full object-cover">
-      </div>` : `
-      <div class="w-24 h-24 mx-auto mb-5 rounded-2xl bg-indigo-900/50 flex items-center justify-center border-2 border-indigo-500/50">
-        <i class="fas fa-layer-group text-indigo-400 text-3xl"></i>
-      </div>`}
+  const remainHtml = remaining !== null
+    ? '<div class="bg-amber-900/30 border border-amber-500/25 rounded-xl px-4 py-2 mb-4 inline-block"><span class="text-amber-300 text-xs">남은 초대 <b>' + remaining + '명</b></span></div>'
+    : ''
 
-      <!-- 초대 메시지 -->
-      <p class="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-2">채널 초대</p>
-      <h1 class="text-white text-2xl font-bold mb-3">${channelName}</h1>
-      ${channelDesc ? `<p class="text-slate-400 text-sm leading-relaxed mb-5">${channelDesc}</p>` : ''}
+  // 오류 아이콘
+  const errIcon = status === 'expired' ? 'clock' : status === 'full' ? 'user-slash' : 'ban'
+  const errTitle = status === 'expired' ? '만료된 초대 링크' : status === 'full' ? '초대 인원 초과' : '유효하지 않은 링크'
 
-      <!-- 채널 정보 배지 -->
-      <div class="flex justify-center gap-3 mb-6">
-        <div class="bg-indigo-900/40 border border-indigo-500/30 rounded-xl px-4 py-2">
-          <div class="text-indigo-300 text-xs">폐쇄형 채널</div>
-          <div class="text-white text-xs font-bold mt-0.5">초대 전용</div>
-        </div>
-        ${remaining !== null ? `
-        <div class="bg-amber-900/40 border border-amber-500/30 rounded-xl px-4 py-2">
-          <div class="text-amber-300 text-xs">남은 초대</div>
-          <div class="text-white text-xs font-bold mt-0.5">${remaining}명</div>
-        </div>` : ''}
-        ${linkData?.expires_at ? `
-        <div class="bg-rose-900/40 border border-rose-500/30 rounded-xl px-4 py-2">
-          <div class="text-rose-300 text-xs">만료</div>
-          <div class="text-white text-xs font-bold mt-0.5">${new Date(linkData.expires_at).toLocaleDateString('ko-KR')}</div>
-        </div>` : ''}
-      </div>
+  const validBody = isValid ? (
+    '<div id="screen-join" class="fade-in" style="display:none">' +
+    '  <div class="text-center mb-6">' +
+    '    <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-3 pulse-ring"><i class="fas fa-bell text-white text-xl"></i></div>' +
+    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">PushNotify</p>' +
+    '  </div>' +
+    '  <div class="glass rounded-3xl p-7 text-center mb-4">' +
+    imgHtml +
+    '    <span class="inline-block bg-indigo-900/60 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-3 border border-indigo-500/30">채널 초대</span>' +
+    '    <h1 class="text-white text-xl font-bold mb-2">' + channelName + '</h1>' +
+    descHtml +
+    remainHtml +
+    '    <button onclick="openInApp()" class="btn-primary w-full text-white py-4 rounded-2xl font-bold text-base mb-3"><i class="fas fa-door-open mr-2"></i>PushNotify 앱에서 참여하기</button>' +
+    '    <p class="text-slate-500 text-xs">앱이 자동으로 열리지 않으면 버튼을 눌러주세요</p>' +
+    '  </div>' +
+    '  <div class="glass rounded-2xl p-5 text-center">' +
+    '    <p class="text-slate-400 text-sm mb-3">앱이 설치되어 있지 않나요?</p>' +
+    '    <button onclick="goInstall()" class="btn-green w-full text-white py-3 rounded-xl font-semibold text-sm"><i class="fas fa-download mr-2"></i>PushNotify 앱 설치하기</button>' +
+    '  </div>' +
+    '</div>' +
+    '<div id="screen-install" class="fade-in" style="display:none">' +
+    '  <div class="text-center mb-6">' +
+    '    <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-3"><i class="fas fa-bell text-white text-xl"></i></div>' +
+    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">PushNotify</p>' +
+    '  </div>' +
+    '  <div class="glass rounded-3xl p-7 text-center mb-4">' +
+    '    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-900/40 flex items-center justify-center border border-amber-500/30"><i class="fas fa-mobile-alt text-amber-300 text-2xl"></i></div>' +
+    '    <h1 class="text-white text-lg font-bold mb-2">' + channelName + '</h1>' +
+    '    <p class="text-slate-400 text-sm mb-5">채널에 참여하려면 <b class="text-white">PushNotify 앱</b>이 필요합니다.</p>' +
+    '    <div class="text-left space-y-3 mb-6">' +
+    '      <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">1</div><p class="text-slate-300 text-sm">아래 버튼으로 <b class="text-white">앱을 설치</b>하세요</p></div>' +
+    '      <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">2</div><p class="text-slate-300 text-sm">설치 후 <b class="text-white">이 링크를 다시 열면</b> 채널 참여 화면이 나타납니다</p></div>' +
+    '      <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">3</div><p class="text-slate-300 text-sm"><b class="text-white">참여하기</b>를 누르면 알림을 받을 수 있어요</p></div>' +
+    '    </div>' +
+    '    <button onclick="goInstall()" class="btn-green w-full text-white py-4 rounded-2xl font-bold text-base mb-3"><i class="fas fa-download mr-2"></i>앱 설치하기 (Android)</button>' +
+    '    <button onclick="showScreen(\'screen-join\')" class="w-full text-slate-400 py-2 text-sm">이미 설치했어요 → 앱 열기</button>' +
+    '  </div>' +
+    '</div>'
+  ) : (
+    '<div id="screen-error" class="fade-in" style="display:flex;flex-direction:column">' +
+    '  <div class="glass rounded-3xl p-8 text-center w-full">' +
+    '    <div class="w-20 h-20 mx-auto mb-5 rounded-full bg-red-900/30 flex items-center justify-center border border-red-500/30"><i class="fas fa-' + errIcon + ' text-red-400 text-3xl"></i></div>' +
+    '    <h1 class="text-white text-xl font-bold mb-3">' + errTitle + '</h1>' +
+    '    <p class="text-slate-400 text-sm mb-6">' + statusMsg + '</p>' +
+    '    <p class="text-slate-500 text-xs">채널 관리자에게 새로운 초대 링크를 요청하세요</p>' +
+    '  </div>' +
+    '</div>'
+  )
 
-      <!-- 참여 버튼 (앱 딥링크) -->
-      <a href="pushapp://join?token=${token}" id="deepLinkBtn"
-        class="btn-join block w-full text-white py-4 rounded-2xl font-bold text-base mb-3 transition-all duration-200">
-        <i class="fas fa-door-open mr-2"></i>앱에서 채널 참여하기
-      </a>
-
-      <!-- 앱 없을 때 설치 유도 -->
-      <div id="installSection" class="hidden">
-        <div class="border-t border-slate-700/50 pt-4 mt-4">
-          <p class="text-slate-400 text-xs mb-3">앱이 없으신가요? 앱을 설치하고 채널에 참여하세요</p>
-          <div class="grid grid-cols-2 gap-2">
-            <a href="https://play.google.com/store/apps" target="_blank"
-              class="btn-install flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-all duration-200">
-              <i class="fab fa-google-play text-base"></i>Android
-            </a>
-            <a href="https://apps.apple.com" target="_blank"
-              class="btn-install flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-all duration-200">
-              <i class="fab fa-apple text-base"></i>iOS
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 이용 안내 -->
-    <div class="card rounded-2xl p-5">
-      <h3 class="text-white font-semibold text-sm mb-4 flex items-center gap-2">
-        <i class="fas fa-circle-info text-indigo-400"></i> 참여 방법
-      </h3>
-      <div class="space-y-3">
-        <div class="flex items-start gap-3">
-          <div class="step-dot bg-indigo-500 flex-shrink-0 mt-1.5"></div>
-          <p class="text-slate-400 text-xs">앱을 설치하고 계정을 만드세요</p>
-        </div>
-        <div class="flex items-start gap-3">
-          <div class="step-dot bg-indigo-400 flex-shrink-0 mt-1.5"></div>
-          <p class="text-slate-400 text-xs">"앱에서 채널 참여하기" 버튼을 눌러 채널에 참여하세요</p>
-        </div>
-        <div class="flex items-start gap-3">
-          <div class="step-dot bg-indigo-300 flex-shrink-0 mt-1.5"></div>
-          <p class="text-slate-400 text-xs">새 콘텐츠가 등록되면 푸시 알림을 받게 됩니다</p>
-        </div>
-      </div>
-      <div class="mt-4 bg-slate-900/50 rounded-xl p-3 border border-slate-700/50">
-        <p class="text-slate-500 text-xs mb-1">초대 토큰</p>
-        <code class="badge-token text-indigo-400 text-xs break-all">${token}</code>
-      </div>
-    </div>
-
-    <script>
-      // 딥링크 시도 후 앱 없으면 설치 섹션 표시
-      document.getElementById('deepLinkBtn').addEventListener('click', function(e) {
-        setTimeout(function() {
-          document.getElementById('installSection').classList.remove('hidden')
-        }, 2000)
-      })
-      
-      // 모바일 환경 자동 딥링크 시도
-      const ua = navigator.userAgent.toLowerCase()
-      const isMobile = /android|iphone|ipad|ipod/.test(ua)
-      if (isMobile) {
-        // 1.5초 후 설치 섹션 표시
-        setTimeout(() => document.getElementById('installSection').classList.remove('hidden'), 1500)
-      } else {
-        // PC는 바로 설치 섹션 표시
-        document.getElementById('installSection').classList.remove('hidden')
-      }
-    </script>
-
-    ` : `
-    <!-- 유효하지 않은 / 만료된 링크 -->
-    <div class="card rounded-3xl p-8 text-center">
-      <div class="w-20 h-20 mx-auto mb-5 rounded-full bg-red-900/30 flex items-center justify-center border border-red-500/30">
-        <i class="fas fa-${status === 'expired' ? 'clock' : status === 'full' ? 'users-slash' : 'ban'} text-red-400 text-3xl"></i>
-      </div>
-      <h1 class="text-white text-xl font-bold mb-3">${status === 'expired' ? '만료된 초대 링크' : status === 'full' ? '초대 인원 초과' : '유효하지 않은 링크'}</h1>
-      <p class="text-slate-400 text-sm mb-6">${statusMsg}</p>
-      <div class="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
-        <p class="text-slate-500 text-xs">채널 관리자에게 새로운 초대 링크를 요청하세요</p>
-      </div>
-    </div>
-    `}
-
-  </div>
-</body>
-</html>`)
+  return c.html(
+    '<!DOCTYPE html>' +
+    '<html lang="ko"><head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">' +
+    '<title>' + (isValid ? channelName + ' - 채널 초대' : '유효하지 않은 링크') + ' | PushNotify</title>' +
+    '<meta name="theme-color" content="#6366f1">' +
+    '<script src="https://cdn.tailwindcss.com"><\/script>' +
+    '<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">' +
+    '<style>' +
+    '* { box-sizing:border-box; }' +
+    'body { background:linear-gradient(160deg,#0f0c29 0%,#1e1b4b 50%,#0f0c29 100%); min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }' +
+    '.glass { background:rgba(30,27,75,0.85); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(139,92,246,0.25); }' +
+    '.btn-primary { background:linear-gradient(135deg,#6366f1,#8b5cf6); box-shadow:0 6px 24px rgba(99,102,241,0.45); transition:all .2s; border:none; cursor:pointer; }' +
+    '.btn-primary:active { transform:scale(0.97); opacity:.9; }' +
+    '.btn-green { background:linear-gradient(135deg,#10b981,#059669); box-shadow:0 6px 24px rgba(16,185,129,0.35); transition:all .2s; border:none; cursor:pointer; }' +
+    '.btn-green:active { transform:scale(0.97); }' +
+    '.pulse-ring { animation:pulseRing 2s ease-out infinite; }' +
+    '@keyframes pulseRing { 0%{box-shadow:0 0 0 0 rgba(99,102,241,.5)} 70%{box-shadow:0 0 0 18px rgba(99,102,241,0)} 100%{box-shadow:0 0 0 0 rgba(99,102,241,0)} }' +
+    '.fade-in { animation:fadeIn .5s ease both; }' +
+    '@keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }' +
+    '</style></head>' +
+    '<body class="flex items-center justify-center p-4 min-h-screen">' +
+    '<div class="w-full max-w-sm mx-auto">' +
+    '<div id="screen-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:5rem 0">' +
+    '  <div class="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-6" style="border-top-color:#6366f1;border-color:rgba(99,102,241,.3)"></div>' +
+    '  <p class="text-slate-300 text-sm">앱 확인 중...</p>' +
+    '</div>' +
+    validBody +
+    '</div>' +
+    '<script>' +
+    'var DEEP_LINK="' + DEEP_LINK + '";' +
+    'var INSTALL_URL="' + INSTALL_URL + '";' +
+    'var ua=navigator.userAgent.toLowerCase();' +
+    'var isMobile=/android|iphone|ipad|ipod/.test(ua);' +
+    'function showScreen(id){' +
+    '  ["screen-loading","screen-join","screen-install","screen-error"].forEach(function(s){' +
+    '    var el=document.getElementById(s);' +
+    '    if(!el)return;' +
+    '    if(s===id){el.style.display=s==="screen-loading"?"flex":"block";}' +
+    '    else{el.style.display="none";}' +
+    '  });' +
+    '}' +
+    'function openInApp(){' +
+    '  var start=Date.now();' +
+    '  window.location.href=DEEP_LINK;' +
+    '  var t=setTimeout(function(){if(!document.hidden&&Date.now()-start<3500){showScreen("screen-install");}},2500);' +
+    '  document.addEventListener("visibilitychange",function(){if(document.hidden)clearTimeout(t);},{once:true});' +
+    '}' +
+    'function goInstall(){' +
+    '  window.location.href=INSTALL_URL;' +
+    '  setTimeout(function(){showScreen("screen-join");},3000);' +
+    '}' +
+    (isValid ? (
+      'if(isMobile){' +
+      '  showScreen("screen-loading");' +
+      '  window.location.href=DEEP_LINK;' +
+      '  var autoT=setTimeout(function(){showScreen("screen-install");},2200);' +
+      '  document.addEventListener("visibilitychange",function(){' +
+      '    if(document.hidden){clearTimeout(autoT);setTimeout(function(){showScreen("screen-join");},500);}' +
+      '  },{once:true});' +
+      '}else{showScreen("screen-join");}' 
+    ) : '') +
+    '<\/script>' +
+    '</body></html>'
+  )
 })
 
-// =============================================
 // Admin 대시보드 (메인)
 // =============================================
 app.get('/', (c) => {

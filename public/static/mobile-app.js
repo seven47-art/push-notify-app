@@ -542,6 +542,7 @@ const App = {
     document.getElementById('invite-code-box').textContent = '초대 링크를 불러오는 중...'
     this.openModal('modal-invite')
     try {
+      const userId = Store.getUserId()
       // 활성 초대 링크 조회
       const res  = await API.get('/invites?channel_id=' + chId)
       const list = res.data?.data || []
@@ -552,7 +553,7 @@ const App = {
         document.getElementById('invite-code-box').textContent = url
       } else {
         // 새 초대 링크 생성
-        const cr = await API.post('/invites', { channel_id: chId })
+        const cr = await API.post('/invites', { channel_id: chId, created_by: userId })
         if (cr.data?.data?.invite_token) {
           const url = location.origin + '/join/' + cr.data.data.invite_token
           currentInviteCode = url
