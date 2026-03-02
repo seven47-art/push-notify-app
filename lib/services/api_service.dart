@@ -227,4 +227,87 @@ class ApiService {
       return false;
     }
   }
+
+  // 채널 수정
+  static Future<Map<String, dynamic>> updateChannel({
+    required int channelId,
+    required String name,
+    String? description,
+    String? imageUrl,
+    String? homepageUrl,
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$_baseUrl/api/channels/$channelId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': name,
+          if (description != null) 'description': description,
+          if (imageUrl != null) 'image_url': imageUrl,
+          if (homepageUrl != null) 'homepage_url': homepageUrl,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // 초대링크 목록 조회
+  static Future<List<Map<String, dynamic>>> getInviteLinks(int channelId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/invites?channel_id=$channelId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['data'] ?? []);
+        }
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // 초대링크 생성
+  static Future<Map<String, dynamic>> createInviteLink(int channelId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/invites'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'channel_id': channelId}),
+      ).timeout(const Duration(seconds: 10));
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // 활성 초대링크 가져오기 (없으면 생성)
+  static Future<String?> getOrCreateInviteUrl(int channelId) async {
+    try {
+      final baseOrigin = _baseUrl;
+      final links = await getInviteLinks(channelId);
+      final now = DateTime.now();
+      final active = links.firstWhere(
+        (l) =>
+          l['is_active'] == 1 &&
+          (l['expires_at'] == null ||
+           DateTime.tryParse(l['expires_at'] ?? '')?.isAfter(now) == true),
+        orElse: () => {},
+      );
+      if (active.isNotEmpty && active['invite_token'] != null) {
+        return '$baseOrigin/join/${active['invite_token']}';
+      }
+      final created = await createInviteLink(channelId);
+      final token = created['data']?['invite_token'];
+      if (token != null) return '$baseOrigin/join/$token';
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 }
