@@ -48,6 +48,12 @@ let selectedImg   = null       // base64 data URL
 let currentInviteCode = ''
 let currentAlarmChId  = null
 let editChannelId     = null
+let alarmMsgSrc  = 'youtube'  // 'youtube'|'audio'|'video'|'file'
+let alarmDate    = null        // Date 객체
+let alarmHour    = 9
+let alarmMin     = 0
+let calYear      = 0
+let calMonth     = 0           // 0-based
 
 // ─────────────────────────────────────────────
 // 유틸
@@ -398,12 +404,138 @@ const App = {
     document.getElementById('alarm-modal-title').textContent = name + ' · 알람 설정'
     const btn = document.getElementById('alarm-toggle')
     if (Store.getAlarm(chId)) btn.classList.add('on'); else btn.classList.remove('on')
+
+    // 기본값 설정: 현재 시각 + 10분
+    const now = new Date()
+    alarmDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    calYear   = alarmDate.getFullYear()
+    calMonth  = alarmDate.getMonth()
+    alarmHour = now.getHours()
+    alarmMin  = Math.ceil(now.getMinutes() / 5) * 5
+    if (alarmMin >= 60) { alarmMin = 0; alarmHour = (alarmHour + 1) % 24 }
+
+    // 소스 기본값
+    this.selectMsgSrc('youtube')
+
+    // 입력 초기화
+    document.getElementById('alarm-youtube-url').value = ''
+    document.getElementById('alarm-title').value       = ''
+    document.getElementById('alarm-memo').value        = ''
+    document.getElementById('alarm-file-preview').style.display = 'none'
+    document.getElementById('alarm-file-preview').textContent   = ''
+
+    this._renderCal()
+    this._renderTime()
     this.openModal('modal-alarm')
   },
   toggleAlarmInModal(btn) {
     const on = btn.classList.toggle('on')
     Store.setAlarm(currentAlarmChId, on)
     toast(on ? '알림을 켰습니다' : '알림을 껐습니다')
+  },
+
+  // ── 메시지 소스 선택 ──────────────────
+  selectMsgSrc(src) {
+    alarmMsgSrc = src
+    ;['youtube','audio','video','file'].forEach(s => {
+      document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
+    })
+    // 입력 UI 전환
+    const ytEl   = document.getElementById('alarm-youtube-url')
+    const hints  = { youtube:'YouTube 동영상 URL을 붙여넣으세요', audio:'오디오 파일을 선택합니다', video:'비디오 파일을 선택합니다', file:'첨부 파일을 선택합니다' }
+    const hintEl = document.getElementById('alarm-src-hint')
+    ytEl.style.display = src === 'youtube' ? 'block' : 'none'
+    hintEl.style.display = src !== 'youtube' ? 'block' : 'none'
+    hintEl.textContent   = hints[src] || ''
+
+    if (src !== 'youtube') {
+      const inputId = { audio:'alarm-audio-file', video:'alarm-video-file', file:'alarm-attach-file' }[src]
+      document.getElementById(inputId)?.click()
+    }
+  },
+  onAlarmFileSelected(input, type) {
+    const file = input.files?.[0]; if (!file) return
+    const preview = document.getElementById('alarm-file-preview')
+    preview.style.display = 'block'
+    const icons = { audio:'🎵', video:'🎬', file:'📎' }
+    preview.textContent = (icons[type] || '📎') + ' ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)'
+    input.value = ''
+  },
+
+  // ── 달력 ─────────────────────────────
+  calMove(delta) {
+    calMonth += delta
+    if (calMonth > 11) { calMonth = 0; calYear++ }
+    if (calMonth < 0)  { calMonth = 11; calYear-- }
+    this._renderCal()
+  },
+  _renderCal() {
+    const label = document.getElementById('cal-month-label')
+    if (label) label.textContent = calYear + '년 ' + (calMonth + 1) + '월'
+    const grid = document.getElementById('cal-days')
+    if (!grid) return
+    const today = new Date(); today.setHours(0,0,0,0)
+    const sel = alarmDate ? new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate()) : null
+    const firstDay = new Date(calYear, calMonth, 1).getDay()
+    const lastDate = new Date(calYear, calMonth + 1, 0).getDate()
+    let html = ''
+    let day = 1 - firstDay
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 7; col++, day++) {
+        const d = new Date(calYear, calMonth, day)
+        const isThisMonth = d.getMonth() === calMonth
+        const isSel = sel && d.getTime() === sel.getTime()
+        const isToday = d.getTime() === today.getTime()
+        const cls = ['cal-day', !isThisMonth ? 'other-month' : '', isSel ? 'selected' : '', isToday && !isSel ? 'today' : ''].filter(Boolean).join(' ')
+        html += `<div class="${cls}" onclick="App.selectDate(${d.getFullYear()},${d.getMonth()},${d.getDate()})">${d.getDate()}</div>`
+      }
+      if (day > lastDate + 1) break
+    }
+    grid.innerHTML = html
+  },
+  selectDate(y, m, d) {
+    alarmDate = new Date(y, m, d)
+    calYear = y; calMonth = m
+    this._renderCal()
+  },
+
+  // ── 시간 피커 ─────────────────────────
+  changeHour(delta) {
+    alarmHour = (alarmHour + delta + 24) % 24
+    this._renderTime()
+  },
+  changeMin(delta) {
+    alarmMin = (alarmMin + delta + 60) % 60
+    this._renderTime()
+  },
+  _renderTime() {
+    const h = document.getElementById('time-hour')
+    const m = document.getElementById('time-min')
+    if (h) h.textContent = String(alarmHour).padStart(2, '0')
+    if (m) m.textContent = String(alarmMin).padStart(2, '0')
+  },
+
+  // ── 알람 저장 ─────────────────────────
+  saveAlarmSetting() {
+    if (!alarmDate) { toast('날짜를 선택하세요'); return }
+    const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
+    if (dt <= new Date()) { toast('현재 시각 이후를 선택하세요', 2500); return }
+
+    let srcValue = ''
+    if (alarmMsgSrc === 'youtube') {
+      srcValue = document.getElementById('alarm-youtube-url').value.trim()
+      if (!srcValue) { toast('YouTube URL을 입력하세요'); return }
+    }
+
+    const alarmOn = document.getElementById('alarm-toggle').classList.contains('on')
+    Store.setAlarm(currentAlarmChId, alarmOn)
+
+    const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
+    const timeStr = String(alarmHour).padStart(2,'0') + ':' + String(alarmMin).padStart(2,'0')
+    const srcLabel = { youtube:'YouTube URL', audio:'오디오 녹음', video:'비디오 녹음', file:'파일 첨부' }[alarmMsgSrc]
+
+    toast(`알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel}`, 3000)
+    this.closeModal('modal-alarm')
   },
 
   // ── 초대코드 모달 ────────────────────────
