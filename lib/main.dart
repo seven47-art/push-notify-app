@@ -1,12 +1,12 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/join_channel_screen.dart';
 import 'screens/my_channels_screen.dart';
 import 'screens/notification_screen.dart';
+import 'screens/send_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/join_channel_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,25 +24,36 @@ class PushNotifyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6C63FF),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        fontFamily: 'NotoSans',
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: true,
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF1A1A2E),
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6C63FF),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          backgroundColor: Color(0xFF1E1E2E),
+          foregroundColor: Colors.white,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF1E1E2E),
+          indicatorColor: const Color(0xFF6C63FF).withOpacity(0.2),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(
+                color: Color(0xFF6C63FF),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              );
+            }
+            return TextStyle(color: Colors.grey[400], fontSize: 11);
+          }),
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: Color(0xFF6C63FF));
+            }
+            return IconThemeData(color: Colors.grey[500]);
+          }),
+        ),
       ),
-      themeMode: ThemeMode.light,
       initialRoute: '/splash',
       routes: {
         '/splash': (context) => const SplashScreen(),
@@ -50,7 +61,6 @@ class PushNotifyApp extends StatelessWidget {
         '/join': (context) => const JoinChannelScreen(),
       },
       onGenerateRoute: (settings) {
-        // 딥링크 처리: /join/:token
         if (settings.name != null && settings.name!.startsWith('/join/')) {
           final token = settings.name!.replaceFirst('/join/', '');
           return MaterialPageRoute(
@@ -73,11 +83,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const MyChannelsScreen(),
-    const NotificationScreen(),
-    const SettingsScreen(),
+  final List<Widget> _screens = const [
+    HomeScreen(),       // 홈
+    MyChannelsScreen(), // 채널
+    NotificationScreen(), // 수신함
+    SendScreen(),       // 발신함
+    SettingsScreen(),   // 설정
   ];
 
   @override
@@ -92,6 +103,7 @@ class _MainScreenState extends State<MainScreen> {
         onDestinationSelected: (index) {
           setState(() => _currentIndex = index);
         },
+        height: 62,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -99,14 +111,19 @@ class _MainScreenState extends State<MainScreen> {
             label: '홈',
           ),
           NavigationDestination(
-            icon: Icon(Icons.subscriptions_outlined),
-            selectedIcon: Icon(Icons.subscriptions),
+            icon: Icon(Icons.view_list_outlined),
+            selectedIcon: Icon(Icons.view_list),
             label: '채널',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: '알림',
+            icon: Icon(Icons.inbox_outlined),
+            selectedIcon: Icon(Icons.inbox),
+            label: '수신함',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.send_outlined),
+            selectedIcon: Icon(Icons.send),
+            label: '발신함',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

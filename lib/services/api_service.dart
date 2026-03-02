@@ -162,4 +162,69 @@ class ApiService {
       return [];
     }
   }
+
+  // 채널 생성 (운영자용)
+  static Future<Map<String, dynamic>> createChannel({
+    required String channelName,
+    String? phoneNumber,
+    String? description,
+    String? imageUrl,
+    String? homepageUrl,
+  }) async {
+    try {
+      final userId = await getUserId();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/channels'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'channel_name': channelName,
+          'owner_id': userId,
+          'phone_number': phoneNumber ?? '',
+          'description': description ?? '',
+          'image_url': imageUrl ?? '',
+          'homepage_url': homepageUrl ?? '',
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // 내가 운영하는 채널 목록
+  static Future<List<Map<String, dynamic>>> getMyOwnedChannels() async {
+    try {
+      final userId = await getUserId();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/channels?owner_id=$userId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['data'] ?? []);
+        }
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // 채널 삭제
+  static Future<bool> deleteChannel(int channelId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/api/channels/$channelId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      final data = json.decode(response.body);
+      return data['success'] == true;
+    } catch (e) {
+      return false;
+    }
+  }
 }

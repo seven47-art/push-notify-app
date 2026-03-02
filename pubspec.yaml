@@ -20,6 +20,9 @@ dependencies:
   # URL 런처 (딥링크 처리)
   url_launcher: ^6.3.0
   
+  # 이미지 선택 (갤러리/카메라)
+  image_picker: ^1.1.2
+  
   # 아이콘
   cupertino_icons: ^1.0.8
 
