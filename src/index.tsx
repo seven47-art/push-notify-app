@@ -1244,9 +1244,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-arrow-left"></i>
     </button>
     <span id="alarm-modal-title" style="font-size:17px;font-weight:700;flex:1;">알람 설정</span>
-    <button class="toggle-btn" id="alarm-toggle" onclick="App.toggleAlarmInModal(this)">
-      <span></span>
-    </button>
   </div>
 
   <!-- 스크롤 영역 -->
@@ -1255,22 +1252,22 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <!-- 메시지 소스 선택 -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">메시지 소스</div>
-      <div class="msg-type-grid">
+      <div class="msg-type-row">
         <div class="msg-type-btn selected" id="src-youtube"  onclick="App.selectMsgSrc('youtube')">
           <div class="msg-type-icon" style="background:#FF0000;"><i class="fab fa-youtube" style="color:#fff;"></i></div>
-          <span class="msg-type-label">YouTube URL</span>
+          <span class="msg-type-label">YouTube</span>
         </div>
         <div class="msg-type-btn" id="src-audio" onclick="App.selectMsgSrc('audio')">
           <div class="msg-type-icon" style="background:#4CAF50;"><i class="fas fa-microphone" style="color:#fff;"></i></div>
-          <span class="msg-type-label">오디오 녹음</span>
+          <span class="msg-type-label">오디오</span>
         </div>
         <div class="msg-type-btn" id="src-video" onclick="App.selectMsgSrc('video')">
           <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-video" style="color:#fff;"></i></div>
-          <span class="msg-type-label">비디오 녹음</span>
+          <span class="msg-type-label">비디오</span>
         </div>
         <div class="msg-type-btn" id="src-file" onclick="App.selectMsgSrc('file')">
           <div class="msg-type-icon" style="background:#9C27B0;"><i class="fas fa-paperclip" style="color:#fff;"></i></div>
-          <span class="msg-type-label">파일 첨부</span>
+          <span class="msg-type-label">파일</span>
         </div>
       </div>
       <!-- 소스별 입력 영역 -->
@@ -1281,15 +1278,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <input id="alarm-attach-file" type="file" style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
         <div id="alarm-file-preview" style="display:none;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--teal);"></div>
         <div id="alarm-src-hint" style="font-size:12px;color:var(--text3);display:none;"></div>
-      </div>
-    </div>
-
-    <!-- 제목/메모 -->
-    <div class="alarm-section-card">
-      <div class="alarm-section-title">알림 내용</div>
-      <div class="msg-input-area">
-        <input id="alarm-title" type="text" placeholder="알림 제목 (선택)" maxlength="40">
-        <textarea id="alarm-memo" placeholder="메모 (선택)" rows="2" maxlength="100" style="resize:none;font-family:inherit;"></textarea>
       </div>
     </div>
 
@@ -1411,13 +1399,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .alarm-section-row:active { background:var(--bg3); }
 .alarm-section-row-label { font-size:16px; font-weight:600; color:var(--text); }
 .alarm-section-row-value { font-size:13px; color:var(--primary); max-width:55%; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* 메시지 타입 그리드 */
-.msg-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px; }
-.msg-type-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:var(--bg3); border:2px solid var(--border); border-radius:14px; padding:16px 8px; cursor:pointer; transition:all 0.15s; }
+/* 메시지 타입 1행 */
+.msg-type-row { display:flex; flex-direction:row; gap:8px; padding:12px 14px; }
+.msg-type-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:var(--bg3); border:2px solid var(--border); border-radius:12px; padding:10px 6px; cursor:pointer; transition:all 0.15s; flex:1; }
 .msg-type-btn.selected { border-color:var(--primary); background:var(--primary-dim); }
 .msg-type-btn:active { opacity:0.8; }
-.msg-type-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; }
-.msg-type-label { font-size:12px; font-weight:600; color:var(--text2); }
+.msg-type-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+.msg-type-label { font-size:11px; font-weight:600; color:var(--text2); white-space:nowrap; }
 .msg-type-btn.selected .msg-type-label { color:var(--primary); }
 .msg-input-area { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
 .msg-input-area input, .msg-input-area textarea { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; }
