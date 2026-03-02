@@ -1236,24 +1236,105 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<!-- ══ 모달: 알람 설정 ══ -->
-<div class="modal-overlay" id="modal-alarm">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="alarm-modal-title">알람 설정</div>
-    <div class="modal-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:14px;">푸시 알림 수신</span>
-        <button class="toggle-btn" id="alarm-toggle" onclick="App.toggleAlarmInModal(this)">
-          <span></span>
-        </button>
+<!-- ══ 알람 설정 전체화면 ══ -->
+<div class="fullscreen-overlay" id="modal-alarm">
+  <!-- 앱바 -->
+  <div class="app-bar" style="display:flex;align-items:center;gap:6px;padding:0 16px;">
+    <button class="appbar-back" onclick="App.closeModal('modal-alarm')">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <span id="alarm-modal-title" style="font-size:17px;font-weight:700;flex:1;">알람 설정</span>
+    <button class="toggle-btn" id="alarm-toggle" onclick="App.toggleAlarmInModal(this)">
+      <span></span>
+    </button>
+  </div>
+
+  <!-- 스크롤 영역 -->
+  <div style="flex:1;overflow-y:auto;padding-bottom:90px;">
+
+    <!-- 메시지 소스 선택 -->
+    <div class="alarm-section-card">
+      <div class="alarm-section-title">메시지 소스</div>
+      <div class="msg-type-grid">
+        <div class="msg-type-btn selected" id="src-youtube"  onclick="App.selectMsgSrc('youtube')">
+          <div class="msg-type-icon" style="background:#FF0000;"><i class="fab fa-youtube" style="color:#fff;"></i></div>
+          <span class="msg-type-label">YouTube URL</span>
+        </div>
+        <div class="msg-type-btn" id="src-audio" onclick="App.selectMsgSrc('audio')">
+          <div class="msg-type-icon" style="background:#4CAF50;"><i class="fas fa-microphone" style="color:#fff;"></i></div>
+          <span class="msg-type-label">오디오 녹음</span>
+        </div>
+        <div class="msg-type-btn" id="src-video" onclick="App.selectMsgSrc('video')">
+          <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-video" style="color:#fff;"></i></div>
+          <span class="msg-type-label">비디오 녹음</span>
+        </div>
+        <div class="msg-type-btn" id="src-file" onclick="App.selectMsgSrc('file')">
+          <div class="msg-type-icon" style="background:#9C27B0;"><i class="fas fa-paperclip" style="color:#fff;"></i></div>
+          <span class="msg-type-label">파일 첨부</span>
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.6;">
-        채널에서 새 콘텐츠가 등록될 때 푸시 알림을 받습니다.
-      </p>
-      <button class="btn-ghost" onclick="App.closeModal('modal-alarm')" style="margin-top:14px;">닫기</button>
-      <div style="height:8px;"></div>
+      <!-- 소스별 입력 영역 -->
+      <div class="msg-input-area" id="alarm-input-area">
+        <input id="alarm-youtube-url" type="url" placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)" style="display:block;">
+        <input id="alarm-audio-file" type="file" accept="audio/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
+        <input id="alarm-video-file" type="file" accept="video/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
+        <input id="alarm-attach-file" type="file" style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
+        <div id="alarm-file-preview" style="display:none;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--teal);"></div>
+        <div id="alarm-src-hint" style="font-size:12px;color:var(--text3);display:none;"></div>
+      </div>
     </div>
+
+    <!-- 제목/메모 -->
+    <div class="alarm-section-card">
+      <div class="alarm-section-title">알림 내용</div>
+      <div class="msg-input-area">
+        <input id="alarm-title" type="text" placeholder="알림 제목 (선택)" maxlength="40">
+        <textarea id="alarm-memo" placeholder="메모 (선택)" rows="2" maxlength="100" style="resize:none;font-family:inherit;"></textarea>
+      </div>
+    </div>
+
+    <!-- 날짜 선택 -->
+    <div class="alarm-section-card">
+      <div class="alarm-section-title">날짜 선택</div>
+      <div class="calendar-wrap">
+        <div class="cal-header">
+          <button class="cal-nav-btn" onclick="App.calMove(-1)"><i class="fas fa-chevron-left"></i></button>
+          <span class="cal-month" id="cal-month-label"></span>
+          <button class="cal-nav-btn" onclick="App.calMove(1)"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="cal-grid">
+          <div class="cal-dow">일</div><div class="cal-dow">월</div><div class="cal-dow">화</div>
+          <div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div>
+          <div class="cal-dow">토</div>
+        </div>
+        <div class="cal-grid" id="cal-days"></div>
+      </div>
+    </div>
+
+    <!-- 시간 선택 -->
+    <div class="alarm-section-card">
+      <div class="alarm-section-title">시간 선택</div>
+      <div class="time-picker">
+        <div class="time-col">
+          <button class="time-spin" onclick="App.changeHour(1)"><i class="fas fa-chevron-up"></i></button>
+          <div class="time-val" id="time-hour">09</div>
+          <button class="time-spin" onclick="App.changeHour(-1)"><i class="fas fa-chevron-down"></i></button>
+        </div>
+        <div class="time-sep">:</div>
+        <div class="time-col">
+          <button class="time-spin" onclick="App.changeMin(5)"><i class="fas fa-chevron-up"></i></button>
+          <div class="time-val" id="time-min">00</div>
+          <button class="time-spin" onclick="App.changeMin(-5)"><i class="fas fa-chevron-down"></i></button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /스크롤 -->
+
+  <!-- 하단 고정 버튼 -->
+  <div class="alarm-bottom-btns">
+    <button class="btn-alarm-cancel" onclick="App.closeModal('modal-alarm')">취소</button>
+    <button class="btn-alarm-done"   onclick="App.saveAlarmSetting()">확인</button>
   </div>
 </div>
 
@@ -1317,12 +1398,68 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- 토스트 -->
 <div id="toast"></div>
 
-<!-- 토글 버튼 스타일 -->
+<!-- 알람 설정 + 토글 스타일 -->
 <style>
 .toggle-btn { width:48px; height:26px; background:var(--border); border:none; border-radius:13px; cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0; }
 .toggle-btn span { position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 0.2s; }
 .toggle-btn.on { background:var(--primary); }
 .toggle-btn.on span { transform:translateX(22px); }
+/* ── 알람 설정 전체화면 ── */
+.alarm-section-card { margin:10px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.alarm-section-title { font-size:18px; font-weight:700; color:var(--text); padding:18px 16px 14px; }
+.alarm-section-row { display:flex; align-items:center; justify-content:space-between; padding:16px; border-top:1px solid var(--border); cursor:pointer; transition:background 0.15s; }
+.alarm-section-row:active { background:var(--bg3); }
+.alarm-section-row-label { font-size:16px; font-weight:600; color:var(--text); }
+.alarm-section-row-value { font-size:13px; color:var(--primary); max-width:55%; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 메시지 타입 그리드 */
+.msg-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px; }
+.msg-type-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:var(--bg3); border:2px solid var(--border); border-radius:14px; padding:16px 8px; cursor:pointer; transition:all 0.15s; }
+.msg-type-btn.selected { border-color:var(--primary); background:var(--primary-dim); }
+.msg-type-btn:active { opacity:0.8; }
+.msg-type-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; }
+.msg-type-label { font-size:12px; font-weight:600; color:var(--text2); }
+.msg-type-btn.selected .msg-type-label { color:var(--primary); }
+.msg-input-area { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+.msg-input-area input, .msg-input-area textarea { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; }
+.msg-input-area input:focus, .msg-input-area textarea:focus { border-color:var(--primary); }
+/* 달력 */
+.calendar-wrap { padding:10px 14px; }
+.cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.cal-nav-btn { background:none; border:none; color:var(--text2); font-size:18px; cursor:pointer; padding:4px 12px; border-radius:8px; }
+.cal-nav-btn:active { background:var(--bg3); }
+.cal-month { font-size:16px; font-weight:700; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-dow { text-align:center; font-size:11px; color:var(--text3); padding:4px 0; font-weight:600; }
+.cal-day { text-align:center; padding:8px 2px; border-radius:8px; cursor:pointer; font-size:14px; transition:background 0.1s; }
+.cal-day:hover { background:var(--bg3); }
+.cal-day.today { color:var(--teal); font-weight:700; }
+.cal-day.selected { background:var(--primary) !important; color:#fff; font-weight:700; border-radius:50%; }
+.cal-day.other-month { color:var(--text3); opacity:0.4; }
+/* 시간 피커 */
+.time-picker { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; }
+.time-col { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.time-spin { background:none; border:none; color:var(--text2); font-size:20px; cursor:pointer; padding:4px 14px; border-radius:8px; }
+.time-spin:active { background:var(--bg3); }
+.time-val { font-size:32px; font-weight:700; min-width:56px; text-align:center; background:var(--bg3); border-radius:10px; padding:10px 4px; }
+.time-sep { font-size:28px; font-weight:700; color:var(--text2); padding-bottom:8px; }
+/* 하단 버튼 */
+.alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
+.btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:17px; font-weight:700; padding:16px; border:none; border-radius:14px; cursor:pointer; }
+.btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:17px; font-weight:600; padding:16px; border-radius:14px; cursor:pointer; }
+/* 서브화면 앱바 */
+.appbar-back { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; padding:6px 8px 6px 0; }
+/* 전체화면 오버레이 (알람 설정 등) */
+.fullscreen-overlay {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:var(--bg);
+  z-index:300;
+  flex-direction:column;
+}
+.fullscreen-overlay.active {
+  display:flex;
+}
 </style>
 
 <script src="/static/mobile-app.js"></script>
