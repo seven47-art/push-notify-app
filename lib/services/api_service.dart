@@ -177,7 +177,7 @@ class ApiService {
         Uri.parse('$_baseUrl/api/channels'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'channel_name': channelName,
+          'name': channelName,
           'owner_id': userId,
           'phone_number': phoneNumber ?? '',
           'description': description ?? '',

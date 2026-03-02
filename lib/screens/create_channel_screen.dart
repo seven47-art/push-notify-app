@@ -319,21 +319,6 @@ class _CreateChannelScreenState extends State<CreateChannelScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 안내문
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A3E),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '채널 공유 코드는 채널 생성 후 나의 운영 채널에서 확인 가능합니다.',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-              ),
               const SizedBox(height: 32),
 
               // 확인 버튼
