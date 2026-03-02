@@ -66,10 +66,16 @@ channels.get('/:id', async (c) => {
 channels.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, description, image_url, owner_id } = body
+    const { name, description, image_url, owner_id, phone_number, homepage_url } = body
 
-    if (!name || !owner_id) {
-      return c.json({ success: false, error: 'name and owner_id are required' }, 400)
+    // owner_id가 없으면 'web_user'로 대체 (모바일 웹 호환)
+    const finalOwnerId = owner_id || 'web_user'
+
+    if (!name || !name.trim()) {
+      return c.json({ success: false, error: '채널명은 필수입니다' }, 400)
+    }
+    if (!description || !description.trim()) {
+      return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
     }
 
     const publicId = generatePublicId()
@@ -77,11 +83,11 @@ channels.post('/', async (c) => {
     const result = await c.env.DB.prepare(`
       INSERT INTO channels (name, description, image_url, owner_id, public_id)
       VALUES (?, ?, ?, ?, ?)
-    `).bind(name, description || null, image_url || null, owner_id, publicId).run()
+    `).bind(name.trim(), description.trim(), image_url || null, finalOwnerId, publicId).run()
 
     return c.json({
       success: true,
-      data: { id: result.meta.last_row_id, name, description, owner_id, public_id: publicId }
+      data: { id: result.meta.last_row_id, name, description, owner_id: finalOwnerId, public_id: publicId }
     }, 201)
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
