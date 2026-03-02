@@ -66,7 +66,10 @@ channels.get('/:id', async (c) => {
 channels.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, description, image_url, owner_id, phone_number, homepage_url } = body
+    const { name: rawName, channel_name, description, image_url, owner_id, phone_number, homepage_url } = body
+
+    // Flutter는 channel_name, 웹은 name으로 전송 — 둘 다 수용
+    const name = rawName || channel_name
 
     // owner_id가 없으면 'web_user'로 대체 (모바일 웹 호환)
     const finalOwnerId = owner_id || 'web_user'
