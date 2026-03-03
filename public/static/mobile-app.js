@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v7
+// public/static/mobile-app.js  v8
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -761,7 +761,8 @@ const App = {
   },
 
   // ── 알람 저장 ─────────────────────────
-  saveAlarmSetting() {
+  // ── 알람 저장 ─────────────────────────
+  async saveAlarmSetting() {
     if (!alarmDate) { toast('날짜를 선택하세요'); return }
     const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
     if (dt <= new Date()) { toast('현재 시각 이후를 선택하세요', 2500); return }
@@ -770,18 +771,40 @@ const App = {
     if (alarmMsgSrc === 'youtube') {
       srcValue = document.getElementById('alarm-youtube-url').value.trim()
       if (!srcValue) { toast('YouTube URL을 입력하세요'); return }
+    } else if (['audio','video','file'].includes(alarmMsgSrc)) {
+      srcValue = window._selectedAlarmFile || ''
     }
 
-    Store.setAlarm(currentAlarmChId, true)
+    const pad = n => String(n).padStart(2,'0')
+    const scheduledAt = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(alarmHour)}:${pad(alarmMin)}:00`
 
-    const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
-    const timeStr = String(alarmHour).padStart(2,'0') + ':' + String(alarmMin).padStart(2,'0')
-    const srcLabel = { youtube:'YouTube URL', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
+    const userId = Store.getUserId()
+    if (!userId) { toast('로그인이 필요합니다'); return }
 
-    toast(`알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel}`, 3000)
-    this.closeModal('modal-alarm')
-    // 알람 버튼 색상 즉시 반영
-    this._refreshAlarmBtn(currentAlarmChId)
+    try {
+      const res = await API.post('/alarms', {
+        channel_id:   currentAlarmChId,
+        created_by:   userId,
+        scheduled_at: scheduledAt,
+        msg_type:     alarmMsgSrc,
+        msg_value:    srcValue
+      })
+
+      if (res.data?.success) {
+        Store.setAlarm(currentAlarmChId, true)
+        const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
+        const timeStr = `${pad(alarmHour)}:${pad(alarmMin)}`
+        const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
+        const targets = res.data.data?.total_targets || 0
+        toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
+        this.closeModal('modal-alarm')
+        this._refreshAlarmBtn(currentAlarmChId)
+      } else {
+        toast(res.data?.error || '알람 저장 실패', 3000)
+      }
+    } catch (e) {
+      toast('오류: ' + (e.response?.data?.error || e.message), 3000)
+    }
   },
 
   // 알람 버튼 색상 즉시 갱신
@@ -1089,6 +1112,29 @@ const App = {
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) App.closeModal(el.id) })
 })
+
+// ─────────────────────────────────────────────────────
+// 알람 폴링: 1분마다 서버에 trigger 요청
+// 시간이 된 알람 → 구독자에게 통화형 알람 자동 발송
+// ─────────────────────────────────────────────────────
+async function pollAlarmTrigger() {
+  try {
+    const res = await API.post('/alarms/trigger')
+    if (res.data?.triggered > 0) {
+      console.log('[Alarm] triggered:', res.data.triggered, res.data.results)
+      res.data.results?.forEach(alarm => {
+        Store.addNotif({
+          title: `⏰ [${alarm.channel_name}] 알람 발송`,
+          body: `${alarm.total_targets}명에게 통화 알람이 발송됐습니다 (${alarm.msg_type})`,
+          channel_name: alarm.channel_name,
+          content_type: 'alarm'
+        })
+      })
+    }
+  } catch(e) {
+    // 조용히 실패 무시
+  }
+}
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {

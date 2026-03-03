@@ -12,6 +12,7 @@ import subscribers from './routes/subscribers'
 import notifications from './routes/notifications'
 import invites from './routes/invites'
 import auth from './routes/auth'
+import alarms from './routes/alarms'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -31,6 +32,7 @@ app.route('/api/subscribers', subscribers)
 app.route('/api/notifications', notifications)
 app.route('/api/invites', invites)
 app.route('/api/auth', auth)
+app.route('/api/alarms', alarms)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })
