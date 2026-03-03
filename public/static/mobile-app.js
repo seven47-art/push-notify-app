@@ -841,10 +841,20 @@ const App = {
       if (isOwner) {
         btns += '<button class="ch-detail-btn-join" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')"><i class="fas fa-cog"></i> 채널 설정</button>'
       } else if (isJoined) {
-        btns += '<button class="ch-detail-btn-join" style="background:var(--teal);" onclick="App.closeModal(\'modal-channel-detail\');App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-bell"></i> 알림설정</button>'
+        // 가입채널: 알림설정 버튼 없음 (공유만)
       } else {
         btns += '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
       }
+
+      // 가입채널일 때만 하단 '채널 나가기' 버튼 (운영자는 제외)
+      const leaveBarHtml = (!isOwner && isJoined)
+        ? '<div style="padding:16px 16px 32px;flex-shrink:0;">' +
+            '<button class="ch-detail-btn-leave" style="width:100%;font-size:16px;padding:16px;" ' +
+              'onclick="App._leaveChannelConfirm(' + ch.id + ',\'' + (ch.name||'채널').replace(/'/g,"\\'") + '\')">' +
+              '<i class="fas fa-sign-out-alt"></i> 채널 나가기' +
+            '</button>' +
+          '</div>'
+        : '<div style="height:24px;"></div>'
 
       // 홈페이지 섹션
       let hpHtml = ''
@@ -873,11 +883,34 @@ const App = {
           '<div class="ch-detail-section-body">' + (ch.description||'채널 소개가 없습니다.').replace(/</g,'&lt;') + '</div>' +
         '</div>' +
         hpHtml +
-        '<div style="height:24px;"></div>'
+        leaveBarHtml
 
     } catch (e) {
       const sc = document.getElementById('ch-detail-scroll')
       if (sc) sc.innerHTML = '<div class="empty-box">오류: ' + e.message + '</div>'
+    }
+  },
+
+  // ── 채널 나가기 (확인 팝업 → API 호출) ────────────
+  _leaveChannelConfirm(chId, name) {
+    if (!confirm('"' + name + '" 채널에서 나가시겠습니까?\n나가면 더 이상 알림을 받을 수 없습니다.')) return
+    this._leaveChannel(chId, name)
+  },
+
+  async _leaveChannel(chId, name) {
+    try {
+      const uid = Store.getUserId()
+      if (!uid) { toast('로그인이 필요합니다'); return }
+      const res = await API.delete('/subscribers/leave?user_id=' + encodeURIComponent(uid) + '&channel_id=' + chId)
+      if (res.data?.success) {
+        toast('"' + name + '" 채널에서 나갔습니다.')
+        this.closeModal('modal-channel-detail')
+        this.loadHome()
+      } else {
+        toast(res.data?.error || '채널 나가기 실패', 3000)
+      }
+    } catch (e) {
+      toast('오류: ' + (e.response?.data?.error || e.message), 3000)
     }
   },
 
