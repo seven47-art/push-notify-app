@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v10
+// public/static/mobile-app.js  v11
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -684,12 +684,33 @@ const App = {
 
   // 알람 목록 로드 및 표시
   async _loadAlarmList(chId) {
-    const section = document.getElementById('alarm-list-section')
-    const body    = document.getElementById('alarm-list-body')
+    const section   = document.getElementById('alarm-list-section')
+    const body      = document.getElementById('alarm-list-body')
+    const addArea   = document.getElementById('alarm-add-area')
     if (!section || !body) return
     try {
       const res  = await API.get('/alarms?channel_id=' + chId)
       const list = (res.data?.data || []).filter(a => a.status === 'pending')
+
+      // ⚠️ 채널당 알람 1개 제한
+      if (addArea) {
+        if (list.length >= 1) {
+          addArea.style.opacity = '0.35'
+          addArea.style.pointerEvents = 'none'
+          if (!addArea.querySelector('.alarm-limit-msg')) {
+            const msg = document.createElement('div')
+            msg.className = 'alarm-limit-msg'
+            msg.style.cssText = 'font-size:12px;color:#FF9800;padding:4px 0 10px;'
+            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 1개만 설정 가능합니다. 기존 알람을 삭제하세요.'
+            addArea.prepend(msg)
+          }
+        } else {
+          addArea.style.opacity = '1'
+          addArea.style.pointerEvents = ''
+          addArea.querySelector('.alarm-limit-msg')?.remove()
+        }
+      }
+
       if (list.length === 0) {
         section.style.display = 'none'
         return
@@ -773,15 +794,41 @@ const App = {
     input.value = ''
   },
 
-  // ── 녹음/녹화 앱 실행 ──────────────────
+  // ── 녹음/녹화/파일 앱 실행 ──────────────────
+  // Flutter: FlutterBridge.postMessage → 네이티브 Intent
+  // 브라우저: input[type=file] 직접 호출
   launchRecorder(type) {
-    // WebView 환경: capture 속성으로 네이티브 앱 호출
-    // 오디오: capture="microphone" → 녹음 앱
-    // 비디오: capture="camcorder" → 카메라(녹화) 앱
-    const inputId = { audio: 'alarm-audio-file', video: 'alarm-video-file' }[type]
-    const input = document.getElementById(inputId)
-    if (input) {
-      input.click()  // capture 속성 덕분에 네이티브 녹음/녹화 앱이 실행됨
+    if (window.FlutterBridge) {
+      const actionMap = { audio: 'record_audio', video: 'record_video' }
+      window.FlutterBridge.postMessage(JSON.stringify({ action: actionMap[type] || 'record_audio' }))
+    } else {
+      const inputId = { audio: 'alarm-audio-file', video: 'alarm-video-file' }[type]
+      const input = document.getElementById(inputId)
+      if (input) input.click()
+    }
+  },
+
+  launchFilePicker() {
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'pick_file' }))
+    } else {
+      document.getElementById('alarm-attach-file')?.click()
+    }
+  },
+
+  pickAudioFile() {
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'pick_audio_file' }))
+    } else {
+      document.getElementById('alarm-audio-file')?.click()
+    }
+  },
+
+  pickVideoFile() {
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'pick_video_file' }))
+    } else {
+      document.getElementById('alarm-video-file')?.click()
     }
   },
 
@@ -1209,6 +1256,36 @@ const App = {
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) App.closeModal(el.id) })
 })
+
+
+// ─────────────────────────────────────────────────────
+// Flutter Bridge 콜백 함수들
+// Flutter에서 파일 선택/취소/오류 결과를 웹으로 전달
+// ─────────────────────────────────────────────────────
+window._flutterFileCallback = function(data) {
+  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', size:12345, base64:'data:audio/...' }
+  const { type, name, size, base64 } = data
+  window._selectedAlarmFile = base64
+
+  // 프리뷰 표시
+  const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
+  const preview = document.getElementById(previewId)
+  if (preview) {
+    const icons = { audio:'🎵', video:'🎬', file:'📎' }
+    const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
+    preview.textContent = (icons[type] || '📎') + ' ' + name + ' (' + sizeStr + ')'
+    preview.style.display = 'block'
+  }
+  toast('✅ 파일 선택 완료: ' + name, 2000)
+}
+
+window._flutterFileCancelled = function(data) {
+  // 취소됨 - 별도 처리 없음
+}
+
+window._flutterFileError = function(data) {
+  toast('파일 선택 오류: ' + (data?.error || '알 수 없는 오류'), 3000)
+}
 
 // ─────────────────────────────────────────────────────
 // 알람 폴링: 1분마다 서버에 trigger 요청
