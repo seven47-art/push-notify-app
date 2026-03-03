@@ -113,6 +113,12 @@ alarms.post('/', async (c) => {
       return c.json({ success: false, error: '현재 시각 이후로 설정해주세요' }, 400)
     }
 
+    // msg_value 크기 검증: Base64 데이터(대용량)는 저장 불가, 파일명/URL만 허용
+    const safeValue = (msg_value || '').toString()
+    if (safeValue.length > 2000) {
+      return c.json({ success: false, error: '메시지 소스 값이 너무 큽니다. 파일명 또는 URL만 저장 가능합니다.' }, 400)
+    }
+
     // 채널 존재 확인
     const channel = await c.env.DB.prepare('SELECT id, name FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
@@ -125,7 +131,7 @@ alarms.post('/', async (c) => {
     const result = await c.env.DB.prepare(`
       INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets)
       VALUES (?, ?, ?, ?, ?, 'pending', ?)
-    `).bind(channel_id, created_by, scheduled_at, msg_type, msg_value || '', subCount?.cnt || 0).run()
+    `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0).run()
 
     return c.json({
       success: true,
