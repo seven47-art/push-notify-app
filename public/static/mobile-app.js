@@ -382,22 +382,77 @@ const App = {
   async loadChannel() {
     const el = document.getElementById('channel-list-all')
     el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+
+    // 검색창 초기화
+    const inp = document.getElementById('channel-search-input')
+    const clr = document.getElementById('channel-search-clear')
+    if (inp) inp.value = ''
+    if (clr) clr.style.display = 'none'
+
     try {
-      const res  = await API.get('/subscribers?user_id=' + Store.getUserId())
+      // 전체 채널 목록 로드
+      const res  = await API.get('/channels')
       const list = res.data?.data || []
-      if (!list.length) { el.innerHTML = '<div class="empty-box">구독 중인 채널이 없습니다.</div>'; return }
-      el.innerHTML = list.map(ch => {
-        const name = ch.channel_name || '채널'
-        return `<div class="joined-tile" onclick="App.openChannelDetail(${ch.channel_id},'${name}')">
-          ${avatar(name, ch.image_url, 44)}
-          <div class="info">
-            <div class="ch-name">${name}</div>
-            <div class="ch-sub">${ch.platform || 'web'} · 구독 중</div>
-          </div>
-          <i class="fas fa-chevron-right chevron"></i>
-        </div>`
-      }).join('')
-    } catch { el.innerHTML = '<div class="empty-box">불러올 수 없습니다.</div>' }
+
+      // 전역 캐시에 저장 (검색 필터링에 재사용)
+      window._allChannelList = list
+      this._renderChannelList(list)
+    } catch {
+      el.innerHTML = '<div class="empty-box">채널 목록을 불러올 수 없습니다.</div>'
+    }
+  },
+
+  // 채널 목록 렌더링 (검색 결과 포함)
+  _renderChannelList(list) {
+    const el  = document.getElementById('channel-list-all')
+    const uid = Store.getUserId()
+
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-box">채널이 없습니다.</div>'
+      return
+    }
+
+    el.innerHTML = list.map(ch => {
+      const name     = ch.name || '채널'
+      const isJoined = joinedChannels.some(s => (s.channel_id || s.id) === ch.id)
+      const isOwner  = ch.owner_id === uid
+      const subLabel = isOwner  ? '<span style="color:var(--primary);font-weight:600;">운영 중</span>'
+                     : isJoined ? '<span style="color:var(--teal);font-weight:600;">구독 중</span>'
+                     : '<span style="color:var(--text3);">참여 가능</span>'
+      const subCnt   = ch.subscriber_count || 0
+      return `<div class="ch-all-tile" onclick="App.openChannelDetail(${ch.id},'${name.replace(/'/g,"\\'")}')">
+        ${avatar(name, ch.image_url, 44)}
+        <div class="info">
+          <div class="ch-name">${name.replace(/</g,'&lt;')}</div>
+          <div class="ch-sub">${subLabel} · <i class="fas fa-users" style="font-size:10px;"></i> ${subCnt}명</div>
+        </div>
+        <i class="fas fa-chevron-right chevron"></i>
+      </div>`
+    }).join('')
+  },
+
+  // 검색 입력 핸들러 (실시간 필터링)
+  onChannelSearch(value) {
+    const clr  = document.getElementById('channel-search-clear')
+    if (clr) clr.style.display = value ? 'block' : 'none'
+
+    const list = window._allChannelList || []
+    const q    = value.trim().toLowerCase()
+    if (!q) {
+      this._renderChannelList(list)
+      return
+    }
+    const filtered = list.filter(ch => (ch.name || '').toLowerCase().includes(q))
+    this._renderChannelList(filtered)
+  },
+
+  // 검색창 초기화 버튼
+  clearChannelSearch() {
+    const inp = document.getElementById('channel-search-input')
+    const clr = document.getElementById('channel-search-clear')
+    if (inp) { inp.value = ''; inp.focus() }
+    if (clr) clr.style.display = 'none'
+    this._renderChannelList(window._allChannelList || [])
   },
 
   // ── 수신함 ──────────────────────────────

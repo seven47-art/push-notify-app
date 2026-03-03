@@ -13,48 +13,40 @@ function generatePublicId(): string {
   return id
 }
 
-// GET /api/channels  (owner_id 파라미터로 필터 가능)
+// GET /api/channels  (owner_id, search 파라미터로 필터 가능)
 channels.get('/', async (c) => {
   try {
     const ownerId = c.req.query('owner_id')
-    let query: string
-    let stmt: D1PreparedStatement
+    const search  = c.req.query('search')?.trim()   // 채널명 검색어
+    const params: (string)[] = []
 
+    let where = 'WHERE ch.is_active = 1'
     if (ownerId) {
-      // 특정 사용자가 운영하는 채널만
-      query = `
-        SELECT 
-          ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
-          COUNT(DISTINCT s.id) as subscriber_count,
-          COUNT(DISTINCT ct.id) as content_count,
-          COUNT(DISTINCT il.id) as invite_link_count
-        FROM channels ch
-        LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
-        LEFT JOIN contents ct ON ch.id = ct.channel_id
-        LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
-        WHERE ch.owner_id = ?
-        GROUP BY ch.id
-        ORDER BY ch.created_at DESC
-      `
-      stmt = c.env.DB.prepare(query).bind(ownerId)
-    } else {
-      query = `
-        SELECT 
-          ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
-          COUNT(DISTINCT s.id) as subscriber_count,
-          COUNT(DISTINCT ct.id) as content_count,
-          COUNT(DISTINCT il.id) as invite_link_count
-        FROM channels ch
-        LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
-        LEFT JOIN contents ct ON ch.id = ct.channel_id
-        LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
-        GROUP BY ch.id
-        ORDER BY ch.created_at DESC
-      `
-      stmt = c.env.DB.prepare(query)
+      where += ' AND ch.owner_id = ?'
+      params.push(ownerId)
+    }
+    if (search) {
+      where += ' AND ch.name LIKE ?'
+      params.push('%' + search + '%')
     }
 
-    const { results } = await stmt.all()
+    const query = `
+      SELECT
+        ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
+        COUNT(DISTINCT s.id)  as subscriber_count,
+        COUNT(DISTINCT ct.id) as content_count,
+        COUNT(DISTINCT il.id) as invite_link_count
+      FROM channels ch
+      LEFT JOIN subscribers s  ON ch.id = s.channel_id  AND s.is_active = 1
+      LEFT JOIN contents ct    ON ch.id = ct.channel_id
+      LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
+      ${where}
+      GROUP BY ch.id
+      ORDER BY ch.created_at DESC
+    `
+
+    const stmt = c.env.DB.prepare(query)
+    const { results } = params.length ? await stmt.bind(...params).all() : await stmt.all()
     return c.json({ success: true, data: results })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

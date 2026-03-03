@@ -70,6 +70,22 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .more-btn { display:flex; align-items:center; justify-content:center; gap:6px; margin:6px 14px 2px; padding:10px; background:var(--bg2); border:1px dashed var(--border); border-radius:10px; color:var(--text3); font-size:13px; cursor:pointer; }
 .more-btn:active { background:var(--bg3); }
 
+/* ── 채널 검색창 ── */
+.ch-search-wrap { position:relative; margin:4px 14px 10px; }
+.ch-search-icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--text3); font-size:14px; pointer-events:none; }
+.ch-search-input { width:100%; background:var(--bg2); border:1.5px solid var(--border); color:var(--text); border-radius:12px; padding:11px 38px 11px 38px; font-size:14px; outline:none; font-family:inherit; box-sizing:border-box; transition:border-color 0.2s; }
+.ch-search-input:focus { border-color:var(--primary); }
+.ch-search-input::placeholder { color:var(--text3); }
+.ch-search-clear { position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text3); font-size:14px; cursor:pointer; padding:4px 6px; border-radius:6px; }
+.ch-search-clear:active { background:var(--bg3); }
+
+/* ── 채널 리스트 아이템 (전체채널) ── */
+.ch-all-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
+.ch-all-tile:active { background:var(--bg3); }
+.ch-all-tile .info { flex:1; min-width:0; }
+.ch-all-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-all-tile .ch-sub  { font-size:11px; color:var(--text3); margin-top:2px; }
+
 /* ── 빈 상태 ── */
 .empty-box { margin:12px 14px; padding:20px; background:var(--bg2); border-radius:12px; text-align:center; color:var(--text3); font-size:13px; line-height:1.6; }
 
@@ -397,6 +413,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-channel">
     <div class="section-header">
       <span class="section-title">채널</span>
+    </div>
+    <!-- 검색창 -->
+    <div class="ch-search-wrap">
+      <i class="fas fa-search ch-search-icon"></i>
+      <input id="channel-search-input" class="ch-search-input"
+             type="text" placeholder="채널명으로 검색..."
+             oninput="App.onChannelSearch(this.value)">
+      <button id="channel-search-clear" class="ch-search-clear" onclick="App.clearChannelSearch()" style="display:none;">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
     <div id="channel-list-all"></div>
     <div style="height:12px;"></div>
