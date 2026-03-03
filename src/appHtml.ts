@@ -571,7 +571,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
       <label class="form-label">채널명 *</label>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
-        oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10';App.checkChannelName(this.value,'create-name-status')">
+        oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
       <div id="create-name-status" style="font-size:12px;margin:-4px 0 4px 2px;min-height:16px;"></div>
 
@@ -609,8 +609,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
       <input type="hidden" id="edit-channel-id">
       <label class="form-label">채널명</label>
-      <input class="form-input" id="edit-name" maxlength="10"
-        oninput="App.checkChannelName(this.value,'edit-name-status',document.getElementById('edit-channel-id').value)">
+      <input class="form-input" id="edit-name" maxlength="10">
       <div id="edit-name-status" style="font-size:12px;margin:-4px 0 4px 2px;min-height:16px;"></div>
 
       <label class="form-label">채널 소개</label>
