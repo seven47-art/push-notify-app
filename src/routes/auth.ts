@@ -1,0 +1,195 @@
+// src/routes/auth.ts
+// 이메일 기반 회원가입 / 로그인 / 세션 관리
+import { Hono } from 'hono'
+import type { Bindings } from '../types'
+
+const auth = new Hono<{ Bindings: Bindings }>()
+
+// ── 유틸: SHA-256 해시 (Web Crypto API - Cloudflare Workers 호환) ──
+async function sha256(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function generateId(prefix: string = ''): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let id = prefix
+  for (let i = 0; i < 20; i++) id += chars[Math.floor(Math.random() * chars.length)]
+  return id
+}
+
+function generateSalt(): string {
+  return generateId('salt_')
+}
+
+function generateSessionToken(): string {
+  return generateId('sess_') + '_' + Date.now()
+}
+
+// 세션 만료일 (30일)
+function sessionExpiry(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 30)
+  return d.toISOString().replace('T', ' ').split('.')[0]
+}
+
+// ── POST /api/auth/register - 회원가입 ──
+auth.post('/register', async (c) => {
+  try {
+    const { email, password, display_name } = await c.req.json()
+
+    if (!email || !password) {
+      return c.json({ success: false, error: '이메일과 비밀번호를 입력해주세요' }, 400)
+    }
+    // 이메일 형식 검증
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ success: false, error: '올바른 이메일 형식이 아닙니다' }, 400)
+    }
+    // 비밀번호 길이 검증
+    if (password.length < 6) {
+      return c.json({ success: false, error: '비밀번호는 6자 이상이어야 합니다' }, 400)
+    }
+
+    // 이메일 중복 확인
+    const existing: any = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE email = ?'
+    ).bind(email.toLowerCase()).first()
+    if (existing) {
+      return c.json({ success: false, error: '이미 사용 중인 이메일입니다' }, 409)
+    }
+
+    // 비밀번호 해시
+    const salt = generateSalt()
+    const passwordHash = await sha256(password + salt)
+    const userId = 'u_' + generateId()
+
+    // 사용자 생성
+    await c.env.DB.prepare(`
+      INSERT INTO users (user_id, email, password_hash, salt, display_name)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(userId, email.toLowerCase(), passwordHash, salt, display_name || email.split('@')[0]).run()
+
+    // 세션 생성
+    const sessionToken = generateSessionToken()
+    const expiresAt = sessionExpiry()
+    await c.env.DB.prepare(`
+      INSERT INTO user_sessions (user_id, session_token, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(userId, sessionToken, expiresAt).run()
+
+    return c.json({
+      success: true,
+      message: '회원가입이 완료됐습니다',
+      data: {
+        user_id: userId,
+        email: email.toLowerCase(),
+        display_name: display_name || email.split('@')[0],
+        session_token: sessionToken,
+        expires_at: expiresAt
+      }
+    }, 201)
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── POST /api/auth/login - 로그인 ──
+auth.post('/login', async (c) => {
+  try {
+    const { email, password } = await c.req.json()
+
+    if (!email || !password) {
+      return c.json({ success: false, error: '이메일과 비밀번호를 입력해주세요' }, 400)
+    }
+
+    // 사용자 조회
+    const user: any = await c.env.DB.prepare(
+      'SELECT * FROM users WHERE email = ? AND is_active = 1'
+    ).bind(email.toLowerCase()).first()
+
+    if (!user) {
+      return c.json({ success: false, error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+    }
+
+    // 비밀번호 검증
+    const passwordHash = await sha256(password + user.salt)
+    if (passwordHash !== user.password_hash) {
+      return c.json({ success: false, error: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
+    }
+
+    // 기존 세션 삭제 후 새 세션 생성
+    await c.env.DB.prepare('DELETE FROM user_sessions WHERE user_id = ?').bind(user.user_id).run()
+    const sessionToken = generateSessionToken()
+    const expiresAt = sessionExpiry()
+    await c.env.DB.prepare(`
+      INSERT INTO user_sessions (user_id, session_token, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(user.user_id, sessionToken, expiresAt).run()
+
+    return c.json({
+      success: true,
+      message: '로그인 성공',
+      data: {
+        user_id: user.user_id,
+        email: user.email,
+        display_name: user.display_name,
+        profile_image: user.profile_image,
+        session_token: sessionToken,
+        expires_at: expiresAt
+      }
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── GET /api/auth/me - 세션 확인 ──
+auth.get('/me', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization') || ''
+    const sessionToken = authHeader.replace('Bearer ', '').trim()
+
+    if (!sessionToken) {
+      return c.json({ success: false, error: '인증이 필요합니다' }, 401)
+    }
+
+    const session: any = await c.env.DB.prepare(`
+      SELECT s.*, u.email, u.display_name, u.profile_image
+      FROM user_sessions s
+      JOIN users u ON s.user_id = u.user_id
+      WHERE s.session_token = ? AND s.expires_at > datetime('now') AND u.is_active = 1
+    `).bind(sessionToken).first()
+
+    if (!session) {
+      return c.json({ success: false, error: '세션이 만료됐습니다. 다시 로그인해주세요' }, 401)
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        user_id: session.user_id,
+        email: session.email,
+        display_name: session.display_name,
+        profile_image: session.profile_image
+      }
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── POST /api/auth/logout - 로그아웃 ──
+auth.post('/logout', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization') || ''
+    const sessionToken = authHeader.replace('Bearer ', '').trim()
+    if (sessionToken) {
+      await c.env.DB.prepare('DELETE FROM user_sessions WHERE session_token = ?').bind(sessionToken).run()
+    }
+    return c.json({ success: true, message: '로그아웃 됐습니다' })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+export default auth
