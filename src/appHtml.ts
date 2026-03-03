@@ -658,7 +658,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
 
     <!-- 새 알람 추가 구분선 -->
-    <div style="padding:8px 14px 0;font-size:13px;font-weight:700;color:var(--text2);">
+    <div id="alarm-add-area" style="padding:8px 14px 0;font-size:13px;font-weight:700;color:var(--text2);">
       <i class="fas fa-plus-circle" style="color:var(--primary);"></i> 새 알람 추가
     </div>
 
@@ -699,12 +699,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
             <i class="fas fa-microphone" style="font-size:22px;color:#4CAF50;"></i>
             <div>
               <div style="font-weight:700;font-size:14px;">녹음 앱 실행</div>
-              <div style="font-size:11px;color:var(--text3);">녹음 앱을 열어 녹음 후 파일을 선택하세요</div>
+              <div style="font-size:11px;color:var(--text3);">Android 녹음 앱을 열어 녹음 후 파일을 선택하세요</div>
             </div>
           </button>
-          <input id="alarm-audio-file" type="file" accept="audio/*" capture="microphone"
+          <input id="alarm-audio-file" type="file" accept="audio/*"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
-          <button class="alarm-file-select-btn" onclick="document.getElementById('alarm-audio-file').click()">
+          <button class="alarm-file-select-btn" onclick="App.pickAudioFile()">
             <i class="fas fa-folder-open"></i> 저장된 오디오 파일 선택
           </button>
           <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
@@ -715,13 +715,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           <button class="alarm-media-launch-btn" onclick="App.launchRecorder('video')">
             <i class="fas fa-video" style="font-size:22px;color:#2196F3;"></i>
             <div>
-              <div style="font-weight:700;font-size:14px;">녹화 앱 실행</div>
-              <div style="font-size:11px;color:var(--text3);">카메라 앱을 열어 녹화 후 파일을 선택하세요</div>
+              <div style="font-weight:700;font-size:14px;">카메라(녹화) 앱 실행</div>
+              <div style="font-size:11px;color:var(--text3);">Android 카메라 앱을 열어 녹화 후 파일을 선택하세요</div>
             </div>
           </button>
-          <input id="alarm-video-file" type="file" accept="video/*" capture="camcorder"
+          <input id="alarm-video-file" type="file" accept="video/*"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
-          <button class="alarm-file-select-btn" onclick="document.getElementById('alarm-video-file').click()">
+          <button class="alarm-file-select-btn" onclick="App.pickVideoFile()">
             <i class="fas fa-folder-open"></i> 저장된 비디오 파일 선택
           </button>
           <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
@@ -729,14 +729,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
         <!-- 파일: 사용할 앱 선택 (Android 공유 시트) -->
         <div id="alarm-area-file" style="display:none;">
-          <div style="font-size:13px;color:var(--text3);margin-bottom:10px;">
-            <i class="fas fa-info-circle"></i> 파일 선택 시 사용할 앱을 선택하세요
-          </div>
-          <button class="alarm-media-launch-btn" onclick="document.getElementById('alarm-attach-file').click()">
+          <button class="alarm-media-launch-btn" onclick="App.launchFilePicker()">
             <i class="fas fa-share-alt" style="font-size:22px;color:#9C27B0;"></i>
             <div>
-              <div style="font-weight:700;font-size:14px;">파일 선택</div>
-              <div style="font-size:11px;color:var(--text3);">사용할 앱에서 파일을 선택하세요</div>
+              <div style="font-weight:700;font-size:14px;">파일 선택 (앱 선택)</div>
+              <div style="font-size:11px;color:var(--text3);">사용할 어플리케이션을 선택하여 파일을 불러오세요</div>
             </div>
           </button>
           <input id="alarm-attach-file" type="file" accept="*/*"
@@ -855,6 +852,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603031800"></script>
+<script src="/static/mobile-app.js?v=202603031900"></script>
 </body>
 </html>`;
