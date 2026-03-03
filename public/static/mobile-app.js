@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v8
+// public/static/mobile-app.js  v9
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -660,14 +660,19 @@ const App = {
     alarmMin  = Math.ceil(now.getMinutes() / 5) * 5
     if (alarmMin >= 60) { alarmMin = 0; alarmHour = (alarmHour + 1) % 24 }
 
-    // 소스 기본값
+    // 소스 기본값 초기화 (youtube로 리셋)
+    alarmMsgSrc = 'youtube'
+    window._selectedAlarmFile = null
     this.selectMsgSrc('youtube')
 
     // 입력 초기화
     const ytUrl = document.getElementById('alarm-youtube-url')
     if (ytUrl) ytUrl.value = ''
-    const fpEl = document.getElementById('alarm-file-preview')
-    if (fpEl) { fpEl.style.display = 'none'; fpEl.textContent = '' }
+    // 모든 프리뷰 숨김
+    ;['alarm-audio-preview','alarm-video-preview','alarm-file-preview'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) { el.style.display = 'none'; el.textContent = '' }
+    })
 
     this._renderCal()
     this._renderTime()
@@ -682,29 +687,54 @@ const App = {
   // ── 메시지 소스 선택 ──────────────────
   selectMsgSrc(src) {
     alarmMsgSrc = src
+    window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
+
+    // 버튼 선택 표시
     ;['youtube','audio','video','file'].forEach(s => {
       document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
     })
-    // 입력 UI 전환
-    const ytEl   = document.getElementById('alarm-youtube-url')
-    const hints  = { youtube:'YouTube 동영상 URL을 붙여넣으세요', audio:'오디오 파일을 선택합니다', video:'비디오 파일을 선택합니다', file:'첨부 파일을 선택합니다' }
-    const hintEl = document.getElementById('alarm-src-hint')
-    ytEl.style.display = src === 'youtube' ? 'block' : 'none'
-    hintEl.style.display = src !== 'youtube' ? 'block' : 'none'
-    hintEl.textContent   = hints[src] || ''
-
-    if (src !== 'youtube') {
-      const inputId = { audio:'alarm-audio-file', video:'alarm-video-file', file:'alarm-attach-file' }[src]
-      document.getElementById(inputId)?.click()
-    }
+    // 영역 전환: 각 소스별 div 표시/숨김
+    ;['youtube','audio','video','file'].forEach(s => {
+      const area = document.getElementById('alarm-area-' + s)
+      if (area) area.style.display = s === src ? 'block' : 'none'
+    })
+    // 이전 프리뷰 초기화
+    ;['alarm-audio-preview','alarm-video-preview','alarm-file-preview'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) { el.style.display = 'none'; el.textContent = '' }
+    })
   },
   onAlarmFileSelected(input, type) {
     const file = input.files?.[0]; if (!file) return
-    const preview = document.getElementById('alarm-file-preview')
-    preview.style.display = 'block'
+    // 프리뷰 ID 매핑
+    const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
+    const preview = document.getElementById(previewId)
+    if (!preview) return
     const icons = { audio:'🎵', video:'🎬', file:'📎' }
-    preview.textContent = (icons[type] || '📎') + ' ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)'
+    const sizeMB = (file.size / 1024 / 1024).toFixed(2)
+    const sizeStr = file.size > 1024*1024 ? sizeMB + ' MB' : (file.size/1024).toFixed(0) + ' KB'
+    preview.textContent = (icons[type] || '📎') + ' ' + file.name + ' (' + sizeStr + ')'
+    preview.style.display = 'block'
+
+    // FileReader로 base64 변환 후 저장 (서버 전송용)
+    const reader = new FileReader()
+    reader.onload = e => {
+      window._selectedAlarmFile = e.target.result  // base64 data URL
+    }
+    reader.readAsDataURL(file)
     input.value = ''
+  },
+
+  // ── 녹음/녹화 앱 실행 ──────────────────
+  launchRecorder(type) {
+    // WebView 환경: capture 속성으로 네이티브 앱 호출
+    // 오디오: capture="microphone" → 녹음 앱
+    // 비디오: capture="camcorder" → 카메라(녹화) 앱
+    const inputId = { audio: 'alarm-audio-file', video: 'alarm-video-file' }[type]
+    const input = document.getElementById(inputId)
+    if (input) {
+      input.click()  // capture 속성 덕분에 네이티브 녹음/녹화 앱이 실행됨
+    }
   },
 
   // ── 달력 ─────────────────────────────

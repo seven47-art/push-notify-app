@@ -282,6 +282,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
 .btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:17px; font-weight:700; padding:16px; border:none; border-radius:14px; cursor:pointer; }
 .btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:17px; font-weight:600; padding:16px; border-radius:14px; cursor:pointer; }
+/* ── 알람 미디어 버튼 ── */
+.alarm-media-launch-btn { display:flex; align-items:center; gap:14px; width:100%; background:var(--bg3); border:1.5px solid var(--border); border-radius:12px; padding:14px 16px; cursor:pointer; color:var(--text); text-align:left; transition:border-color 0.15s; }
+.alarm-media-launch-btn:active { border-color:var(--primary); background:var(--primary-dim); }
+.alarm-file-select-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:none; border:1px dashed var(--border); border-radius:10px; padding:10px; cursor:pointer; color:var(--text3); font-size:13px; margin-top:4px; }
+.alarm-file-select-btn:active { background:var(--bg3); }
+.alarm-media-preview { padding:10px 12px; background:var(--bg); border:1px solid var(--teal); border-radius:10px; font-size:13px; color:var(--teal); margin-top:4px; }
 /* ── 서브화면 앱바 ── */
 .appbar-back { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; padding:6px 8px 6px 0; }
 /* ── 전체화면 오버레이 ── */
@@ -668,12 +674,65 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
       <!-- 소스별 입력 영역 -->
       <div class="msg-input-area" id="alarm-input-area">
-        <input id="alarm-youtube-url" type="url" placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)" style="display:block;">
-        <input id="alarm-audio-file" type="file" accept="audio/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
-        <input id="alarm-video-file" type="file" accept="video/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
-        <input id="alarm-attach-file" type="file" style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
-        <div id="alarm-file-preview" style="display:none;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--teal);"></div>
-        <div id="alarm-src-hint" style="font-size:12px;color:var(--text3);display:none;"></div>
+
+        <!-- YouTube: URL 입력 -->
+        <div id="alarm-area-youtube" style="display:block;">
+          <input id="alarm-youtube-url" type="url"
+            placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
+            class="form-input" style="margin:0;">
+        </div>
+
+        <!-- 오디오: 녹음 앱 실행 버튼 -->
+        <div id="alarm-area-audio" style="display:none;">
+          <button class="alarm-media-launch-btn" onclick="App.launchRecorder('audio')">
+            <i class="fas fa-microphone" style="font-size:22px;color:#4CAF50;"></i>
+            <div>
+              <div style="font-weight:700;font-size:14px;">녹음 앱 실행</div>
+              <div style="font-size:11px;color:var(--text3);">녹음 앱을 열어 녹음 후 파일을 선택하세요</div>
+            </div>
+          </button>
+          <input id="alarm-audio-file" type="file" accept="audio/*" capture="microphone"
+            style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
+          <button class="alarm-file-select-btn" onclick="document.getElementById('alarm-audio-file').click()">
+            <i class="fas fa-folder-open"></i> 저장된 오디오 파일 선택
+          </button>
+          <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
+        </div>
+
+        <!-- 비디오: 녹화 앱 실행 버튼 -->
+        <div id="alarm-area-video" style="display:none;">
+          <button class="alarm-media-launch-btn" onclick="App.launchRecorder('video')">
+            <i class="fas fa-video" style="font-size:22px;color:#2196F3;"></i>
+            <div>
+              <div style="font-weight:700;font-size:14px;">녹화 앱 실행</div>
+              <div style="font-size:11px;color:var(--text3);">카메라 앱을 열어 녹화 후 파일을 선택하세요</div>
+            </div>
+          </button>
+          <input id="alarm-video-file" type="file" accept="video/*" capture="camcorder"
+            style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
+          <button class="alarm-file-select-btn" onclick="document.getElementById('alarm-video-file').click()">
+            <i class="fas fa-folder-open"></i> 저장된 비디오 파일 선택
+          </button>
+          <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
+        </div>
+
+        <!-- 파일: 사용할 앱 선택 (Android 공유 시트) -->
+        <div id="alarm-area-file" style="display:none;">
+          <div style="font-size:13px;color:var(--text3);margin-bottom:10px;">
+            <i class="fas fa-info-circle"></i> 파일 선택 시 사용할 앱을 선택하세요
+          </div>
+          <button class="alarm-media-launch-btn" onclick="document.getElementById('alarm-attach-file').click()">
+            <i class="fas fa-share-alt" style="font-size:22px;color:#9C27B0;"></i>
+            <div>
+              <div style="font-weight:700;font-size:14px;">파일 선택</div>
+              <div style="font-size:11px;color:var(--text3);">사용할 앱에서 파일을 선택하세요</div>
+            </div>
+          </button>
+          <input id="alarm-attach-file" type="file" accept="*/*"
+            style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
+          <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>
+        </div>
+
       </div>
     </div>
 
@@ -785,6 +844,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603031500"></script>
+<script src="/static/mobile-app.js?v=202603031600"></script>
 </body>
 </html>`;
