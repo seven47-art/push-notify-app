@@ -651,6 +651,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <!-- 스크롤 영역 -->
   <div style="flex:1;overflow-y:auto;padding-bottom:90px;">
 
+    <!-- 기존 알람 목록 -->
+    <div class="alarm-section-card" id="alarm-list-section" style="display:none;">
+      <div class="alarm-section-title">설정된 알람</div>
+      <div id="alarm-list-body" style="padding:0 14px 14px;"></div>
+    </div>
+
+    <!-- 새 알람 추가 구분선 -->
+    <div style="padding:8px 14px 0;font-size:13px;font-weight:700;color:var(--text2);">
+      <i class="fas fa-plus-circle" style="color:var(--primary);"></i> 새 알람 추가
+    </div>
+
     <!-- 메시지 소스 선택 -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">메시지 소스</div>
@@ -844,6 +855,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603031600"></script>
+<script src="/static/mobile-app.js?v=202603031800"></script>
 </body>
 </html>`;
