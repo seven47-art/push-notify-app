@@ -4,24 +4,35 @@ import type { Bindings } from '../types'
 
 const subscribers = new Hono<{ Bindings: Bindings }>()
 
-// GET /api/subscribers?channel_id=X - 구독자 목록 조회
+// GET /api/subscribers?channel_id=X&user_id=Y - 구독자/가입채널 목록 조회
 subscribers.get('/', async (c) => {
   try {
     const channelId = c.req.query('channel_id')
+    const userId    = c.req.query('user_id')
+
     let query = `
-      SELECT s.*, ch.name as channel_name,
+      SELECT s.id, s.channel_id, s.user_id, s.display_name, s.fcm_token, s.platform,
+             s.is_active, s.subscribed_at, s.accepted_count, s.rejected_count,
+             ch.name as channel_name, ch.description as channel_description,
+             ch.image_url, ch.owner_id,
              il.label as invite_label, il.invite_token as invite_token
       FROM subscribers s
       JOIN channels ch ON s.channel_id = ch.id
       LEFT JOIN channel_invite_links il ON s.joined_via_invite_id = il.id
+      WHERE s.is_active = 1
     `
     const params: any[] = []
+
     if (channelId) {
-      query += ' WHERE s.channel_id = ?'
+      query += ' AND s.channel_id = ?'
       params.push(channelId)
     }
+    if (userId) {
+      query += ' AND s.user_id = ?'
+      params.push(userId)
+    }
     query += ' ORDER BY s.subscribed_at DESC'
-    
+
     const stmt = c.env.DB.prepare(query)
     const { results } = params.length ? await stmt.bind(...params).all() : await stmt.all()
     return c.json({ success: true, data: results })
