@@ -321,15 +321,17 @@ const App = {
     const cnt  = ch.subscriber_count || 0
     const id   = ch.id
     return `<div class="channel-tile">
-      ${avatar(name, ch.image_url, 44)}
-      <div class="info" onclick="App.openEditChannel(${id})">
+      <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
+        ${avatar(name, ch.image_url, 44)}
+      </div>
+      <div class="info" onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         <div class="ch-name">${name} (${cnt})</div>
         <div class="ch-sub">${ch.description || '채널 운영자'}</div>
       </div>
       <div class="ch-actions">
-        <button class="ch-action-btn btn-alarm"   onclick="App.openAlarmModal(${id},'${name}')"  title="알람설정"><i class="fas fa-play"></i></button>
-        <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name}')" title="초대코드"><i class="fas fa-share-alt"></i></button>
-        <button class="ch-action-btn btn-setting" onclick="App.openEditChannel(${id})"           title="설정"><i class="fas fa-cog"></i></button>
+        <button class="ch-action-btn btn-alarm"   onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');"  title="알람설정"><i class="fas fa-play"></i></button>
+        <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
+        <button class="ch-action-btn btn-setting" onclick="App.openEditChannel(${id});"                               title="설정"><i class="fas fa-cog"></i></button>
       </div>
     </div>`
   },
@@ -787,8 +789,142 @@ const App = {
   },
 
   // ── 채널 상세 ──────────────────────────
-  openChannelDetail(chId, name) {
-    toast(`"${name}" 채널 상세 (준비 중)`, 2000)
+  async openChannelDetail(chId, name) {
+    const container = document.getElementById('modal-channel-detail')
+    const safeName  = (name || '채널').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+
+    // 1) 로딩 HTML 즉시 삽입 후 화면 열기
+    container.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;padding:0 16px;height:56px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;">' +
+        '<button onclick="App.closeModal(\'modal-channel-detail\')" style="background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:6px;margin-right:4px;"><i class="fas fa-arrow-left"></i></button>' +
+        '<span style="font-size:17px;font-weight:700;flex:1;">채널 소개</span>' +
+      '</div>' +
+      '<div style="flex:1;overflow-y:auto;" id="ch-detail-scroll">' +
+        '<div class="loading" style="padding:48px;text-align:center;"><i class="fas fa-spinner spin"></i></div>' +
+      '</div>'
+    this.openModal('modal-channel-detail')
+
+    // 2) API 조회
+    try {
+      const res = await API.get('/channels/' + chId)
+      const ch  = res.data?.data
+      if (!ch) { document.getElementById('ch-detail-scroll').innerHTML = '<div class="empty-box">채널 정보를 불러올 수 없습니다.</div>'; return }
+
+      const color = avatarColor(ch.name)
+      const init  = (ch.name || '?')[0].toUpperCase()
+      const uid   = Store.getUserId()
+      const isOwner  = ch.owner_id === uid
+      const isJoined = joinedChannels.some(s => (s.channel_id || s.id) === ch.id)
+
+      // 아바타 HTML
+      const avHtml = ch.image_url
+        ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;">'
+        : '<span style="font-size:26px;font-weight:700;color:' + color + ';">' + init + '</span>'
+
+      // 액션 버튼
+      let btns = '<button class="ch-detail-btn-share" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-share-alt"></i> 공유</button>'
+      if (isOwner) {
+        btns += '<button class="ch-detail-btn-join" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')"><i class="fas fa-cog"></i> 채널 설정</button>'
+      } else if (isJoined) {
+        btns += '<button class="ch-detail-btn-join" style="background:var(--teal);" onclick="App.closeModal(\'modal-channel-detail\');App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-bell"></i> 알림설정</button>'
+      } else {
+        btns += '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
+      }
+
+      // 홈페이지 섹션
+      let hpHtml = ''
+      if (ch.homepage_url) {
+        const hpUrl = ch.homepage_url.startsWith('http') ? ch.homepage_url : 'https://' + ch.homepage_url
+        hpHtml =
+          '<div class="ch-detail-section">' +
+            '<div class="ch-detail-section-title"><i class="fas fa-globe" style="color:var(--teal);"></i> 홈페이지</div>' +
+            '<a class="ch-detail-link" href="' + hpUrl + '" target="_blank"><i class="fas fa-external-link-alt" style="color:var(--teal);"></i><span>' + ch.homepage_url + '</span></a>' +
+          '</div>'
+      }
+
+      // 전체 스크롤 영역 HTML
+      document.getElementById('ch-detail-scroll').innerHTML =
+        '<div class="ch-detail-hero">' +
+          '<div class="ch-detail-avatar" style="background:' + color + '22;color:' + color + ';">' + avHtml + '</div>' +
+          '<div class="ch-detail-info">' +
+            '<div class="ch-detail-name">' + (ch.name||'채널').replace(/</g,'&lt;') + '</div>' +
+            '<div class="ch-detail-owner"><i class="fas fa-user-tie" style="font-size:11px;"></i><span>' + (ch.owner_id||'') + '</span></div>' +
+            '<div class="ch-detail-stats"><div class="ch-detail-badge"><i class="fas fa-users" style="color:var(--primary);"></i>' + (ch.subscriber_count||0) + '명</div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ch-detail-action-bar">' + btns + '</div>' +
+        '<div class="ch-detail-section">' +
+          '<div class="ch-detail-section-title"><i class="fas fa-info-circle" style="color:var(--primary);"></i> 채널 소개</div>' +
+          '<div class="ch-detail-section-body">' + (ch.description||'채널 소개가 없습니다.').replace(/</g,'&lt;') + '</div>' +
+        '</div>' +
+        hpHtml +
+        '<div style="height:24px;"></div>'
+
+    } catch (e) {
+      const sc = document.getElementById('ch-detail-scroll')
+      if (sc) sc.innerHTML = '<div class="empty-box">오류: ' + e.message + '</div>'
+    }
+  },
+
+  // 채널 공유 (초대링크 복사)
+  async _shareChannel(chId, name) {
+    try {
+      const userId = Store.getUserId()
+      const res    = await API.get('/invites?channel_id=' + chId)
+      const list   = res.data?.data || []
+      const active = list.find(l => l.is_active && (!l.expires_at || new Date(l.expires_at) > new Date()))
+      let url
+      if (active) {
+        url = location.origin + '/join/' + active.invite_token
+      } else {
+        const cr = await API.post('/invites', { channel_id: chId, created_by: userId })
+        url = cr.data?.data?.invite_token ? location.origin + '/join/' + cr.data.data.invite_token : null
+      }
+      if (!url) { toast('초대 링크를 만들 수 없습니다', 3000); return }
+      if (navigator.share) {
+        navigator.share({ title: name + ' 채널 초대', url })
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url)
+        toast('초대 링크가 복사됐습니다!')
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = url; document.body.appendChild(ta); ta.select()
+        document.execCommand('copy'); document.body.removeChild(ta)
+        toast('복사됐습니다')
+      }
+    } catch (e) { toast('오류: ' + e.message, 3000) }
+  },
+
+  // 상세화면에서 채널 참여
+  async _joinFromDetail(chId, name) {
+    try {
+      // 활성 초대 토큰 조회
+      const res  = await API.get('/invites?channel_id=' + chId)
+      const list = res.data?.data || []
+      const active = list.find(l => l.is_active && (!l.expires_at || new Date(l.expires_at) > new Date()))
+      let token
+      if (active) {
+        token = active.invite_token
+      } else {
+        const cr = await API.post('/invites', { channel_id: chId, created_by: Store.getUserId() })
+        token    = cr.data?.data?.invite_token
+      }
+      if (!token) { toast('참여 링크를 만들 수 없습니다', 3000); return }
+
+      const join = await API.post('/invites/join', {
+        invite_token: token,
+        user_id:   Store.getUserId(),
+        fcm_token: Store.getFcmToken(),
+        platform:  'web'
+      })
+      if (join.data?.success) {
+        toast(name + ' 채널에 참여했습니다! 🎉')
+        this.closeModal('modal-channel-detail')
+        this.loadHome()
+      } else {
+        toast(join.data?.error || '참여 실패', 3000)
+      }
+    } catch (e) { toast('오류: ' + e.message, 3000) }
   },
 
   // ── 이미지 선택 ──────────────────────────
