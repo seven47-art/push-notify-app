@@ -17,13 +17,17 @@ function generatePublicId(): string {
 channels.get('/', async (c) => {
   try {
     const ownerId = c.req.query('owner_id')
-    const search  = c.req.query('search')?.trim()   // 채널명 검색어
+    const search  = c.req.query('search')?.trim()
     const params: (string)[] = []
 
     let where = 'WHERE ch.is_active = 1'
     if (ownerId) {
+      // 특정 사용자의 운영 채널 (홈 화면용 — users 조인 불필요)
       where += ' AND ch.owner_id = ?'
       params.push(ownerId)
+    } else {
+      // 채널 탭 전체 목록: 정식 가입 회원(users 테이블)이 운영 중인 채널만 노출
+      where += ' AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = ch.owner_id)'
     }
     if (search) {
       where += ' AND ch.name LIKE ?'
