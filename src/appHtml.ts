@@ -573,7 +573,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
-      <div id="create-name-status" style="font-size:12px;margin:-4px 0 4px 2px;min-height:16px;"></div>
 
       <label class="form-label">채널 전화번호</label>
       <input class="form-input" id="create-phone" type="tel" placeholder="010-0000-0000">
@@ -610,7 +609,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input type="hidden" id="edit-channel-id">
       <label class="form-label">채널명</label>
       <input class="form-input" id="edit-name" maxlength="10">
-      <div id="edit-name-status" style="font-size:12px;margin:-4px 0 4px 2px;min-height:16px;"></div>
 
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
@@ -787,6 +785,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603030909"></script>
+<script src="/static/mobile-app.js?v=202603031200"></script>
 </body>
 </html>`;

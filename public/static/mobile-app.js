@@ -1,9 +1,8 @@
-// public/static/mobile-app.js  v6
+// public/static/mobile-app.js  v7
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
-let _nameCheckTimer = null   // 채널명 중복 체크 디바운스 타이머
 
 // ─────────────────────────────────────────────
 // 스토어 (세션 기반 인증 통합)
@@ -544,86 +543,18 @@ const App = {
   },
 
   // ── 채널 만들기 ──────────────────────────
-  // ── 채널명 실시간 중복 체크 (디바운스 600ms) ──────────────────────
-  checkChannelName(val, statusId, excludeId) {
-    const el = document.getElementById(statusId)
-    if (!el) return
-    const name = (val || '').trim()
-    // 빈 값: 초기화
-    if (!name) {
-      el.textContent = ''
-      el.dataset.duplicate = ''
-      clearTimeout(_nameCheckTimer)
-      return
-    }
-
-    el.innerHTML = '<span style="color:var(--text3)">확인 중...</span>'
-    el.dataset.duplicate = 'checking'
-    clearTimeout(_nameCheckTimer)
-
-    // 요청 ID로 경쟁 조건 방지 (마지막 요청만 반영)
-    const reqId = Date.now()
-    el._lastReqId = reqId
-
-    _nameCheckTimer = setTimeout(async () => {
-      try {
-        const url = excludeId
-          ? `/api/channels/check-name?name=${encodeURIComponent(name)}&exclude_id=${excludeId}`
-          : `/api/channels/check-name?name=${encodeURIComponent(name)}`
-        const res = await API.get(url)
-        // 현재 요청이 최신이 아니면 무시
-        if (el._lastReqId !== reqId) return
-        if (res.data?.available) {
-          el.innerHTML = '<span style="color:#10b981"><i class="fas fa-check-circle"></i> 사용 가능한 채널명입니다</span>'
-          el.dataset.duplicate = 'no'
-        } else {
-          el.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
-          el.dataset.duplicate = 'yes'
-        }
-      } catch {
-        if (el._lastReqId !== reqId) return
-        el.textContent = ''
-        el.dataset.duplicate = ''
-      }
-    }, 700)
-  },
-
   openCreateChannel() {
     selectedImg = null
-    clearTimeout(_nameCheckTimer)
     document.getElementById('create-name').value     = ''
     document.getElementById('create-phone').value    = ''
     document.getElementById('create-desc').value     = ''
     document.getElementById('create-homepage').value = ''
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
-    // 중복 체크 상태 완전 초기화
-    const statusEl = document.getElementById('create-name-status')
-    if (statusEl) { statusEl.textContent = ''; statusEl.dataset.duplicate = '' }
     document.getElementById('create-img-thumb').innerHTML =
       '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
-
-    // 이벤트 리스너 등록 (한글 조합 완료 후에만 중복 체크)
-    const nameInput = document.getElementById('create-name')
-    if (nameInput) {
-      // 기존 리스너 제거 후 재등록
-      const newInput = nameInput.cloneNode(true)
-      nameInput.parentNode.replaceChild(newInput, nameInput)
-      let _composing = false
-      newInput.addEventListener('compositionstart', () => { _composing = true })
-      newInput.addEventListener('compositionend', (e) => {
-        _composing = false
-        document.getElementById('create-name-cnt').textContent = e.target.value.length + '/10'
-        App.checkChannelName(e.target.value, 'create-name-status')
-      })
-      newInput.addEventListener('input', (e) => {
-        document.getElementById('create-name-cnt').textContent = e.target.value.length + '/10'
-        if (!_composing) App.checkChannelName(e.target.value, 'create-name-status')
-      })
-    }
-
     this.openModal('modal-create')
-    setTimeout(() => { const el = document.getElementById('create-name'); if(el) el.focus() }, 300)
+    setTimeout(() => document.getElementById('create-name').focus(), 300)
   },
 
   async createChannel() {
@@ -631,15 +562,6 @@ const App = {
     const desc = document.getElementById('create-desc').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
-
-    // 중복 체크 상태 확인 (data-duplicate 속성으로 안정적 판별)
-    const statusEl = document.getElementById('create-name-status')
-    if (statusEl && statusEl.dataset.duplicate === 'yes') {
-      toast('이미 사용 중인 채널명입니다'); return
-    }
-    if (statusEl && statusEl.dataset.duplicate === 'checking') {
-      toast('채널명 중복 확인 중입니다. 잠시 후 다시 시도해주세요.'); return
-    }
 
     try {
       const res = await API.post('/channels', {
@@ -660,7 +582,6 @@ const App = {
       const msg = e.response?.data?.error || e.message
       if (e.response?.status === 409) {
         toast('이미 사용 중인 채널명입니다', 3500)
-        if (statusEl) { statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'; statusEl.dataset.duplicate = 'yes' }
       } else {
         toast('오류: ' + msg, 3500)
       }
@@ -682,31 +603,6 @@ const App = {
     document.getElementById('edit-name').value         = ch.name || ''
     document.getElementById('edit-desc').value         = ch.description || ''
     document.getElementById('edit-homepage').value     = ch.homepage_url || ''
-    // 수정 모달 열 때 중복 체크 상태 완전 초기화
-    clearTimeout(_nameCheckTimer)
-    const editStatus = document.getElementById('edit-name-status')
-    if (editStatus) { editStatus.textContent = ''; editStatus.dataset.duplicate = '' }
-
-    // 이벤트 리스너 등록 (한글 조합 완료 후에만 중복 체크)
-    const editNameInput = document.getElementById('edit-name')
-    if (editNameInput) {
-      const newEditInput = editNameInput.cloneNode(true)
-      editNameInput.parentNode.replaceChild(newEditInput, editNameInput)
-      newEditInput.value = ch.name || ''
-      let _composingEdit = false
-      newEditInput.addEventListener('compositionstart', () => { _composingEdit = true })
-      newEditInput.addEventListener('compositionend', (e) => {
-        _composingEdit = false
-        const excId = document.getElementById('edit-channel-id').value
-        App.checkChannelName(e.target.value, 'edit-name-status', excId)
-      })
-      newEditInput.addEventListener('input', (e) => {
-        if (!_composingEdit) {
-          const excId = document.getElementById('edit-channel-id').value
-          App.checkChannelName(e.target.value, 'edit-name-status', excId)
-        }
-      })
-    }
 
     const thumb = document.getElementById('edit-img-thumb')
     thumb.innerHTML = ch.image_url
@@ -719,15 +615,6 @@ const App = {
     const id   = document.getElementById('edit-channel-id').value
     const name = document.getElementById('edit-name').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
-
-    // 중복 체크 상태 확인 (data-duplicate 속성으로 안정적 판별)
-    const statusEl = document.getElementById('edit-name-status')
-    if (statusEl && statusEl.dataset.duplicate === 'yes') {
-      toast('이미 사용 중인 채널명입니다'); return
-    }
-    if (statusEl && statusEl.dataset.duplicate === 'checking') {
-      toast('채널명 중복 확인 중입니다. 잠시 후 다시 시도해주세요.'); return
-    }
 
     try {
       await API.put('/channels/' + id, {
@@ -743,7 +630,6 @@ const App = {
       const msg = e.response?.data?.error || e.message
       if (e.response?.status === 409) {
         toast('이미 사용 중인 채널명입니다', 3500)
-        if (statusEl) { statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'; statusEl.dataset.duplicate = 'yes' }
       } else {
         toast('수정 실패: ' + msg, 3000)
       }
