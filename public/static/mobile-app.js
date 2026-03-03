@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v13
+// public/static/mobile-app.js  v14
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1315,8 +1315,10 @@ window._flutterFileError = function(data) {
 }
 
 // ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────
 // 알람 폴링: 1분마다 서버에 trigger 요청
 // 시간이 된 알람 → 구독자에게 통화형 알람 자동 발송
+// Flutter 앱에서는 가상통화 화면 표시
 // ─────────────────────────────────────────────────────
 async function pollAlarmTrigger() {
   try {
@@ -1324,12 +1326,25 @@ async function pollAlarmTrigger() {
     if (res.data?.triggered > 0) {
       console.log('[Alarm] triggered:', res.data.triggered, res.data.results)
       res.data.results?.forEach(alarm => {
+        // 수신함에 알림 추가
         Store.addNotif({
           title: `⏰ [${alarm.channel_name}] 알람 발송`,
           body: `${alarm.total_targets}명에게 통화 알람이 발송됐습니다 (${alarm.msg_type})`,
           channel_name: alarm.channel_name,
           content_type: 'alarm'
         })
+
+        // ── Flutter 앱에서 가상통화 화면 표시 ──
+        // FlutterBridge가 있으면 (APK 환경) 가상통화 화면을 Flutter에서 띄움
+        if (window.FlutterBridge) {
+          window.FlutterBridge.postMessage(JSON.stringify({
+            action: 'show_fake_call',
+            channel_name: alarm.channel_name,
+            msg_type: alarm.msg_type,
+            msg_value: alarm.msg_value || '',
+            alarm_id: alarm.alarm_id
+          }))
+        }
       })
     }
   } catch(e) {
