@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v11
+// public/static/mobile-app.js  v12
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -900,13 +900,13 @@ const App = {
         toast('올바른 YouTube URL을 입력하세요'); return
       }
     } else if (alarmMsgSrc === 'audio') {
-      srcValue = window._selectedAlarmFile || ''
+      srcValue = window._selectedAlarmFile || ''  // 파일명
       if (!srcValue) { toast('오디오 파일을 선택하세요'); return }
     } else if (alarmMsgSrc === 'video') {
-      srcValue = window._selectedAlarmFile || ''
+      srcValue = window._selectedAlarmFile || ''  // 파일명
       if (!srcValue) { toast('비디오 파일을 선택하세요'); return }
     } else if (alarmMsgSrc === 'file') {
-      srcValue = window._selectedAlarmFile || ''
+      srcValue = window._selectedAlarmFile || ''  // 파일명
       if (!srcValue) { toast('파일을 선택하세요'); return }
     }
 
@@ -1263,9 +1263,13 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // Flutter에서 파일 선택/취소/오류 결과를 웹으로 전달
 // ─────────────────────────────────────────────────────
 window._flutterFileCallback = function(data) {
-  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', size:12345, base64:'data:audio/...' }
-  const { type, name, size, base64 } = data
-  window._selectedAlarmFile = base64
+  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', path:'/storage/...', size:12345, base64:'' }
+  // ⚠️ base64는 비어 있음 - SQLITE_TOOBIG 방지, 파일명/경로만 저장
+  const { type, name, path, size } = data
+
+  // 파일명을 msg_value로 사용 (DB 저장용)
+  window._selectedAlarmFile = name  // 파일명만 저장
+  window._selectedAlarmPath = path  // 로컬 경로 (참고용)
 
   // 프리뷰 표시
   const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
