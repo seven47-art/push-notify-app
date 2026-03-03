@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v9
+// public/static/mobile-app.js  v10
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -646,7 +646,7 @@ const App = {
   },
 
   // ── 알람 설정 모달 ──────────────────────
-  openAlarmModal(chId, name) {
+  async openAlarmModal(chId, name) {
     currentAlarmChId = chId
     const titleEl = document.getElementById('alarm-modal-title')
     if (titleEl) titleEl.textContent = name + ' · 알람 설정'
@@ -677,6 +677,54 @@ const App = {
     this._renderCal()
     this._renderTime()
     this.openModal('modal-alarm')
+
+    // 기존 알람 목록 로드
+    this._loadAlarmList(chId)
+  },
+
+  // 알람 목록 로드 및 표시
+  async _loadAlarmList(chId) {
+    const section = document.getElementById('alarm-list-section')
+    const body    = document.getElementById('alarm-list-body')
+    if (!section || !body) return
+    try {
+      const res  = await API.get('/alarms?channel_id=' + chId)
+      const list = (res.data?.data || []).filter(a => a.status === 'pending')
+      if (list.length === 0) {
+        section.style.display = 'none'
+        return
+      }
+      section.style.display = 'block'
+      const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
+      body.innerHTML = list.map(alarm => {
+        const dt = new Date(alarm.scheduled_at)
+        const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
+        const timeStr = dt.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' })
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">⏰ ${dateStr} ${timeStr}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">${srcLabel[alarm.msg_type] || alarm.msg_type} · 대상 ${alarm.total_targets}명</div>
+          </div>
+          <button onclick="App._cancelAlarm(${alarm.id})" style="background:rgba(255,59,48,0.15);border:none;border-radius:8px;padding:6px 12px;color:#FF3B30;font-size:12px;cursor:pointer;">
+            <i class="fas fa-trash"></i> 삭제
+          </button>
+        </div>`
+      }).join('')
+    } catch(e) {
+      section.style.display = 'none'
+    }
+  },
+
+  // 알람 취소
+  async _cancelAlarm(alarmId) {
+    if (!confirm('이 알람을 삭제하시겠습니까?')) return
+    try {
+      await API.delete('/alarms/' + alarmId)
+      toast('알람이 삭제됐습니다')
+      this._loadAlarmList(currentAlarmChId)
+    } catch(e) {
+      toast('삭제 실패: ' + e.message, 3000)
+    }
   },
   toggleAlarmInModal(btn) {
     const on = btn.classList.toggle('on')
@@ -791,7 +839,6 @@ const App = {
   },
 
   // ── 알람 저장 ─────────────────────────
-  // ── 알람 저장 ─────────────────────────
   async saveAlarmSetting() {
     if (!alarmDate) { toast('날짜를 선택하세요'); return }
     const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
@@ -799,10 +846,21 @@ const App = {
 
     let srcValue = ''
     if (alarmMsgSrc === 'youtube') {
-      srcValue = document.getElementById('alarm-youtube-url').value.trim()
+      srcValue = document.getElementById('alarm-youtube-url')?.value.trim() || ''
       if (!srcValue) { toast('YouTube URL을 입력하세요'); return }
-    } else if (['audio','video','file'].includes(alarmMsgSrc)) {
+      // 유튜브 URL 형식 검증
+      if (!srcValue.includes('youtube.com') && !srcValue.includes('youtu.be')) {
+        toast('올바른 YouTube URL을 입력하세요'); return
+      }
+    } else if (alarmMsgSrc === 'audio') {
       srcValue = window._selectedAlarmFile || ''
+      if (!srcValue) { toast('오디오 파일을 선택하세요'); return }
+    } else if (alarmMsgSrc === 'video') {
+      srcValue = window._selectedAlarmFile || ''
+      if (!srcValue) { toast('비디오 파일을 선택하세요'); return }
+    } else if (alarmMsgSrc === 'file') {
+      srcValue = window._selectedAlarmFile || ''
+      if (!srcValue) { toast('파일을 선택하세요'); return }
     }
 
     const pad = n => String(n).padStart(2,'0')
@@ -811,9 +869,13 @@ const App = {
     const userId = Store.getUserId()
     if (!userId) { toast('로그인이 필요합니다'); return }
 
+    // 로딩 표시
+    const doneBtn = document.querySelector('.btn-alarm-done')
+    if (doneBtn) { doneBtn.disabled = true; doneBtn.textContent = '저장 중...' }
+
     try {
       const res = await API.post('/alarms', {
-        channel_id:   currentAlarmChId,
+        channel_id:   parseInt(currentAlarmChId, 10) || currentAlarmChId,
         created_by:   userId,
         scheduled_at: scheduledAt,
         msg_type:     alarmMsgSrc,
@@ -827,13 +889,18 @@ const App = {
         const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
-        this.closeModal('modal-alarm')
         this._refreshAlarmBtn(currentAlarmChId)
+        // 알람 목록 갱신 후 모달 닫기
+        await this._loadAlarmList(currentAlarmChId)
+        this.closeModal('modal-alarm')
       } else {
         toast(res.data?.error || '알람 저장 실패', 3000)
       }
     } catch (e) {
+      console.error('[알람 저장 오류]', e)
       toast('오류: ' + (e.response?.data?.error || e.message), 3000)
+    } finally {
+      if (doneBtn) { doneBtn.disabled = false; doneBtn.textContent = '확인' }
     }
   },
 
@@ -1177,6 +1244,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Auth.hide()        // 앱바/네비/wrap 보이기
     document.getElementById('auth-screen').classList.add('hidden')
     App.goto('home')
+    // 로그인 상태일 때 알람 폴링 시작
+    pollAlarmTrigger()  // 즉시 1회 실행
+    setInterval(pollAlarmTrigger, 60 * 1000)  // 1분마다 반복
   } else {
     Auth.show()        // 로그인 화면 표시
   }
