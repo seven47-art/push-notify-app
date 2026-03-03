@@ -1,16 +1,21 @@
-// lib/main.dart  – WebView 래퍼 앱
+// lib/main.dart  – WebView 래퍼 앱 + 이메일 인증
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'screens/auth_screen.dart';
 
-// ── 서버 URL (배포 후 교체 가능) ──────────────────
+// ── 서버 URL ──────────────────────────────────────
 const String _appUrl =
     'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai/app';
+const String _baseUrl =
+    'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 상태바 투명 처리
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -30,13 +35,123 @@ class PushNotifyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6C63FF),
+          seedColor: const Color(0xFFFF6B35),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        scaffoldBackgroundColor: const Color(0xFF0F0C29),
       ),
-      home: const WebViewScreen(),
+      home: const SplashScreen(),
+      routes: {
+        '/auth': (_) => const AuthScreen(),
+        '/main': (_) => const WebViewScreen(),
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  스플래시 화면 – 세션 유효성 확인 후 분기
+// ═══════════════════════════════════════════════
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    await Future.delayed(const Duration(milliseconds: 1200)); // 로고 보여주기
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      if (token.isEmpty) {
+        _goAuth();
+        return;
+      }
+      // 서버에서 세션 유효성 확인
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true) {
+          _goMain();
+          return;
+        }
+      }
+      // 세션 만료
+      await prefs.remove('session_token');
+      _goAuth();
+    } catch (_) {
+      // 네트워크 오류 → 저장된 세션 있으면 일단 진입 허용
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      if (token.isNotEmpty) {
+        _goMain();
+      } else {
+        _goAuth();
+      }
+    }
+  }
+
+  void _goAuth() {
+    if (mounted) Navigator.of(context).pushReplacementNamed('/auth');
+  }
+
+  void _goMain() {
+    if (mounted) Navigator.of(context).pushReplacementNamed('/main');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0C29),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 90, height: 90,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6B35), Color(0xFFFF2D92)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF6B35).withOpacity(0.5),
+                    blurRadius: 30, offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.alarm, color: Colors.white, size: 48),
+            ),
+            const SizedBox(height: 18),
+            const Text('PushNotify',
+              style: TextStyle(color: Colors.white, fontSize: 28,
+                fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const SizedBox(height: 40),
+            const SizedBox(
+              width: 28, height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6B35)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
