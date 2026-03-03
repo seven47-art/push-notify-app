@@ -10,24 +10,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
-  # HTTP 요청
-  http: ^1.2.0
-  
-  # 로컬 저장소
-  shared_preferences: ^2.3.0
-  
-  # URL 런처 (딥링크 처리)
-  url_launcher: ^6.3.0
-  
-  # 이미지 선택 (갤러리/카메라)
-  image_picker: ^1.1.2
-  
-  # 아이콘
-  cupertino_icons: ^1.0.8
 
-  # WebView
+  http: ^1.2.0
+  shared_preferences: ^2.3.0
+  url_launcher: ^6.3.0
+  image_picker: ^1.1.2
+  cupertino_icons: ^1.0.8
   webview_flutter: ^4.10.0
+  file_picker: ^8.1.2
+  android_intent_plus: ^5.0.3
+  flutter_local_notifications: ^18.0.1
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -36,6 +29,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
   assets:
     - assets/images/
+    - assets/sounds/

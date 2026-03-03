@@ -1,10 +1,42 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 네트워크 (필수) -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 알림 (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- 진동 -->
     <uses-permission android:name="android.permission.VIBRATE"/>
+
+    <!-- 마이크 (오디오 녹음) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- 카메라 (비디오 녹화) -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- 화면 켜기 (알람 수신 시) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <!-- 잠금화면 위 알람 표시 (Android 14 이하 - 오탐 방지 위해 주석) -->
+    <!-- <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/> -->
+
+    <!-- 부팅 후 자동 시작 (백그라운드 알람 서비스) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- 포그라운드 서비스 (백그라운드 폴링) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+
+    <!-- 알람 정확한 시간 설정 (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+
+    <!-- 미디어 파일 읽기 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
 
     <application
         android:label="PushNotify"
@@ -21,6 +53,8 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:windowSoftInputMode="adjustResize">
 
             <meta-data
@@ -43,6 +77,26 @@
 
         </activity>
 
+        <!-- 부팅 후 알람 서비스 재시작 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- 로컬 알림 브로드캐스트 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+
+        <!-- 알림 dismiss 수신 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
@@ -56,6 +110,36 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
+        <!-- 오디오 녹음 앱 -->
+        <intent>
+            <action android:name="android.provider.MediaStore.ACTION_AUDIO_CAPTURE"/>
+        </intent>
+        <!-- 비디오 녹화 앱 -->
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE"/>
+        </intent>
+        <!-- 파일 선택 -->
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT"/>
+        </intent>
+        <!-- YouTube 앱 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="vnd.youtube"/>
+        </intent>
+        <!-- 미디어 재생 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="audio/*"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="video/*"/>
         </intent>
     </queries>
 </manifest>
