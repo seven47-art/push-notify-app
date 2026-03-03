@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v12
+// public/static/mobile-app.js  v13
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -515,9 +515,28 @@ const App = {
     if (emailEl) emailEl.textContent = Store.getEmail() || '(미설정)'
     if (nameEl)  nameEl.textContent  = Store.getDisplayName() || '(미설정)'
 
+    // 저장된 전화번호 표시
+    const phoneEl = document.getElementById('settings-phone')
+    if (phoneEl) phoneEl.value = Store.get('phone_number') || ''
+
     // 드로어 이메일 업데이트
     const drawerEmail = document.getElementById('drawer-user-email')
     if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
+  },
+
+  // ── 전화번호 저장 ────────────────────────
+  async savePhone() {
+    const phoneEl = document.getElementById('settings-phone')
+    const phone = phoneEl?.value.trim() || ''
+    try {
+      const res = await API.put('/auth/phone', { user_id: Store.getUserId(), phone_number: phone })
+      if (res.data?.success) {
+        Store.set('phone_number', phone)
+        toast(phone ? `✅ 전화번호 저장: ${phone}` : '전화번호가 삭제됐습니다')
+      } else {
+        toast('저장 실패: ' + (res.data?.error || '오류'))
+      }
+    } catch(e) { toast('저장 오류: ' + e.message) }
   },
 
   async logout() {
@@ -911,7 +930,8 @@ const App = {
     }
 
     const pad = n => String(n).padStart(2,'0')
-    const scheduledAt = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(alarmHour)}:${pad(alarmMin)}:00`
+    // UTC ISO 문자열로 변환 (서버는 UTC 기준으로 비교하므로 반드시 UTC로 전송)
+    const scheduledAt = dt.toISOString().slice(0, 19) + 'Z'
 
     const userId = Store.getUserId()
     if (!userId) { toast('로그인이 필요합니다'); return }
@@ -1284,7 +1304,10 @@ window._flutterFileCallback = function(data) {
 }
 
 window._flutterFileCancelled = function(data) {
-  // 취소됨 - 별도 처리 없음
+  // 녹음/녹화 앱 실행 후 취소 or 앱이 열린 경우 안내
+  if (data?.message) {
+    toast('📱 ' + data.message, 5000)
+  }
 }
 
 window._flutterFileError = function(data) {
