@@ -57,6 +57,31 @@ channels.get('/', async (c) => {
   }
 })
 
+// GET /api/channels/check-name?name=XXX&exclude_id=YYY  (채널명 중복 체크)
+channels.get('/check-name', async (c) => {
+  try {
+    const name      = c.req.query('name')?.trim()
+    const excludeId = c.req.query('exclude_id')
+
+    if (!name) return c.json({ available: false, error: '채널명을 입력하세요' }, 400)
+
+    let row
+    if (excludeId) {
+      row = await c.env.DB.prepare(
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ?'
+      ).bind(name, excludeId).first()
+    } else {
+      row = await c.env.DB.prepare(
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?)'
+      ).bind(name).first()
+    }
+
+    return c.json({ available: !row })
+  } catch (e: any) {
+    return c.json({ available: false, error: e.message }, 500)
+  }
+})
+
 // GET /api/channels/:id
 channels.get('/:id', async (c) => {
   try {
@@ -103,6 +128,14 @@ channels.post('/', async (c) => {
       return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
     }
 
+    // 채널명 중복 체크 (대소문자 구분 없이)
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM channels WHERE LOWER(name) = LOWER(?)')
+      .bind(name.trim()).first()
+    if (existing) {
+      return c.json({ success: false, error: '이미 사용 중인 채널명입니다.' }, 409)
+    }
+
     // image_url이 너무 크면 null 처리 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
     const safeImageUrl = (image_url && image_url.length <= 819200) ? image_url : null
     if (image_url && !safeImageUrl) {
@@ -135,6 +168,16 @@ channels.put('/:id', async (c) => {
     // image_url이 너무 크면 에러 반환 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
     if (image_url && image_url.length > 819200) {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
+    }
+
+    // 채널명 변경 시 중복 체크 (자신 제외, 대소문자 구분 없이)
+    if (name) {
+      const dupCheck = await c.env.DB.prepare(
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ?')
+        .bind(name.trim(), id).first()
+      if (dupCheck) {
+        return c.json({ success: false, error: '이미 사용 중인 채널명입니다.' }, 409)
+      }
     }
 
     await c.env.DB.prepare(`
