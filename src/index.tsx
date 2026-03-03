@@ -1038,12 +1038,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .auth-submit-btn {
   width:100%; padding:16px; border:none; border-radius:14px;
   font-size:16px; font-weight:700; cursor:pointer; color:#fff;
-  background:linear-gradient(135deg,#FF6B6B,#FF8E53);
-  box-shadow:0 4px 20px rgba(255,107,107,0.35);
+  background:linear-gradient(135deg,#7C3AED,#6C63FF);
+  box-shadow:0 4px 24px rgba(108,99,255,0.5);
   margin-top:6px; transition:opacity 0.2s; letter-spacing:0.3px;
 }
 .auth-submit-btn:active { opacity:0.85; }
 .auth-submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+/* 회원가입 탭일 때 버튼은 더 밝은 보라 */
+#signup-btn {
+  background:linear-gradient(135deg,#8B5CF6,#6C63FF);
+  box-shadow:0 4px 24px rgba(139,92,246,0.5);
+}
 
 .auth-error {
   background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);
@@ -1089,9 +1094,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
   <!-- 회원가입 폼 -->
   <div class="auth-form" id="form-signup" style="display:none;">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:-4px;">닉네임 <span style="color:var(--danger);">*</span></div>
     <div class="auth-input-wrap">
       <i class="fas fa-user"></i>
-      <input type="text" id="signup-name" placeholder="닉네임" autocomplete="nickname">
+      <input type="text" id="signup-name" placeholder="표시될 이름" autocomplete="nickname">
     </div>
     <div class="auth-input-wrap">
       <i class="fas fa-envelope"></i>

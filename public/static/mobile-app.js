@@ -155,7 +155,7 @@ const Auth = {
     const email = document.getElementById('signup-email').value.trim()
     const pw    = document.getElementById('signup-pw').value
     const pw2   = document.getElementById('signup-pw2').value
-    if (!name)            { this.setError('signup-error','닉네임을 입력하세요'); return }
+    if (!name)            { this.setError('signup-error','닉네임(표시 이름)을 입력하세요'); return }
     if (!email)           { this.setError('signup-error','이메일을 입력하세요'); return }
     if (pw.length < 6)    { this.setError('signup-error','비밀번호는 6자 이상이어야 합니다'); return }
     if (pw !== pw2)       { this.setError('signup-error','비밀번호가 일치하지 않습니다'); return }
