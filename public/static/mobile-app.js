@@ -3,6 +3,7 @@
 
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
+let _nameCheckTimer = null   // 채널명 중복 체크 디바운스 타이머
 
 // ─────────────────────────────────────────────
 // 스토어 (세션 기반 인증 통합)
@@ -543,6 +544,32 @@ const App = {
   },
 
   // ── 채널 만들기 ──────────────────────────
+  // ── 채널명 실시간 중복 체크 (디바운스 600ms) ──────────────────────
+  checkChannelName(val, statusId, excludeId) {
+    const el = document.getElementById(statusId)
+    if (!el) return
+    const name = (val || '').trim()
+    if (!name) { el.textContent = ''; return }
+
+    el.innerHTML = '<span style="color:var(--text3)">확인 중...</span>'
+    clearTimeout(_nameCheckTimer)
+    _nameCheckTimer = setTimeout(async () => {
+      try {
+        const url = excludeId
+          ? `/api/channels/check-name?name=${encodeURIComponent(name)}&exclude_id=${excludeId}`
+          : `/api/channels/check-name?name=${encodeURIComponent(name)}`
+        const res = await API.get(url)
+        if (res.data?.available) {
+          el.innerHTML = '<span style="color:#10b981"><i class="fas fa-check-circle"></i> 사용 가능한 채널명입니다</span>'
+        } else {
+          el.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+        }
+      } catch {
+        el.textContent = ''
+      }
+    }, 600)
+  },
+
   openCreateChannel() {
     selectedImg = null
     document.getElementById('create-name').value     = ''
@@ -551,6 +578,8 @@ const App = {
     document.getElementById('create-homepage').value = ''
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
+    const statusEl = document.getElementById('create-name-status')
+    if (statusEl) statusEl.textContent = ''
     document.getElementById('create-img-thumb').innerHTML =
       '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
     this.openModal('modal-create')
@@ -562,6 +591,13 @@ const App = {
     const desc = document.getElementById('create-desc').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
+
+    // 중복 체크 상태 확인 (이미 빨간 메시지면 차단)
+    const statusEl = document.getElementById('create-name-status')
+    if (statusEl && statusEl.querySelector('[style*="ef4444"]')) {
+      toast('이미 사용 중인 채널명입니다'); return
+    }
+
     try {
       const res = await API.post('/channels', {
         name, description: desc,
@@ -578,7 +614,13 @@ const App = {
         toast(res.data?.error || '채널 생성에 실패했습니다', 3500)
       }
     } catch (e) {
-      toast('오류: ' + (e.response?.data?.error || e.message), 3500)
+      const msg = e.response?.data?.error || e.message
+      if (e.response?.status === 409) {
+        toast('이미 사용 중인 채널명입니다', 3500)
+        if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+      } else {
+        toast('오류: ' + msg, 3500)
+      }
     }
   },
 
@@ -608,6 +650,13 @@ const App = {
     const id   = document.getElementById('edit-channel-id').value
     const name = document.getElementById('edit-name').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
+
+    // 중복 체크 상태 확인 (이미 빨간 메시지면 차단)
+    const statusEl = document.getElementById('edit-name-status')
+    if (statusEl && statusEl.querySelector('[style*="ef4444"]')) {
+      toast('이미 사용 중인 채널명입니다'); return
+    }
+
     try {
       await API.put('/channels/' + id, {
         name,
@@ -618,7 +667,15 @@ const App = {
       toast('채널이 수정됐습니다')
       this.closeModal('modal-edit')
       this.loadHome()
-    } catch (e) { toast('수정 실패: ' + (e.response?.data?.error || e.message), 3000) }
+    } catch (e) {
+      const msg = e.response?.data?.error || e.message
+      if (e.response?.status === 409) {
+        toast('이미 사용 중인 채널명입니다', 3500)
+        if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+      } else {
+        toast('수정 실패: ' + msg, 3000)
+      }
+    }
   },
 
   confirmDeleteChannelFromEdit() {
