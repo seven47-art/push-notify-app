@@ -602,8 +602,28 @@ const App = {
     if (statusEl) { statusEl.textContent = ''; statusEl.dataset.duplicate = '' }
     document.getElementById('create-img-thumb').innerHTML =
       '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
+
+    // 이벤트 리스너 등록 (한글 조합 완료 후에만 중복 체크)
+    const nameInput = document.getElementById('create-name')
+    if (nameInput) {
+      // 기존 리스너 제거 후 재등록
+      const newInput = nameInput.cloneNode(true)
+      nameInput.parentNode.replaceChild(newInput, nameInput)
+      let _composing = false
+      newInput.addEventListener('compositionstart', () => { _composing = true })
+      newInput.addEventListener('compositionend', (e) => {
+        _composing = false
+        document.getElementById('create-name-cnt').textContent = e.target.value.length + '/10'
+        App.checkChannelName(e.target.value, 'create-name-status')
+      })
+      newInput.addEventListener('input', (e) => {
+        document.getElementById('create-name-cnt').textContent = e.target.value.length + '/10'
+        if (!_composing) App.checkChannelName(e.target.value, 'create-name-status')
+      })
+    }
+
     this.openModal('modal-create')
-    setTimeout(() => document.getElementById('create-name').focus(), 300)
+    setTimeout(() => { const el = document.getElementById('create-name'); if(el) el.focus() }, 300)
   },
 
   async createChannel() {
@@ -666,6 +686,28 @@ const App = {
     clearTimeout(_nameCheckTimer)
     const editStatus = document.getElementById('edit-name-status')
     if (editStatus) { editStatus.textContent = ''; editStatus.dataset.duplicate = '' }
+
+    // 이벤트 리스너 등록 (한글 조합 완료 후에만 중복 체크)
+    const editNameInput = document.getElementById('edit-name')
+    if (editNameInput) {
+      const newEditInput = editNameInput.cloneNode(true)
+      editNameInput.parentNode.replaceChild(newEditInput, editNameInput)
+      newEditInput.value = ch.name || ''
+      let _composingEdit = false
+      newEditInput.addEventListener('compositionstart', () => { _composingEdit = true })
+      newEditInput.addEventListener('compositionend', (e) => {
+        _composingEdit = false
+        const excId = document.getElementById('edit-channel-id').value
+        App.checkChannelName(e.target.value, 'edit-name-status', excId)
+      })
+      newEditInput.addEventListener('input', (e) => {
+        if (!_composingEdit) {
+          const excId = document.getElementById('edit-channel-id').value
+          App.checkChannelName(e.target.value, 'edit-name-status', excId)
+        }
+      })
+    }
+
     const thumb = document.getElementById('edit-img-thumb')
     thumb.innerHTML = ch.image_url
       ? `<img src="${ch.image_url}" style="width:100%;height:100%;object-fit:cover;">`
