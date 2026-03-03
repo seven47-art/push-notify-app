@@ -984,12 +984,137 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 /* ── 토스트 ── */
 #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:rgba(40,40,60,0.95); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:500; opacity:0; transition:all 0.25s; pointer-events:none; white-space:nowrap; z-index:999; }
 #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── 로그인/회원가입 풀스크린 ── */
+#auth-screen {
+  position:fixed; inset:0; z-index:1000;
+  background:linear-gradient(160deg,#0D0D1A 0%,#1A1028 50%,#0D0D1A 100%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:0 28px; overflow-y:auto;
+}
+#auth-screen.hidden { display:none; }
+
+.auth-logo-wrap {
+  display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:32px;
+}
+.auth-logo-icon {
+  width:80px; height:80px; border-radius:22px;
+  background:linear-gradient(135deg,#FF6B6B,#FF8E53);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 8px 32px rgba(255,107,107,0.35);
+}
+.auth-app-title { font-size:26px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
+.auth-app-sub { font-size:13px; color:#8888AA; margin-top:-4px; }
+
+/* 탭 전환 */
+.auth-tab-bar {
+  display:flex; width:100%; background:#1E1E2E; border-radius:14px;
+  padding:4px; gap:4px; margin-bottom:24px;
+}
+.auth-tab {
+  flex:1; padding:11px 0; border:none; border-radius:10px;
+  font-size:15px; font-weight:600; cursor:pointer;
+  background:transparent; color:#6B6B8A; transition:all 0.2s;
+}
+.auth-tab.active { background:var(--primary); color:#fff; box-shadow:0 2px 12px rgba(108,99,255,0.35); }
+
+/* 입력 폼 */
+.auth-form { width:100%; display:flex; flex-direction:column; gap:14px; }
+.auth-input-wrap {
+  display:flex; align-items:center; gap:10px;
+  background:#1E1E2E; border:1.5px solid #2A2A42;
+  border-radius:12px; padding:14px 14px;
+  transition:border-color 0.2s;
+}
+.auth-input-wrap:focus-within { border-color:var(--primary); }
+.auth-input-wrap i { color:#5555AA; font-size:15px; width:16px; text-align:center; flex-shrink:0; }
+.auth-input-wrap input {
+  flex:1; background:transparent; border:none; outline:none;
+  color:#fff; font-size:15px; font-family:inherit;
+}
+.auth-input-wrap input::placeholder { color:#4A4A6A; }
+.auth-eye-btn { background:none; border:none; color:#5555AA; cursor:pointer; padding:0 2px; font-size:15px; }
+
+.auth-submit-btn {
+  width:100%; padding:16px; border:none; border-radius:14px;
+  font-size:16px; font-weight:700; cursor:pointer; color:#fff;
+  background:linear-gradient(135deg,#FF6B6B,#FF8E53);
+  box-shadow:0 4px 20px rgba(255,107,107,0.35);
+  margin-top:6px; transition:opacity 0.2s; letter-spacing:0.3px;
+}
+.auth-submit-btn:active { opacity:0.85; }
+.auth-submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+.auth-error {
+  background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);
+  color:#FF7070; font-size:13px; padding:10px 14px; border-radius:10px;
+  text-align:center; display:none;
+}
+.auth-error.show { display:block; }
 </style>
 </head>
 <body>
 
+<!-- ══ 로그인 / 회원가입 화면 ══ -->
+<div id="auth-screen">
+  <!-- 로고 -->
+  <div class="auth-logo-wrap">
+    <div class="auth-logo-icon">
+      <i class="fas fa-clock" style="color:#fff;font-size:34px;"></i>
+    </div>
+    <div class="auth-app-title">PushNotify</div>
+    <div class="auth-app-sub">채널 알림 구독 서비스</div>
+  </div>
+
+  <!-- 탭 -->
+  <div class="auth-tab-bar">
+    <button class="auth-tab active" id="tab-login"  onclick="Auth.switchTab('login')">로그인</button>
+    <button class="auth-tab"        id="tab-signup" onclick="Auth.switchTab('signup')">회원가입</button>
+  </div>
+
+  <!-- 로그인 폼 -->
+  <div class="auth-form" id="form-login">
+    <div class="auth-input-wrap">
+      <i class="fas fa-envelope"></i>
+      <input type="email" id="login-email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="auth-input-wrap">
+      <i class="fas fa-lock"></i>
+      <input type="password" id="login-pw" placeholder="비밀번호 입력" autocomplete="current-password">
+      <button class="auth-eye-btn" onclick="Auth.togglePw('login-pw',this)"><i class="fas fa-eye-slash"></i></button>
+    </div>
+    <div class="auth-error" id="login-error"></div>
+    <button class="auth-submit-btn" id="login-btn" onclick="Auth.login()">로그인</button>
+  </div>
+
+  <!-- 회원가입 폼 -->
+  <div class="auth-form" id="form-signup" style="display:none;">
+    <div class="auth-input-wrap">
+      <i class="fas fa-user"></i>
+      <input type="text" id="signup-name" placeholder="닉네임" autocomplete="nickname">
+    </div>
+    <div class="auth-input-wrap">
+      <i class="fas fa-envelope"></i>
+      <input type="email" id="signup-email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="auth-input-wrap">
+      <i class="fas fa-lock"></i>
+      <input type="password" id="signup-pw" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+      <button class="auth-eye-btn" onclick="Auth.togglePw('signup-pw',this)"><i class="fas fa-eye-slash"></i></button>
+    </div>
+    <div class="auth-input-wrap">
+      <i class="fas fa-lock"></i>
+      <input type="password" id="signup-pw2" placeholder="비밀번호 확인" autocomplete="new-password">
+    </div>
+    <div class="auth-error" id="signup-error"></div>
+    <button class="auth-submit-btn" id="signup-btn" onclick="Auth.signup()">회원가입</button>
+  </div>
+
+  <div style="height:40px;"></div>
+</div>
+
 <!-- ══ 앱바 ══ -->
-<div class="appbar" id="appbar">
+<div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
     <div class="appbar-icon"><i class="fas fa-bell" style="color:#fff;font-size:16px;"></i></div>
     <span class="appbar-title">PushNotify</span>
@@ -998,7 +1123,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 화면 영역 ══ -->
-<div id="screen-wrap">
+<div id="screen-wrap" style="display:none;">
 
   <!-- 홈 화면 -->
   <div class="screen active" id="screen-home">
@@ -1120,7 +1245,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div><!-- /screen-wrap -->
 
 <!-- ══ 하단 네비 ══ -->
-<div class="bottom-nav">
+<div class="bottom-nav" style="display:none;">
   <button class="nav-btn active" id="nav-home" onclick="App.goto('home')">
     <i class="fas fa-home"></i><span>홈</span>
   </button>

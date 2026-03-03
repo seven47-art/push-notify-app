@@ -1,15 +1,8 @@
-// public/static/mobile-app.js  v5
+// public/static/mobile-app.js  v6
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
-
-// 모든 API 요청에 세션 토큰 자동 첨부
-API.interceptors.request.use(config => {
-  const token = Store.getSessionToken()
-  if (token) config.headers['Authorization'] = 'Bearer ' + token
-  return config
-})
 
 // ─────────────────────────────────────────────
 // 스토어 (세션 기반 인증 통합)
@@ -54,6 +47,135 @@ const Store = {
   // 채널별 알람 설정
   getAlarm(chId)      { return this.get('alarm_' + chId) !== 'off' },
   setAlarm(chId, on)  { this.set('alarm_' + chId, on ? 'on' : 'off') },
+}
+
+// 모든 API 요청에 세션 토큰 자동 첨부
+API.interceptors.request.use(config => {
+  const token = Store.getSessionToken()
+  if (token) config.headers['Authorization'] = 'Bearer ' + token
+  return config
+})
+
+// ─────────────────────────────────────────────
+// Auth (로그인 / 회원가입)
+// ─────────────────────────────────────────────
+const Auth = {
+  // 로그인 화면 표시
+  show() {
+    document.getElementById('auth-screen').classList.remove('hidden')
+    // 앱바 / 네비 숨김
+    const appbar  = document.getElementById('appbar')
+    const nav     = document.querySelector('.bottom-nav')
+    const wrap    = document.getElementById('screen-wrap')
+    const drawer  = document.getElementById('drawer')
+    const drawerO = document.getElementById('drawer-overlay')
+    if (appbar)  appbar.style.display  = 'none'
+    if (nav)     nav.style.display     = 'none'
+    if (wrap)    wrap.style.display    = 'none'
+    if (drawer)  drawer.classList.remove('open')
+    if (drawerO) drawerO.classList.remove('open')
+    // 폼 초기화
+    this.switchTab('login')
+    ;['login-email','login-pw','signup-name','signup-email','signup-pw','signup-pw2'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = ''
+    })
+    ;['login-error','signup-error'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) { el.textContent = ''; el.classList.remove('show') }
+    })
+  },
+  // 로그인 화면 숨기고 앱 표시
+  hide() {
+    document.getElementById('auth-screen').classList.add('hidden')
+    const appbar = document.getElementById('appbar')
+    const nav    = document.querySelector('.bottom-nav')
+    const wrap   = document.getElementById('screen-wrap')
+    if (appbar) appbar.style.display = ''
+    if (nav)    nav.style.display    = ''
+    if (wrap)   wrap.style.display   = ''
+  },
+  // 탭 전환
+  switchTab(tab) {
+    document.getElementById('tab-login').classList.toggle('active',  tab === 'login')
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup')
+    document.getElementById('form-login').style.display  = tab === 'login'  ? 'flex' : 'none'
+    document.getElementById('form-signup').style.display = tab === 'signup' ? 'flex' : 'none'
+  },
+  // 비밀번호 보기/숨기기
+  togglePw(inputId, btn) {
+    const el = document.getElementById(inputId)
+    const isText = el.type === 'text'
+    el.type = isText ? 'password' : 'text'
+    btn.querySelector('i').className = isText ? 'fas fa-eye-slash' : 'fas fa-eye'
+  },
+  setError(id, msg) {
+    const el = document.getElementById(id)
+    el.textContent = msg; el.classList.add('show')
+  },
+  clearError(id) {
+    const el = document.getElementById(id)
+    el.textContent = ''; el.classList.remove('show')
+  },
+  setBtnLoading(btnId, loading) {
+    const btn = document.getElementById(btnId)
+    btn.disabled = loading
+    if (loading) { btn._orig = btn.textContent; btn.textContent = '처리 중...' }
+    else { btn.textContent = btn._orig || btn.textContent }
+  },
+
+  // ── 로그인 실행 ──
+  async login() {
+    this.clearError('login-error')
+    const email = document.getElementById('login-email').value.trim()
+    const pw    = document.getElementById('login-pw').value
+    if (!email) { this.setError('login-error','이메일을 입력하세요'); return }
+    if (!pw)    { this.setError('login-error','비밀번호를 입력하세요'); return }
+    this.setBtnLoading('login-btn', true)
+    try {
+      const res = await axios.post('/api/auth/login', { email, password: pw })
+      if (res.data?.success) {
+        Store.setSession(res.data.data)
+        this.hide()
+        App.goto('home')
+        toast('로그인됐습니다 👋')
+      } else {
+        this.setError('login-error', res.data?.error || '로그인 실패')
+      }
+    } catch (e) {
+      this.setError('login-error', e.response?.data?.error || '서버 오류가 발생했습니다')
+    } finally {
+      this.setBtnLoading('login-btn', false)
+    }
+  },
+
+  // ── 회원가입 실행 ──
+  async signup() {
+    this.clearError('signup-error')
+    const name  = document.getElementById('signup-name').value.trim()
+    const email = document.getElementById('signup-email').value.trim()
+    const pw    = document.getElementById('signup-pw').value
+    const pw2   = document.getElementById('signup-pw2').value
+    if (!name)            { this.setError('signup-error','닉네임을 입력하세요'); return }
+    if (!email)           { this.setError('signup-error','이메일을 입력하세요'); return }
+    if (pw.length < 6)    { this.setError('signup-error','비밀번호는 6자 이상이어야 합니다'); return }
+    if (pw !== pw2)       { this.setError('signup-error','비밀번호가 일치하지 않습니다'); return }
+    this.setBtnLoading('signup-btn', true)
+    try {
+      const res = await axios.post('/api/auth/register', { email, password: pw, display_name: name })
+      if (res.data?.success) {
+        Store.setSession(res.data.data)
+        this.hide()
+        App.goto('home')
+        toast('회원가입 완료! 환영합니다 🎉')
+      } else {
+        this.setError('signup-error', res.data?.error || '회원가입 실패')
+      }
+    } catch (e) {
+      this.setError('signup-error', e.response?.data?.error || '서버 오류가 발생했습니다')
+    } finally {
+      this.setBtnLoading('signup-btn', false)
+    }
+  },
 }
 
 // ─────────────────────────────────────────────
@@ -346,8 +468,7 @@ const App = {
     } catch {}
     Store.clearSession()
     toast('로그아웃 됐습니다')
-    // 앱 재로드 → Flutter가 AuthScreen으로 리다이렉트
-    setTimeout(() => location.reload(), 800)
+    setTimeout(() => Auth.show(), 500)
   },
 
   showFcmToken() {
@@ -706,11 +827,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  App.goto('home')
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 로그인 화면 ──
+  if (Store.isLoggedIn()) {
+    Auth.hide()        // 앱바/네비/wrap 보이기
+    document.getElementById('auth-screen').classList.add('hidden')
+    App.goto('home')
+  } else {
+    Auth.show()        // 로그인 화면 표시
+  }
+
   // 샘플 알림 (첫 방문)
   if (!Store.get('sample_added')) {
     Store.addNotif({ title:'힐링 뮤직 채널 새 음악', body:'오늘의 힐링 음악이 업로드됐습니다.', channel_name:'힐링 뮤직', content_type:'audio' })
     Store.addNotif({ title:'명상 가이드 새 영상', body:'명상 가이드 채널에 새 영상이 추가됐습니다.', channel_name:'명상 가이드', content_type:'video' })
     Store.set('sample_added', '1')
   }
+
+  // Enter 키 로그인/회원가입 지원
+  document.getElementById('login-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') Auth.login() })
+  document.getElementById('signup-pw2')?.addEventListener('keydown', e => { if (e.key === 'Enter') Auth.signup() })
 })
