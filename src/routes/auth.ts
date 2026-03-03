@@ -192,4 +192,26 @@ auth.post('/logout', async (c) => {
   }
 })
 
+// ── PUT /api/auth/phone - 전화번호 저장 (통화 알람 수신용) ──
+auth.put('/phone', async (c) => {
+  try {
+    const { user_id, phone_number } = await c.req.json()
+    if (!user_id) return c.json({ success: false, error: 'user_id 필수' }, 400)
+
+    // 전화번호 형식 검증 (+821012345678 등 국제 형식)
+    const cleaned = (phone_number || '').trim()
+    if (cleaned && !/^\+[1-9]\d{7,14}$/.test(cleaned)) {
+      return c.json({ success: false, error: '전화번호는 국제 형식(+82...)으로 입력하세요' }, 400)
+    }
+
+    await c.env.DB.prepare(
+      'UPDATE users SET phone_number = ?, updated_at = datetime(\'now\') WHERE user_id = ?'
+    ).bind(cleaned || null, user_id).run()
+
+    return c.json({ success: true, phone_number: cleaned || null })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 export default auth

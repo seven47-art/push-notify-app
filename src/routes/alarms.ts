@@ -109,7 +109,9 @@ alarms.post('/', async (c) => {
     if (!channel_id || !created_by || !scheduled_at || !msg_type) {
       return c.json({ success: false, error: 'channel_id, created_by, scheduled_at, msg_type 필수' }, 400)
     }
-    if (new Date(scheduled_at) <= new Date()) {
+    // scheduled_at이 UTC ISO 문자열인지 확인 후 미래 시간 검증
+    const scheduledDate = new Date(scheduled_at)
+    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
       return c.json({ success: false, error: '현재 시각 이후로 설정해주세요' }, 400)
     }
 
@@ -199,15 +201,18 @@ alarms.delete('/:id', async (c) => {
 // =============================================
 alarms.post('/trigger', async (c) => {
   try {
-    const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
+    // UTC 기준 현재 시각 (클라이언트가 UTC ISO로 저장하므로 동일 기준으로 비교)
+    const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM (UTC)
 
-    // 현재 시각 기준 발송 대기 중인 알람 조회 (scheduled_at <= 지금, pending 상태)
+    // 현재 시각 기준 발송 대기 중인 알람 조회
+    // scheduled_at은 UTC ISO 형식 (예: 2026-03-03T11:45:00Z)
+    // 비교 시 'Z' suffix 제거하여 동일 형식으로 비교
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status = 'pending'
-        AND substr(a.scheduled_at, 1, 16) <= ?
+        AND replace(substr(a.scheduled_at, 1, 16), 'Z', '') <= ?
       ORDER BY a.scheduled_at ASC
       LIMIT 20
     `).bind(now).all() as { results: any[] }

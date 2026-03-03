@@ -502,6 +502,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <span class="settings-info-label">FCM 토큰</span>
         <span class="settings-info-value" id="settings-fcm-token">-</span>
       </div>
+      <div class="settings-info-row" style="flex-direction:column;align-items:flex-start;gap:6px;padding-bottom:10px;">
+        <span class="settings-info-label" style="margin-bottom:2px;"><i class="fas fa-phone" style="color:var(--primary);margin-right:4px;"></i>통화 알람 수신 번호</span>
+        <div style="display:flex;gap:6px;width:100%;">
+          <input id="settings-phone" type="tel" placeholder="+821012345678  (국제형식)" 
+            style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text1);"
+            onkeydown="if(event.key==='Enter')App.savePhone()">
+          <button onclick="App.savePhone()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">저장</button>
+        </div>
+        <span style="font-size:11px;color:var(--text3);">Twilio 통화 알람 수신에 사용됩니다. 국제 형식(+82...)으로 입력하세요.</span>
+      </div>
     </div>
     <button class="btn-danger-outline" style="margin:12px 14px 6px;width:calc(100% - 28px);" onclick="App.logout()">
       <i class="fas fa-sign-out-alt"></i> 로그아웃
@@ -852,6 +862,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603032000"></script>
+<script src="/static/mobile-app.js?v=202603032200"></script>
 </body>
 </html>`;

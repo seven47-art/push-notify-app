@@ -12,6 +12,19 @@ module.exports = {
       watch: false,
       instances: 1,
       exec_mode: 'fork'
+    },
+    {
+      name: 'alarm-cron',
+      script: 'scripts/alarm-cron.js',
+      env: {
+        SERVER_URL: 'http://localhost:3000'
+      },
+      watch: false,
+      instances: 1,
+      exec_mode: 'fork',
+      restart_delay: 5000,
+      autorestart: true
     }
   ]
 }
+
