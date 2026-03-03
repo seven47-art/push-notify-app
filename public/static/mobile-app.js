@@ -317,9 +317,11 @@ const App = {
   },
 
   _ownedTileHtml(ch) {
-    const name = ch.name || '채널'
-    const cnt  = ch.subscriber_count || 0
-    const id   = ch.id
+    const name     = ch.name || '채널'
+    const cnt      = ch.subscriber_count || 0
+    const id       = ch.id
+    const hasAlarm = Store.getAlarm(id)
+    const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         ${avatar(name, ch.image_url, 44)}
@@ -329,7 +331,7 @@ const App = {
         <div class="ch-sub">${ch.description || '채널 운영자'}</div>
       </div>
       <div class="ch-actions">
-        <button class="ch-action-btn btn-alarm"   onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');"  title="알람설정"><i class="fas fa-play"></i></button>
+        <button class="${alarmCls}"        onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="알람설정"><i class="fas fa-clock"></i></button>
         <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
         <button class="ch-action-btn btn-setting" onclick="App.openEditChannel(${id});"                               title="설정"><i class="fas fa-cog"></i></button>
       </div>
@@ -708,6 +710,19 @@ const App = {
 
     toast(`알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel}`, 3000)
     this.closeModal('modal-alarm')
+    // 알람 버튼 색상 즉시 반영
+    this._refreshAlarmBtn(currentAlarmChId)
+  },
+
+  // 알람 버튼 색상 즉시 갱신
+  _refreshAlarmBtn(chId) {
+    document.querySelectorAll('.btn-alarm').forEach(btn => {
+      const oc = btn.getAttribute('onclick') || ''
+      if (oc.includes('openAlarmModal(' + chId + ',') || oc.includes('openAlarmModal(' + chId + ')')) {
+        const hasAlarm = Store.getAlarm(chId)
+        btn.classList.toggle('has-alarm', !!hasAlarm)
+      }
+    })
   },
 
   // ── 초대코드 모달 ────────────────────────
