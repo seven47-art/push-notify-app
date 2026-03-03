@@ -549,9 +549,10 @@ const App = {
     const el = document.getElementById(statusId)
     if (!el) return
     const name = (val || '').trim()
-    if (!name) { el.textContent = ''; return }
+    if (!name) { el.textContent = ''; el.dataset.duplicate = ''; return }
 
     el.innerHTML = '<span style="color:var(--text3)">확인 중...</span>'
+    el.dataset.duplicate = 'checking'
     clearTimeout(_nameCheckTimer)
     _nameCheckTimer = setTimeout(async () => {
       try {
@@ -561,11 +562,14 @@ const App = {
         const res = await API.get(url)
         if (res.data?.available) {
           el.innerHTML = '<span style="color:#10b981"><i class="fas fa-check-circle"></i> 사용 가능한 채널명입니다</span>'
+          el.dataset.duplicate = 'no'
         } else {
           el.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+          el.dataset.duplicate = 'yes'
         }
       } catch {
         el.textContent = ''
+        el.dataset.duplicate = ''
       }
     }, 600)
   },
@@ -641,6 +645,10 @@ const App = {
     document.getElementById('edit-name').value         = ch.name || ''
     document.getElementById('edit-desc').value         = ch.description || ''
     document.getElementById('edit-homepage').value     = ch.homepage_url || ''
+    // 수정 모달 열 때 중복 체크 상태 완전 초기화
+    clearTimeout(_nameCheckTimer)
+    const editStatus = document.getElementById('edit-name-status')
+    if (editStatus) { editStatus.textContent = ''; editStatus.dataset.duplicate = '' }
     const thumb = document.getElementById('edit-img-thumb')
     thumb.innerHTML = ch.image_url
       ? `<img src="${ch.image_url}" style="width:100%;height:100%;object-fit:cover;">`
@@ -653,9 +661,9 @@ const App = {
     const name = document.getElementById('edit-name').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
 
-    // 중복 체크 상태 확인 (이미 빨간 메시지면 차단)
+    // 중복 체크 상태 확인 (data-duplicate 속성으로 안정적 판별)
     const statusEl = document.getElementById('edit-name-status')
-    if (statusEl && statusEl.querySelector('[style*="ef4444"]')) {
+    if (statusEl && statusEl.dataset.duplicate === 'yes') {
       toast('이미 사용 중인 채널명입니다'); return
     }
 
