@@ -955,9 +955,24 @@ const App = {
     const file = input.files?.[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = (e) => {
-      selectedImg = e.target.result
-      const thumbId = imgPickerMode === 'edit' ? 'edit-img-thumb' : 'create-img-thumb'
-      document.getElementById(thumbId).innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
+      // ── 이미지 리사이즈 + 압축 (SQLITE_TOOBIG 방지) ──
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 300  // 최대 300×300
+        let w = img.width, h = img.height
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+          else       { w = Math.round(w * MAX / h); h = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        // JPEG quality 0.7 → 보통 30~80KB 수준
+        selectedImg = canvas.toDataURL('image/jpeg', 0.7)
+        const thumbId = imgPickerMode === 'edit' ? 'edit-img-thumb' : 'create-img-thumb'
+        document.getElementById(thumbId).innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
+      }
+      img.src = e.target.result
     }
     reader.readAsDataURL(file); input.value = ''
   },
