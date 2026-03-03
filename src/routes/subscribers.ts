@@ -87,7 +87,25 @@ subscribers.put('/:id/token', async (c) => {
   }
 })
 
-// DELETE /api/subscribers/:id - 구독 취소
+// DELETE /api/subscribers/leave?user_id=X&channel_id=Y - 채널 나가기 (user+channel 기반, /:id 보다 먼저 등록)
+subscribers.delete('/leave', async (c) => {
+  try {
+    const userId    = c.req.query('user_id')
+    const channelId = c.req.query('channel_id')
+    if (!userId || !channelId) {
+      return c.json({ success: false, error: 'user_id and channel_id are required' }, 400)
+    }
+    await c.env.DB.prepare(`
+      UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND channel_id = ?
+    `).bind(userId, channelId).run()
+    return c.json({ success: true, message: 'Left channel successfully' })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// DELETE /api/subscribers/:id - 구독 취소 (subscriber row id)
 subscribers.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
