@@ -51,7 +51,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-actions { display:flex; gap:4px; flex-shrink:0; }
 .ch-action-btn { width:34px; height:34px; border-radius:8px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; transition:opacity 0.15s; }
 .ch-action-btn:active { opacity:0.7; }
-.btn-alarm  { background:rgba(38,208,206,0.15); color:var(--teal); }
+.btn-alarm         { background:rgba(112,112,128,0.18); color:var(--text3); }
+.btn-alarm.has-alarm { background:rgba(38,208,206,0.22); color:var(--teal); box-shadow:0 0 0 1.5px rgba(38,208,206,0.45); }
 .btn-invite { background:rgba(108,99,255,0.15); color:var(--primary); }
 .btn-setting{ background:rgba(112,112,128,0.2); color:var(--text2); }
 
