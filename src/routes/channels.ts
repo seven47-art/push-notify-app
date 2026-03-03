@@ -67,12 +67,14 @@ channels.get('/check-name', async (c) => {
 
     let row
     if (excludeId) {
+      // 수정 시: 자신 제외 + 활성 채널만 체크
       row = await c.env.DB.prepare(
-        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ?'
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ? AND is_active = 1'
       ).bind(name, excludeId).first()
     } else {
+      // 생성 시: 활성 채널만 체크 (삭제된 채널명은 재사용 가능)
       row = await c.env.DB.prepare(
-        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?)'
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND is_active = 1'
       ).bind(name).first()
     }
 
@@ -128,9 +130,9 @@ channels.post('/', async (c) => {
       return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
     }
 
-    // 채널명 중복 체크 (대소문자 구분 없이)
+    // 채널명 중복 체크 (활성 채널만, 대소문자 구분 없이)
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM channels WHERE LOWER(name) = LOWER(?)')
+      'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND is_active = 1')
       .bind(name.trim()).first()
     if (existing) {
       return c.json({ success: false, error: '이미 사용 중인 채널명입니다.' }, 409)
@@ -170,10 +172,10 @@ channels.put('/:id', async (c) => {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
     }
 
-    // 채널명 변경 시 중복 체크 (자신 제외, 대소문자 구분 없이)
+    // 채널명 변경 시 중복 체크 (자신 제외, 활성 채널만, 대소문자 구분 없이)
     if (name) {
       const dupCheck = await c.env.DB.prepare(
-        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ?')
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ? AND is_active = 1')
         .bind(name.trim(), id).first()
       if (dupCheck) {
         return c.json({ success: false, error: '이미 사용 중인 채널명입니다.' }, 409)

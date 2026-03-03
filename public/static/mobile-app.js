@@ -572,14 +572,16 @@ const App = {
 
   openCreateChannel() {
     selectedImg = null
+    clearTimeout(_nameCheckTimer)
     document.getElementById('create-name').value     = ''
     document.getElementById('create-phone').value    = ''
     document.getElementById('create-desc').value     = ''
     document.getElementById('create-homepage').value = ''
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
+    // 중복 체크 상태 완전 초기화
     const statusEl = document.getElementById('create-name-status')
-    if (statusEl) statusEl.textContent = ''
+    if (statusEl) { statusEl.textContent = ''; statusEl.dataset.duplicate = '' }
     document.getElementById('create-img-thumb').innerHTML =
       '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
     this.openModal('modal-create')
@@ -592,9 +594,9 @@ const App = {
     if (!name) { toast('채널명을 입력하세요'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
 
-    // 중복 체크 상태 확인 (이미 빨간 메시지면 차단)
+    // 중복 체크 상태 확인 (data-duplicate 속성으로 안정적 판별)
     const statusEl = document.getElementById('create-name-status')
-    if (statusEl && statusEl.querySelector('[style*="ef4444"]')) {
+    if (statusEl && statusEl.dataset.duplicate === 'yes') {
       toast('이미 사용 중인 채널명입니다'); return
     }
 
@@ -617,7 +619,7 @@ const App = {
       const msg = e.response?.data?.error || e.message
       if (e.response?.status === 409) {
         toast('이미 사용 중인 채널명입니다', 3500)
-        if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+        if (statusEl) { statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'; statusEl.dataset.duplicate = 'yes' }
       } else {
         toast('오류: ' + msg, 3500)
       }
@@ -671,7 +673,7 @@ const App = {
       const msg = e.response?.data?.error || e.message
       if (e.response?.status === 409) {
         toast('이미 사용 중인 채널명입니다', 3500)
-        if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'
+        if (statusEl) { statusEl.innerHTML = '<span style="color:#ef4444"><i class="fas fa-times-circle"></i> 이미 사용 중인 채널명입니다</span>'; statusEl.dataset.duplicate = 'yes' }
       } else {
         toast('수정 실패: ' + msg, 3000)
       }
