@@ -107,12 +107,18 @@ channels.post('/', async (c) => {
       return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
     }
 
+    // image_url이 너무 크면 null 처리 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
+    const safeImageUrl = (image_url && image_url.length <= 819200) ? image_url : null
+    if (image_url && !safeImageUrl) {
+      return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
+    }
+
     const publicId = generatePublicId()
 
     const result = await c.env.DB.prepare(`
       INSERT INTO channels (name, description, image_url, owner_id, public_id)
       VALUES (?, ?, ?, ?, ?)
-    `).bind(name.trim(), description.trim(), image_url || null, finalOwnerId, publicId).run()
+    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId).run()
 
     return c.json({
       success: true,
@@ -128,17 +134,23 @@ channels.put('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { name, description, image_url, is_active } = body
+    const { name, description, image_url, is_active, homepage_url } = body
+
+    // image_url이 너무 크면 에러 반환 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
+    if (image_url && image_url.length > 819200) {
+      return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
+    }
 
     await c.env.DB.prepare(`
       UPDATE channels 
       SET name = COALESCE(?, name),
           description = COALESCE(?, description),
           image_url = COALESCE(?, image_url),
+          homepage_url = COALESCE(?, homepage_url),
           is_active = COALESCE(?, is_active),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(name || null, description || null, image_url || null, is_active ?? null, id).run()
+    `).bind(name || null, description || null, image_url || null, homepage_url || null, is_active ?? null, id).run()
 
     return c.json({ success: true, message: 'Channel updated' })
   } catch (e: any) {
