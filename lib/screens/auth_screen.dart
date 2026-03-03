@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config.dart';
 
-const String _baseUrl =
-    'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai';
+const String _baseUrl = kBaseUrl;
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});

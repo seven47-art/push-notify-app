@@ -15,14 +15,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
 // wakelock_plus 제거
+import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 
-// ── 서버 URL ──────────────────────────────────────
-const String _appUrl =
-    'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai/app';
-const String _baseUrl =
-    'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai';
+// ── 서버 URL (config.dart에서 관리) ──────────────
+const String _appUrl  = kAppUrl;
+const String _baseUrl = kBaseUrl;
 
 // ── 전역 알림 플러그인 ────────────────────────────
 final FlutterLocalNotificationsPlugin _notificationsPlugin =
