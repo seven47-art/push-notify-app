@@ -178,6 +178,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
+      ..clearCache()
+      ..clearLocalStorage()
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
