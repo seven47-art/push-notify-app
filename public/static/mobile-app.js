@@ -549,17 +549,30 @@ const App = {
     const el = document.getElementById(statusId)
     if (!el) return
     const name = (val || '').trim()
-    if (!name) { el.textContent = ''; el.dataset.duplicate = ''; return }
+    // 빈 값: 초기화
+    if (!name) {
+      el.textContent = ''
+      el.dataset.duplicate = ''
+      clearTimeout(_nameCheckTimer)
+      return
+    }
 
     el.innerHTML = '<span style="color:var(--text3)">확인 중...</span>'
     el.dataset.duplicate = 'checking'
     clearTimeout(_nameCheckTimer)
+
+    // 요청 ID로 경쟁 조건 방지 (마지막 요청만 반영)
+    const reqId = Date.now()
+    el._lastReqId = reqId
+
     _nameCheckTimer = setTimeout(async () => {
       try {
         const url = excludeId
           ? `/api/channels/check-name?name=${encodeURIComponent(name)}&exclude_id=${excludeId}`
           : `/api/channels/check-name?name=${encodeURIComponent(name)}`
         const res = await API.get(url)
+        // 현재 요청이 최신이 아니면 무시
+        if (el._lastReqId !== reqId) return
         if (res.data?.available) {
           el.innerHTML = '<span style="color:#10b981"><i class="fas fa-check-circle"></i> 사용 가능한 채널명입니다</span>'
           el.dataset.duplicate = 'no'
@@ -568,10 +581,11 @@ const App = {
           el.dataset.duplicate = 'yes'
         }
       } catch {
+        if (el._lastReqId !== reqId) return
         el.textContent = ''
         el.dataset.duplicate = ''
       }
-    }, 600)
+    }, 700)
   },
 
   openCreateChannel() {
@@ -602,6 +616,9 @@ const App = {
     const statusEl = document.getElementById('create-name-status')
     if (statusEl && statusEl.dataset.duplicate === 'yes') {
       toast('이미 사용 중인 채널명입니다'); return
+    }
+    if (statusEl && statusEl.dataset.duplicate === 'checking') {
+      toast('채널명 중복 확인 중입니다. 잠시 후 다시 시도해주세요.'); return
     }
 
     try {
@@ -665,6 +682,9 @@ const App = {
     const statusEl = document.getElementById('edit-name-status')
     if (statusEl && statusEl.dataset.duplicate === 'yes') {
       toast('이미 사용 중인 채널명입니다'); return
+    }
+    if (statusEl && statusEl.dataset.duplicate === 'checking') {
+      toast('채널명 중복 확인 중입니다. 잠시 후 다시 시도해주세요.'); return
     }
 
     try {

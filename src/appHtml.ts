@@ -788,6 +788,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js"></script>
+<script src="/static/mobile-app.js?v=202603030909"></script>
 </body>
 </html>`;
