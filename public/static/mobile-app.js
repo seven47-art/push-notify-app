@@ -1,21 +1,40 @@
-// public/static/mobile-app.js  v3
+// public/static/mobile-app.js  v5
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
 
+// 모든 API 요청에 세션 토큰 자동 첨부
+API.interceptors.request.use(config => {
+  const token = Store.getSessionToken()
+  if (token) config.headers['Authorization'] = 'Bearer ' + token
+  return config
+})
+
 // ─────────────────────────────────────────────
-// 스토어
+// 스토어 (세션 기반 인증 통합)
 // ─────────────────────────────────────────────
 const Store = {
   get(k)    { return localStorage.getItem(k) },
   set(k, v) { localStorage.setItem(k, v) },
   del(k)    { localStorage.removeItem(k) },
-  getUserId() {
-    let id = this.get('user_id')
-    if (!id) { id = 'user_' + Date.now(); this.set('user_id', id) }
-    return id
+
+  // ── 세션/인증 ──
+  getSessionToken() { return this.get('session_token') || '' },
+  setSession(data) {
+    this.set('session_token',  data.session_token)
+    this.set('user_id',        data.user_id)
+    this.set('email',          data.email || '')
+    this.set('display_name',   data.display_name || '')
   },
+  clearSession() {
+    this.del('session_token'); this.del('user_id')
+    this.del('email'); this.del('display_name')
+  },
+  isLoggedIn() { return !!this.getSessionToken() },
+  getUserId()  { return this.get('user_id') || '' },
+  getEmail()   { return this.get('email') || '' },
+  getDisplayName() { return this.get('display_name') || '' },
   getFcmToken() {
     let t = this.get('fcm_token')
     if (!t) { t = 'fcm_' + Date.now() + '_web'; this.set('fcm_token', t) }
@@ -118,6 +137,16 @@ const App = {
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
     const uid = Store.getUserId()
+    if (!uid) {
+      document.getElementById('owned-list').innerHTML  = '<div class="empty-box">로그인이 필요합니다.</div>'
+      document.getElementById('joined-list').innerHTML = ''
+      return
+    }
+
+    // 헤더 사용자 이름 표시
+    const nameEl = document.getElementById('home-username')
+    if (nameEl) nameEl.textContent = Store.getDisplayName() || Store.getEmail() || '사용자'
+
     document.getElementById('owned-list').innerHTML  = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     document.getElementById('joined-list').innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     document.getElementById('owned-more').style.display  = 'none'
@@ -125,11 +154,13 @@ const App = {
 
     try {
       const [oRes, jRes] = await Promise.all([
-        API.get('/channels?owner_id=' + uid).catch(() => ({ data: { data: [] } })),
-        API.get('/subscribers?user_id=' + uid).catch(() => ({ data: { data: [] } }))
+        API.get('/channels?owner_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } })),
+        API.get('/subscribers?user_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } }))
       ])
       ownedChannels  = oRes.data?.data || []
-      joinedChannels = jRes.data?.data || []
+      // 내가 운영하는 채널은 가입채널에서 제외
+      const ownedIds = new Set(ownedChannels.map(c => c.id))
+      joinedChannels = (jRes.data?.data || []).filter(s => !ownedIds.has(s.channel_id))
     } catch { ownedChannels = []; joinedChannels = [] }
 
     this._renderOwned()
@@ -296,6 +327,27 @@ const App = {
     document.getElementById('settings-user-id').textContent  = Store.getUserId()
     const tok = Store.getFcmToken()
     document.getElementById('settings-fcm-token').textContent = tok.substring(0, 20) + '...'
+
+    // 계정 정보 표시
+    const emailEl = document.getElementById('settings-email')
+    const nameEl  = document.getElementById('settings-display-name')
+    if (emailEl) emailEl.textContent = Store.getEmail() || '(미설정)'
+    if (nameEl)  nameEl.textContent  = Store.getDisplayName() || '(미설정)'
+
+    // 드로어 이메일 업데이트
+    const drawerEmail = document.getElementById('drawer-user-email')
+    if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
+  },
+
+  async logout() {
+    if (!confirm('로그아웃 하시겠습니까?')) return
+    try {
+      await API.post('/auth/logout')
+    } catch {}
+    Store.clearSession()
+    toast('로그아웃 됐습니다')
+    // 앱 재로드 → Flutter가 AuthScreen으로 리다이렉트
+    setTimeout(() => location.reload(), 800)
   },
 
   showFcmToken() {
@@ -593,10 +645,12 @@ const App = {
     else if (input.startsWith('http')) {
       try { token = new URL(input).pathname.split('/').pop() } catch {}
     }
+    const uid = Store.getUserId()
+    if (!uid) { toast('로그인이 필요합니다'); return }
     try {
       const res = await API.post('/invites/join', {
         invite_token: token,
-        user_id:   Store.getUserId(),
+        user_id:   uid,
         fcm_token: Store.getFcmToken(),
         platform:  'web'
       })
@@ -648,6 +702,10 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  // 드로어 사용자 이메일 표시
+  const drawerEmail = document.getElementById('drawer-user-email')
+  if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
+
   App.goto('home')
   // 샘플 알림 (첫 방문)
   if (!Store.get('sample_added')) {

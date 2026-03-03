@@ -13,22 +13,48 @@ function generatePublicId(): string {
   return id
 }
 
-// GET /api/channels
+// GET /api/channels  (owner_id 파라미터로 필터 가능)
 channels.get('/', async (c) => {
   try {
-    const { results } = await c.env.DB.prepare(`
-      SELECT 
-        ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
-        COUNT(DISTINCT s.id) as subscriber_count,
-        COUNT(DISTINCT ct.id) as content_count,
-        COUNT(DISTINCT il.id) as invite_link_count
-      FROM channels ch
-      LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
-      LEFT JOIN contents ct ON ch.id = ct.channel_id
-      LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
-      GROUP BY ch.id
-      ORDER BY ch.created_at DESC
-    `).all()
+    const ownerId = c.req.query('owner_id')
+    let query: string
+    let stmt: D1PreparedStatement
+
+    if (ownerId) {
+      // 특정 사용자가 운영하는 채널만
+      query = `
+        SELECT 
+          ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
+          COUNT(DISTINCT s.id) as subscriber_count,
+          COUNT(DISTINCT ct.id) as content_count,
+          COUNT(DISTINCT il.id) as invite_link_count
+        FROM channels ch
+        LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
+        LEFT JOIN contents ct ON ch.id = ct.channel_id
+        LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
+        WHERE ch.owner_id = ?
+        GROUP BY ch.id
+        ORDER BY ch.created_at DESC
+      `
+      stmt = c.env.DB.prepare(query).bind(ownerId)
+    } else {
+      query = `
+        SELECT 
+          ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
+          COUNT(DISTINCT s.id) as subscriber_count,
+          COUNT(DISTINCT ct.id) as content_count,
+          COUNT(DISTINCT il.id) as invite_link_count
+        FROM channels ch
+        LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
+        LEFT JOIN contents ct ON ch.id = ct.channel_id
+        LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
+        GROUP BY ch.id
+        ORDER BY ch.created_at DESC
+      `
+      stmt = c.env.DB.prepare(query)
+    }
+
+    const { results } = await stmt.all()
     return c.json({ success: true, data: results })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

@@ -1002,8 +1002,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
   <!-- 홈 화면 -->
   <div class="screen active" id="screen-home">
+    <!-- 사용자 환영 카드 -->
+    <div style="margin:12px 14px 4px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:10px;">
+      <div style="width:38px;height:38px;border-radius:10px;background:var(--primary-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="fas fa-user" style="color:var(--primary);font-size:16px;"></i>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text3);">안녕하세요 👋</div>
+        <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="home-username">-</div>
+      </div>
+    </div>
     <!-- 나의 운영채널 -->
-    <div class="section-header">
+    <div class="section-header" style="margin-top:8px;">
       <span class="section-title">나의 운영채널</span>
       <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
     </div>
@@ -1079,8 +1089,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.0</span>
     </div>
 
-    <div class="settings-menu-label" style="margin-top:8px;">기기 정보</div>
+    <div class="settings-menu-label" style="margin-top:8px;">계정 정보</div>
     <div class="settings-info-card">
+      <div class="settings-info-row">
+        <span class="settings-info-label">이름</span>
+        <span class="settings-info-value" id="settings-display-name">-</span>
+      </div>
+      <div class="settings-info-row">
+        <span class="settings-info-label">이메일</span>
+        <span class="settings-info-value" id="settings-email">-</span>
+      </div>
       <div class="settings-info-row">
         <span class="settings-info-label">사용자 ID</span>
         <span class="settings-info-value" id="settings-user-id">-</span>
@@ -1090,7 +1108,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <span class="settings-info-value" id="settings-fcm-token">-</span>
       </div>
     </div>
-    <button class="btn-danger-outline" style="margin:12px 14px;width:calc(100% - 28px);" onclick="App.resetDevice()">
+    <button class="btn-danger-outline" style="margin:12px 14px 6px;width:calc(100% - 28px);" onclick="App.logout()">
+      <i class="fas fa-sign-out-alt"></i> 로그아웃
+    </button>
+    <button class="btn-ghost" style="margin:0 14px 12px;width:calc(100% - 28px);" onclick="App.resetDevice()">
       <i class="fas fa-trash-restore"></i> 기기 초기화
     </button>
     <div style="height:20px;"></div>
@@ -1122,7 +1143,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <div class="drawer" id="drawer">
   <div class="drawer-header">
     <div class="drawer-logo"><i class="fas fa-bell" style="color:#fff;font-size:18px;"></i></div>
-    <span class="drawer-app-name">PushNotify</span>
+    <div style="flex:1;min-width:0;">
+      <div class="drawer-app-name">PushNotify</div>
+      <div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="drawer-user-email">로그인 중...</div>
+    </div>
   </div>
   <div class="drawer-menu-label">메뉴</div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('home')">
@@ -1143,6 +1167,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.0 (web)')">
     <i class="fas fa-info-circle"></i> 버전
     <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.0</span>
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
+    <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
   <div class="drawer-version">PushNotify Web v1.0.0</div>
 </div>
