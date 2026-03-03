@@ -1,144 +1,119 @@
-// lib/screens/auth_screen.dart
-// 이메일 기반 회원가입 / 로그인 화면
+// lib/screens/auth_screen.dart  v2 - 구글 플레이 이메일 자동 로그인
+// 앱 설치 후 구글 계정 이메일 목록 표시 → 선택 시 자동 회원가입+로그인
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 
 const String _baseUrl = kBaseUrl;
 
+// ── 구글 로그인 인스턴스 ──
+final GoogleSignIn _googleSignIn = GoogleSignIn(
+  scopes: ['email', 'profile'],
+);
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
-
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  // 로그인 컨트롤러
-  final _loginEmailCtrl    = TextEditingController();
-  final _loginPassCtrl     = TextEditingController();
-
-  // 회원가입 컨트롤러
-  final _regEmailCtrl      = TextEditingController();
-  final _regPassCtrl       = TextEditingController();
-  final _regPassConfirmCtrl= TextEditingController();
-  final _regNameCtrl       = TextEditingController();
-
-  bool _loginPassHide  = true;
-  bool _regPassHide    = true;
-  bool _regPass2Hide   = true;
-  bool _loading        = false;
-  String _error        = '';
+class _AuthScreenState extends State<AuthScreen> {
+  bool   _isLoading   = false;
+  String _statusMsg   = '';
+  bool   _hasError    = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() => setState(() => _error = ''));
+    // 화면 열리자마자 구글 계정 조회 시작
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startGoogleLogin());
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _loginEmailCtrl.dispose();
-    _loginPassCtrl.dispose();
-    _regEmailCtrl.dispose();
-    _regPassCtrl.dispose();
-    _regPassConfirmCtrl.dispose();
-    _regNameCtrl.dispose();
-    super.dispose();
-  }
+  // ── 구글 로그인 플로우 ──
+  Future<void> _startGoogleLogin() async {
+    setState(() { _isLoading = true; _statusMsg = '구글 계정을 확인하는 중...'; _hasError = false; });
 
-  Future<void> _login() async {
-    final email = _loginEmailCtrl.text.trim();
-    final pass  = _loginPassCtrl.text;
-    if (email.isEmpty || pass.isEmpty) {
-      setState(() => _error = '이메일과 비밀번호를 입력해주세요');
-      return;
-    }
-    setState(() { _loading = true; _error = ''; });
     try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/api/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': pass}),
-      ).timeout(const Duration(seconds: 15));
+      // 1) 이미 로그인된 구글 계정 먼저 확인 (사일런트)
+      GoogleSignInAccount? account = await _googleSignIn.signInSilently();
 
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (res.statusCode == 200 && body['success'] == true) {
-        final data = body['data'] as Map<String, dynamic>;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('session_token', data['session_token']);
-        await prefs.setString('user_id',       data['user_id']);
-        await prefs.setString('email',          data['email']);
-        await prefs.setString('display_name',   data['display_name'] ?? '');
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/main');
-        }
-      } else {
-        setState(() => _error = body['error'] ?? '로그인에 실패했습니다');
+      // 2) 사일런트 로그인 실패 시 선택 화면 표시
+      account ??= await _googleSignIn.signIn();
+
+      if (account == null) {
+        // 사용자가 취소
+        setState(() { _isLoading = false; _statusMsg = '계정을 선택해주세요'; _hasError = false; });
+        return;
       }
+
+      setState(() { _statusMsg = '${account!.email}\n로그인 중...'; });
+
+      // 3) 서버에 이메일로 자동 로그인/회원가입
+      await _loginWithEmail(
+        email:       account.email,
+        displayName: account.displayName ?? account.email.split('@')[0],
+        googleId:    account.id,
+      );
+
     } catch (e) {
-      setState(() => _error = '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      debugPrint('[Auth] 구글 로그인 오류: $e');
+      setState(() {
+        _isLoading  = false;
+        _statusMsg  = '로그인 중 오류가 발생했습니다.\n다시 시도해주세요.';
+        _hasError   = true;
+      });
     }
   }
 
-  Future<void> _register() async {
-    final email = _regEmailCtrl.text.trim();
-    final pass  = _regPassCtrl.text;
-    final pass2 = _regPassConfirmCtrl.text;
-    final name  = _regNameCtrl.text.trim();
-
-    if (email.isEmpty || pass.isEmpty) {
-      setState(() => _error = '이메일과 비밀번호를 입력해주세요');
-      return;
-    }
-    if (pass != pass2) {
-      setState(() => _error = '비밀번호가 일치하지 않습니다');
-      return;
-    }
-    if (pass.length < 6) {
-      setState(() => _error = '비밀번호는 6자 이상이어야 합니다');
-      return;
-    }
-    setState(() { _loading = true; _error = ''; });
+  // ── 서버에 이메일 로그인 요청 ──
+  Future<void> _loginWithEmail({
+    required String email,
+    required String displayName,
+    required String googleId,
+  }) async {
     try {
       final res = await http.post(
-        Uri.parse('$_baseUrl/api/auth/register'),
+        Uri.parse('$_baseUrl/api/auth/google'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': email,
-          'password': pass,
-          'display_name': name.isEmpty ? null : name,
+          'email':        email,
+          'display_name': displayName,
+          'google_id':    googleId,
         }),
       ).timeout(const Duration(seconds: 15));
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if ((res.statusCode == 200 || res.statusCode == 201) && body['success'] == true) {
+
+      if (body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>;
+        final token = data['session_token'] as String;
+
+        // 토큰 저장 (영구 로그인)
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('session_token', data['session_token']);
-        await prefs.setString('user_id',       data['user_id']);
-        await prefs.setString('email',          data['email']);
-        await prefs.setString('display_name',   data['display_name'] ?? '');
+        await prefs.setString('session_token', token);
+        await prefs.setString('user_email',    email);
+        await prefs.setString('display_name',  displayName);
+
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/main');
         }
       } else {
-        setState(() => _error = body['error'] ?? '회원가입에 실패했습니다');
+        setState(() {
+          _isLoading = false;
+          _statusMsg = body['error'] as String? ?? '로그인에 실패했습니다';
+          _hasError  = true;
+        });
       }
     } catch (e) {
-      setState(() => _error = '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      setState(() {
+        _isLoading = false;
+        _statusMsg = '서버 연결 실패\n인터넷 연결을 확인해주세요';
+        _hasError  = true;
+      });
     }
   }
 
@@ -146,32 +121,110 @@ class _AuthScreenState extends State<AuthScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 20),
-                // ── 앱 로고 ──
-                _buildLogo(),
-                const SizedBox(height: 36),
-                // ── 탭 바 ──
-                _buildTabBar(),
-                const SizedBox(height: 24),
-                // ── 에러 메시지 ──
-                if (_error.isNotEmpty) _buildError(),
-                // ── 탭 콘텐츠 ──
-                SizedBox(
-                  height: 420,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildLoginForm(),
-                      _buildRegisterForm(),
+                // ── 앱 아이콘 ──
+                Container(
+                  width: 96, height: 96,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6C63FF).withOpacity(0.5),
+                        blurRadius: 30, offset: const Offset(0, 10),
+                      ),
                     ],
                   ),
+                  child: const Icon(Icons.notifications_active, color: Colors.white, size: 52),
+                ),
+                const SizedBox(height: 20),
+                const Text('PushNotify',
+                  style: TextStyle(color: Colors.white, fontSize: 30,
+                    fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                const SizedBox(height: 6),
+                const Text('채널 알람 구독 서비스',
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15)),
+
+                const SizedBox(height: 56),
+
+                if (_isLoading) ...[
+                  // 로딩 중
+                  const SizedBox(
+                    width: 44, height: 44,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    _statusMsg,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15, height: 1.6),
+                  ),
+                ] else ...[
+                  // 계정 선택 버튼
+                  _GoogleSignInButton(
+                    onTap: _startGoogleLogin,
+                    label: _hasError ? '다시 시도하기' : '구글 계정으로 계속하기',
+                  ),
+
+                  if (_statusMsg.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _hasError
+                          ? const Color(0xFFEF4444).withOpacity(0.12)
+                          : const Color(0xFF22C55E).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _hasError
+                            ? const Color(0xFFEF4444).withOpacity(0.3)
+                            : const Color(0xFF22C55E).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _hasError ? Icons.error_outline : Icons.info_outline,
+                            color: _hasError ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _statusMsg,
+                              style: TextStyle(
+                                color: _hasError ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                                fontSize: 13, height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+
+                const SizedBox(height: 48),
+
+                // 안내 문구
+                const Text(
+                  '구글 플레이에 등록된 계정을 선택하면\n별도 회원가입 없이 바로 사용할 수 있습니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12, height: 1.7),
                 ),
               ],
             ),
@@ -180,241 +233,54 @@ class _AuthScreenState extends State<AuthScreen>
       ),
     );
   }
+}
 
-  Widget _buildLogo() {
-    return Column(
-      children: [
-        Container(
-          width: 80, height: 80,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B35), Color(0xFFFF2D92)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+// ── 구글 로그인 버튼 위젯 ──
+class _GoogleSignInButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String label;
+  const _GoogleSignInButton({required this.onTap, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12, offset: const Offset(0, 4),
             ),
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF6B35).withOpacity(0.45),
-                blurRadius: 24, offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.alarm, color: Colors.white, size: 42),
+          ],
         ),
-        const SizedBox(height: 14),
-        const Text('PushNotify',
-          style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-        const SizedBox(height: 4),
-        const Text('채널 알림 구독 서비스',
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
-      ],
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1B4B),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.white,
-        unselectedLabelColor: const Color(0xFF94A3B8),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-        dividerColor: Colors.transparent,
-        tabs: const [
-          Tab(text: '로그인'),
-          Tab(text: '회원가입'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildError() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF450A0A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Color(0xFFF87171), size: 18),
-          const SizedBox(width: 10),
-          Expanded(child: Text(_error,
-            style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return Column(
-      children: [
-        _buildTextField(
-          controller: _loginEmailCtrl,
-          label: '이메일',
-          hint: 'example@email.com',
-          icon: Icons.email_outlined,
-          keyboardType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 14),
-        _buildTextField(
-          controller: _loginPassCtrl,
-          label: '비밀번호',
-          hint: '비밀번호 입력',
-          icon: Icons.lock_outline,
-          obscure: _loginPassHide,
-          suffixIcon: IconButton(
-            icon: Icon(_loginPassHide ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: const Color(0xFF64748B), size: 20),
-            onPressed: () => setState(() => _loginPassHide = !_loginPassHide),
-          ),
-        ),
-        const SizedBox(height: 28),
-        _buildSubmitButton(label: '로그인', onTap: _login),
-      ],
-    );
-  }
-
-  Widget _buildRegisterForm() {
-    return Column(
-      children: [
-        _buildTextField(
-          controller: _regNameCtrl,
-          label: '닉네임 (선택)',
-          hint: '표시될 이름',
-          icon: Icons.person_outline,
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
-          controller: _regEmailCtrl,
-          label: '이메일',
-          hint: 'example@email.com',
-          icon: Icons.email_outlined,
-          keyboardType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
-          controller: _regPassCtrl,
-          label: '비밀번호 (6자 이상)',
-          hint: '비밀번호 입력',
-          icon: Icons.lock_outline,
-          obscure: _regPassHide,
-          suffixIcon: IconButton(
-            icon: Icon(_regPassHide ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: const Color(0xFF64748B), size: 20),
-            onPressed: () => setState(() => _regPassHide = !_regPassHide),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
-          controller: _regPassConfirmCtrl,
-          label: '비밀번호 확인',
-          hint: '비밀번호 재입력',
-          icon: Icons.lock_outline,
-          obscure: _regPass2Hide,
-          suffixIcon: IconButton(
-            icon: Icon(_regPass2Hide ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: const Color(0xFF64748B), size: 20),
-            onPressed: () => setState(() => _regPass2Hide = !_regPass2Hide),
-          ),
-        ),
-        const SizedBox(height: 20),
-        _buildSubmitButton(label: '회원가입', onTap: _register),
-      ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    bool obscure = false,
-    Widget? suffixIcon,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(
-          color: Color(0xFFCBD5E1), fontSize: 13, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1B4B),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
-          ),
-          child: TextField(
-            controller: controller,
-            obscureText: obscure,
-            keyboardType: keyboardType,
-            style: const TextStyle(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 14),
-              prefixIcon: Icon(icon, color: const Color(0xFF6366F1), size: 20),
-              suffixIcon: suffixIcon,
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 구글 로고 (SVG 대신 텍스트 기반)
+            Container(
+              width: 24, height: 24,
+              decoration: const BoxDecoration(shape: BoxShape.circle),
+              child: const Text('G',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w700,
+                  color: Color(0xFF4285F4),
+                  height: 1.3,
+                )),
             ),
-            onSubmitted: (_) {
-              if (_tabController.index == 0) _login();
-              else _register();
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSubmitButton({required String label, required VoidCallback onTap}) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: _loading ? null : onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          padding: EdgeInsets.zero,
-        ),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B35), Color(0xFFFF2D92)],
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF6B35).withOpacity(0.4),
-                blurRadius: 16, offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Center(
-            child: _loading
-              ? const SizedBox(width: 22, height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-              : Text(label,
-                  style: const TextStyle(color: Colors.white, fontSize: 16,
-                    fontWeight: FontWeight.w800, letterSpacing: 0.3)),
-          ),
+            const SizedBox(width: 12),
+            Text(label,
+              style: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              )),
+          ],
         ),
       ),
     );
