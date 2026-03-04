@@ -1,5 +1,6 @@
 package com.pushnotify.push_notify_app
 
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
@@ -9,27 +10,28 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.*
-import android.view.WindowManager
-import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.View
-import android.view.animation.*
-import android.util.Log
+import android.view.WindowManager
+import android.view.animation.Animation
+import android.view.animation.RotateAnimation
+import android.view.animation.ScaleAnimation
+import android.widget.*
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 
 /**
  * FakeCallActivity  ─ 세이투두 방식
  *
- * ① 알람 도착 → AlarmPollingService가 startActivity로 직접 이 화면 띄움
+ * ① 알람 도착 → AlarmPollingService.start() 직접 이 화면 띄움
  *   (알림/Notification 없음, 잠금화면 위에 바로 표시)
  * ② 기기 기본 벨소리(STREAM_RING 볼륨) + 진동
  * ③ [수락] 버튼 → msgType에 따라 콘텐츠 즉시 실행 (YouTube/브라우저/오디오)
  *                  → Flutter MainActivity도 열어 앱 상태 동기화
  * ④ [거절] 버튼 / 30초 타임아웃 → 화면 종료
  */
-class FakeCallActivity : AppCompatActivity() {
+class FakeCallActivity : Activity() {
 
     companion object {
         private const val TAG = "FakeCallActivity"
@@ -47,7 +49,7 @@ class FakeCallActivity : AppCompatActivity() {
             alarmId: Int,
             contentUrl: String
         ) {
-            val intent = Intent(context, FakeCallActivity::class.java).apply {
+            val i = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -57,13 +59,14 @@ class FakeCallActivity : AppCompatActivity() {
                 putExtra(EXTRA_ALARM_ID,     alarmId)
                 putExtra(EXTRA_CONTENT_URL,  contentUrl)
             }
-            context.startActivity(intent)
+            context.startActivity(i)
         }
     }
 
-    private var ringtone: Ringtone?           = null
-    private var vibrator: Vibrator?            = null
-    private var autoDeclineTimer: CountDownTimer? = null
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
+    private var autoDeclineHandler  = Handler(Looper.getMainLooper())
+    private var autoDeclineRunnable: Runnable? = null
     private var isAnswered = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,15 +98,13 @@ class FakeCallActivity : AppCompatActivity() {
         startRinging()
 
         // 30초 후 자동 거절
-        autoDeclineTimer = object : CountDownTimer(30_000, 1_000) {
-            override fun onTick(millisUntilFinished: Long) {}
-            override fun onFinish() { if (!isAnswered) decline() }
-        }.start()
+        autoDeclineRunnable = Runnable { if (!isAnswered) decline() }
+        autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
     }
 
     override fun onDestroy() {
         stopRinging()
-        autoDeclineTimer?.cancel()
+        autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         super.onDestroy()
     }
 
@@ -154,14 +155,13 @@ class FakeCallActivity : AppCompatActivity() {
     ) {
         if (isAnswered) return
         isAnswered = true
-        autoDeclineTimer?.cancel()
+        autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
 
         // 1) 메시지 소스 즉시 실행 (YouTube / 브라우저 / 오디오)
         launchContent(msgType, msgValue, contentUrl)
 
         // 2) Flutter MainActivity도 열어 앱 상태 동기화
-        //    (앱이 꺼져있던 경우에도 웹뷰 화면이 뜨도록)
         val mainIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_answered",     true)
@@ -181,21 +181,20 @@ class FakeCallActivity : AppCompatActivity() {
         try {
             when (msgType) {
                 "youtube" -> {
-                    // YouTube 앱 우선, 없으면 브라우저
                     val videoId = extractYoutubeId(msgValue)
                     val youtubeAppUri = Uri.parse("vnd.youtube:$videoId")
-                    val youtubeWebUri = Uri.parse(
-                        if (videoId.isNotEmpty()) "https://www.youtube.com/watch?v=$videoId"
-                        else if (msgValue.startsWith("http")) msgValue
-                        else contentUrl.ifEmpty { msgValue }
-                    )
+                    val youtubeWebUrl = if (videoId.isNotEmpty())
+                        "https://www.youtube.com/watch?v=$videoId"
+                    else if (msgValue.startsWith("http")) msgValue
+                    else contentUrl.ifEmpty { msgValue }
+
                     val appIntent = Intent(Intent.ACTION_VIEW, youtubeAppUri).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     try {
                         startActivity(appIntent)
                     } catch (_: Exception) {
-                        startActivity(Intent(Intent.ACTION_VIEW, youtubeWebUri).apply {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeWebUrl)).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         })
                     }
@@ -224,19 +223,13 @@ class FakeCallActivity : AppCompatActivity() {
 
     private fun extractYoutubeId(url: String): String {
         if (url.length == 11 && !url.startsWith("http")) return url
-        val patterns = listOf(
-            Regex("(?:v=|youtu\\.be/|embed/|shorts/)([A-Za-z0-9_-]{11})")
-        )
-        for (p in patterns) {
-            val m = p.find(url)
-            if (m != null) return m.groupValues[1]
-        }
-        return ""
+        val m = Regex("(?:v=|youtu\\.be/|embed/|shorts/)([A-Za-z0-9_-]{11})").find(url)
+        return m?.groupValues?.get(1) ?: ""
     }
 
     // ── [거절] 처리 ──────────────────────────────────────────────────
     private fun decline() {
-        autoDeclineTimer?.cancel()
+        autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         finish()
     }
@@ -261,7 +254,7 @@ class FakeCallActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER_HORIZONTAL
             background  = bg
-            setPadding(0, dpToPx(80), 0, dpToPx(60))
+            setPadding(0, dp(80), 0, dp(60))
         }
 
         // "수신 전화" 레이블
@@ -272,36 +265,40 @@ class FakeCallActivity : AppCompatActivity() {
             gravity   = Gravity.CENTER
             letterSpacing = 0.15f
         })
-        root.addView(spaceView(32))
+        root.addView(space(32))
 
-        // 아이콘 (맥박 펄스)
-        val iconContainer = android.widget.FrameLayout(this)
-        val outerRing  = circleView(160, Color.parseColor("#2D2A6E"), alpha = 80)
-        val innerCircle = circleView(120, Color.parseColor("#6C63FF")).apply {
-            val pulse = ScaleAnimation(1f, 1.12f, 1f, 1.12f,
-                Animation.RELATIVE_TO_SELF, 0.5f,
-                Animation.RELATIVE_TO_SELF, 0.5f).apply {
-                duration    = 800
-                repeatMode  = Animation.REVERSE
-                repeatCount = Animation.INFINITE
+        // 아이콘 컨테이너 (맥박 펄스)
+        val iconFrame = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(160), dp(160)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
             }
-            startAnimation(pulse)
         }
-        val bellIcon = android.widget.ImageView(this).apply {
+
+        // 외부 링
+        iconFrame.addView(View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(160), dp(160)).apply { gravity = Gravity.CENTER }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#2D2A6E")); alpha = 80 }
+        })
+
+        // 내부 원 (펄스 애니메이션)
+        iconFrame.addView(View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(120), dp(120)).apply { gravity = Gravity.CENTER }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#6C63FF")) }
+            startAnimation(ScaleAnimation(1f, 1.12f, 1f, 1.12f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f).apply {
+                duration = 800; repeatMode = Animation.REVERSE; repeatCount = Animation.INFINITE
+            })
+        })
+
+        // 벨 아이콘
+        iconFrame.addView(ImageView(this).apply {
             setImageResource(android.R.drawable.ic_lock_silent_mode_off)
             setColorFilter(Color.WHITE)
-            layoutParams = android.widget.FrameLayout.LayoutParams(dpToPx(52), dpToPx(52)).apply {
-                gravity = Gravity.CENTER
-            }
-        }
-        iconContainer.layoutParams = LinearLayout.LayoutParams(dpToPx(160), dpToPx(160)).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        iconContainer.addView(outerRing)
-        iconContainer.addView(innerCircle)
-        iconContainer.addView(bellIcon)
-        root.addView(iconContainer)
-        root.addView(spaceView(32))
+            layoutParams = FrameLayout.LayoutParams(dp(52), dp(52)).apply { gravity = Gravity.CENTER }
+        })
+
+        root.addView(iconFrame)
+        root.addView(space(32))
 
         // 채널명
         root.addView(TextView(this).apply {
@@ -310,9 +307,9 @@ class FakeCallActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             gravity   = Gravity.CENTER
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(dpToPx(24), 0, dpToPx(24), 0)
+            setPadding(dp(24), 0, dp(24), 0)
         })
-        root.addView(spaceView(10))
+        root.addView(space(10))
 
         // 메시지 타입 라벨
         root.addView(TextView(this).apply {
@@ -321,7 +318,7 @@ class FakeCallActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#94A3B8"))
             gravity  = Gravity.CENTER
         })
-        root.addView(spaceView(8))
+        root.addView(space(8))
 
         // PushNotify 배지
         root.addView(TextView(this).apply {
@@ -330,17 +327,16 @@ class FakeCallActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#6C63FF"))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                cornerRadius = dpToPx(20).toFloat()
+                cornerRadius = dp(20).toFloat()
                 setColor(Color.parseColor("#1A1860"))
                 setStroke(1, Color.parseColor("#3730A3"))
             }
-            setPadding(dpToPx(14), dpToPx(6), dpToPx(14), dpToPx(6))
+            setPadding(dp(14), dp(6), dp(14), dp(6))
         })
 
-        // Spacer (push buttons to bottom)
+        // 가중치 스페이서
         root.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
 
         // 수락 / 거절 버튼 행
@@ -348,40 +344,25 @@ class FakeCallActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity     = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
         // 거절 버튼
-        btnRow.addView(makeCallButton(
-            iconRes = android.R.drawable.ic_menu_close_clear_cancel,
-            color   = "#EF4444",
-            label   = "거절",
-            onClick = { decline() }
-        ))
+        btnRow.addView(callBtn(android.R.drawable.ic_menu_close_clear_cancel, "#EF4444", "거절") { decline() })
 
         btnRow.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
         })
 
-        // 수락 버튼 (흔들림 애니메이션)
-        val answerCol = makeCallButton(
-            iconRes = android.R.drawable.ic_menu_call,
-            color   = "#22C55E",
-            label   = "수락",
-            onClick = { answer(channelName, msgType, msgValue, alarmId, contentUrl) }
-        )
-        answerCol.getChildAt(0)?.let { btn ->
-            val shake = RotateAnimation(-8f, 8f,
-                Animation.RELATIVE_TO_SELF, 0.5f,
-                Animation.RELATIVE_TO_SELF, 0.5f).apply {
-                duration    = 200
-                repeatMode  = Animation.REVERSE
-                repeatCount = Animation.INFINITE
-            }
-            btn.startAnimation(shake)
+        // 수락 버튼 (흔들림)
+        val answerCol = callBtn(android.R.drawable.ic_menu_call, "#22C55E", "수락") {
+            answer(channelName, msgType, msgValue, alarmId, contentUrl)
         }
+        (answerCol as LinearLayout).getChildAt(0)?.startAnimation(
+            RotateAnimation(-8f, 8f, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f).apply {
+                duration = 200; repeatMode = Animation.REVERSE; repeatCount = Animation.INFINITE
+            }
+        )
         btnRow.addView(answerCol)
         root.addView(btnRow)
 
@@ -389,43 +370,24 @@ class FakeCallActivity : AppCompatActivity() {
     }
 
     // ── 유틸 ─────────────────────────────────────────────────────────
-    private fun circleView(sizeDp: Int, colorInt: Int, alpha: Int = 255): View {
-        return View(this).apply {
-            layoutParams = android.widget.FrameLayout.LayoutParams(dpToPx(sizeDp), dpToPx(sizeDp)).apply {
-                gravity = Gravity.CENTER
-            }
-            background = GradientDrawable().apply {
-                shape      = GradientDrawable.OVAL
-                setColor(colorInt)
-                this.alpha = alpha
-            }
-        }
-    }
-
-    private fun makeCallButton(
-        iconRes: Int, color: String, label: String, onClick: () -> Unit
-    ): LinearLayout {
+    private fun callBtn(iconRes: Int, color: String, label: String, onClick: () -> Unit): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = dpToPx(40); marginEnd = dpToPx(40) }
+            ).apply { marginStart = dp(40); marginEnd = dp(40) }
 
-            val btn = android.widget.ImageView(this@FakeCallActivity).apply {
+            addView(ImageView(this@FakeCallActivity).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
-                layoutParams = LinearLayout.LayoutParams(dpToPx(72), dpToPx(72))
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor(color))
-                }
-                setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+                layoutParams = LinearLayout.LayoutParams(dp(72), dp(72))
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor(color)) }
+                setPadding(dp(16), dp(16), dp(16), dp(16))
                 setOnClickListener { onClick() }
-            }
-            addView(btn)
-            addView(spaceView(12))
+            })
+            addView(space(12))
             addView(TextView(this@FakeCallActivity).apply {
                 text     = label
                 textSize = 14f
@@ -435,13 +397,12 @@ class FakeCallActivity : AppCompatActivity() {
         }
     }
 
-    private fun spaceView(dp: Int) = View(this).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(dp))
+    private fun space(dpVal: Int) = View(this).apply {
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(dpVal))
     }
 
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(dpVal: Int): Int =
+        (dpVal * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun getMsgTypeLabel(msgType: String) = when (msgType) {
         "youtube" -> "📺 YouTube 알람"
