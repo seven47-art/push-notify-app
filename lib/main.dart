@@ -339,24 +339,40 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkSession() async {
     await Future.delayed(const Duration(milliseconds: 1200));
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('session_token') ?? '';
+
+    // 토큰 없으면 → 로그인 화면
+    if (token.isEmpty) { _goAuth(); return; }
+
+    // 토큰 있으면 → 서버 확인 시도 (실패해도 메인으로)
+    // 핵심: 네트워크 오류/서버 오류는 무시하고 저장된 토큰으로 자동 로그인
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isEmpty) { _goAuth(); return; }
       final res = await http.get(
         Uri.parse('$_baseUrl/api/auth/me'),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 8));
+
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        if (body['success'] == true) { _goMain(); return; }
+        if (body['success'] == true) {
+          // 세션 유효 → 메인
+          _goMain();
+          return;
+        }
+        // 401/403: 서버가 명시적으로 세션 만료 → 재로그인
+        if (res.statusCode == 401 || res.statusCode == 403) {
+          await prefs.remove('session_token');
+          _goAuth();
+          return;
+        }
       }
-      await prefs.remove('session_token');
-      _goAuth();
+
+      // 500 등 서버 오류 → 토큰 유지하고 메인으로 (오프라인 허용)
+      _goMain();
     } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isNotEmpty) _goMain(); else _goAuth();
+      // 네트워크 없음 / 타임아웃 → 토큰 유지하고 메인으로
+      _goMain();
     }
   }
 
@@ -457,6 +473,50 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     super.dispose();
   }
 
+  // ── 세션 토큰 웹뷰 localStorage 주입 (재시도 포함) ──
+  Future<void> _injectSession() async {
+    final prefs       = await SharedPreferences.getInstance();
+    final token       = prefs.getString('session_token') ?? '';
+    if (token.isEmpty) return;
+
+    final userId      = prefs.getString('user_id')      ?? '';
+    final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
+    final displayName = prefs.getString('display_name') ?? '';
+
+    final t = token.replaceAll("'", "\\'");
+    final u = userId.replaceAll("'", "\\'");
+    final e = email.replaceAll("'", "\\'");
+    final d = displayName.replaceAll("'", "\\'");
+
+    // JS 함수 존재 여부와 무관하게 localStorage에 직접 주입 후
+    // flutterSetSession이 있으면 호출, 없으면 Auth/App 직접 제어
+    final js = """
+(function() {
+  localStorage.setItem('session_token', '$t');
+  localStorage.setItem('user_id', '$u');
+  localStorage.setItem('email', '$e');
+  localStorage.setItem('display_name', '$d');
+  if (typeof window.flutterSetSession === 'function') {
+    window.flutterSetSession('$t', '$u', '$e', '$d');
+  } else {
+    if (typeof Auth !== 'undefined' && typeof Auth.hide === 'function') {
+      Auth.hide();
+    }
+    if (typeof App !== 'undefined' && typeof App.goto === 'function') {
+      App.goto('home');
+    }
+  }
+})();
+""";
+    await _controller.runJavaScript(js);
+
+    // 500ms 후 한 번 더 시도 (DOMContentLoaded 타이밍 이슈 대비)
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      await _controller.runJavaScript(js);
+    }
+  }
+
   void _initWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -474,32 +534,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           onPageFinished: (_) async {
             setState(() => _loading = false);
             // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
-            // 웹앱이 localStorage의 session_token을 읽어 로그인 상태 판단
-            final prefs       = await SharedPreferences.getInstance();
-            final token       = prefs.getString('session_token') ?? '';
-            final userId      = prefs.getString('user_id')       ?? '';
-            final email       = prefs.getString('email')         ?? prefs.getString('user_email') ?? '';
-            final displayName = prefs.getString('display_name')  ?? '';
-            if (token.isNotEmpty) {
-              // 웹앱의 window.flutterSetSession() 호출
-              // localStorage 저장 + Auth.hide() + App.goto('home') 일괄 처리
-              final t = token.replaceAll("'", "\\'");
-              final u = userId.replaceAll("'", "\\'");
-              final e = email.replaceAll("'", "\\'");
-              final d = displayName.replaceAll("'", "\\'");
-              await _controller.runJavaScript(
-                "if(typeof window.flutterSetSession==='function')"
-                "{window.flutterSetSession('$t','$u','$e','$d');}"
-                "else{"
-                "localStorage.setItem('session_token','$t');"
-                "localStorage.setItem('user_id','$u');"
-                "localStorage.setItem('email','$e');"
-                "localStorage.setItem('display_name','$d');"
-                "if(typeof Auth!=='undefined'){Auth.hide();}"
-                "if(typeof App!=='undefined'){App.goto('home');}"
-                "}"
-              );
-            }
+            await _injectSession();
           },
           onWebResourceError: (err) {
             if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
