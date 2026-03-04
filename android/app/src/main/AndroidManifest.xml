@@ -2,6 +2,9 @@
     <!-- 네트워크 (필수) -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Google 계정 읽기 (AccountManager - 자동 로그인) -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+
     <!-- 알림 (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
@@ -100,11 +103,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
-
-        <!-- 구글 로그인 (google_sign_in) -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version"/>
     </application>
 
     <queries>
