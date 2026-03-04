@@ -20,19 +20,19 @@ import java.util.concurrent.TimeUnit
  * AlarmPollingService
  * - Foreground Service로 실행 → Android의 배터리/Doze 제한 우회
  * - 1분마다 서버 /api/alarms/trigger 폴링
- * - 알람 수신 시 fullScreenIntent 알림 → 앱이 꺼져있어도 가상통화 화면 표시
+ * - 알람 수신 시 FakeCallActivity를 직접 startActivity → 세이투두 방식
+ *   (알림(Notification) 표시 없음, 잠금화면 위에 바로 전체화면 전화 수신 화면 표시)
  */
 class AlarmPollingService : Service() {
 
     companion object {
-        const val TAG = "AlarmPollingService"
-        const val FOREGROUND_CHANNEL_ID  = "alarm_service_channel"
-        const val ALARM_CHANNEL_ID       = "alarm_channel"
-        const val FOREGROUND_NOTIF_ID    = 9001
-        const val ACTION_START           = "ACTION_START"
-        const val ACTION_STOP            = "ACTION_STOP"
-        const val EXTRA_TOKEN            = "session_token"
-        const val EXTRA_BASE_URL         = "base_url"
+        const val TAG                   = "AlarmPollingService"
+        const val FOREGROUND_CHANNEL_ID = "alarm_service_channel"
+        const val FOREGROUND_NOTIF_ID   = 9001
+        const val ACTION_START          = "ACTION_START"
+        const val ACTION_STOP           = "ACTION_STOP"
+        const val EXTRA_TOKEN           = "session_token"
+        const val EXTRA_BASE_URL        = "base_url"
 
         fun start(context: Context, token: String, baseUrl: String) {
             val intent = Intent(context, AlarmPollingService::class.java).apply {
@@ -54,6 +54,7 @@ class AlarmPollingService : Service() {
 
     private var sessionToken = ""
     private var baseUrl      = ""
+    private var pollingJob: Job? = null
     private val scope        = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val http         = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -62,23 +63,23 @@ class AlarmPollingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannels()
+        createForegroundChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
         }
-        sessionToken = intent?.getStringExtra(EXTRA_TOKEN) ?: sessionToken
+        sessionToken = intent?.getStringExtra(EXTRA_TOKEN)   ?: sessionToken
         baseUrl      = intent?.getStringExtra(EXTRA_BASE_URL) ?: baseUrl
 
-        // 포그라운드 알림 (서비스 유지용 - 사용자에게 보이지 않게 최소화)
+        // 포그라운드 알림 (서비스 유지용 - 사용자에게 최소 표시)
         startForeground(FOREGROUND_NOTIF_ID, buildForegroundNotif())
 
-        // 이미 폴링 중이면 새로 시작하지 않음
-        if (scope.isActive) {
-            startPolling()
-        }
+        // 이전 폴링 취소 후 새로 시작 (중복 방지)
+        pollingJob?.cancel()
+        pollingJob = scope.launch { startPolling() }
+
         return START_STICKY // 시스템이 죽여도 재시작
     }
 
@@ -91,14 +92,13 @@ class AlarmPollingService : Service() {
     }
 
     // ── 1분마다 폴링 ──────────────────────────────────────────────────
-    private fun startPolling() {
-        scope.launch {
-            // 즉시 1회 실행
+    private suspend fun startPolling() {
+        // 앱 시작 직후 5초 대기 (초기화 완료 후 첫 폴링)
+        delay(5_000L)
+        poll()
+        while (isActive) {
+            delay(60_000L) // 1분
             poll()
-            while (isActive) {
-                delay(60_000L) // 1분
-                poll()
-            }
         }
     }
 
@@ -115,7 +115,7 @@ class AlarmPollingService : Service() {
 
             val resp = http.newCall(req).execute()
             if (resp.isSuccessful) {
-                val json     = JSONObject(resp.body?.string() ?: "{}")
+                val json      = JSONObject(resp.body?.string() ?: "{}")
                 val triggered = json.optInt("triggered", 0)
                 if (triggered > 0) {
                     val results = json.optJSONArray("results") ?: return
@@ -126,7 +126,19 @@ class AlarmPollingService : Service() {
                         val msgValue    = alarm.optString("msg_value", "")
                         val alarmId     = alarm.optInt("alarm_id", 0)
                         val contentUrl  = alarm.optString("content_url", "")
-                        showAlarmNotification(channelName, msgType, msgValue, alarmId, contentUrl)
+
+                        // ★ 핵심: 알림 표시 없이 FakeCallActivity 직접 실행 (세이투두 방식)
+                        Log.d(TAG, "알람 수신 → FakeCallActivity 직접 시작: $channelName")
+                        FakeCallActivity.start(
+                            context     = applicationContext,
+                            channelName = channelName,
+                            msgType     = msgType,
+                            msgValue    = msgValue,
+                            alarmId     = alarmId,
+                            contentUrl  = contentUrl
+                        )
+                        // 여러 알람이 있어도 첫 번째만 표시 (중복 방지)
+                        break
                     }
                 }
             }
@@ -135,62 +147,11 @@ class AlarmPollingService : Service() {
         }
     }
 
-    // ── 알람 알림 (fullScreenIntent → 앱 강제 열기) ──────────────────
-    private fun showAlarmNotification(
-        channelName: String,
-        msgType: String,
-        msgValue: String,
-        alarmId: Int,
-        contentUrl: String
-    ) {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-        // 앱의 MainActivity를 열면서 알람 데이터 전달
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("alarm_channel_name", channelName)
-            putExtra("alarm_msg_type",     msgType)
-            putExtra("alarm_msg_value",    msgValue)
-            putExtra("alarm_id",           alarmId)
-            putExtra("alarm_content_url",  contentUrl)
-        }
-
-        val pi = PendingIntent.getActivity(
-            this, alarmId, launchIntent ?: Intent(),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // 기기 기본 벨소리
-        val ringtoneUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
-            this, RingtoneManager.TYPE_RINGTONE
-        ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-        val vibPattern = longArrayOf(0, 700, 300, 700, 300, 700)
-
-        val notif = NotificationCompat.Builder(this, ALARM_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("📞 $channelName")
-            .setContentText("알람이 도착했습니다. 탭하여 확인하세요.")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pi, true)        // 화면 켜기
-            .setContentIntent(pi)
-            .setAutoCancel(true)
-            .setSound(ringtoneUri)                // 기기 기본 벨소리
-            .setVibrate(vibPattern)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .build()
-
-        nm.notify(alarmId, notif)
-    }
-
-    // ── 알림 채널 생성 ──────────────────────────────────────────────
-    private fun createNotificationChannels() {
+    // ── 포그라운드 채널 생성 ─────────────────────────────────────────
+    private fun createForegroundChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-        // 포그라운드 서비스용 (최소 중요도 - 상태바에 조용히 표시)
-        val fgChannel = NotificationChannel(
+        val ch = NotificationChannel(
             FOREGROUND_CHANNEL_ID,
             "PushNotify 백그라운드 서비스",
             NotificationManager.IMPORTANCE_MIN
@@ -198,30 +159,7 @@ class AlarmPollingService : Service() {
             description = "앱 종료 시에도 알람을 받기 위한 백그라운드 서비스"
             setShowBadge(false)
         }
-
-        // 알람 채널 (최고 중요도 + 기기 벨소리)
-        val ringtoneUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
-            this, RingtoneManager.TYPE_RINGTONE
-        ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-        val alarmChannel = NotificationChannel(
-            ALARM_CHANNEL_ID,
-            "PushNotify 알람",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "채널 알람 수신"
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 700, 300, 700, 300, 700)
-            setSound(ringtoneUri, AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            )
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-        }
-
-        nm.createNotificationChannel(fgChannel)
-        nm.createNotificationChannel(alarmChannel)
+        nm.createNotificationChannel(ch)
     }
 
     // ── 포그라운드 유지용 최소 알림 ─────────────────────────────────

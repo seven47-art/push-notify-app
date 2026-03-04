@@ -116,6 +116,17 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
 
+        <!-- 가상통화(Fake Call) 전체화면 액티비티 ─ 잠금화면 위에 표시 -->
+        <activity
+            android:name=".FakeCallActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>

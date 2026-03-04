@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,12 +16,17 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_ACCOUNTS = "com.pushnotify/accounts"
     private val CHANNEL_RINGTONE = "com.pushnotify/ringtone"
     private val CHANNEL_SERVICE  = "com.pushnotify/alarm_service"
+    private val CHANNEL_ALARM    = "com.pushnotify/alarm_data"
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
+    private var alarmChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // ── 알람 데이터 수신 채널 (FakeCallActivity 수락 후 Flutter로 전달) ──
+        alarmChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ALARM)
 
         // ── 계정 선택 채널 ──────────────────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ACCOUNTS)
@@ -81,6 +88,43 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // ── onCreate: 앱이 꺼진 상태에서 FakeCallActivity 수락으로 열린 경우 ──
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleAlarmIntent(intent)
+    }
+
+    // ── onNewIntent: 앱이 이미 열려있는 상태에서 인텐트 수신 ──────────
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAlarmIntent(intent)
+    }
+
+    // ── 알람 수락 인텐트 처리 → Flutter로 알람 데이터 전달 ────────────
+    private fun handleAlarmIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("alarm_answered", false) == true) {
+            val channelName = intent.getStringExtra("alarm_channel_name") ?: "알람"
+            val msgType     = intent.getStringExtra("alarm_msg_type")     ?: "youtube"
+            val msgValue    = intent.getStringExtra("alarm_msg_value")    ?: ""
+            val alarmId     = intent.getIntExtra("alarm_id", 0)
+            val contentUrl  = intent.getStringExtra("alarm_content_url")  ?: ""
+            Log.d("MainActivity", "alarm_answered: $channelName / $msgType / $msgValue")
+
+            val data = mapOf(
+                "channel_name" to channelName,
+                "msg_type"     to msgType,
+                "msg_value"    to msgValue,
+                "alarm_id"     to alarmId,
+                "content_url"  to contentUrl
+            )
+            // Flutter 엔진이 준비된 후 전달 (약간 지연)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                alarmChannel?.invokeMethod("onAlarmAnswered", data)
+            }, 1000)
+        }
     }
 
     // ── Account Picker: 시스템 계정 선택 팝업 ──────────────────────

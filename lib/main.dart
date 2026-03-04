@@ -489,6 +489,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         'base_url': _baseUrl,
       });
       debugPrint('[AlarmService] Native 서비스 시작 완료');
+
+      // ── FakeCallActivity 수락 후 Flutter로 전달되는 채널 수신 ──
+      const alarmDataCh = MethodChannel('com.pushnotify/alarm_data');
+      alarmDataCh.setMethodCallHandler((call) async {
+        if (call.method == 'onAlarmAnswered') {
+          final data = Map<String, dynamic>.from(call.arguments as Map);
+          debugPrint('[AlarmData] 수락 데이터 수신: $data');
+          if (mounted) {
+            _showFakeCall(
+              channelName: data['channel_name'] as String? ?? '알람',
+              msgType:     data['msg_type']     as String? ?? 'youtube',
+              msgValue:    data['msg_value']    as String? ?? '',
+              alarmId:     (data['alarm_id']   as int?) ?? 0,
+              contentUrl:  data['content_url'] as String? ?? '',
+            );
+          }
+        }
+      });
     } catch (e) {
       debugPrint('[AlarmService] Native 서비스 시작 실패: $e');
     }
