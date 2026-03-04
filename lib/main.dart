@@ -372,25 +372,30 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             setState(() => _loading = false);
             // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
             // 웹앱이 localStorage의 session_token을 읽어 로그인 상태 판단
-            final prefs = await SharedPreferences.getInstance();
+            final prefs       = await SharedPreferences.getInstance();
             final token       = prefs.getString('session_token') ?? '';
-            final email       = prefs.getString('user_email')    ?? '';
+            final userId      = prefs.getString('user_id')       ?? '';
+            final email       = prefs.getString('email')         ?? prefs.getString('user_email') ?? '';
             final displayName = prefs.getString('display_name')  ?? '';
             if (token.isNotEmpty) {
-              final js = """
-                (function() {
-                  localStorage.setItem('session_token', '${token.replaceAll("'", "\\'")}');
-                  localStorage.setItem('user_email',    '${email.replaceAll("'", "\\'")}');
-                  localStorage.setItem('display_name',  '${displayName.replaceAll("'", "\\'")}');
-                  // 웹앱이 이미 로드됐다면 즉시 Auth.hide() 실행
-                  if (typeof Auth !== 'undefined' && typeof Auth.hide === 'function') {
-                    Auth.hide();
-                    if (typeof App !== 'undefined') App.goto('home');
-                    if (typeof pollAlarmTrigger === 'function') pollAlarmTrigger();
-                  }
-                })();
-              """;
-              await _controller.runJavaScript(js);
+              // 웹앱의 window.flutterSetSession() 호출
+              // localStorage 저장 + Auth.hide() + App.goto('home') 일괄 처리
+              final t = token.replaceAll("'", "\\'");
+              final u = userId.replaceAll("'", "\\'");
+              final e = email.replaceAll("'", "\\'");
+              final d = displayName.replaceAll("'", "\\'");
+              await _controller.runJavaScript(
+                "if(typeof window.flutterSetSession==='function')"
+                "{window.flutterSetSession('$t','$u','$e','$d');}"
+                "else{"
+                "localStorage.setItem('session_token','$t');"
+                "localStorage.setItem('user_id','$u');"
+                "localStorage.setItem('email','$e');"
+                "localStorage.setItem('display_name','$d');"
+                "if(typeof Auth!=='undefined'){Auth.hide();}"
+                "if(typeof App!=='undefined'){App.goto('home');}"
+                "}"
+              );
             }
           },
           onWebResourceError: (err) {

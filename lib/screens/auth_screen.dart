@@ -89,9 +89,13 @@ class _AuthScreenState extends State<AuthScreen> {
       if (body['success'] == true) {
         final data  = body['data'] as Map<String, dynamic>;
         final prefs = await SharedPreferences.getInstance();
+        // 웹앱 localStorage와 동일한 키 이름으로 저장
         await prefs.setString('session_token', data['session_token'] as String);
-        await prefs.setString('user_email',    trimmed);
+        await prefs.setString('user_id',       data['user_id']       as String? ?? '');
+        await prefs.setString('email',         trimmed);          // 웹앱 키: email
         await prefs.setString('display_name',  trimmed.split('@')[0]);
+        // 호환용 (기존 코드에서 user_email로 읽는 곳 있음)
+        await prefs.setString('user_email',    trimmed);
 
         // ✅ 바로 메인 화면으로 이동 (로그인 화면 없음)
         if (mounted) Navigator.of(context).pushReplacementNamed('/main');
