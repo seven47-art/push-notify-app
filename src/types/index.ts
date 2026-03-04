@@ -3,6 +3,7 @@ export type Bindings = {
   DB: D1Database
   FCM_SERVER_KEY: string
   FCM_PROJECT_ID: string
+  FCM_SERVICE_ACCOUNT_JSON: string   // Firebase 서비스 계정 JSON (FCM V1 API용)
   ADMIN_SECRET: string
 }
 

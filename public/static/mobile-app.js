@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v14
+// public/static/mobile-app.js  v16
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1342,7 +1342,8 @@ async function pollAlarmTrigger() {
             channel_name: alarm.channel_name,
             msg_type: alarm.msg_type,
             msg_value: alarm.msg_value || '',
-            alarm_id: alarm.alarm_id
+            alarm_id: alarm.alarm_id,
+            content_url: alarm.content_url || ''
           }))
         }
       })
@@ -1358,16 +1359,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 로그인 화면 ──
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
+  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
+  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
   if (Store.isLoggedIn()) {
-    Auth.hide()        // 앱바/네비/wrap 보이기
-    document.getElementById('auth-screen').classList.add('hidden')
-    App.goto('home')
-    // 로그인 상태일 때 알람 폴링 시작
-    pollAlarmTrigger()  // 즉시 1회 실행
-    setInterval(pollAlarmTrigger, 60 * 1000)  // 1분마다 반복
+    _doLogin()
   } else {
-    Auth.show()        // 로그인 화면 표시
+    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
+    setTimeout(() => {
+      if (Store.isLoggedIn()) {
+        _doLogin()
+      } else {
+        Auth.show()  // 로그인 화면 표시
+      }
+    }, 400)
   }
 
   // 샘플 알림 (첫 방문)
@@ -1381,3 +1386,37 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') Auth.login() })
   document.getElementById('signup-pw2')?.addEventListener('keydown', e => { if (e.key === 'Enter') Auth.signup() })
 })
+
+function _doLogin() {
+  Auth.hide()
+  document.getElementById('auth-screen').classList.add('hidden')
+  App.goto('home')
+  pollAlarmTrigger()
+  setInterval(pollAlarmTrigger, 60 * 1000)
+}
+
+// ── Flutter에서 호출하는 세션 주입 함수 ──────────────────────
+// Flutter onPageFinished에서 runJavaScript로 호출
+// flutterSetSession(token, userId, email, displayName)
+window.flutterSetSession = function(token, userId, email, displayName) {
+  Store.set('session_token', token)
+  Store.set('user_id',       userId)
+  Store.set('email',         email)
+  Store.set('display_name',  displayName)
+  // 로그인 화면 숨기고 홈으로 이동
+  const authScreen = document.getElementById('auth-screen')
+  if (authScreen) authScreen.classList.add('hidden')
+  Auth.hide()
+  App.goto('home')
+  // 드로어 이메일 갱신
+  const drawerEmail = document.getElementById('drawer-user-email')
+  if (drawerEmail) drawerEmail.textContent = email || displayName || ''
+  // 알람 폴링 시작 (중복 방지)
+  if (!window._pollStarted) {
+    window._pollStarted = true
+    if (typeof pollAlarmTrigger === 'function') {
+      pollAlarmTrigger()
+      setInterval(pollAlarmTrigger, 60 * 1000)
+    }
+  }
+}

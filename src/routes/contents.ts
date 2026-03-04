@@ -123,4 +123,42 @@ contents.delete('/:id', async (c) => {
   }
 })
 
+// =============================================
+// GET /api/contents/stream/:filename - 알람 파일 스트리밍
+// Flutter 앱에서 오디오/비디오 파일을 직접 재생할 수 있도록 콘텐츠 URL 반환
+// =============================================
+contents.get('/stream/:filename', async (c) => {
+  try {
+    const filename = decodeURIComponent(c.req.param('filename'))
+
+    // DB에서 파일명으로 콘텐츠 검색
+    const content: any = await c.env.DB.prepare(`
+      SELECT id, content_url, content_type, title
+      FROM contents
+      WHERE content_url LIKE ?
+         OR content_url = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(`%${filename}%`, filename).first()
+
+    if (!content) {
+      return c.json({ success: false, error: '파일을 찾을 수 없습니다' }, 404)
+    }
+
+    // content_url이 외부 URL이면 리다이렉트
+    if (content.content_url && content.content_url.startsWith('http')) {
+      return c.redirect(content.content_url, 302)
+    }
+
+    return c.json({
+      success: true,
+      content_url: content.content_url,
+      content_type: content.content_type,
+      title: content.title
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 export default contents

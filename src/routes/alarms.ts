@@ -1,7 +1,8 @@
 // src/routes/alarms.ts
-// 채널 알람 스케줄 관리 + 통화형 알람 발송 (Twilio 연동 or 시뮬레이션)
+// 채널 알람 스케줄 관리 + 통화형 알람 발송 (FCM V1 API + Twilio 연동 or 시뮬레이션)
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { sendFCMDataMessage } from './fcm'
 
 const alarms = new Hono<{ Bindings: Bindings }>()
 
@@ -196,8 +197,7 @@ alarms.delete('/:id', async (c) => {
 
 // =============================================
 // POST /api/alarms/trigger  - 시간 도래한 알람 실행 (Cron 또는 폴링에서 호출)
-// 각 구독자 전화번호로 Twilio 통화 발신
-// 통화 수락 시 /api/alarms/twiml 이 실행되어 메시지 소스 재생
+// 채널 운영자 + 구독자 모두에게 알람 발송
 // =============================================
 alarms.post('/trigger', async (c) => {
   try {
@@ -205,10 +205,8 @@ alarms.post('/trigger', async (c) => {
     const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM (UTC)
 
     // 현재 시각 기준 발송 대기 중인 알람 조회
-    // scheduled_at은 UTC ISO 형식 (예: 2026-03-03T11:45:00Z)
-    // 비교 시 'Z' suffix 제거하여 동일 형식으로 비교
     const { results: dueAlarms } = await c.env.DB.prepare(`
-      SELECT a.*, ch.name as channel_name
+      SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status = 'pending'
@@ -227,6 +225,11 @@ alarms.post('/trigger', async (c) => {
     const webhookBase  = (c.env as any).WEBHOOK_BASE_URL    || 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai'
     const useTwilio    = !!(twilioSid && twilioToken && twilioFrom)
 
+    // FCM V1 API 설정
+    const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+    const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
+    const useFCM            = !!(fcmServiceAccount && fcmProjectId)
+
     let totalTriggered = 0
     const results: any[] = []
 
@@ -236,40 +239,118 @@ alarms.post('/trigger', async (c) => {
         "UPDATE alarm_schedules SET status = 'triggered', triggered_at = datetime('now') WHERE id = ? AND status = 'pending'"
       ).bind(alarm.id).run()
 
-      // 채널 구독자 조회 (전화번호 있는 회원만)
+      // 1) 채널 구독자 조회
       const { results: subscribers } = await c.env.DB.prepare(`
-        SELECT s.id, s.display_name, s.fcm_token,
-               u.phone_number
+        SELECT s.id, s.user_id, s.display_name, s.fcm_token,
+               u.phone_number, u.user_id as u_user_id
         FROM subscribers s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.channel_id = ? AND s.is_active = 1
       `).bind(alarm.channel_id).all() as { results: any[] }
 
+      // 2) 채널 운영자 정보 조회 (구독자 목록에 없을 경우 추가)
+      const ownerInfo: any = await c.env.DB.prepare(`
+        SELECT u.user_id, u.display_name, u.phone_number,
+               s.fcm_token, s.id as sub_id
+        FROM users u
+        LEFT JOIN subscribers s ON u.user_id = s.user_id AND s.channel_id = ?
+        WHERE u.user_id = ?
+      `).bind(alarm.channel_id, alarm.channel_owner_id).first()
+
+      // 3) 수신자 목록 합성 (운영자 중복 방지)
+      const recipientMap = new Map<string, any>()
+
+      for (const sub of subscribers) {
+        recipientMap.set(sub.user_id || sub.id.toString(), {
+          id: sub.id,
+          user_id: sub.user_id,
+          display_name: sub.display_name,
+          fcm_token: sub.fcm_token,
+          phone_number: sub.phone_number,
+          role: 'subscriber'
+        })
+      }
+
+      if (ownerInfo) {
+        const ownerKey = ownerInfo.user_id
+        if (!recipientMap.has(ownerKey)) {
+          recipientMap.set(ownerKey, {
+            id: ownerInfo.sub_id || -1,
+            user_id: ownerInfo.user_id,
+            display_name: ownerInfo.display_name,
+            fcm_token: ownerInfo.fcm_token,
+            phone_number: ownerInfo.phone_number,
+            role: 'owner'
+          })
+        }
+      }
+
+      const recipients = Array.from(recipientMap.values())
+
+      // 4) 콘텐츠 서버 URL 생성 (파일/오디오/비디오인 경우)
+      let contentUrl = alarm.msg_value || ''
+      if (['audio', 'video', 'file'].includes(alarm.msg_type) && alarm.msg_value) {
+        // 서버에서 스트리밍 가능한 URL 생성
+        contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(alarm.msg_value)}`
+      }
+
       let sentCount = 0, failedCount = 0
       const callResults: any[] = []
 
-      for (const sub of subscribers) {
-        if (useTwilio && sub.phone_number) {
+      for (const recipient of recipients) {
+        if (useTwilio && recipient.phone_number) {
           // 실제 Twilio 통화 발신
           const callRes = await makeTwilioCall(
-            sub.phone_number,
+            recipient.phone_number,
             alarm.channel_name,
             alarm.msg_type,
-            alarm.msg_value || '',
+            contentUrl || alarm.msg_value || '',
             twilioSid, twilioToken, twilioFrom,
             webhookBase
           )
-          callResults.push({ subscriber_id: sub.id, display_name: sub.display_name, phone: sub.phone_number, ...callRes })
-          if (callRes.success) sentCount++; else failedCount++
-        } else {
-          // 시뮬레이션 모드 (Twilio 미설정 or 전화번호 없음)
-          // FCM 푸시로 대체 발송
           callResults.push({
-            subscriber_id: sub.id,
-            display_name: sub.display_name,
-            mode: 'simulation',
+            user_id: recipient.user_id,
+            display_name: recipient.display_name,
+            role: recipient.role,
+            phone: recipient.phone_number,
+            ...callRes
+          })
+          if (callRes.success) sentCount++; else failedCount++
+
+        } else if (useFCM && recipient.fcm_token) {
+          // ─── FCM V1 API data-only 발송 (상단 알림 없음) ───
+          // RinGoFCMService.onMessageReceived()가 FakeCallActivity 직접 실행
+          const fcmRes = await sendFCMDataMessage(
+            recipient.fcm_token,
+            {
+              type:         'alarm',
+              channel_name: alarm.channel_name || '알람',
+              msg_type:     alarm.msg_type     || 'youtube',
+              msg_value:    alarm.msg_value    || '',
+              alarm_id:     String(alarm.id),
+              content_url:  contentUrl         || '',
+            },
+            fcmServiceAccount,
+            fcmProjectId
+          )
+          callResults.push({
+            user_id:      recipient.user_id,
+            display_name: recipient.display_name,
+            role:         recipient.role,
+            mode:         'fcm',
+            ...fcmRes
+          })
+          if (fcmRes.success) sentCount++; else failedCount++
+
+        } else {
+          // 시뮬레이션 모드 - 앱 폴링으로 수신 (FCM 미설정 시)
+          callResults.push({
+            user_id: recipient.user_id,
+            display_name: recipient.display_name,
+            role: recipient.role,
+            mode: 'app_polling',
             success: true,
-            message: sub.phone_number ? '시뮬레이션' : '전화번호 없음(푸시 대체)'
+            message: '앱 폴링으로 수신됨'
           })
           sentCount++
         }
@@ -278,7 +359,7 @@ alarms.post('/trigger', async (c) => {
       // 발송 결과 업데이트
       await c.env.DB.prepare(
         'UPDATE alarm_schedules SET sent_count = ?, total_targets = ? WHERE id = ?'
-      ).bind(sentCount, subscribers.length, alarm.id).run()
+      ).bind(sentCount, recipients.length, alarm.id).run()
 
       totalTriggered++
       results.push({
@@ -286,11 +367,13 @@ alarms.post('/trigger', async (c) => {
         channel_name: alarm.channel_name,
         scheduled_at: alarm.scheduled_at,
         msg_type: alarm.msg_type,
-        total_targets: subscribers.length,
+        msg_value: alarm.msg_value,
+        content_url: contentUrl,      // ← Flutter 앱에서 사용할 콘텐츠 URL
+        total_targets: recipients.length,
         sent_count: sentCount,
         failed_count: failedCount,
-        mode: useTwilio ? 'twilio' : 'simulation',
-        calls: callResults
+        mode: useTwilio ? 'twilio' : useFCM ? 'fcm' : 'app_polling',
+        recipients: callResults
       })
     }
 
