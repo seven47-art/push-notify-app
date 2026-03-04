@@ -368,7 +368,31 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         NavigationDelegate(
           onPageStarted: (_) => setState(() { _loading = true; _hasError = false; }),
           onProgress:    (p) => setState(() => _loadingProgress = p),
-          onPageFinished: (_) => setState(() => _loading = false),
+          onPageFinished: (_) async {
+            setState(() => _loading = false);
+            // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
+            // 웹앱이 localStorage의 session_token을 읽어 로그인 상태 판단
+            final prefs = await SharedPreferences.getInstance();
+            final token       = prefs.getString('session_token') ?? '';
+            final email       = prefs.getString('user_email')    ?? '';
+            final displayName = prefs.getString('display_name')  ?? '';
+            if (token.isNotEmpty) {
+              final js = """
+                (function() {
+                  localStorage.setItem('session_token', '${token.replaceAll("'", "\\'")}');
+                  localStorage.setItem('user_email',    '${email.replaceAll("'", "\\'")}');
+                  localStorage.setItem('display_name',  '${displayName.replaceAll("'", "\\'")}');
+                  // 웹앱이 이미 로드됐다면 즉시 Auth.hide() 실행
+                  if (typeof Auth !== 'undefined' && typeof Auth.hide === 'function') {
+                    Auth.hide();
+                    if (typeof App !== 'undefined') App.goto('home');
+                    if (typeof pollAlarmTrigger === 'function') pollAlarmTrigger();
+                  }
+                })();
+              """;
+              await _controller.runJavaScript(js);
+            }
+          },
           onWebResourceError: (err) {
             if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
           },
