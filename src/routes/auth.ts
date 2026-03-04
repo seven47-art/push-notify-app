@@ -26,10 +26,10 @@ function generateSessionToken(): string {
   return generateId('sess_') + '_' + Date.now()
 }
 
-// 세션 만료일 (30일)
+// 세션 만료일 (365일 = 1년)
 function sessionExpiry(): string {
   const d = new Date()
-  d.setDate(d.getDate() + 30)
+  d.setDate(d.getDate() + 365)
   return d.toISOString().replace('T', ' ').split('.')[0]
 }
 
@@ -189,6 +189,110 @@ auth.post('/logout', async (c) => {
     return c.json({ success: true, message: '로그아웃 됐습니다' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── POST /api/auth/google - 구글 플레이 이메일 자동 로그인/회원가입 ──
+// 별도 비밀번호 없이 이메일만으로 계정 생성 및 로그인
+// 앱 설치 후 구글 계정 이메일을 받아서 자동으로 처리
+auth.post('/google', async (c) => {
+  try {
+    const { email, display_name, google_id } = await c.req.json()
+
+    if (!email) {
+      return c.json({ success: false, error: '이메일이 필요합니다' }, 400)
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ success: false, error: '올바른 이메일 형식이 아닙니다' }, 400)
+    }
+
+    const emailLower = email.toLowerCase()
+
+    // 기존 사용자 조회
+    let user: any = await c.env.DB.prepare(
+      'SELECT * FROM users WHERE email = ? AND is_active = 1'
+    ).bind(emailLower).first()
+
+    if (!user) {
+      // 신규 사용자 자동 생성 (비밀번호 없음 - google_id로 구분)
+      const userId = 'u_' + generateId()
+      const dummySalt = generateSalt()
+      const dummyHash = await sha256('google_oauth_' + (google_id || emailLower))
+      const name = display_name || emailLower.split('@')[0]
+
+      await c.env.DB.prepare(`
+        INSERT INTO users (user_id, email, password_hash, salt, display_name, login_type)
+        VALUES (?, ?, ?, ?, ?, 'google')
+      `).bind(userId, emailLower, dummyHash, dummySalt, name).run()
+
+      user = { user_id: userId, email: emailLower, display_name: name, profile_image: null }
+    }
+
+    // 기존 세션 모두 삭제 후 새 세션 생성 (영구 세션 - 1년)
+    await c.env.DB.prepare('DELETE FROM user_sessions WHERE user_id = ?').bind(user.user_id).run()
+    const sessionToken = generateSessionToken()
+
+    // 1년 세션 (자동 로그인 유지)
+    const d = new Date()
+    d.setFullYear(d.getFullYear() + 1)
+    const expiresAt = d.toISOString().replace('T', ' ').split('.')[0]
+
+    await c.env.DB.prepare(`
+      INSERT INTO user_sessions (user_id, session_token, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(user.user_id, sessionToken, expiresAt).run()
+
+    return c.json({
+      success: true,
+      message: '로그인 성공',
+      is_new_user: !user.created_at,
+      data: {
+        user_id: user.user_id,
+        email: user.email,
+        display_name: user.display_name,
+        profile_image: user.profile_image,
+        session_token: sessionToken,
+        expires_at: expiresAt
+      }
+    })
+  } catch (e: any) {
+    // login_type 컬럼 없으면 없이 재시도
+    try {
+      const { email, display_name, google_id } = await c.req.json().catch(() => ({ email: '', display_name: '', google_id: '' }))
+      const emailLower = (email || '').toLowerCase()
+      if (!emailLower) return c.json({ success: false, error: e.message }, 500)
+
+      let user: any = await c.env.DB.prepare(
+        'SELECT * FROM users WHERE email = ? AND is_active = 1'
+      ).bind(emailLower).first()
+
+      if (!user) {
+        const userId = 'u_' + generateId()
+        const dummySalt = generateSalt()
+        const dummyHash = await sha256('google_oauth_' + (google_id || emailLower))
+        const name = display_name || emailLower.split('@')[0]
+        await c.env.DB.prepare(`
+          INSERT INTO users (user_id, email, password_hash, salt, display_name)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(userId, emailLower, dummyHash, dummySalt, name).run()
+        user = { user_id: userId, email: emailLower, display_name: name, profile_image: null }
+      }
+
+      await c.env.DB.prepare('DELETE FROM user_sessions WHERE user_id = ?').bind(user.user_id).run()
+      const sessionToken = generateSessionToken()
+      const d = new Date(); d.setFullYear(d.getFullYear() + 1)
+      const expiresAt = d.toISOString().replace('T', ' ').split('.')[0]
+      await c.env.DB.prepare(`INSERT INTO user_sessions (user_id, session_token, expires_at) VALUES (?, ?, ?)`)
+        .bind(user.user_id, sessionToken, expiresAt).run()
+
+      return c.json({
+        success: true, message: '로그인 성공',
+        data: { user_id: user.user_id, email: user.email, display_name: user.display_name,
+          profile_image: user.profile_image, session_token: sessionToken, expires_at: expiresAt }
+      })
+    } catch (e2: any) {
+      return c.json({ success: false, error: e2.message }, 500)
+    }
   }
 })
 
