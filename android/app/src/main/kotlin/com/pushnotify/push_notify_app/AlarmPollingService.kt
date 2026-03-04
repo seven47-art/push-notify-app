@@ -93,11 +93,10 @@ class AlarmPollingService : Service() {
 
     // ── 1분마다 폴링 ──────────────────────────────────────────────────
     private suspend fun startPolling() {
-        // 앱 시작 직후 5초 대기 (초기화 완료 후 첫 폴링)
         delay(5_000L)
         poll()
-        while (isActive) {
-            delay(60_000L) // 1분
+        while (scope.isActive) {
+            delay(60_000L)
             poll()
         }
     }
