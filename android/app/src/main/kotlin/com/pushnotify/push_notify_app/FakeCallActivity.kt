@@ -92,6 +92,13 @@ class FakeCallActivity : Activity() {
         val msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
         val msgValue    = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
         val alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
+
+        // fullScreenIntent로 열렸을 때 트리거한 알림 즉시 취소
+        // (알림 드로어에 알림이 남지 않도록)
+        try {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancel(alarmId + 10000)
+        } catch (_: Exception) {}
         val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
 
         buildUI(channelName, msgType, msgValue, alarmId, contentUrl)
