@@ -2,7 +2,7 @@
     <!-- 네트워크 (필수) -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- Google 계정 선택 팝업 (AccountManager.newChooseAccountIntent) -->
+    <!-- Google 계정 -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
 
     <!-- 알림 (Android 13+) -->
@@ -11,38 +11,38 @@
     <!-- 진동 -->
     <uses-permission android:name="android.permission.VIBRATE"/>
 
-    <!-- 마이크 (오디오 녹음) -->
+    <!-- 마이크 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
-    <!-- 카메라 (비디오 녹화) -->
+    <!-- 카메라 -->
     <uses-permission android:name="android.permission.CAMERA"/>
 
-    <!-- 화면 켜기 (알람 수신 시) -->
+    <!-- 화면 깨우기 (알람 수신 시 WAKE_LOCK 필수) -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-    <!-- 잠금화면 위 알람 표시 (Android 14 이하 - 오탐 방지 위해 주석) -->
-    <!-- <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/> -->
+    <!-- 전화 상태 읽기 (CATEGORY_CALL 알림이 시스템에서 전화로 인식되게 함) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
-    <!-- 부팅 후 자동 시작 (백그라운드 알람 서비스) -->
+    <!-- 부팅 후 자동 시작 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
-    <!-- 포그라운드 서비스 (백그라운드 폴링) -->
+    <!-- 포그라운드 서비스 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
-    <!-- 전화 수신 포그라운드 서비스 (Android 14+ phoneCall 타입) -->
+    <!-- phoneCall 타입 Foreground Service (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
-    <!-- WorkManager 백그라운드 작업 -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- APK 설치 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
-    <!-- 알람 정확한 시간 설정 (Android 12+) -->
+    <!-- 정확한 알람 (Android 12+) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
-    <!-- 배터리 최적화 제외 (앱 꺼져도 알람 수신) -->
+    <!-- 배터리 최적화 제외 (앱 종료 상태에서도 FCM 수신) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- 잠금화면 위 알람 표시 -->
+    <!-- 잠금화면 위 전체화면 표시 (fullScreenIntent 핵심 권한) -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
     <!-- 미디어 파일 읽기 -->
@@ -111,17 +111,7 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
-        <!-- 알람 백그라운드 폴링 Foreground Service (FCM 전환 후 제거 예정) -->
-        <!-- AlarmPollingService는 FCM으로 대체되어 비활성화 -->
-        <!--
-        <service
-            android:name=".AlarmPollingService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync"/>
-        -->
-
-        <!-- FCM 백그라운드 메시지 수신 서비스 -->
+        <!-- FCM 메시지 수신 서비스 -->
         <service
             android:name=".RinGoFCMService"
             android:exported="false">
@@ -130,15 +120,16 @@
             </intent-filter>
         </service>
 
-        <!-- 전화 수신 포그라운드 서비스 (카카오톡 보이스톡 방식) -->
-        <!-- Foreground Service → startForeground() 5초 내 호출 → FakeCallActivity 표시 -->
+        <!-- 전화 수신 포그라운드 서비스
+             startForeground() → fullScreenIntent → FakeCallActivity
+             foregroundServiceType="phoneCall" → CATEGORY_CALL 알림이 시스템 전화로 인식 -->
         <service
             android:name=".CallForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="phoneCall"/>
 
-        <!-- 가상통화(Fake Call) 전체화면 액티비티 ─ 잠금화면 위에 표시 -->
+        <!-- 가상통화 전체화면 액티비티 (잠금화면 위에 표시) -->
         <activity
             android:name=".FakeCallActivity"
             android:exported="false"
@@ -167,15 +158,12 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="http"/>
         </intent>
-        <!-- 오디오 녹음 앱 -->
         <intent>
             <action android:name="android.provider.MediaStore.ACTION_AUDIO_CAPTURE"/>
         </intent>
-        <!-- 비디오 녹화 앱 -->
         <intent>
             <action android:name="android.media.action.VIDEO_CAPTURE"/>
         </intent>
-        <!-- 파일 선택 -->
         <intent>
             <action android:name="android.intent.action.GET_CONTENT"/>
         </intent>
@@ -184,7 +172,6 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="vnd.youtube"/>
         </intent>
-        <!-- 미디어 재생 -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:mimeType="audio/*"/>
