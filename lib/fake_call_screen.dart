@@ -1,15 +1,16 @@
-// lib/fake_call_screen.dart  v15
+// lib/fake_call_screen.dart  v16
 // 가상 통화 수신 화면 - SAYTODO 스타일
 // - 벨소리 + 진동 (기기 벨소리 레벨)
 // - 수락 즉시 메시지 소스 실행
 // - YouTube: 유튜브 앱 직접 실행
 // - 오디오: audioplayers로 재생
-// - 비디오/파일: 외부 앱 또는 URL 열기
+// - 비디오/파일: 앱 내 WebView로 열기 (외부 브라우저 X)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class FakeCallScreen extends StatefulWidget {
   final String channelName;
@@ -234,18 +235,31 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     if (mounted) Navigator.of(context).pop();
   }
 
-  // 비디오/파일 외부 앱 실행
+  // 비디오/파일 – 앱 내 WebView로 열기 (외부 브라우저 금지)
   Future<void> _launchExternal() async {
-    final url = widget.contentUrl.isNotEmpty ? widget.contentUrl : widget.msgValue;
-    if (url.isEmpty) { if (mounted) Navigator.of(context).pop(); return; }
+    final rawUrl = widget.contentUrl.isNotEmpty ? widget.contentUrl : widget.msgValue;
+    if (rawUrl.isEmpty) { if (mounted) Navigator.of(context).pop(); return; }
 
-    try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (e) {
-      debugPrint('[FakeCall] 외부 실행 오류: $e');
+    // 유효한 HTTP URL인지 확인
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !uri.hasScheme) {
+      debugPrint('[FakeCall] 유효하지 않은 URL: $rawUrl');
+      if (mounted) Navigator.of(context).pop();
+      return;
     }
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) Navigator.of(context).pop();
+
+    // 앱 내 WebView로 열기
+    if (mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _ContentViewerScreen(
+            url: rawUrl,
+            title: widget.channelName,
+          ),
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -427,5 +441,110 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       case 'video':   return '🎬 비디오 알람';
       default:        return '📎 파일 알람';
     }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// 앱 내 콘텐츠 뷰어 (비디오/파일/오디오 URL 재생)
+// 외부 브라우저 대신 앱 내 WebView로 표시
+// ══════════════════════════════════════════════════
+class _ContentViewerScreen extends StatefulWidget {
+  final String url;
+  final String title;
+  const _ContentViewerScreen({required this.url, required this.title});
+  @override
+  State<_ContentViewerScreen> createState() => _ContentViewerScreenState();
+}
+
+class _ContentViewerScreenState extends State<_ContentViewerScreen> {
+  late final WebViewController _wvc;
+  bool _loading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _wvc = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (_) => setState(() { _loading = true; _hasError = false; }),
+        onPageFinished: (_) => setState(() => _loading = false),
+        onWebResourceError: (e) {
+          if (e.isForMainFrame == true) {
+            setState(() { _hasError = true; _loading = false; });
+          }
+        },
+      ))
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1A1035),
+        foregroundColor: Colors.white,
+        title: Text(widget.title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.open_in_browser_rounded),
+            tooltip: '브라우저에서 열기',
+            onPressed: () async {
+              final uri = Uri.tryParse(widget.url);
+              if (uri != null) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          if (_hasError)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 12),
+                  const Text('콘텐츠를 불러올 수 없습니다.',
+                      style: TextStyle(color: Colors.white70, fontSize: 15)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final uri = Uri.tryParse(widget.url);
+                      if (uri != null) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.open_in_browser_rounded),
+                    label: const Text('브라우저로 열기'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C63FF),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            WebViewWidget(controller: _wvc),
+
+          if (_loading)
+            const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xFF6C63FF)),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
