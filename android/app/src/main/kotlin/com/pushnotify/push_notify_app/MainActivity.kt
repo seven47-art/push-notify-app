@@ -1,11 +1,9 @@
 package com.pushnotify.push_notify_app
 
-import android.Manifest
 import android.accounts.AccountManager
-import android.content.pm.PackageManager
+import android.app.Activity
+import android.content.Intent
 import android.os.Build
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -13,9 +11,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     private val CHANNEL = "com.pushnotify/accounts"
-    private val REQUEST_CODE_ACCOUNTS = 1001
+    private val REQUEST_PICK_ACCOUNT = 1002
 
-    // 권한 요청 후 결과를 Flutter로 보내기 위한 콜백
     private var pendingResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -24,71 +21,78 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    // 방법 1: Account Picker 팝업 (공식 계정 선택 UI)
+                    "showAccountPicker" -> {
+                        pendingResult = result
+                        showAccountPicker()
+                    }
+                    // 방법 2: AccountManager 직접 조회 (권한 있을 때)
                     "getGoogleAccounts" -> {
                         pendingResult = result
-                        fetchGoogleAccounts(result)
+                        getAccountsDirect(result)
                     }
                     else -> result.notImplemented()
                 }
             }
     }
 
-    private fun fetchGoogleAccounts(result: MethodChannel.Result) {
-        // Android 8.0(API 26) 이상: GET_ACCOUNTS는 런타임 권한 필요
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val hasPermission = ContextCompat.checkSelfPermission(
-                this, Manifest.permission.GET_ACCOUNTS
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (!hasPermission) {
-                // 권한 요청 → onRequestPermissionsResult에서 처리
-                pendingResult = result
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.GET_ACCOUNTS),
-                    REQUEST_CODE_ACCOUNTS
-                )
-                return
-            }
-        }
-
-        // 권한 있음 → 계정 읽기
-        sendAccountsToFlutter(result)
-    }
-
-    private fun sendAccountsToFlutter(result: MethodChannel.Result) {
+    // ── Account Picker: 시스템 계정 선택 팝업 ──────────────────────
+    // AccountManager.newChooseAccountIntent() 사용
+    // GET_ACCOUNTS 권한 불필요, OAuth 불필요
+    // 사용자가 선택한 이메일만 반환
+    private fun showAccountPicker() {
         try {
-            val accountManager = AccountManager.get(this)
-            val accounts = accountManager.getAccountsByType("com.google")
-            val emailList = accounts
-                .map { it.name }
-                .filter { it.contains("@") }
-            result.success(emailList)
-        } catch (e: SecurityException) {
-            result.error("PERMISSION_DENIED", "GET_ACCOUNTS 권한이 거부되었습니다.", null)
+            val intent = AccountManager.newChooseAccountIntent(
+                null,           // 현재 선택된 계정 없음
+                null,           // 허용 계정 목록 없음 (전체)
+                arrayOf("com.google"), // Google 계정 타입만
+                null,           // 설명 문자열
+                null,           // 추가 계정 타입
+                null,           // 옵션
+                null            // 번들
+            )
+            startActivityForResult(intent, REQUEST_PICK_ACCOUNT)
         } catch (e: Exception) {
-            result.error("ERROR", e.message, null)
+            // Activity not found 등
+            pendingResult?.error("NO_PICKER", "계정 선택 창을 열 수 없습니다: ${e.message}", null)
+            pendingResult = null
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    // ── AccountManager 직접 조회 (보조 수단) ───────────────────────
+    private fun getAccountsDirect(result: MethodChannel.Result) {
+        try {
+            val am = AccountManager.get(this)
+            val accounts = am.getAccountsByType("com.google")
+            val list = accounts.map { it.name }.filter { it.contains("@") }
+            result.success(list)
+        } catch (e: SecurityException) {
+            // 권한 없으면 빈 목록 반환 (오류 X)
+            result.success(emptyList<String>())
+        } catch (e: Exception) {
+            result.success(emptyList<String>())
+        }
+    }
 
-        if (requestCode == REQUEST_CODE_ACCOUNTS) {
+    // ── Account Picker 결과 처리 ────────────────────────────────────
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_PICK_ACCOUNT) {
             val result = pendingResult ?: return
             pendingResult = null
 
-            if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // 권한 허용 → 계정 읽기
-                sendAccountsToFlutter(result)
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                val email = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+                if (!email.isNullOrEmpty()) {
+                    // 선택된 이메일 반환
+                    result.success(email)
+                } else {
+                    result.error("NO_EMAIL", "이메일을 가져올 수 없습니다.", null)
+                }
             } else {
-                // 권한 거부 → 빈 목록 반환 (Flutter에서 수동 입력 폴백)
-                result.success(emptyList<String>())
+                // 사용자가 취소
+                result.error("CANCELLED", "계정 선택이 취소되었습니다.", null)
             }
         }
     }
