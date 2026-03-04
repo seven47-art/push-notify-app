@@ -523,6 +523,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         debugPrint('[FCM] 포그라운드 메시지: ${message.data}');
         final data = message.data;
         if (data['type'] == 'alarm' && mounted) {
+          // 포그라운드: Kotlin에서 발송한 Notification을 즉시 취소
+          // (Flutter에서 직접 FakeCall 다이얼로그로 처리하므로 중복 방지)
+          _notificationsPlugin.cancel(9999);
+
           _showFakeCall(
             channelName: data['channel_name'] ?? '알람',
             msgType:     data['msg_type']     ?? 'youtube',

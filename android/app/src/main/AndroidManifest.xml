@@ -29,6 +29,8 @@
     <!-- 포그라운드 서비스 (백그라운드 폴링) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- 전화 수신 포그라운드 서비스 (Android 14+ phoneCall 타입) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
     <!-- WorkManager 백그라운드 작업 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
@@ -127,6 +129,14 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
+
+        <!-- 전화 수신 포그라운드 서비스 (카카오톡 보이스톡 방식) -->
+        <!-- Foreground Service → startForeground() 5초 내 호출 → FakeCallActivity 표시 -->
+        <service
+            android:name=".CallForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall"/>
 
         <!-- 가상통화(Fake Call) 전체화면 액티비티 ─ 잠금화면 위에 표시 -->
         <activity

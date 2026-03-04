@@ -162,6 +162,8 @@ class FakeCallActivity : Activity() {
     ) {
         if (isAnswered) return
         isAnswered = true
+
+        // 버튼 즉시 비활성화 (중복 클릭 방지 UI)
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
 
@@ -173,10 +175,15 @@ class FakeCallActivity : Activity() {
         } catch (_: Exception) {}
 
         // 메시지 소스 즉시 실행 (YouTube / 브라우저 / 오디오)
-        // ※ MainActivity 별도 실행 제거 → 수락 한 번으로 바로 콘텐츠 실행
+        // finish() 전에 launchContent 호출 → 같은 Task에서 startActivity 가능
         launchContent(msgType, msgValue, contentUrl)
 
-        finish()
+        // CallForegroundService 종료 (포그라운드 알림 제거)
+        CallForegroundService.stop(applicationContext)
+
+        // 콘텐츠 실행 후 FakeCallActivity 종료
+        // 약간의 딜레이로 startActivity가 처리될 시간 확보
+        autoDeclineHandler.postDelayed({ finish() }, 300L)
     }
 
     // ── 콘텐츠 즉시 실행 ─────────────────────────────────────────────
@@ -234,6 +241,8 @@ class FakeCallActivity : Activity() {
     private fun decline() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
+        // CallForegroundService 종료 (포그라운드 알림 제거)
+        CallForegroundService.stop(applicationContext)
         finish()
     }
 
