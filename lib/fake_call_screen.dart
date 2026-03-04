@@ -1,16 +1,16 @@
 // lib/fake_call_screen.dart  v16
-// 가상 통화 수신 화면 - SAYTODO 스타일
-// - 벨소리 + 진동 (기기 벨소리 레벨)
-// - 수락 즉시 메시지 소스 실행
-// - YouTube: 유튜브 앱 직접 실행
-// - 오디오: audioplayers로 재생
-// - 비디오/파일: 앱 내 WebView로 열기 (외부 브라우저 X)
+// 가상 통화 수신 화면
+// - 기기 기본 벨소리(RingtoneManager) + 진동
+// - 수락 버튼 누르면 화면 닫기 전 즉시 소스 실행
+// - YouTube / 오디오 / 비디오 / 파일 지원
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+
+// 기기 벨소리 URI 가져오는 MethodChannel
+const _ringtoneCh = MethodChannel('com.pushnotify/ringtone');
 
 class FakeCallScreen extends StatefulWidget {
   final String channelName;
@@ -34,8 +34,9 @@ class FakeCallScreen extends StatefulWidget {
 
 class _FakeCallScreenState extends State<FakeCallScreen>
     with TickerProviderStateMixin {
+
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late Animation<double>   _pulseAnimation;
   late AnimationController _ringController;
 
   // 알람 벨소리 플레이어
@@ -43,7 +44,8 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
   Timer? _autoDeclineTimer;
   Timer? _vibrateTimer;
-  bool _isAnswered = false;
+  bool   _isAnswered  = false;
+  bool   _isLaunching = false; // 중복 실행 방지
 
   @override
   void initState() {
@@ -87,35 +89,54 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     super.dispose();
   }
 
-  // 벨소리 + 진동 시작 (기기 링 볼륨 스트림 사용)
-  void _startRinging() async {
+  // ── 기기 기본 벨소리 재생 ─────────────────────────────────────────
+  Future<void> _startRinging() async {
+    // 1) 기기 기본 링톤 URI 가져오기 (native)
+    String ringtoneUri = '';
     try {
-      // RING 스트림 = 기기 볼륨 설정을 그대로 따름
+      ringtoneUri = await _ringtoneCh.invokeMethod<String>('getDefaultRingtoneUri') ?? '';
+    } catch (_) {}
+
+    // 2) 벨소리 재생
+    try {
       await _bellPlayer.setVolume(1.0);
       await _bellPlayer.setReleaseMode(ReleaseMode.loop);
       await _bellPlayer.setAudioContext(
         AudioContext(
           android: AudioContextAndroid(
-            isSpeakerphoneOn: true,
+            isSpeakerphoneOn: false,
             stayAwake: true,
             contentType: AndroidContentType.sonification,
-            usageType: AndroidUsageType.notificationRingtone, // 🔔 링톤 스트림
-            audioFocus: AndroidAudioFocus.gain,
+            usageType: AndroidUsageType.notificationRingtone, // 링톤 스트림 (기기 벨소리 볼륨)
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
           ),
         ),
       );
-      await _bellPlayer.play(AssetSource('sounds/alarm_ring.mp3'));
+
+      if (ringtoneUri.isNotEmpty) {
+        // 기기 기본 벨소리 (content:// URI)
+        await _bellPlayer.play(DeviceFileSource(ringtoneUri));
+      } else {
+        // 폴백: 앱 내장 알람음
+        await _bellPlayer.play(AssetSource('sounds/alarm_ring.mp3'));
+      }
     } catch (e) {
       debugPrint('[FakeCall] 벨소리 오류: $e');
+      // 폴백 재시도
+      try {
+        await _bellPlayer.play(AssetSource('sounds/alarm_ring.mp3'));
+      } catch (_) {}
     }
 
-    // 진동 패턴 반복
-    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) {
-      if (mounted && !_isAnswered) HapticFeedback.heavyImpact();
+    // 3) 진동 패턴 반복
+    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) {
+      if (mounted && !_isAnswered) {
+        HapticFeedback.heavyImpact();
+      }
     });
   }
 
-  // 벨소리 + 진동 중지
+  // ── 벨소리 + 진동 중지 ────────────────────────────────────────────
   void _stopRinging() {
     _bellPlayer.stop();
     _vibrateTimer?.cancel();
@@ -123,94 +144,108 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     _ringController.stop();
   }
 
-  // 통화 수락 → 즉시 메시지 소스 실행
+  // ── 통화 수락 → 즉시 메시지 소스 실행 ─────────────────────────────
+  // 중요: pop() 보다 launch() 먼저 호출해야 앱 전환이 자연스러움
   void _answer() async {
-    if (_isAnswered) return;
-    setState(() => _isAnswered = true);
+    if (_isAnswered || _isLaunching) return;
+    setState(() {
+      _isAnswered  = true;
+      _isLaunching = true;
+    });
     _autoDeclineTimer?.cancel();
     _stopRinging();
+
+    // 소스 실행 (await - 실행 시작 후 pop)
     await _launchMsgSource();
   }
 
-  // 통화 거절
+  // ── 통화 거절 ─────────────────────────────────────────────────────
   void _decline() {
     _autoDeclineTimer?.cancel();
     _stopRinging();
     if (mounted) Navigator.of(context).pop();
   }
 
-  // 메시지 소스 실행
+  // ── 메시지 소스 실행 (타입별 분기) ──────────────────────────────
   Future<void> _launchMsgSource() async {
     try {
       switch (widget.msgType) {
         case 'youtube':
           await _launchYouTube();
-          break;
         case 'audio':
           await _playAudio();
-          break;
         case 'video':
         case 'file':
           await _launchExternal();
-          break;
         default:
           await _launchYouTube();
       }
     } catch (e) {
       debugPrint('[FakeCall] 소스 실행 오류: $e');
+    } finally {
+      // 실행 완료(또는 실패) 후 화면 닫기
       if (mounted) Navigator.of(context).pop();
     }
   }
 
-  // YouTube 즉시 실행
+  // ── YouTube 즉시 실행 ─────────────────────────────────────────────
   Future<void> _launchYouTube() async {
     String url = widget.msgValue;
     if (url.isEmpty && widget.contentUrl.isNotEmpty) url = widget.contentUrl;
-    if (url.isEmpty) { if (mounted) Navigator.of(context).pop(); return; }
+    if (url.isEmpty) return;
 
     try {
-      // YouTube 앱 스킴 시도
-      String youtubeId = '';
-      final uri = Uri.tryParse(url);
-      if (uri != null) {
-        if (uri.host.contains('youtu.be')) {
-          youtubeId = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
-        } else if (uri.queryParameters.containsKey('v')) {
-          youtubeId = uri.queryParameters['v'] ?? '';
-        } else if (uri.pathSegments.contains('shorts')) {
-          final idx = uri.pathSegments.indexOf('shorts');
-          youtubeId = (idx + 1 < uri.pathSegments.length) ? uri.pathSegments[idx + 1] : '';
-        }
-      }
+      String youtubeId = _extractYoutubeId(url);
 
       bool launched = false;
       if (youtubeId.isNotEmpty) {
+        // YouTube 앱으로 직접 열기
         final ytUri = Uri.parse('youtube://watch?v=$youtubeId');
         if (await canLaunchUrl(ytUri)) {
           launched = await launchUrl(ytUri, mode: LaunchMode.externalApplication);
         }
       }
       if (!launched) {
+        // YouTube 앱 없으면 브라우저로
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       debugPrint('[FakeCall] YouTube 실행 오류: $e');
     }
-
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) Navigator.of(context).pop();
+    // pop은 _launchMsgSource finally에서 처리
   }
 
-  // 오디오 재생
+  String _extractYoutubeId(String url) {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null) return '';
+      if (uri.host.contains('youtu.be')) {
+        return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+      }
+      if (uri.queryParameters.containsKey('v')) {
+        return uri.queryParameters['v'] ?? '';
+      }
+      if (uri.pathSegments.contains('shorts')) {
+        final idx = uri.pathSegments.indexOf('shorts');
+        return (idx + 1 < uri.pathSegments.length) ? uri.pathSegments[idx + 1] : '';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  // ── 오디오 재생 ──────────────────────────────────────────────────
   Future<void> _playAudio() async {
     final url = widget.contentUrl.isNotEmpty ? widget.contentUrl : widget.msgValue;
-    if (url.isEmpty) { if (mounted) Navigator.of(context).pop(); return; }
+    if (url.isEmpty) return;
+
+    // 화면 먼저 닫고 오디오 재생 (백그라운드 재생)
+    if (mounted) Navigator.of(context).pop();
 
     final player = AudioPlayer();
     try {
       await player.setAudioContext(AudioContext(
         android: AudioContextAndroid(
-          isSpeakerphoneOn: true,
+          isSpeakerphoneOn: false,
           stayAwake: true,
           contentType: AndroidContentType.music,
           usageType: AndroidUsageType.media,
@@ -232,36 +267,26 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     } finally {
       await player.dispose();
     }
-    if (mounted) Navigator.of(context).pop();
+    // 이미 pop됨 - finally에서 다시 pop 안 함 (rethrow 방지)
+    return; // _launchMsgSource finally의 pop 방지 위해 일찍 리턴하지 않음
+           // → _playAudio에서 직접 pop했으므로 finally에서는 무시됨
   }
 
-  // 비디오/파일 – 앱 내 WebView로 열기 (외부 브라우저 금지)
+  // ── 비디오/파일 외부 앱 실행 ─────────────────────────────────────
   Future<void> _launchExternal() async {
-    final rawUrl = widget.contentUrl.isNotEmpty ? widget.contentUrl : widget.msgValue;
-    if (rawUrl.isEmpty) { if (mounted) Navigator.of(context).pop(); return; }
+    final url = widget.contentUrl.isNotEmpty ? widget.contentUrl : widget.msgValue;
+    if (url.isEmpty) return;
 
-    // 유효한 HTTP URL인지 확인
-    final uri = Uri.tryParse(rawUrl);
-    if (uri == null || !uri.hasScheme) {
-      debugPrint('[FakeCall] 유효하지 않은 URL: $rawUrl');
-      if (mounted) Navigator.of(context).pop();
-      return;
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('[FakeCall] 외부 실행 오류: $e');
     }
-
-    // 앱 내 WebView로 열기
-    if (mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => _ContentViewerScreen(
-            url: rawUrl,
-            title: widget.channelName,
-          ),
-        ),
-      );
-      if (mounted) Navigator.of(context).pop();
-    }
+    // 잠깐 대기 후 pop (외부 앱 전환 후 화면 정리)
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
+  // ── UI ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -269,6 +294,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // 배경 그라디언트
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -278,6 +304,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
               ),
             ),
           ),
+          // 배경 장식 원
           Positioned(
             top: -80, right: -80,
             child: Container(
@@ -298,15 +325,22 @@ class _FakeCallScreenState extends State<FakeCallScreen>
               ),
             ),
           ),
+
           SafeArea(
             child: Column(
               children: [
                 const SizedBox(height: 60),
-                const Text('수신 전화',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 16, letterSpacing: 2)),
+                const Text(
+                  '수신 전화',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 16,
+                    letterSpacing: 2,
+                  ),
+                ),
                 const SizedBox(height: 40),
 
-                // 맥박 링 아이콘
+                // ── 맥박 링 아이콘 ──
                 AnimatedBuilder(
                   animation: _pulseAnimation,
                   builder: (context, child) {
@@ -314,20 +348,25 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                       alignment: Alignment.center,
                       children: [
                         ...[1.6, 1.4, 1.2].asMap().entries.map((e) {
-                          final scale = 1.0 + (e.value - 1.0) * (_pulseAnimation.value - 1.0) / 0.4;
+                          final scale = 1.0 +
+                              (e.value - 1.0) *
+                              (_pulseAnimation.value - 1.0) / 0.4;
                           return Container(
-                            width: 120 * scale, height: 120 * scale,
+                            width: 120 * scale,
+                            height: 120 * scale,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: const Color(0xFF6C63FF).withOpacity(0.3 - e.key * 0.08),
+                                color: const Color(0xFF6C63FF)
+                                    .withOpacity(0.3 - e.key * 0.08),
                                 width: 1.5,
                               ),
                             ),
                           );
                         }),
                         Container(
-                          width: 120, height: 120,
+                          width: 120,
+                          height: 120,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
@@ -335,9 +374,19 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                               end: Alignment.bottomRight,
                               colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
                             ),
-                            boxShadow: [BoxShadow(color: Color(0x996C63FF), blurRadius: 30, spreadRadius: 5)],
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0x996C63FF),
+                                blurRadius: 30,
+                                spreadRadius: 5,
+                              )
+                            ],
                           ),
-                          child: const Icon(Icons.notifications_active, color: Colors.white, size: 52),
+                          child: const Icon(
+                            Icons.notifications_active,
+                            color: Colors.white,
+                            size: 52,
+                          ),
                         ),
                       ],
                     );
@@ -345,32 +394,51 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                 ),
 
                 const SizedBox(height: 32),
+
+                // 채널명
                 Text(
                   widget.channelName,
-                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
-                Text(_getMsgTypeLabel(),
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 16)),
+                Text(
+                  _getMsgTypeLabel(),
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6C63FF).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+                    border: Border.all(
+                        color: const Color(0xFF6C63FF).withOpacity(0.3)),
                   ),
-                  child: Text('PushNotify 알람',
-                    style: TextStyle(color: const Color(0xFF6C63FF).withOpacity(0.9),
-                      fontSize: 13, fontWeight: FontWeight.w500)),
+                  child: Text(
+                    'PushNotify 알람',
+                    style: TextStyle(
+                      color: const Color(0xFF6C63FF).withOpacity(0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
 
                 const Spacer(),
 
-                // 수락/거절 버튼
+                // ── 수락 / 거절 버튼 ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 50),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 60, vertical: 50),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -380,47 +448,96 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                           GestureDetector(
                             onTap: _decline,
                             child: Container(
-                              width: 72, height: 72,
+                              width: 72,
+                              height: 72,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: const Color(0xFFEF4444),
-                                boxShadow: [BoxShadow(
-                                  color: const Color(0xFFEF4444).withOpacity(0.4),
-                                  blurRadius: 20, spreadRadius: 3)],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFEF4444)
+                                        .withOpacity(0.4),
+                                    blurRadius: 20,
+                                    spreadRadius: 3,
+                                  )
+                                ],
                               ),
-                              child: const Icon(Icons.call_end, color: Colors.white, size: 34),
+                              child: const Icon(
+                                Icons.call_end,
+                                color: Colors.white,
+                                size: 34,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          const Text('거절', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                          const Text(
+                            '거절',
+                            style: TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 14),
+                          ),
                         ],
                       ),
-                      // 수락 (초록) - 흔들림
+
+                      // 수락 (초록) - 흔들림 + 로딩 표시
                       Column(
                         children: [
                           GestureDetector(
-                            onTap: _answer,
-                            child: AnimatedBuilder(
-                              animation: _ringController,
-                              builder: (context, child) => Transform.rotate(
-                                angle: _ringController.value * 0.3 - 0.15,
-                                child: child,
-                              ),
-                              child: Container(
-                                width: 72, height: 72,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF22C55E),
-                                  boxShadow: [BoxShadow(
-                                    color: const Color(0xFF22C55E).withOpacity(0.4),
-                                    blurRadius: 20, spreadRadius: 3)],
-                                ),
-                                child: const Icon(Icons.call, color: Colors.white, size: 34),
-                              ),
-                            ),
+                            onTap: _isAnswered ? null : _answer,
+                            child: _isAnswered
+                                ? Container(
+                                    width: 72,
+                                    height: 72,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: const Color(0xFF22C55E)
+                                          .withOpacity(0.5),
+                                    ),
+                                    child: const SizedBox(
+                                      width: 30,
+                                      height: 30,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation(
+                                            Colors.white),
+                                      ),
+                                    ),
+                                  )
+                                : AnimatedBuilder(
+                                    animation: _ringController,
+                                    builder: (context, child) =>
+                                        Transform.rotate(
+                                      angle: _ringController.value * 0.3 - 0.15,
+                                      child: child,
+                                    ),
+                                    child: Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(0xFF22C55E),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF22C55E)
+                                                .withOpacity(0.4),
+                                            blurRadius: 20,
+                                            spreadRadius: 3,
+                                          )
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.call,
+                                        color: Colors.white,
+                                        size: 34,
+                                      ),
+                                    ),
+                                  ),
                           ),
                           const SizedBox(height: 12),
-                          const Text('수락', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                          const Text(
+                            '수락',
+                            style: TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 14),
+                          ),
                         ],
                       ),
                     ],
@@ -441,110 +558,5 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       case 'video':   return '🎬 비디오 알람';
       default:        return '📎 파일 알람';
     }
-  }
-}
-
-// ══════════════════════════════════════════════════
-// 앱 내 콘텐츠 뷰어 (비디오/파일/오디오 URL 재생)
-// 외부 브라우저 대신 앱 내 WebView로 표시
-// ══════════════════════════════════════════════════
-class _ContentViewerScreen extends StatefulWidget {
-  final String url;
-  final String title;
-  const _ContentViewerScreen({required this.url, required this.title});
-  @override
-  State<_ContentViewerScreen> createState() => _ContentViewerScreenState();
-}
-
-class _ContentViewerScreenState extends State<_ContentViewerScreen> {
-  late final WebViewController _wvc;
-  bool _loading = true;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    _wvc = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (_) => setState(() { _loading = true; _hasError = false; }),
-        onPageFinished: (_) => setState(() => _loading = false),
-        onWebResourceError: (e) {
-          if (e.isForMainFrame == true) {
-            setState(() { _hasError = true; _loading = false; });
-          }
-        },
-      ))
-      ..loadRequest(Uri.parse(widget.url));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1035),
-        foregroundColor: Colors.white,
-        title: Text(widget.title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.open_in_browser_rounded),
-            tooltip: '브라우저에서 열기',
-            onPressed: () async {
-              final uri = Uri.tryParse(widget.url);
-              if (uri != null) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          if (_hasError)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                  const SizedBox(height: 12),
-                  const Text('콘텐츠를 불러올 수 없습니다.',
-                      style: TextStyle(color: Colors.white70, fontSize: 15)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final uri = Uri.tryParse(widget.url);
-                      if (uri != null) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    icon: const Icon(Icons.open_in_browser_rounded),
-                    label: const Text('브라우저로 열기'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            WebViewWidget(controller: _wvc),
-
-          if (_loading)
-            const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(Color(0xFF6C63FF)),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 }

@@ -109,6 +109,13 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
+        <!-- 알람 백그라운드 폴링 Foreground Service -->
+        <service
+            android:name=".AlarmPollingService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>

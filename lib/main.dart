@@ -1,5 +1,5 @@
-// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v16
-// 앱 꺼져도 알람 동작: flutter_local_notifications 백그라운드 서비스
+// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v17
+// 앱 꺼져도 알람 동작: AlarmPollingService (Native Foreground Service)
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,11 +14,13 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:workmanager/workmanager.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
+
+// ── Native 서비스 제어 채널 ──────────────────────────────
+const _alarmServiceCh = MethodChannel('com.pushnotify/alarm_service');
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -27,9 +29,6 @@ const String _baseUrl = kBaseUrl;
 // ── 전역 알림 플러그인 ────────────────────────────
 final FlutterLocalNotificationsPlugin _notificationsPlugin =
     FlutterLocalNotificationsPlugin();
-
-// ── 전역 오디오 플레이어 (알람 벨소리) ────────────
-final AudioPlayer _alarmAudioPlayer = AudioPlayer();
 
 // ── 앱 전역 네비게이터 키 ──────────────────────────
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -40,93 +39,6 @@ Map<String, dynamic>? _pendingAlarmData;
 // ─────────────────────────────────────────────────
 // 앱 시작점
 // ─────────────────────────────────────────────────
-// ─────────────────────────────────────────────────
-// WorkManager 백그라운드 태스크 이름
-// ─────────────────────────────────────────────────
-const _bgTaskName = 'pushNotifyAlarmPoll';
-const _bgTaskTag  = 'alarm_poll';
-
-// ─────────────────────────────────────────────────
-// WorkManager 백그라운드 콜백 (앱 꺼져도 실행)
-// 반드시 최상위 함수여야 함
-// ─────────────────────────────────────────────────
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((taskName, inputData) async {
-    try {
-      // 로컬 알림 초기화 (백그라운드에서도 필요)
-      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-      await FlutterLocalNotificationsPlugin().initialize(
-        const InitializationSettings(android: androidInit),
-      );
-
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isEmpty) return true; // 로그인 안됨 → 스킵
-
-      final res = await http.post(
-        Uri.parse('$kBaseUrl/api/alarms/trigger'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 20));
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        if ((data['triggered'] as int? ?? 0) > 0) {
-          final results = data['results'] as List<dynamic>? ?? [];
-          for (final alarm in results) {
-            final a           = alarm as Map<String, dynamic>;
-            final channelName = a['channel_name'] as String? ?? '알람';
-            final msgType     = a['msg_type']     as String? ?? 'youtube';
-            final msgValue    = a['msg_value']    as String? ?? '';
-            final alarmId     = (a['alarm_id']   as int?) ?? 0;
-            final contentUrl  = a['content_url'] as String? ?? '';
-
-            final payload = jsonEncode({
-              'channel_name': channelName,
-              'msg_type':     msgType,
-              'msg_value':    msgValue,
-              'alarm_id':     alarmId,
-              'content_url':  contentUrl,
-            });
-
-            // 알림 표시 (탭하면 앱 열리고 가상통화 화면 표시)
-            await FlutterLocalNotificationsPlugin().show(
-              alarmId,
-              '📞 $channelName',
-              '알람이 도착했습니다. 탭하여 확인하세요.',
-              NotificationDetails(
-                android: AndroidNotificationDetails(
-                  'alarm_channel',
-                  'PushNotify 알람',
-                  channelDescription: '채널 알람 수신',
-                  importance: Importance.max,
-                  priority: Priority.max,
-                  playSound: true,
-                  enableVibration: true,
-                  vibrationPattern: Int64List.fromList([0,500,300,500,300,500]),
-                  fullScreenIntent: true,
-                  category: AndroidNotificationCategory.call,
-                  autoCancel: true,
-                  styleInformation: BigTextStyleInformation(
-                    '$channelName 채널에서 알람이 도착했습니다.',
-                  ),
-                ),
-              ),
-              payload: payload,
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[BG] 폴링 오류: $e');
-    }
-    return true;
-  });
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -138,24 +50,8 @@ void main() async {
     ),
   );
 
-  // 로컬 알림 초기화
+  // 로컬 알림 초기화 (인앱 알림용)
   await _initLocalNotifications();
-
-  // WorkManager 초기화 (앱 꺼져도 백그라운드 폴링)
-  await Workmanager().initialize(
-    callbackDispatcher,
-    isInDebugMode: false,
-  );
-  // 15분마다 서버 폴링 (Android 최소 주기)
-  await Workmanager().registerPeriodicTask(
-    _bgTaskName,
-    _bgTaskTag,
-    frequency: const Duration(minutes: 15),
-    constraints: Constraints(
-      networkType: NetworkType.connected, // 네트워크 연결 시만
-    ),
-    existingWorkPolicy: ExistingWorkPolicy.keep, // 이미 등록된 경우 유지
-  );
 
   runApp(const PushNotifyApp());
 }
@@ -456,8 +352,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.addObserver(this);
     _initWebView();
     _startAlarmPolling();
+    // Native 백그라운드 서비스 시작 (앱 꺼져도 알람 수신)
+    _startNativeAlarmService();
 
-    // 앱 시작 시 대기 중인 알람 데이터 확인
+    // 앱 시작 시 대기 중인 알람 데이터 확인 (서비스가 보낸 인텐트 처리)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pendingAlarmData != null) {
         final data = _pendingAlarmData!;
@@ -580,10 +478,26 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
-  // ── 알람 폴링 시작 ──
+  // ── Native Foreground Service 시작 (앱 꺼져도 폴링) ──
+  Future<void> _startNativeAlarmService() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      if (token.isEmpty) return;
+      await _alarmServiceCh.invokeMethod('startService', {
+        'token':    token,
+        'base_url': _baseUrl,
+      });
+      debugPrint('[AlarmService] Native 서비스 시작 완료');
+    } catch (e) {
+      debugPrint('[AlarmService] Native 서비스 시작 실패: $e');
+    }
+  }
+
+  // ── 앱 포그라운드 폴링 (1분 주기) ──
   void _startAlarmPolling() {
-    // 15초 후 첫 체크
-    Future.delayed(const Duration(seconds: 15), () {
+    // 10초 후 첫 체크 (앱 오픈 시)
+    Future.delayed(const Duration(seconds: 10), () {
       if (mounted) _pollAlarms();
     });
     // 1분마다 반복

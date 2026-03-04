@@ -49,3 +49,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // HTTP 클라이언트 (AlarmPollingService 백그라운드 폴링)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Kotlin Coroutines (비동기 폴링)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+}
