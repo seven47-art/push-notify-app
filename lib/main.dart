@@ -1,5 +1,5 @@
-// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v17
-// 앱 꺼져도 알람 동작: AlarmPollingService (Native Foreground Service)
+// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v19
+// FCM(Firebase Cloud Messaging) 방식 - 상단 알림 없이 FakeCallActivity 직접 실행
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,13 +14,12 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
-
-// ── Native 서비스 제어 채널 ──────────────────────────────
-const _alarmServiceCh = MethodChannel('com.pushnotify/alarm_service');
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -37,10 +36,27 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Map<String, dynamic>? _pendingAlarmData;
 
 // ─────────────────────────────────────────────────
+// FCM 백그라운드 메시지 핸들러 (앱이 완전히 꺼진 상태에서도 호출됨)
+// ※ 반드시 최상위 함수여야 함 (클래스 밖)
+// ─────────────────────────────────────────────────
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // 백그라운드에서는 Kotlin RinGoFCMService.onMessageReceived()가 처리
+  // (data-only 메시지는 Android 네이티브에서 직접 FakeCallActivity 실행)
+  debugPrint('[FCM-BG] 백그라운드 메시지 수신: ${message.data}');
+}
+
+// ─────────────────────────────────────────────────
 // 앱 시작점
 // ─────────────────────────────────────────────────
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase 초기화
+  await Firebase.initializeApp();
+
+  // FCM 백그라운드 핸들러 등록
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // 상태바 투명
   SystemChrome.setSystemUIOverlayStyle(
@@ -351,11 +367,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initWebView();
-    _startAlarmPolling();
-    // Native 백그라운드 서비스 시작 (앱 꺼져도 알람 수신)
-    _startNativeAlarmService();
+    _startAlarmPolling();          // 포그라운드 폴링 (앱 열려있을 때)
+    _initFCM();                     // FCM 초기화 + 토큰 서버 등록
 
-    // 앱 시작 시 대기 중인 알람 데이터 확인 (서비스가 보낸 인텐트 처리)
+    // 앱 시작 시 대기 중인 알람 데이터 확인 (FakeCallActivity → Flutter)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pendingAlarmData != null) {
         final data = _pendingAlarmData!;
@@ -478,19 +493,62 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
-  // ── Native Foreground Service 시작 (앱 꺼져도 폴링) ──
-  Future<void> _startNativeAlarmService() async {
+  // ── FCM 초기화 + 토큰 서버 등록 ──────────────────────
+  Future<void> _initFCM() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isEmpty) return;
-      await _alarmServiceCh.invokeMethod('startService', {
-        'token':    token,
-        'base_url': _baseUrl,
-      });
-      debugPrint('[AlarmService] Native 서비스 시작 완료');
+      final messaging = FirebaseMessaging.instance;
 
-      // ── FakeCallActivity 수락 후 Flutter로 전달되는 채널 수신 ──
+      // Android 13+ 알림 권한 요청
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // FCM 토큰 획득 + 서버 등록
+      final fcmToken = await messaging.getToken();
+      if (fcmToken != null) {
+        debugPrint('[FCM] 토큰: $fcmToken');
+        await _registerFcmToken(fcmToken);
+      }
+
+      // 토큰 갱신 시 서버 재등록
+      messaging.onTokenRefresh.listen((newToken) {
+        debugPrint('[FCM] 토큰 갱신: $newToken');
+        _registerFcmToken(newToken);
+      });
+
+      // 앱이 포그라운드일 때 FCM 메시지 수신
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint('[FCM] 포그라운드 메시지: ${message.data}');
+        final data = message.data;
+        if (data['type'] == 'alarm' && mounted) {
+          _showFakeCall(
+            channelName: data['channel_name'] ?? '알람',
+            msgType:     data['msg_type']     ?? 'youtube',
+            msgValue:    data['msg_value']    ?? '',
+            alarmId:     int.tryParse(data['alarm_id'] ?? '0') ?? 0,
+            contentUrl:  data['content_url'] ?? '',
+          );
+        }
+      });
+
+      // 앱이 백그라운드에서 알림 탭으로 재개될 때
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        debugPrint('[FCM] 알림 탭으로 앱 재개: ${message.data}');
+        final data = message.data;
+        if (data['type'] == 'alarm' && mounted) {
+          _showFakeCall(
+            channelName: data['channel_name'] ?? '알람',
+            msgType:     data['msg_type']     ?? 'youtube',
+            msgValue:    data['msg_value']    ?? '',
+            alarmId:     int.tryParse(data['alarm_id'] ?? '0') ?? 0,
+            contentUrl:  data['content_url'] ?? '',
+          );
+        }
+      });
+
+      // FakeCallActivity 수락 후 Flutter로 전달되는 채널 수신
       const alarmDataCh = MethodChannel('com.pushnotify/alarm_data');
       alarmDataCh.setMethodCallHandler((call) async {
         if (call.method == 'onAlarmAnswered') {
@@ -507,8 +565,37 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           }
         }
       });
+
     } catch (e) {
-      debugPrint('[AlarmService] Native 서비스 시작 실패: $e');
+      debugPrint('[FCM] 초기화 실패: $e');
+    }
+  }
+
+  // ── FCM 토큰을 서버에 등록 ──────────────────────
+  Future<void> _registerFcmToken(String fcmToken) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('session_token') ?? '';
+      if (sessionToken.isEmpty) return;
+
+      final res = await http.post(
+        Uri.parse('$_baseUrl/api/fcm/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
+        body: jsonEncode({'fcm_token': fcmToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        debugPrint('[FCM] 토큰 서버 등록 성공');
+        // 로컬에도 저장
+        await prefs.setString('fcm_token', fcmToken);
+      } else {
+        debugPrint('[FCM] 토큰 서버 등록 실패: ${res.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('[FCM] 토큰 등록 오류: $e');
     }
   }
 

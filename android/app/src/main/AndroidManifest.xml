@@ -109,12 +109,24 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
-        <!-- 알람 백그라운드 폴링 Foreground Service -->
+        <!-- 알람 백그라운드 폴링 Foreground Service (FCM 전환 후 제거 예정) -->
+        <!-- AlarmPollingService는 FCM으로 대체되어 비활성화 -->
+        <!--
         <service
             android:name=".AlarmPollingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
+        -->
+
+        <!-- FCM 백그라운드 메시지 수신 서비스 -->
+        <service
+            android:name=".RinGoFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
 
         <!-- 가상통화(Fake Call) 전체화면 액티비티 ─ 잠금화면 위에 표시 -->
         <activity
