@@ -165,20 +165,16 @@ class FakeCallActivity : Activity() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
 
-        // 1) 메시지 소스 즉시 실행 (YouTube / 브라우저 / 오디오)
-        launchContent(msgType, msgValue, contentUrl)
+        // 알림 정리 (fullScreenIntent 알림 제거)
+        try {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancel(9999)
+            nm.cancel(alarmId + 10000)
+        } catch (_: Exception) {}
 
-        // 2) Flutter MainActivity도 열어 앱 상태 동기화
-        val mainIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("alarm_answered",     true)
-            putExtra("alarm_channel_name", channelName)
-            putExtra("alarm_msg_type",     msgType)
-            putExtra("alarm_msg_value",    msgValue)
-            putExtra("alarm_id",           alarmId)
-            putExtra("alarm_content_url",  contentUrl)
-        }
-        if (mainIntent != null) startActivity(mainIntent)
+        // 메시지 소스 즉시 실행 (YouTube / 브라우저 / 오디오)
+        // ※ MainActivity 별도 실행 제거 → 수락 한 번으로 바로 콘텐츠 실행
+        launchContent(msgType, msgValue, contentUrl)
 
         finish()
     }
