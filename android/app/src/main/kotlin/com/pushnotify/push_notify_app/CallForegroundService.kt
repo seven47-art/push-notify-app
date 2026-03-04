@@ -9,40 +9,36 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
  * CallForegroundService
  *
- * 카카오톡 보이스톡과 동일한 방식:
- * FCM 수신 → Foreground Service 시작 → fullScreenIntent로 FakeCallActivity 표시
+ * 핵심 원칙:
+ *   ① startForeground() 로 Foreground Service 유지
+ *   ② FakeCallActivity는 fullScreenIntent 로만 실행 (startActivity 직접 호출 X)
+ *   ③ WAKE_LOCK 으로 화면을 먼저 켠 뒤 fullScreenIntent 발동
  *
- * ▶ Foreground Service는 Android OS가 절대 kill하지 않음
- * ▶ 배터리 최적화 앱(도즈 모드)에서도 안정적으로 동작
- * ▶ 앱 완전 종료(swipe kill) 상태에서도 FCM → Foreground Service 동작
- *
- * 흐름:
- * FCM onMessageReceived
- *   → startForegroundService(CallForegroundService)
- *   → onStartCommand에서 즉시 startForeground() (5초 룰)
- *   → fullScreenIntent Notification으로 FakeCallActivity 실행
- *   → FakeCallActivity가 수락/거절/타임아웃 → stopService()
+ * Android 10+ 에서 백그라운드 앱은 startActivity() 직접 호출 불가.
+ * Foreground Service 안에서도 앱 프로세스가 없으면 startActivity() 차단됨.
+ * → fullScreenIntent 만 사용해야 잠금화면/종료 상태에서 Activity 표시 가능.
  */
 class CallForegroundService : Service() {
 
     companion object {
-        private const val TAG             = "CallForegroundService"
-        const val CHANNEL_ID              = "ringo_call_channel"
-        const val CHANNEL_NAME            = "RinGo 전화"
-        const val NOTIFICATION_ID         = 1001
-        const val ACTION_STOP             = "ACTION_STOP_CALL"
+        private const val TAG        = "CallForegroundService"
+        const val CHANNEL_ID         = "ringo_call_channel"
+        const val CHANNEL_NAME       = "RinGo 알람"
+        const val NOTIFICATION_ID    = 1001
+        const val ACTION_STOP        = "ACTION_STOP_CALL"
 
-        const val EXTRA_CHANNEL_NAME      = "channel_name"
-        const val EXTRA_MSG_TYPE          = "msg_type"
-        const val EXTRA_MSG_VALUE         = "msg_value"
-        const val EXTRA_ALARM_ID          = "alarm_id"
-        const val EXTRA_CONTENT_URL       = "content_url"
+        const val EXTRA_CHANNEL_NAME = "channel_name"
+        const val EXTRA_MSG_TYPE     = "msg_type"
+        const val EXTRA_MSG_VALUE    = "msg_value"
+        const val EXTRA_ALARM_ID     = "alarm_id"
+        const val EXTRA_CONTENT_URL  = "content_url"
 
         fun start(
             context: Context,
@@ -59,7 +55,6 @@ class CallForegroundService : Service() {
                 putExtra(EXTRA_ALARM_ID,     alarmId)
                 putExtra(EXTRA_CONTENT_URL,  contentUrl)
             }
-            // Android 8+ 에서 백그라운드에서 Foreground Service 시작
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -72,6 +67,8 @@ class CallForegroundService : Service() {
         }
     }
 
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -80,9 +77,8 @@ class CallForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand: ${intent?.action}")
 
-        // 서비스 중단 요청
         if (intent?.action == ACTION_STOP) {
-            Log.d(TAG, "서비스 중단 요청")
+            releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -94,32 +90,61 @@ class CallForegroundService : Service() {
         val alarmId     = intent?.getIntExtra(EXTRA_ALARM_ID, 0)     ?: 0
         val contentUrl  = intent?.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
 
-        Log.d(TAG, "알람 수신: $channelName / $msgType")
+        Log.d(TAG, "알람 처리 시작: $channelName / $msgType")
 
-        // ★ 핵심: 5초 이내에 반드시 startForeground() 호출
-        // FakeCallActivity를 fullScreenIntent로 띄우는 Notification
+        // ① WAKE_LOCK 먼저 획득 → 화면이 꺼져 있어도 CPU/화면 깨움
+        acquireWakeLock()
+
+        // ② startForeground() 반드시 5초 이내 호출
+        //    fullScreenIntent 포함 → OS가 잠금화면 위에 FakeCallActivity 표시
         val notification = buildCallNotification(channelName, msgType, alarmId, msgValue, contentUrl)
         startForeground(NOTIFICATION_ID, notification)
 
-        // FakeCallActivity 시작
-        FakeCallActivity.start(
-            context     = applicationContext,
-            channelName = channelName,
-            msgType     = msgType,
-            msgValue    = msgValue,
-            alarmId     = alarmId,
-            contentUrl  = contentUrl
-        )
+        // ③ FakeCallActivity.start() 직접 호출 금지!
+        //    fullScreenIntent 가 OS에 의해 자동으로 Activity 를 실행함
+        //    (앱 종료/잠금화면/백그라운드 모두 동작)
+        Log.d(TAG, "fullScreenIntent 발동 완료 → OS가 FakeCallActivity 실행")
 
-        // START_NOT_STICKY: 서비스가 kill되어도 자동 재시작 안 함
         return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        releaseWakeLock()
         Log.d(TAG, "서비스 종료")
         super.onDestroy()
+    }
+
+    // ── WAKE_LOCK: 화면/CPU 강제 깨움 ───────────────────────────────
+    private fun acquireWakeLock() {
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            wakeLock?.release()
+            wakeLock = pm.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+                "ringo:alarm_wakelock"
+            ).also {
+                it.acquire(30_000L) // 최대 30초 (알람 타임아웃과 동일)
+                Log.d(TAG, "WAKE_LOCK 획득")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "WAKE_LOCK 획득 실패: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "WAKE_LOCK 해제")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "WAKE_LOCK 해제 실패: ${e.message}")
+        }
+        wakeLock = null
     }
 
     // ── 알림 채널 생성 ────────────────────────────────────────────────
@@ -130,18 +155,18 @@ class CallForegroundService : Service() {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "RinGo 알람 전화 화면"
+                description         = "RinGo 알람"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-                setBypassDnd(true)       // 방해 금지 모드 무시
-                enableVibration(false)   // FakeCallActivity에서 직접 처리
-                setSound(null, null)     // FakeCallActivity에서 직접 처리
+                setBypassDnd(true)
+                enableVibration(false)
+                setSound(null, null)
             }
-            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(channel)
         }
     }
 
-    // ── fullScreenIntent Notification 빌드 ───────────────────────────
+    // ── Notification 빌드 (fullScreenIntent 포함) ────────────────────
     private fun buildCallNotification(
         channelName: String,
         msgType: String,
@@ -149,7 +174,7 @@ class CallForegroundService : Service() {
         msgValue: String,
         contentUrl: String
     ): Notification {
-        // FakeCallActivity를 직접 여는 fullScreenIntent
+
         val fullScreenIntent = Intent(applicationContext, FakeCallActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -169,7 +194,6 @@ class CallForegroundService : Service() {
             applicationContext, alarmId, fullScreenIntent, piFlags
         )
 
-        // 거절 PendingIntent (알림에서 직접 거절 가능)
         val declineIntent = Intent(applicationContext, CallForegroundService::class.java).apply {
             action = ACTION_STOP
         }
@@ -181,19 +205,19 @@ class CallForegroundService : Service() {
             "youtube" -> "📺 YouTube 알람"
             "audio"   -> "🎵 오디오 알람"
             "video"   -> "🎬 비디오 알람"
-            else      -> "📎 파일 알람"
+            else      -> "📎 알람"
         }
 
         return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
-            .setContentTitle(channelName)
+            .setContentTitle("📞 $channelName")
             .setContentText(msgTypeLabel)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(true)                                        // 스와이프 제거 불가
+            .setOngoing(true)
             .setAutoCancel(false)
-            .setFullScreenIntent(fullScreenPi, true)                 // ★ 잠금화면 위 Activity 실행
+            .setFullScreenIntent(fullScreenPi, true)   // ← OS가 이걸로 FakeCallActivity 실행
             .setContentIntent(fullScreenPi)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "거절", declinePi)
             .build()

@@ -10,6 +10,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.*
+import android.os.PowerManager
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -68,9 +69,26 @@ class FakeCallActivity : Activity() {
     private var autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
     private var isAnswered = false
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ── WAKE_LOCK: Activity 레벨에서도 화면 강제 켜기 ────────────
+        // CallForegroundService 에서 이미 WakeLock 획득했지만
+        // Activity 에서도 추가로 획득해서 화면이 꺼지지 않도록 보장
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+                "ringo:fakecall_wakelock"
+            ).also { it.acquire(35_000L) }
+            Log.d(TAG, "FakeCallActivity WAKE_LOCK 획득")
+        } catch (e: Exception) {
+            Log.e(TAG, "WAKE_LOCK 실패: ${e.message}")
+        }
 
         // ── 잠금화면/화면 켜기 설정 ─────────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -112,6 +130,10 @@ class FakeCallActivity : Activity() {
     override fun onDestroy() {
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
+        // WAKE_LOCK 해제
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (_: Exception) {}
         super.onDestroy()
     }
 
