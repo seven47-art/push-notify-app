@@ -53,7 +53,7 @@ void main() async {
   // 로컬 알림 초기화 (인앱 알림용)
   await _initLocalNotifications();
 
-  runApp(const PushNotifyApp());
+  runApp(const RinGoApp());
 }
 
 // ─────────────────────────────────────────────────
@@ -88,7 +88,7 @@ Future<void> _initLocalNotifications() async {
   if (Platform.isAndroid) {
     const channel = AndroidNotificationChannel(
       'alarm_channel',
-      'PushNotify 알람',
+      'RinGo 알람',
       description: '채널 알람 수신 알림',
       importance: Importance.max,
       playSound: true,
@@ -135,7 +135,7 @@ Future<void> _showAlarmNotification({
 
   final androidDetails = AndroidNotificationDetails(
     'alarm_channel',
-    'PushNotify 알람',
+    'RinGo 알람',
     channelDescription: '채널 알람 수신',
     importance: Importance.max,
     priority: Priority.max,
@@ -148,7 +148,7 @@ Future<void> _showAlarmNotification({
     autoCancel: true,
     styleInformation: BigTextStyleInformation(
       '$channelName 채널에서 알람이 도착했습니다.',
-      summaryText: 'PushNotify 알람',
+      summaryText: 'RinGo 알람',
     ),
   );
 
@@ -190,15 +190,15 @@ void _showFakeCallFromData(BuildContext context, Map<String, dynamic> data) {
 }
 
 // ─────────────────────────────────────────────────
-// PushNotify 앱
+// RinGo 앱
 // ─────────────────────────────────────────────────
-class PushNotifyApp extends StatelessWidget {
-  const PushNotifyApp({super.key});
+class RinGoApp extends StatelessWidget {
+  const RinGoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PushNotify',
+      title: 'RinGo',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       theme: ThemeData(
@@ -309,7 +309,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: const Icon(Icons.notifications_active, color: Colors.white, size: 48),
             ),
             const SizedBox(height: 18),
-            const Text('PushNotify',
+            const Text('RinGo',
               style: TextStyle(color: Colors.white, fontSize: 28,
                 fontWeight: FontWeight.w800, letterSpacing: -0.5)),
             const SizedBox(height: 40),
@@ -942,7 +942,7 @@ class _AppLogo extends StatelessWidget {
           child: const Icon(Icons.notifications_active, color: Colors.white, size: 40),
         ),
         const SizedBox(height: 14),
-        const Text('PushNotify',
+        const Text('RinGo',
           style: TextStyle(
             color: Colors.white, fontSize: 22,
             fontWeight: FontWeight.bold, letterSpacing: 0.5,

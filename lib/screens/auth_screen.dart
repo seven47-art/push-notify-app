@@ -147,7 +147,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       color: Colors.white, size: 50),
                 ),
                 const SizedBox(height: 20),
-                const Text('PushNotify',
+                const Text('RinGo',
                     style: TextStyle(color: Colors.white, fontSize: 30,
                         fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                 const SizedBox(height: 6),

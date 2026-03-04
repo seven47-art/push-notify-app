@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 40),
                 const Center(
                   child: Text(
-                    'PushNotify v1.0.0\n© 2026 PushNotify',
+                    'RinGo v1.0.0\n© 2026 RinGo',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
@@ -232,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'PushNotify',
+                'RinGo',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,

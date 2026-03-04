@@ -192,7 +192,7 @@ class AlarmPollingService : Service() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
         // 1) 포그라운드 서비스 채널 (최소 중요도 - 거의 안 보임)
-        NotificationChannel(FG_CHANNEL_ID, "PushNotify 서비스", NotificationManager.IMPORTANCE_MIN).apply {
+        NotificationChannel(FG_CHANNEL_ID, "RinGo 서비스", NotificationManager.IMPORTANCE_MIN).apply {
             description = "백그라운드 알람 수신 서비스"
             setShowBadge(false)
             nm.createNotificationChannel(this)
@@ -203,7 +203,7 @@ class AlarmPollingService : Service() {
             this, RingtoneManager.TYPE_RINGTONE
         ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
-        NotificationChannel(CALL_CHANNEL_ID, "PushNotify 알람 전화", NotificationManager.IMPORTANCE_HIGH).apply {
+        NotificationChannel(CALL_CHANNEL_ID, "RinGo 알람 전화", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "알람 수신 시 전화 화면 표시"
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 700, 300, 700)
@@ -226,7 +226,7 @@ class AlarmPollingService : Service() {
         )
         return NotificationCompat.Builder(this, FG_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("PushNotify")
+            .setContentTitle("RinGo")
             .setContentText("알람 수신 대기 중")
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_MIN)

@@ -327,9 +327,9 @@ class FakeCallActivity : Activity() {
         })
         root.addView(space(8))
 
-        // PushNotify 배지
+        // RinGo 배지
         root.addView(TextView(this).apply {
-            text    = "PushNotify 알람"
+            text    = "RinGo 알람"
             textSize = 13f
             setTextColor(Color.parseColor("#6C63FF"))
             gravity = Gravity.CENTER

@@ -424,7 +424,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                         color: const Color(0xFF6C63FF).withOpacity(0.3)),
                   ),
                   child: Text(
-                    'PushNotify 알람',
+                    'RinGo 알람',
                     style: TextStyle(
                       color: const Color(0xFF6C63FF).withOpacity(0.9),
                       fontSize: 13,

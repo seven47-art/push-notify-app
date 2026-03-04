@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Icon(Icons.notifications_active, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 10),
-          const Text('PushNotify',
+          const Text('RinGo',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
         ]),
         actions: [
@@ -489,7 +489,7 @@ class _DrawerSheet extends StatelessWidget {
             child: Row(children: [
               const Icon(Icons.notifications_active, color: _primary, size: 22),
               const SizedBox(width: 10),
-              const Text('PushNotify',
+              const Text('RinGo',
                   style: TextStyle(color: _text, fontSize: 18, fontWeight: FontWeight.bold)),
             ]),
           ),
