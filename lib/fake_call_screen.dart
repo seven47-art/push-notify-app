@@ -86,9 +86,10 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     super.dispose();
   }
 
-  // 벨소리 + 진동 시작
+  // 벨소리 + 진동 시작 (기기 링 볼륨 스트림 사용)
   void _startRinging() async {
     try {
+      // RING 스트림 = 기기 볼륨 설정을 그대로 따름
       await _bellPlayer.setVolume(1.0);
       await _bellPlayer.setReleaseMode(ReleaseMode.loop);
       await _bellPlayer.setAudioContext(
@@ -96,9 +97,9 @@ class _FakeCallScreenState extends State<FakeCallScreen>
           android: AudioContextAndroid(
             isSpeakerphoneOn: true,
             stayAwake: true,
-            contentType: AndroidContentType.music,
-            usageType: AndroidUsageType.alarm,
-            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.notificationRingtone, // 🔔 링톤 스트림
+            audioFocus: AndroidAudioFocus.gain,
           ),
         ),
       );
@@ -108,7 +109,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     }
 
     // 진동 패턴 반복
-    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) {
+    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) {
       if (mounted && !_isAnswered) HapticFeedback.heavyImpact();
     });
   }

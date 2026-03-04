@@ -14,7 +14,7 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
-// wakelock_plus 제거
+import 'package:workmanager/workmanager.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
@@ -39,6 +39,93 @@ Map<String, dynamic>? _pendingAlarmData;
 // ─────────────────────────────────────────────────
 // 앱 시작점
 // ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// WorkManager 백그라운드 태스크 이름
+// ─────────────────────────────────────────────────
+const _bgTaskName = 'pushNotifyAlarmPoll';
+const _bgTaskTag  = 'alarm_poll';
+
+// ─────────────────────────────────────────────────
+// WorkManager 백그라운드 콜백 (앱 꺼져도 실행)
+// 반드시 최상위 함수여야 함
+// ─────────────────────────────────────────────────
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    try {
+      // 로컬 알림 초기화 (백그라운드에서도 필요)
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await FlutterLocalNotificationsPlugin().initialize(
+        const InitializationSettings(android: androidInit),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      if (token.isEmpty) return true; // 로그인 안됨 → 스킵
+
+      final res = await http.post(
+        Uri.parse('$kBaseUrl/api/alarms/trigger'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 20));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if ((data['triggered'] as int? ?? 0) > 0) {
+          final results = data['results'] as List<dynamic>? ?? [];
+          for (final alarm in results) {
+            final a           = alarm as Map<String, dynamic>;
+            final channelName = a['channel_name'] as String? ?? '알람';
+            final msgType     = a['msg_type']     as String? ?? 'youtube';
+            final msgValue    = a['msg_value']    as String? ?? '';
+            final alarmId     = (a['alarm_id']   as int?) ?? 0;
+            final contentUrl  = a['content_url'] as String? ?? '';
+
+            final payload = jsonEncode({
+              'channel_name': channelName,
+              'msg_type':     msgType,
+              'msg_value':    msgValue,
+              'alarm_id':     alarmId,
+              'content_url':  contentUrl,
+            });
+
+            // 알림 표시 (탭하면 앱 열리고 가상통화 화면 표시)
+            await FlutterLocalNotificationsPlugin().show(
+              alarmId,
+              '📞 $channelName',
+              '알람이 도착했습니다. 탭하여 확인하세요.',
+              NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'alarm_channel',
+                  'PushNotify 알람',
+                  channelDescription: '채널 알람 수신',
+                  importance: Importance.max,
+                  priority: Priority.max,
+                  playSound: true,
+                  enableVibration: true,
+                  vibrationPattern: Int64List.fromList([0,500,300,500,300,500]),
+                  fullScreenIntent: true,
+                  category: AndroidNotificationCategory.call,
+                  autoCancel: true,
+                  styleInformation: BigTextStyleInformation(
+                    '$channelName 채널에서 알람이 도착했습니다.',
+                  ),
+                ),
+              ),
+              payload: payload,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[BG] 폴링 오류: $e');
+    }
+    return true;
+  });
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -52,6 +139,22 @@ void main() async {
 
   // 로컬 알림 초기화
   await _initLocalNotifications();
+
+  // WorkManager 초기화 (앱 꺼져도 백그라운드 폴링)
+  await Workmanager().initialize(
+    callbackDispatcher,
+    isInDebugMode: false,
+  );
+  // 15분마다 서버 폴링 (Android 최소 주기)
+  await Workmanager().registerPeriodicTask(
+    _bgTaskName,
+    _bgTaskTag,
+    frequency: const Duration(minutes: 15),
+    constraints: Constraints(
+      networkType: NetworkType.connected, // 네트워크 연결 시만
+    ),
+    existingWorkPolicy: ExistingWorkPolicy.keep, // 이미 등록된 경우 유지
+  );
 
   runApp(const PushNotifyApp());
 }
