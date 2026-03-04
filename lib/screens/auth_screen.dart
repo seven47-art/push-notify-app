@@ -97,8 +97,9 @@ class _AuthScreenState extends State<AuthScreen> {
         // 호환용 (기존 코드에서 user_email로 읽는 곳 있음)
         await prefs.setString('user_email',    trimmed);
 
-        // ✅ 바로 메인 화면으로 이동 (로그인 화면 없음)
-        if (mounted) Navigator.of(context).pushReplacementNamed('/main');
+        // ✅ 로그인 성공 → 권한 설정 화면으로 이동 (최초 1회)
+        // 이후 앱 재시작 시에는 splash에서 /main으로 바로 이동
+        if (mounted) Navigator.of(context).pushReplacementNamed('/permissions');
       } else {
         setState(() {
           _isLoggingIn = false;

@@ -1,4 +1,4 @@
-// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v15
+// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람 v16
 // 앱 꺼져도 알람 동작: flutter_local_notifications 백그라운드 서비스
 import 'dart:async';
 import 'dart:convert';
@@ -18,6 +18,7 @@ import 'package:workmanager/workmanager.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/permission_screen.dart';
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -314,8 +315,9 @@ class PushNotifyApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
       routes: {
-        '/auth': (_) => const AuthScreen(),
-        '/main': (_) => const WebViewScreen(),
+        '/auth':        (_) => const AuthScreen(),
+        '/permissions': (_) => const PermissionScreen(),
+        '/main':        (_) => const WebViewScreen(),
       },
     );
   }
@@ -344,6 +346,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // 토큰 없으면 → 로그인 화면
     if (token.isEmpty) { _goAuth(); return; }
+
+    // 로그인 되어 있지만 권한 설정을 아직 안 했으면 → 권한 화면
+    final permDone = prefs.getBool('permissions_setup_done') ?? false;
+    if (!permDone) { _goPermissions(); return; }
 
     // 토큰 있으면 → 서버 확인 시도 (실패해도 메인으로)
     // 핵심: 네트워크 오류/서버 오류는 무시하고 저장된 토큰으로 자동 로그인
@@ -376,8 +382,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  void _goAuth() { if (mounted) Navigator.of(context).pushReplacementNamed('/auth'); }
-  void _goMain() { if (mounted) Navigator.of(context).pushReplacementNamed('/main'); }
+  void _goAuth()        { if (mounted) Navigator.of(context).pushReplacementNamed('/auth'); }
+  void _goPermissions() { if (mounted) Navigator.of(context).pushReplacementNamed('/permissions'); }
+  void _goMain()        { if (mounted) Navigator.of(context).pushReplacementNamed('/main'); }
 
   @override
   Widget build(BuildContext context) {
