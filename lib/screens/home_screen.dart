@@ -315,10 +315,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── 운영채널 타일 (▶ < ⚙) ──
   Widget _ownedTile(Map<String, dynamic> ch) {
-    final name   = ch['name'] ?? '채널';
-    final subCnt = ch['subscriber_count'] ?? 0;
-    final desc   = ch['description'] ?? '';
-    final chId   = ch['id'];
+    final name            = ch['name'] ?? '채널';
+    final subCnt          = ch['subscriber_count'] ?? 0;
+    final desc            = ch['description'] ?? '';
+    final chId            = ch['id'];
+    final pendingAlarms   = (ch['pending_alarm_count'] ?? 0) as num;
+    final hasAlarm        = pendingAlarms > 0;
+    final alarmColor      = hasAlarm ? _teal : Colors.grey;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -356,10 +359,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            // ▶ 알람설정
+            // ▶ 알람설정 (알람 있으면 teal, 없으면 grey)
             _actionBtn(
-              icon: Icons.play_arrow_rounded,
-              color: _teal,
+              icon: Icons.alarm_rounded,
+              color: alarmColor,
               onTap: () => _openAlarmSheet(ch),
             ),
             // < 초대코드
@@ -469,7 +472,7 @@ class _DrawerSheet extends StatelessWidget {
       _DrawerItem(icon: Icons.group_add_outlined,    label: '채널 참여',     onTap: onJoinChannel),
       _DrawerItem(icon: Icons.privacy_tip_outlined,  label: '개인정보보호정책',
           onTap: () { Navigator.pop(context); }),
-      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.12',
+      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.13',
           onTap: () { Navigator.pop(context); }),
     ];
 
