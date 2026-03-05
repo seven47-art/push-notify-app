@@ -472,7 +472,7 @@ class _DrawerSheet extends StatelessWidget {
       _DrawerItem(icon: Icons.group_add_outlined,    label: '채널 참여',     onTap: onJoinChannel),
       _DrawerItem(icon: Icons.privacy_tip_outlined,  label: '개인정보보호정책',
           onTap: () { Navigator.pop(context); }),
-      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.14',
+      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.15',
           onTap: () { Navigator.pop(context); }),
     ];
 

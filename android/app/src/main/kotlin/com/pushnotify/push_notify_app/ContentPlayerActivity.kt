@@ -90,13 +90,7 @@ class ContentPlayerActivity : Activity() {
         val contentUrl = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
         val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
 
-        // YouTube는 앱/브라우저로 실행 후 Activity 종료
-        if (msgType == "youtube") {
-            launchYouTube(msgValue.ifEmpty { contentUrl })
-            finish()
-            return
-        }
-
+        // ★ YouTube도 인앱 WebView로 재생 (외부 앱 실행 X)
         setContentView(buildUI(channelName, msgType, msgValue, contentUrl))
     }
 

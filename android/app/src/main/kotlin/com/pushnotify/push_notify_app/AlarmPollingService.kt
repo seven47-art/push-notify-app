@@ -17,14 +17,14 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * AlarmPollingService — 세이투두 방식
+ * AlarmPollingService — 폴링 방식 알람 수신
  *
  * ● Foreground Service로 1분마다 서버 폴링
- * ● 알람 수신 시 → fullScreenIntent로 FakeCallActivity 강제 표시
+ * ● 알람 수신 시 → CallForegroundService를 통해 FakeCallActivity 표시
+ *   - FCM이 이미 처리한 알람은 중복 실행 방지 (recentFcmAlarmIds 체크)
  *   - Android 10+에서 백그라운드 앱은 Activity를 직접 시작할 수 없음
  *   - fullScreenIntent(category=CALL, importance=HIGH)를 사용하면
  *     잠금화면·화면꺼짐 상태에서도 FakeCallActivity가 전체화면으로 뜸
- *   - 알림 드로어에 남는 알림은 FakeCallActivity가 뜨자마자 자동 취소
  */
 class AlarmPollingService : Service() {
 
@@ -37,6 +37,24 @@ class AlarmPollingService : Service() {
         const val ACTION_STOP           = "ACTION_STOP"
         const val EXTRA_TOKEN           = "session_token"
         const val EXTRA_BASE_URL        = "base_url"
+
+        // FCM이 처리한 알람 ID 목록 (중복 방지용) — RinGoFCMService에서 등록
+        private val recentFcmAlarmIds = mutableSetOf<Int>()
+        private val fcmAlarmLock = Any()
+
+        fun markFcmHandled(alarmId: Int) {
+            synchronized(fcmAlarmLock) {
+                recentFcmAlarmIds.add(alarmId)
+                // 오래된 항목 정리 (최대 20개 유지)
+                if (recentFcmAlarmIds.size > 20) {
+                    recentFcmAlarmIds.remove(recentFcmAlarmIds.first())
+                }
+            }
+        }
+
+        fun isFcmHandled(alarmId: Int): Boolean {
+            return synchronized(fcmAlarmLock) { recentFcmAlarmIds.contains(alarmId) }
+        }
 
         fun start(context: Context, token: String, baseUrl: String) {
             val i = Intent(context, AlarmPollingService::class.java).apply {
@@ -124,66 +142,32 @@ class AlarmPollingService : Service() {
 
             // 첫 번째 알람만 처리
             val alarm       = results.getJSONObject(0)
+            val alarmId     = alarm.optInt("alarm_id", 0)
+
+            // ★ FCM이 이미 처리한 알람이면 스킵 (중복 방지)
+            if (isFcmHandled(alarmId)) {
+                Log.d(TAG, "알람 $alarmId 는 FCM이 이미 처리함 → 폴링 스킵")
+                return
+            }
+
             val channelName = alarm.optString("channel_name", "알람")
             val msgType     = alarm.optString("msg_type", "youtube")
             val msgValue    = alarm.optString("msg_value", "")
-            val alarmId     = alarm.optInt("alarm_id", 0)
             val contentUrl  = alarm.optString("content_url", "")
 
-            Log.d(TAG, "알람 수신 → FakeCallActivity: $channelName")
-            showFakeCallViaFullScreenIntent(channelName, msgType, msgValue, alarmId, contentUrl)
+            Log.d(TAG, "폴링 알람 수신 → CallForegroundService: $channelName (id=$alarmId)")
+
+            // CallForegroundService를 통해 처리 (FCM 경로와 동일하게)
+            withContext(Dispatchers.Main) {
+                CallForegroundService.start(
+                    this@AlarmPollingService,
+                    channelName, msgType, msgValue, alarmId, contentUrl
+                )
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "폴링 오류: ${e.message}")
         }
-    }
-
-    // ── fullScreenIntent로 FakeCallActivity 표시 ──────────────────────
-    // Android 10+ 백그라운드 Activity 시작 제한을 우회하는 공식 방법
-    private fun showFakeCallViaFullScreenIntent(
-        channelName: String, msgType: String, msgValue: String,
-        alarmId: Int, contentUrl: String
-    ) {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-        // FakeCallActivity를 여는 Intent
-        val fakeCallIntent = Intent(this, FakeCallActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(FakeCallActivity.EXTRA_CHANNEL_NAME, channelName)
-            putExtra(FakeCallActivity.EXTRA_MSG_TYPE,     msgType)
-            putExtra(FakeCallActivity.EXTRA_MSG_VALUE,    msgValue)
-            putExtra(FakeCallActivity.EXTRA_ALARM_ID,     alarmId)
-            putExtra(FakeCallActivity.EXTRA_CONTENT_URL,  contentUrl)
-        }
-
-        val fullScreenPi = PendingIntent.getActivity(
-            this, alarmId, fakeCallIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // 기기 기본 벨소리
-        val ringtoneUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
-            this, RingtoneManager.TYPE_RINGTONE
-        ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-        val notif = NotificationCompat.Builder(this, CALL_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle("📞 $channelName")
-            .setContentText("알람이 도착했습니다")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)   // ★ 통화 카테고리
-            .setFullScreenIntent(fullScreenPi, true)          // ★ 잠금화면에서 강제 표시
-            .setContentIntent(fullScreenPi)
-            .setAutoCancel(true)
-            .setSound(ringtoneUri)
-            .setVibrate(longArrayOf(0, 700, 300, 700))
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setTimeoutAfter(35_000L)                         // 35초 후 자동 제거
-            .build()
-
-        nm.notify(alarmId + 10000, notif)
     }
 
     // ── 알림 채널 생성 ────────────────────────────────────────────────
