@@ -545,8 +545,14 @@ const App = {
       await API.post('/auth/logout')
     } catch {}
     Store.clearSession()
-    toast('로그아웃 됐습니다')
-    setTimeout(() => Auth.show(), 500)
+    // Flutter 앱에 로그아웃 알림 → 네이티브 로그인 화면으로 이동
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'logout' }))
+    } else {
+      // 웹 브라우저 환경 fallback
+      toast('로그아웃 됐습니다')
+      setTimeout(() => Auth.show(), 500)
+    }
   },
 
   showFcmToken() {

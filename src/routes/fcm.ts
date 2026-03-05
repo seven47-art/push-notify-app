@@ -173,11 +173,20 @@ fcm.post('/register', async (c) => {
 // =============================================
 fcm.post('/test', async (c) => {
   try {
-    const serviceAccountJson = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
-    const projectId = (c.env as any).FCM_PROJECT_ID || ''
+    const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+    const projectId = c.env.FCM_PROJECT_ID || (c.env as any).FCM_PROJECT_ID || ''
+
+    // 디버그: env 키 목록 확인
+    const envKeys = Object.keys(c.env || {})
 
     if (!serviceAccountJson || !projectId) {
-      return c.json({ success: false, error: 'FCM_SERVICE_ACCOUNT_JSON 또는 FCM_PROJECT_ID 미설정' }, 400)
+      return c.json({ 
+        success: false, 
+        error: 'FCM_SERVICE_ACCOUNT_JSON 또는 FCM_PROJECT_ID 미설정',
+        debug_env_keys: envKeys,
+        has_sa_json: !!serviceAccountJson,
+        has_project_id: !!projectId
+      }, 400)
     }
 
     const { fcm_token, channel_name, msg_type, msg_value, alarm_id, content_url } = await c.req.json()
