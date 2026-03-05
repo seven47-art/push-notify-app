@@ -20,6 +20,9 @@ jobs:
           channel: 'stable'
           cache: true
       - run: flutter pub get
+      # 이전 빌드 캐시 제거 후 클린 빌드
+      - run: flutter clean
+        name: Clean previous build
       - run: flutter build apk --debug --target-platform android-arm64 --no-tree-shake-icons
         name: Build debug APK
       - uses: actions/upload-artifact@v4
