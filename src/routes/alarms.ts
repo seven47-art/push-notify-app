@@ -249,23 +249,34 @@ alarms.post('/trigger', async (c) => {
       `).bind(alarm.channel_id).all() as { results: any[] }
 
       // 2) 채널 운영자 정보 조회 (구독자 목록에 없을 경우 추가)
+      // ※ fcm_token은 users 테이블 우선, subscribers에 없어도 전송 가능
       const ownerInfo: any = await c.env.DB.prepare(`
         SELECT u.user_id, u.display_name, u.phone_number,
-               s.fcm_token, s.id as sub_id
+               COALESCE(s.fcm_token, u.fcm_token) as fcm_token,
+               s.id as sub_id
         FROM users u
         LEFT JOIN subscribers s ON u.user_id = s.user_id AND s.channel_id = ?
         WHERE u.user_id = ?
       `).bind(alarm.channel_id, alarm.channel_owner_id).first()
 
       // 3) 수신자 목록 합성 (운영자 중복 방지)
+      // 구독자도 fcm_token이 비어있으면 users 테이블에서 보완
       const recipientMap = new Map<string, any>()
 
       for (const sub of subscribers) {
+        // 구독자 fcm_token이 없으면 users 테이블에서 가져옴
+        let fcmToken = sub.fcm_token
+        if (!fcmToken) {
+          const userRow: any = await c.env.DB.prepare(
+            'SELECT fcm_token FROM users WHERE user_id = ?'
+          ).bind(sub.user_id).first()
+          fcmToken = userRow?.fcm_token || ''
+        }
         recipientMap.set(sub.user_id || sub.id.toString(), {
           id: sub.id,
           user_id: sub.user_id,
           display_name: sub.display_name,
-          fcm_token: sub.fcm_token,
+          fcm_token: fcmToken,
           phone_number: sub.phone_number,
           role: 'subscriber'
         })
