@@ -33,6 +33,7 @@ class CallForegroundService : Service() {
         const val CHANNEL_NAME       = "RinGo 알람"
         const val NOTIFICATION_ID    = 1001
         const val ACTION_STOP        = "ACTION_STOP_CALL"
+        const val ACTION_ACCEPT      = "ACTION_ACCEPT_CALL"
 
         const val EXTRA_CHANNEL_NAME = "channel_name"
         const val EXTRA_MSG_TYPE     = "msg_type"
@@ -201,6 +202,22 @@ class CallForegroundService : Service() {
             applicationContext, alarmId + 1, declineIntent, piFlags
         )
 
+        // 수락 버튼 → FakeCallActivity를 직접 시작 (헤즈업 상태에서도 동작)
+        val acceptIntent = Intent(applicationContext, FakeCallActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(FakeCallActivity.EXTRA_CHANNEL_NAME, channelName)
+            putExtra(FakeCallActivity.EXTRA_MSG_TYPE,     msgType)
+            putExtra(FakeCallActivity.EXTRA_MSG_VALUE,    msgValue)
+            putExtra(FakeCallActivity.EXTRA_ALARM_ID,     alarmId)
+            putExtra(FakeCallActivity.EXTRA_CONTENT_URL,  contentUrl)
+            putExtra(FakeCallActivity.EXTRA_AUTO_ACCEPT,  true)   // 자동 수락 플래그
+        }
+        val acceptPi = PendingIntent.getActivity(
+            applicationContext, alarmId + 2, acceptIntent, piFlags
+        )
+
         val msgTypeLabel = when (msgType) {
             "youtube" -> "📺 YouTube 알람"
             "audio"   -> "🎵 오디오 알람"
@@ -220,6 +237,7 @@ class CallForegroundService : Service() {
             .setFullScreenIntent(fullScreenPi, true)   // ← OS가 이걸로 FakeCallActivity 실행
             .setContentIntent(fullScreenPi)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "거절", declinePi)
+            .addAction(android.R.drawable.ic_media_play, "수락", acceptPi)
             .build()
     }
 }

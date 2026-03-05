@@ -41,6 +41,7 @@ class FakeCallActivity : Activity() {
         const val EXTRA_MSG_VALUE    = "msg_value"
         const val EXTRA_ALARM_ID     = "alarm_id"
         const val EXTRA_CONTENT_URL  = "content_url"
+        const val EXTRA_AUTO_ACCEPT  = "auto_accept"   // 헤즈업 수락 버튼에서 올 때 true
 
         fun start(
             context: Context,
@@ -110,21 +111,32 @@ class FakeCallActivity : Activity() {
         val msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
         val msgValue    = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
         val alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
+        val autoAccept  = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
 
         // fullScreenIntent로 열렸을 때 트리거한 알림 즉시 취소
         // (알림 드로어에 알림이 남지 않도록)
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.cancel(alarmId + 10000)
+            nm.cancel(CallForegroundService.NOTIFICATION_ID) // 헤즈업 알림도 제거
         } catch (_: Exception) {}
         val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
 
         buildUI(channelName, msgType, msgValue, alarmId, contentUrl)
-        startRinging()
 
-        // 30초 후 자동 거절
-        autoDeclineRunnable = Runnable { if (!isAnswered) decline() }
-        autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
+        if (autoAccept) {
+            // 헤즈업 "수락" 버튼으로 진입 → 즉시 콘텐츠 실행
+            Log.d(TAG, "AUTO_ACCEPT: 즉시 콘텐츠 실행")
+            // 짧게 UI를 보여주고 바로 수락 처리 (isAnswered는 answer() 내부에서 설정)
+            Handler(Looper.getMainLooper()).postDelayed({
+                answer(channelName, msgType, msgValue, alarmId, contentUrl)
+            }, 300L)
+        } else {
+            // 일반 진입 → 벨소리 + 30초 자동 거절
+            startRinging()
+            autoDeclineRunnable = Runnable { if (!isAnswered) decline() }
+            autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
+        }
     }
 
     override fun onDestroy() {
