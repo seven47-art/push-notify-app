@@ -56,9 +56,17 @@ contents.post('/', async (c) => {
       return c.json({ success: false, error: 'channel_id, title, content_type, content_url, created_by are required' }, 400)
     }
     
-    const validTypes = ['audio', 'video', 'youtube']
+    const validTypes = ['audio', 'video', 'youtube', 'file']
     if (!validTypes.includes(content_type)) {
-      return c.json({ success: false, error: 'content_type must be audio, video, or youtube' }, 400)
+      return c.json({ success: false, error: 'content_type must be audio, video, youtube, or file' }, 400)
+    }
+
+    // ★ audio/video/file 타입은 mp3/mp4 확장자만 허용
+    if (['audio', 'video', 'file'].includes(content_type) && content_url) {
+      const urlLower = content_url.toLowerCase().split('?')[0]
+      if (!urlLower.endsWith('.mp3') && !urlLower.endsWith('.mp4')) {
+        return c.json({ success: false, error: '파일은 mp3, mp4 형식만 허용됩니다' }, 400)
+      }
     }
     
     // youtube URL에서 자동으로 youtube_id 추출

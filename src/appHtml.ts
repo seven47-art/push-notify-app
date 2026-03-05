@@ -520,9 +520,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
-    <div class="settings-menu-item" onclick="toast('v1.0.16 (web)')">
+    <div class="settings-menu-item" onclick="toast('v1.0.17 (web)')">
       <i class="fas fa-info-circle"></i> 버전
-      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.16</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.17</span>
     </div>
 
     <div class="settings-menu-label" style="margin-top:8px;">계정 정보</div>
@@ -610,14 +610,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.16 (web)')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.17 (web)')">
     <i class="fas fa-info-circle"></i> 버전
-    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.16</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.17</span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
     <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
-  <div class="drawer-version">RinGo Web v1.0.16</div>
+  <div class="drawer-version">RinGo Web v1.0.17</div>
 </div>
 
 <!-- ══ 모달: 채널 만들기 ══ -->
@@ -753,7 +753,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
               <div style="font-size:11px;color:var(--text3);">Android 녹음 앱을 열어 녹음 후 파일을 선택하세요</div>
             </div>
           </button>
-          <input id="alarm-audio-file" type="file" accept="audio/*"
+          <input id="alarm-audio-file" type="file" accept="audio/mpeg,.mp3"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
           <button class="alarm-file-select-btn" onclick="App.pickAudioFile()">
             <i class="fas fa-folder-open"></i> 저장된 오디오 파일 선택
@@ -770,7 +770,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
               <div style="font-size:11px;color:var(--text3);">Android 카메라 앱을 열어 녹화 후 파일을 선택하세요</div>
             </div>
           </button>
-          <input id="alarm-video-file" type="file" accept="video/*"
+          <input id="alarm-video-file" type="file" accept="video/mp4,.mp4"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
           <button class="alarm-file-select-btn" onclick="App.pickVideoFile()">
             <i class="fas fa-folder-open"></i> 저장된 비디오 파일 선택
@@ -784,10 +784,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
             <i class="fas fa-share-alt" style="font-size:22px;color:#9C27B0;"></i>
             <div>
               <div style="font-weight:700;font-size:14px;">파일 선택 (앱 선택)</div>
-              <div style="font-size:11px;color:var(--text3);">사용할 어플리케이션을 선택하여 파일을 불러오세요</div>
+              <div style="font-size:11px;color:var(--text3);">mp3, mp4 파일만 선택 가능합니다</div>
             </div>
           </button>
-          <input id="alarm-attach-file" type="file" accept="*/*"
+          <input id="alarm-attach-file" type="file" accept="audio/mpeg,video/mp4,.mp3,.mp4"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
           <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
@@ -895,6 +895,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603040100"></script>
+<script src="/static/mobile-app.js?v=202603050900"></script>
 </body>
 </html>`;
