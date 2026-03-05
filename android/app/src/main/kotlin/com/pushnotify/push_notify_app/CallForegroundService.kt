@@ -40,6 +40,7 @@ class CallForegroundService : Service() {
         const val EXTRA_MSG_VALUE    = "msg_value"
         const val EXTRA_ALARM_ID     = "alarm_id"
         const val EXTRA_CONTENT_URL  = "content_url"
+        const val EXTRA_HOMEPAGE_URL = "homepage_url"  // ★ 홈페이지 URL
 
         fun start(
             context: Context,
