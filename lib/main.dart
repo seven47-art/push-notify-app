@@ -740,6 +740,21 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             await launchUrl(uri, mode: LaunchMode.externalApplication);
           }
           break;
+        case 'logout':
+          // 웹뷰에서 로그아웃 요청 → 세션 삭제 + 로그인 화면으로 이동
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('session_token');
+          await prefs.remove('user_id');
+          await prefs.remove('email');
+          await prefs.remove('user_email');
+          await prefs.remove('display_name');
+          await prefs.remove('fcm_token');
+          await prefs.remove('permissions_setup_done');
+          debugPrint('[FlutterBridge] 로그아웃 완료 → /auth 이동');
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+          }
+          break;
       }
     } catch (e) {
       debugPrint('[FlutterBridge] error: $e');
