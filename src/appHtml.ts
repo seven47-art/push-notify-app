@@ -131,7 +131,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .img-src-btn:last-child { border-bottom:none; }
 .img-src-btn i { width:28px; text-align:center; color:var(--primary); font-size:18px; }
 
-/* ── 수신함 ── */
+/* ── 수신함/발신함 ── */
 .notif-card { background:var(--bg2); margin:4px 14px; padding:13px; border-radius:12px; border:1px solid var(--border); }
 .notif-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:6px; }
 .notif-icon-wrap { width:36px; height:36px; background:var(--primary-dim); border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -141,6 +141,30 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .notif-time { font-size:11px; color:var(--text3); white-space:nowrap; }
 .notif-body { font-size:13px; color:var(--text2); line-height:1.5; }
 .notif-actions { display:flex; gap:8px; margin-top:10px; }
+/* 채널 그룹 카드 */
+.ch-group-card { display:flex; align-items:center; gap:12px; background:var(--bg2); margin:4px 14px; padding:14px; border-radius:12px; border:1px solid var(--border); cursor:pointer; }
+.ch-group-card:active { opacity:0.7; }
+.ch-group-avatar { width:44px; height:44px; border-radius:12px; background:var(--primary-dim); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:var(--primary); flex-shrink:0; }
+.ch-group-info { flex:1; min-width:0; }
+.ch-group-name { font-size:15px; font-weight:600; }
+.ch-group-last { font-size:12px; color:var(--text3); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-group-meta { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.ch-group-time { font-size:11px; color:var(--text3); }
+.ch-group-badge { background:var(--primary); color:#fff; font-size:11px; font-weight:700; border-radius:10px; padding:2px 7px; min-width:20px; text-align:center; }
+/* 상세 뷰 헤더 */
+.sub-header { display:flex; align-items:center; gap:10px; padding:12px 14px 8px; border-bottom:1px solid var(--border); }
+.back-btn { background:none; border:none; color:var(--text); font-size:18px; cursor:pointer; padding:4px 8px; }
+.sub-title { font-size:15px; font-weight:700; }
+/* 발신함 카드 */
+.send-card { background:var(--bg2); margin:4px 14px; padding:13px; border-radius:12px; border:1px solid var(--border); }
+.send-card-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.send-type-badge { font-size:11px; background:var(--primary-dim); color:var(--primary); border-radius:6px; padding:2px 8px; font-weight:600; }
+.send-status-badge { font-size:11px; border-radius:6px; padding:2px 8px; font-weight:600; margin-left:auto; }
+.send-status-triggered { background:rgba(16,185,129,0.15); color:#10b981; }
+.send-status-pending   { background:rgba(245,158,11,0.15);  color:#f59e0b; }
+.send-status-cancelled { background:rgba(239,68,68,0.15);   color:#ef4444; }
+.send-card-time { font-size:12px; color:var(--text3); margin-bottom:4px; }
+.send-card-stats { font-size:12px; color:var(--text3); }
 .btn-accept { flex:1; background:rgba(76,175,80,0.15); border:1px solid rgba(76,175,80,0.4); color:var(--success); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
 .btn-reject { flex:1; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:var(--danger); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
 .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:3px 7px; border-radius:20px; font-weight:600; margin-top:4px; }
@@ -438,9 +462,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-inbox">
     <div class="section-header">
       <span class="section-title">수신함</span>
-      <button class="section-btn" onclick="App.clearInbox()"><i class="fas fa-trash-alt"></i> 비우기</button>
     </div>
-    <div id="inbox-list"></div>
+    <!-- 채널 목록 뷰 -->
+    <div id="inbox-channel-list"></div>
+    <!-- 채널 상세 뷰 (뒤로가기 포함) -->
+    <div id="inbox-detail-view" style="display:none; flex-direction:column; flex:1;">
+      <div class="sub-header">
+        <button class="back-btn" onclick="App.inboxBack()"><i class="fas fa-arrow-left"></i></button>
+        <span id="inbox-detail-title" class="sub-title"></span>
+      </div>
+      <div id="inbox-detail-list"></div>
+    </div>
     <div style="height:12px;"></div>
   </div>
 
@@ -449,7 +481,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="section-header">
       <span class="section-title">발신함</span>
     </div>
-    <div id="send-list"></div>
+    <!-- 채널 목록 뷰 -->
+    <div id="outbox-channel-list"></div>
+    <!-- 채널 상세 뷰 -->
+    <div id="outbox-detail-view" style="display:none; flex-direction:column; flex:1;">
+      <div class="sub-header">
+        <button class="back-btn" onclick="App.outboxBack()"><i class="fas fa-arrow-left"></i></button>
+        <span id="outbox-detail-title" class="sub-title"></span>
+      </div>
+      <div id="outbox-detail-list"></div>
+    </div>
     <div style="height:12px;"></div>
   </div>
 
@@ -479,9 +520,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
-    <div class="settings-menu-item" onclick="toast('v1.0.0 (web)')">
+    <div class="settings-menu-item" onclick="toast('v1.0.10 (web)')">
       <i class="fas fa-info-circle"></i> 버전
-      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.0</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.10</span>
     </div>
 
     <div class="settings-menu-label" style="margin-top:8px;">계정 정보</div>
@@ -569,14 +610,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.0 (web)')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.10 (web)')">
     <i class="fas fa-info-circle"></i> 버전
-    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.0</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.10</span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
     <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
-  <div class="drawer-version">PushNotify Web v1.0.0</div>
+  <div class="drawer-version">RinGo Web v1.0.10</div>
 </div>
 
 <!-- ══ 모달: 채널 만들기 ══ -->
