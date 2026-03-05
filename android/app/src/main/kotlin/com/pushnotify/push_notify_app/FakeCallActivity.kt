@@ -185,27 +185,50 @@ class FakeCallActivity : Activity() {
         if (isAnswered) return
         isAnswered = true
 
-        // 버튼 즉시 비활성화 (중복 클릭 방지 UI)
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
 
-        // 알림 정리 (fullScreenIntent 알림 제거)
+        // 알림 정리
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.cancel(9999)
             nm.cancel(alarmId + 10000)
+            nm.cancel(CallForegroundService.NOTIFICATION_ID)
         } catch (_: Exception) {}
 
-        // 메시지 소스 즉시 실행 (YouTube / 브라우저 / 오디오)
-        // finish() 전에 launchContent 호출 → 같은 Task에서 startActivity 가능
-        launchContent(msgType, msgValue, contentUrl)
-
-        // CallForegroundService 종료 (포그라운드 알림 제거)
+        // CallForegroundService 종료
         CallForegroundService.stop(applicationContext)
 
-        // 콘텐츠 실행 후 FakeCallActivity 종료
-        // 약간의 딜레이로 startActivity가 처리될 시간 확보
-        autoDeclineHandler.postDelayed({ finish() }, 300L)
+        // ★ 핵심: 잠금화면을 완전히 해제한 뒤 콘텐츠 실행
+        // 잠금화면 위에서 startActivity()를 바로 호출하면 OS가 차단함
+        // → Keyguard 해제 완료 콜백 안에서 launchContent() 호출해야 정상 작동
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+            km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() {
+                    // 잠금화면 해제 완료 → 콘텐츠 실행
+                    launchContent(msgType, msgValue, contentUrl)
+                    autoDeclineHandler.postDelayed({ finish() }, 500L)
+                }
+                override fun onDismissError() {
+                    // 해제 실패해도 시도 (PIN/패턴 없는 경우)
+                    launchContent(msgType, msgValue, contentUrl)
+                    autoDeclineHandler.postDelayed({ finish() }, 500L)
+                }
+                override fun onDismissCancelled() {
+                    // 사용자가 취소 → 그냥 종료
+                    finish()
+                }
+            })
+        } else {
+            // Android 8.0 미만 → 기존 방식 (FLAG_DISMISS_KEYGUARD)
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
+            autoDeclineHandler.postDelayed({
+                launchContent(msgType, msgValue, contentUrl)
+                autoDeclineHandler.postDelayed({ finish() }, 500L)
+            }, 300L)
+        }
     }
 
     // ── 콘텐츠 즉시 실행 ─────────────────────────────────────────────

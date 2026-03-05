@@ -29,6 +29,7 @@
     <!-- 포그라운드 서비스 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <!-- FOREGROUND_SERVICE_PHONE_CALL 제거: MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException -->
 
     <!-- APK 설치 -->
@@ -120,16 +121,17 @@
         </service>
 
         <!-- 알람 포그라운드 서비스
-             startForeground() → fullScreenIntent → FakeCallActivity
-             foregroundServiceType="dataSync" → 별도 MANAGE_OWN_CALLS 권한 없이 동작
-             (phoneCall 타입은 MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException) -->
+             foregroundServiceType="mediaPlayback"
+             - dataSync 와 달리 크래시 없이 Android 10~15 모두 안정적 동작
+             - fullScreenIntent 와 함께 사용 시 잠금화면 위 Activity 표시 가능 -->
         <service
             android:name=".CallForegroundService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync"/>
+            android:foregroundServiceType="mediaPlayback"/>
 
         <!-- 가상통화 전체화면 액티비티 (잠금화면 위에 표시) -->
+        <!-- taskAffinity 제거: 별도 Task 분리 시 잠금화면에서 startActivity 차단됨 -->
         <activity
             android:name=".FakeCallActivity"
             android:exported="false"
@@ -137,7 +139,6 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"/>
 
         <meta-data
