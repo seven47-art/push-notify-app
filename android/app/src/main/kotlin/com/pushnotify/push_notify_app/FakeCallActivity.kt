@@ -201,32 +201,31 @@ class FakeCallActivity : Activity() {
 
         // ★ 핵심: 잠금화면을 완전히 해제한 뒤 콘텐츠 실행
         // 잠금화면 위에서 startActivity()를 바로 호출하면 OS가 차단함
-        // → Keyguard 해제 완료 콜백 안에서 launchContent() 호출해야 정상 작동
+        // → Keyguard 해제 완료 콜백 안에서 ContentPlayerActivity 실행
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
             km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
                 override fun onDismissSucceeded() {
-                    // 잠금화면 해제 완료 → 콘텐츠 실행
-                    launchContent(msgType, msgValue, contentUrl)
-                    autoDeclineHandler.postDelayed({ finish() }, 500L)
+                    // 잠금화면 해제 완료 → 인앱 플레이어 실행
+                    ContentPlayerActivity.start(applicationContext, msgType, msgValue, contentUrl, channelName)
+                    autoDeclineHandler.postDelayed({ finish() }, 300L)
                 }
                 override fun onDismissError() {
-                    // 해제 실패해도 시도 (PIN/패턴 없는 경우)
-                    launchContent(msgType, msgValue, contentUrl)
-                    autoDeclineHandler.postDelayed({ finish() }, 500L)
+                    // PIN/패턴 없는 경우도 실행
+                    ContentPlayerActivity.start(applicationContext, msgType, msgValue, contentUrl, channelName)
+                    autoDeclineHandler.postDelayed({ finish() }, 300L)
                 }
                 override fun onDismissCancelled() {
-                    // 사용자가 취소 → 그냥 종료
                     finish()
                 }
             })
         } else {
-            // Android 8.0 미만 → 기존 방식 (FLAG_DISMISS_KEYGUARD)
+            // Android 8.0 미만
             @Suppress("DEPRECATION")
             window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
             autoDeclineHandler.postDelayed({
-                launchContent(msgType, msgValue, contentUrl)
-                autoDeclineHandler.postDelayed({ finish() }, 500L)
+                ContentPlayerActivity.start(applicationContext, msgType, msgValue, contentUrl, channelName)
+                autoDeclineHandler.postDelayed({ finish() }, 300L)
             }, 300L)
         }
     }

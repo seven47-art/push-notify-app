@@ -141,6 +141,16 @@
             android:excludeFromRecents="true"
             android:theme="@style/LaunchTheme"/>
 
+        <!-- 인앱 콘텐츠 플레이어 (YouTube embed / 오디오 / 비디오 WebView) -->
+        <activity
+            android:name=".ContentPlayerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/LaunchTheme"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
