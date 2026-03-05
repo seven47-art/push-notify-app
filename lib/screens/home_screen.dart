@@ -696,6 +696,10 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                             value: _hour,
                             onUp:   () => setState(() => _hour = (_hour + 1) % 24),
                             onDown: () => setState(() => _hour = (_hour - 1 + 24) % 24),
+                            label: '시 (0 ~ 23)',
+                            min: 0,
+                            max: 23,
+                            onInput: (v) => setState(() => _hour = v),
                           ),
                           const Padding(
                             padding: EdgeInsets.only(bottom: 10),
@@ -706,6 +710,10 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                             value: _min,
                             onUp:   () => setState(() => _min = (_min + 5) % 60),
                             onDown: () => setState(() => _min = (_min - 5 + 60) % 60),
+                            label: '분 (0 ~ 59)',
+                            min: 0,
+                            max: 59,
+                            onInput: (v) => setState(() => _min = v),
                           ),
                         ],
                       ),
@@ -793,17 +801,114 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     );
   }
 
-  Widget _timeSpin({required int value, required VoidCallback onUp, required VoidCallback onDown}) {
-    return Column(children: [
-      IconButton(icon: const Icon(Icons.keyboard_arrow_up, color: _text2, size: 28), onPressed: onUp),
-      Container(
-        width: 64, height: 56,
-        decoration: BoxDecoration(color: _bg3, borderRadius: BorderRadius.circular(10)),
-        alignment: Alignment.center,
-        child: Text(value.toString().padLeft(2, '0'),
-            style: const TextStyle(color: _text, fontSize: 30, fontWeight: FontWeight.bold)),
+  // 숫자 탭 → 직접 입력 다이얼로그
+  void _showTimeInputDialog({
+    required String label,
+    required int current,
+    required int min,
+    required int max,
+    required ValueChanged<int> onConfirm,
+  }) {
+    final ctrl = TextEditingController(text: current.toString().padLeft(2, '0'));
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1B4B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(label,
+            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          maxLength: 2,
+          style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            counterText: '',
+            filled: true,
+            fillColor: const Color(0xFF0F0C29),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF6C63FF)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+            ),
+            hintText: '$min ~ $max',
+            hintStyle: const TextStyle(color: Color(0xFF4B5563), fontSize: 14),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF6B7280))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6C63FF),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final v = int.tryParse(ctrl.text) ?? current;
+              if (v < min || v > max) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('$min ~ $max 사이 값을 입력하세요'),
+                      backgroundColor: const Color(0xFFEF4444)),
+                );
+                return;
+              }
+              onConfirm(v);
+              Navigator.pop(ctx);
+            },
+            child: const Text('확인', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-      IconButton(icon: const Icon(Icons.keyboard_arrow_down, color: _text2, size: 28), onPressed: onDown),
+    );
+  }
+
+  Widget _timeSpin({
+    required int value,
+    required VoidCallback onUp,
+    required VoidCallback onDown,
+    required String label,
+    required int min,
+    required int max,
+    required ValueChanged<int> onInput,
+  }) {
+    return Column(children: [
+      IconButton(
+        icon: const Icon(Icons.keyboard_arrow_up, color: _text2, size: 28),
+        onPressed: onUp,
+      ),
+      GestureDetector(
+        onTap: () => _showTimeInputDialog(
+          label: label,
+          current: value,
+          min: min,
+          max: max,
+          onConfirm: onInput,
+        ),
+        child: Container(
+          width: 64, height: 56,
+          decoration: BoxDecoration(
+            color: _bg3,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4), width: 1),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            value.toString().padLeft(2, '0'),
+            style: const TextStyle(color: _text, fontSize: 30, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+      IconButton(
+        icon: const Icon(Icons.keyboard_arrow_down, color: _text2, size: 28),
+        onPressed: onDown,
+      ),
     ]);
   }
 }
