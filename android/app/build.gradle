@@ -1,0 +1,63 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+android {
+    namespace = "com.pushnotify.push_notify_app"
+    compileSdk = 35
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        applicationId = "com.pushnotify.push_notify_app"
+        minSdk = 21          // Android 5.0+ (전체 기기 99% 호환)
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
+        // arm64 단일 아키텍처로 APK 크기 절감
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    buildTypes {
+        debug {
+            // 디버그 키로 서명 (설치 가능)
+            signingConfig = signingConfigs.debug
+            debuggable true
+            applicationIdSuffix ""
+        }
+        release {
+            signingConfig = signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    // HTTP 클라이언트 (AlarmPollingService 백그라운드 폴링)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Kotlin Coroutines (비동기 폴링)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // Firebase BOM (버전 통합 관리)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    // FCM (Firebase Cloud Messaging)
+    implementation("com.google.firebase:firebase-messaging-ktx")
+}

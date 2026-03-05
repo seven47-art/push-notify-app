@@ -1,0 +1,195 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 네트워크 (필수) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Google 계정 -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
+
+    <!-- 알림 (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- 진동 -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
+    <!-- 마이크 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- 카메라 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- 화면 깨우기 (알람 수신 시 WAKE_LOCK 필수) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <!-- 전화 상태 읽기 (CATEGORY_CALL 알림이 시스템에서 전화로 인식되게 함) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+
+    <!-- 부팅 후 자동 시작 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- 포그라운드 서비스 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <!-- FOREGROUND_SERVICE_PHONE_CALL 제거: MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException -->
+
+    <!-- APK 설치 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+    <!-- 정확한 알람 (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+
+    <!-- 배터리 최적화 제외 (앱 종료 상태에서도 FCM 수신) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
+    <!-- 잠금화면 위 전체화면 표시 (fullScreenIntent 핵심 권한) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+
+    <!-- 미디어 파일 읽기 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+
+    <application
+        android:label="RinGo"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="true"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
+
+            <!-- 기본 런처 -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- 딥링크: pushapp://join/TOKEN -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="pushapp" android:host="join"/>
+            </intent-filter>
+
+        </activity>
+
+        <!-- 부팅 후 알람 서비스 재시작 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- 로컬 알림 브로드캐스트 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+
+        <!-- 알림 dismiss 수신 -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false"/>
+
+        <!-- FCM 메시지 수신 서비스 -->
+        <service
+            android:name=".RinGoFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+
+        <!-- 알람 포그라운드 서비스
+             foregroundServiceType="mediaPlayback"
+             - dataSync 와 달리 크래시 없이 Android 10~15 모두 안정적 동작
+             - fullScreenIntent 와 함께 사용 시 잠금화면 위 Activity 표시 가능 -->
+        <service
+            android:name=".CallForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"/>
+
+        <!-- 가상통화 전체화면 액티비티 (잠금화면 위에 표시) -->
+        <!-- taskAffinity 제거: 별도 Task 분리 시 잠금화면에서 startActivity 차단됨 -->
+        <activity
+            android:name=".FakeCallActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/LaunchTheme"/>
+
+        <!-- 인앱 콘텐츠 플레이어 (YouTube embed / 오디오 / 비디오 WebView) -->
+        <activity
+            android:name=".ContentPlayerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/LaunchTheme"/>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+    </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
+        <intent>
+            <action android:name="android.provider.MediaStore.ACTION_AUDIO_CAPTURE"/>
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT"/>
+        </intent>
+        <!-- YouTube 앱 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="vnd.youtube"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="audio/*"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="video/*"/>
+        </intent>
+    </queries>
+</manifest>
