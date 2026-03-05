@@ -372,6 +372,26 @@ alarms.post('/trigger', async (c) => {
         'UPDATE alarm_schedules SET sent_count = ?, total_targets = ? WHERE id = ?'
       ).bind(sentCount, recipients.length, alarm.id).run()
 
+      // alarm_logs 에 수신자별 기록 저장
+      for (const r of callResults) {
+        if (r.success) {
+          try {
+            await c.env.DB.prepare(`
+              INSERT OR IGNORE INTO alarm_logs
+                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(
+              alarm.id,
+              alarm.channel_id,
+              alarm.channel_name || '알람',
+              r.user_id,
+              alarm.msg_type || 'youtube',
+              alarm.msg_value || ''
+            ).run()
+          } catch (_) {}
+        }
+      }
+
       totalTriggered++
       results.push({
         alarm_id: alarm.id,
@@ -408,6 +428,128 @@ alarms.get('/pending', async (c) => {
       LIMIT 50
     `).all() as { results: any[] }
     return c.json({ success: true, data: results })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// 세션 토큰으로 사용자 조회 헬퍼
+// =============================================
+async function getUserFromSession(c: any): Promise<{ id: string; user_id: string } | null> {
+  try {
+    const authHeader = c.req.header('Authorization') || ''
+    const sessionToken = authHeader.replace('Bearer ', '').trim()
+    if (!sessionToken) return null
+    const session = await c.env.DB.prepare(`
+      SELECT s.user_id FROM user_sessions s
+      WHERE s.session_token = ? AND s.expires_at > datetime('now')
+    `).bind(sessionToken).first() as { user_id: string } | null
+    if (!session) return null
+    return { id: session.user_id, user_id: session.user_id }
+  } catch { return null }
+}
+
+// =============================================
+// GET /api/alarms/inbox  - 수신함 (채널별 그룹)
+// =============================================
+alarms.get('/inbox', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    // 채널별 최신 알람 + 전체 목록
+    const { results } = await c.env.DB.prepare(`
+      SELECT
+        l.id, l.alarm_id, l.channel_id, l.channel_name,
+        l.msg_type, l.msg_value, l.status, l.received_at
+      FROM alarm_logs l
+      WHERE l.receiver_id = ?
+      ORDER BY l.received_at DESC
+      LIMIT 200
+    `).bind(user.id).all() as { results: any[] }
+
+    // 채널별 그룹핑
+    const groups: Record<string, any> = {}
+    for (const row of results) {
+      const key = String(row.channel_id)
+      if (!groups[key]) {
+        groups[key] = {
+          channel_id:   row.channel_id,
+          channel_name: row.channel_name,
+          items:        [],
+          unread:       0,
+          latest_at:    row.received_at
+        }
+      }
+      groups[key].items.push(row)
+      if (row.status === 'received') groups[key].unread++
+    }
+
+    return c.json({ success: true, data: Object.values(groups) })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// POST /api/alarms/inbox/:id/status  - 수신 알람 상태 변경
+// =============================================
+alarms.post('/inbox/:id/status', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const id     = Number(c.req.param('id'))
+    const { status } = await c.req.json() as { status: string }
+    if (!['received','accepted','rejected'].includes(status))
+      return c.json({ success: false, error: 'invalid status' }, 400)
+
+    await c.env.DB.prepare(
+      'UPDATE alarm_logs SET status = ? WHERE id = ? AND receiver_id = ?'
+    ).bind(status, id, user.id).run()
+
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// GET /api/alarms/outbox  - 발신함 (채널별 그룹)
+// =============================================
+alarms.get('/outbox', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const { results } = await c.env.DB.prepare(`
+      SELECT
+        a.id, a.channel_id, ch.name as channel_name,
+        a.msg_type, a.msg_value, a.scheduled_at, a.status,
+        a.total_targets, a.sent_count, a.triggered_at
+      FROM alarm_schedules a
+      JOIN channels ch ON a.channel_id = ch.id
+      WHERE a.created_by = ?
+      ORDER BY a.scheduled_at DESC
+      LIMIT 200
+    `).bind(user.id).all() as { results: any[] }
+
+    // 채널별 그룹핑
+    const groups: Record<string, any> = {}
+    for (const row of results) {
+      const key = String(row.channel_id)
+      if (!groups[key]) {
+        groups[key] = {
+          channel_id:   row.channel_id,
+          channel_name: row.channel_name,
+          items:        [],
+          latest_at:    row.scheduled_at
+        }
+      }
+      groups[key].items.push(row)
+    }
+
+    return c.json({ success: true, data: Object.values(groups) })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

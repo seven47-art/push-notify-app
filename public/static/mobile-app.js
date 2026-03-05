@@ -239,11 +239,42 @@ const App = {
     if (screen) screen.classList.add('active')
     if (navBtn) navBtn.classList.add('active')
     currentTab = tab
-    if (tab === 'home')     this.loadHome()
+    if (tab === 'home')          this.loadHome()
     else if (tab === 'channel')  this.loadChannel()
     else if (tab === 'inbox')    this.loadInbox()
     else if (tab === 'send')     this.loadSend()
     else if (tab === 'settings') this.loadSettings()
+  },
+
+  // ── 뒤로가기 (Android 하단 뒤로가기 버튼) ─────────────
+  // Flutter에서 호출 → true 반환 시 Flutter가 앱 종료 처리
+  goBack() {
+    // 1. 수신함 상세 뷰가 열려있으면 채널 목록으로
+    const inboxDetail = document.getElementById('inbox-detail-view')
+    if (inboxDetail && inboxDetail.style.display !== 'none') {
+      this.inboxBack(); return false
+    }
+    // 2. 발신함 상세 뷰가 열려있으면 채널 목록으로
+    const outboxDetail = document.getElementById('outbox-detail-view')
+    if (outboxDetail && outboxDetail.style.display !== 'none') {
+      this.outboxBack(); return false
+    }
+    // 3. 모달이 열려있으면 닫기
+    const openModal = document.querySelector('.fullscreen-overlay.active')
+    if (openModal) {
+      openModal.classList.remove('active'); return false
+    }
+    // 4. 드로어가 열려있으면 닫기
+    const drawer = document.getElementById('drawer')
+    if (drawer && drawer.classList.contains('open')) {
+      this.closeDrawer(); return false
+    }
+    // 5. 홈이 아닌 탭이면 홈으로
+    if (currentTab !== 'home') {
+      this.goto('home'); return false
+    }
+    // 6. 홈 탭이면 Flutter에서 앱 종료 처리
+    return true
   },
 
   // ── 드로어 ───────────────────────────────
@@ -456,51 +487,169 @@ const App = {
   },
 
   // ── 수신함 ──────────────────────────────
-  loadInbox() {
-    const list = Store.getNotifs()
-    const el   = document.getElementById('inbox-list')
-    if (!list.length) { el.innerHTML = '<div class="empty-box">받은 알림이 없습니다.</div>'; return }
-    const icons = { audio:'fa-music', video:'fa-video', youtube:'fa-play-circle', default:'fa-bell' }
-    el.innerHTML = list.map(n => {
-      const icon = icons[n.content_type] || icons.default
-      const badge = n.status === 'accepted'
-        ? '<span class="status-badge badge-accepted"><i class="fas fa-check"></i> 수락됨</span>'
-        : n.status === 'rejected'
-        ? '<span class="status-badge badge-rejected"><i class="fas fa-times"></i> 거절됨</span>'
-        : '<span class="status-badge badge-pending"><i class="fas fa-bell"></i> 미처리</span>'
-      return `<div class="notif-card" id="notif-${n.id}">
-        <div class="notif-header">
-          <div class="notif-icon-wrap"><i class="fas ${icon}" style="color:var(--primary);"></i></div>
-          <div class="notif-meta">
-            <div class="notif-title">${n.title || '알림'}</div>
-            <div class="notif-channel">${n.channel_name || ''}</div>
+  async loadInbox() {
+    const channelEl = document.getElementById('inbox-channel-list')
+    const detailView = document.getElementById('inbox-detail-view')
+    if (!channelEl) return
+    // 채널 목록 뷰로 초기화
+    channelEl.style.display = 'block'
+    detailView.style.display = 'none'
+    channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
+    try {
+      const res = await API.get('/alarms/inbox')
+      if (!res.success || !res.data.length) {
+        channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
+        return
+      }
+      const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+      channelEl.innerHTML = res.data.map(g => {
+        const first = g.items[0]
+        const typeLabel = icons[first?.msg_type] || '🔔'
+        const timeStr = first ? this._fmtTime(first.received_at) : ''
+        const initial = (g.channel_name || '?')[0].toUpperCase()
+        const badge = g.unread > 0 ? `<div class="ch-group-badge">${g.unread}</div>` : ''
+        return `<div class="ch-group-card" onclick="App.inboxOpenChannel(${JSON.stringify(g).replace(/"/g,'&quot;')})">
+          <div class="ch-group-avatar">${initial}</div>
+          <div class="ch-group-info">
+            <div class="ch-group-name">${g.channel_name}</div>
+            <div class="ch-group-last">${typeLabel} ${this._msgLabel(first?.msg_type)} &nbsp;·&nbsp; ${g.items.length}개</div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-            <div class="notif-time">${n.time || ''}</div>${badge}
+          <div class="ch-group-meta">
+            <div class="ch-group-time">${timeStr}</div>
+            ${badge}
+          </div>
+        </div>`
+      }).join('')
+    } catch(e) {
+      channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+    }
+  },
+
+  inboxOpenChannel(group) {
+    const channelEl = document.getElementById('inbox-channel-list')
+    const detailView = document.getElementById('inbox-detail-view')
+    const titleEl = document.getElementById('inbox-detail-title')
+    const listEl  = document.getElementById('inbox-detail-list')
+    channelEl.style.display = 'none'
+    detailView.style.display = 'flex'
+    titleEl.textContent = group.channel_name
+    const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+    listEl.innerHTML = group.items.map(item => {
+      const typeIcon = icons[item.msg_type] || '🔔'
+      const timeStr  = this._fmtTime(item.received_at)
+      const statusBadge = item.status === 'accepted'
+        ? '<span class="status-badge badge-accepted">✔ 수락</span>'
+        : item.status === 'rejected'
+        ? '<span class="status-badge badge-rejected">✕ 거절</span>'
+        : ''
+      return `<div class="notif-card">
+        <div class="notif-header">
+          <div class="notif-icon-wrap" style="font-size:18px;">${typeIcon}</div>
+          <div class="notif-meta">
+            <div class="notif-title">${this._msgLabel(item.msg_type)}</div>
+            <div class="notif-channel">${group.channel_name}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            <div class="notif-time">${timeStr}</div>
+            ${statusBadge}
           </div>
         </div>
-        <div class="notif-body">${n.body || ''}</div>
-        ${n.status === 'received' ? `<div class="notif-actions">
-          <button class="btn-reject" onclick="App.notifAction(${n.id},'rejected')"><i class="fas fa-times"></i> 거절</button>
-          <button class="btn-accept" onclick="App.notifAction(${n.id},'accepted')"><i class="fas fa-play"></i> 수락</button>
-        </div>` : ''}
       </div>`
     }).join('')
   },
 
-  notifAction(id, status) {
-    Store.updateNotif(id, status); this.loadInbox()
-    toast(status === 'accepted' ? '수락했습니다' : '거절했습니다')
-  },
-  clearInbox() {
-    if (!confirm('알림을 모두 지우시겠습니까?')) return
-    Store.clearNotifs(); this.loadInbox()
+  inboxBack() {
+    document.getElementById('inbox-channel-list').style.display = 'block'
+    document.getElementById('inbox-detail-view').style.display  = 'none'
   },
 
   // ── 발신함 ──────────────────────────────
-  loadSend() {
-    document.getElementById('send-list').innerHTML =
-      '<div class="empty-box">발신 내역이 없습니다.<br>채널을 만들고 메시지를 발송해보세요.</div>'
+  async loadSend() {
+    const channelEl = document.getElementById('outbox-channel-list')
+    const detailView = document.getElementById('outbox-detail-view')
+    if (!channelEl) return
+    channelEl.style.display = 'block'
+    detailView.style.display = 'none'
+    channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
+    try {
+      const res = await API.get('/alarms/outbox')
+      if (!res.success || !res.data.length) {
+        channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
+        return
+      }
+      const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+      channelEl.innerHTML = res.data.map(g => {
+        const first = g.items[0]
+        const timeStr = first ? this._fmtTime(first.scheduled_at) : ''
+        const initial = (g.channel_name || '?')[0].toUpperCase()
+        return `<div class="ch-group-card" onclick="App.outboxOpenChannel(${JSON.stringify(g).replace(/"/g,'&quot;')})">
+          <div class="ch-group-avatar">${initial}</div>
+          <div class="ch-group-info">
+            <div class="ch-group-name">${g.channel_name}</div>
+            <div class="ch-group-last">${g.items.length}건 발신</div>
+          </div>
+          <div class="ch-group-meta">
+            <div class="ch-group-time">${timeStr}</div>
+          </div>
+        </div>`
+      }).join('')
+    } catch(e) {
+      channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+    }
+  },
+
+  outboxOpenChannel(group) {
+    const channelEl = document.getElementById('outbox-channel-list')
+    const detailView = document.getElementById('outbox-detail-view')
+    const titleEl = document.getElementById('outbox-detail-title')
+    const listEl  = document.getElementById('outbox-detail-list')
+    channelEl.style.display = 'none'
+    detailView.style.display = 'flex'
+    titleEl.textContent = group.channel_name
+    const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+    const statusMap = { triggered:'send-status-triggered', pending:'send-status-pending', cancelled:'send-status-cancelled' }
+    const statusLabel = { triggered:'발송완료', pending:'대기중', cancelled:'취소됨' }
+    listEl.innerHTML = group.items.map(item => {
+      const typeIcon = icons[item.msg_type] || '🔔'
+      const timeStr  = this._fmtTime(item.scheduled_at)
+      const stCls    = statusMap[item.status] || 'send-status-pending'
+      const stLabel  = statusLabel[item.status] || item.status
+      return `<div class="send-card">
+        <div class="send-card-header">
+          <span style="font-size:16px;">${typeIcon}</span>
+          <span class="send-type-badge">${this._msgLabel(item.msg_type)}</span>
+          <span class="send-status-badge ${stCls}">${stLabel}</span>
+        </div>
+        <div class="send-card-time"><i class="fas fa-clock" style="margin-right:4px;"></i>${timeStr}</div>
+        <div class="send-card-stats"><i class="fas fa-users" style="margin-right:4px;"></i>대상 ${item.total_targets || 0}명 · 발송 ${item.sent_count || 0}명</div>
+      </div>`
+    }).join('')
+  },
+
+  outboxBack() {
+    document.getElementById('outbox-channel-list').style.display = 'block'
+    document.getElementById('outbox-detail-view').style.display  = 'none'
+  },
+
+  _msgLabel(type) {
+    return { youtube:'YouTube 알람', audio:'오디오 알람', video:'비디오 알람', file:'파일 알람' }[type] || '알람'
+  },
+
+  _fmtTime(isoStr) {
+    if (!isoStr) return ''
+    try {
+      const d = new Date(isoStr)
+      const now = new Date()
+      const diff = now - d
+      if (diff < 60000)   return '방금'
+      if (diff < 3600000) return Math.floor(diff/60000) + '분 전'
+      if (diff < 86400000) return Math.floor(diff/3600000) + '시간 전'
+      const mm = String(d.getMonth()+1).padStart(2,'0')
+      const dd = String(d.getDate()).padStart(2,'0')
+      const hh = String(d.getHours()).padStart(2,'0')
+      const mi = String(d.getMinutes()).padStart(2,'0')
+      return `${mm}/${dd} ${hh}:${mi}`
+    } catch { return isoStr }
   },
 
   // ── 설정 ────────────────────────────────
