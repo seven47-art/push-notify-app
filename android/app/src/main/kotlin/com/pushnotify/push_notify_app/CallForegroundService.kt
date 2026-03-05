@@ -47,7 +47,8 @@ class CallForegroundService : Service() {
             msgType: String,
             msgValue: String,
             alarmId: Int,
-            contentUrl: String
+            contentUrl: String,
+            homepageUrl: String = ""
         ) {
             val intent = Intent(context, CallForegroundService::class.java).apply {
                 putExtra(EXTRA_CHANNEL_NAME, channelName)
@@ -55,6 +56,7 @@ class CallForegroundService : Service() {
                 putExtra(EXTRA_MSG_VALUE,    msgValue)
                 putExtra(EXTRA_ALARM_ID,     alarmId)
                 putExtra(EXTRA_CONTENT_URL,  contentUrl)
+                putExtra(EXTRA_HOMEPAGE_URL, homepageUrl)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -90,6 +92,7 @@ class CallForegroundService : Service() {
         val msgValue    = intent?.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
         val alarmId     = intent?.getIntExtra(EXTRA_ALARM_ID, 0)     ?: 0
         val contentUrl  = intent?.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
+        val homepageUrl = intent?.getStringExtra(EXTRA_HOMEPAGE_URL) ?: ""
 
         Log.d(TAG, "알람 처리 시작: $channelName / $msgType")
 
@@ -98,7 +101,7 @@ class CallForegroundService : Service() {
 
         // ② startForeground() 반드시 5초 이내 호출
         //    fullScreenIntent 포함 → OS가 잠금화면 위에 FakeCallActivity 표시
-        val notification = buildCallNotification(channelName, msgType, alarmId, msgValue, contentUrl)
+        val notification = buildCallNotification(channelName, msgType, alarmId, msgValue, contentUrl, homepageUrl)
         startForeground(NOTIFICATION_ID, notification)
 
         // ③ FakeCallActivity.start() 직접 호출 금지!
@@ -173,7 +176,8 @@ class CallForegroundService : Service() {
         msgType: String,
         alarmId: Int,
         msgValue: String,
-        contentUrl: String
+        contentUrl: String,
+        homepageUrl: String = ""
     ): Notification {
 
         val fullScreenIntent = Intent(applicationContext, FakeCallActivity::class.java).apply {
@@ -185,6 +189,7 @@ class CallForegroundService : Service() {
             putExtra(FakeCallActivity.EXTRA_MSG_VALUE,    msgValue)
             putExtra(FakeCallActivity.EXTRA_ALARM_ID,     alarmId)
             putExtra(FakeCallActivity.EXTRA_CONTENT_URL,  contentUrl)
+            putExtra(FakeCallActivity.EXTRA_HOMEPAGE_URL, homepageUrl)
         }
 
         val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
