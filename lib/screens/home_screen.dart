@@ -678,7 +678,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                   // ─ 날짜 선택 ─
                   _card(
                     title: '날짜 선택',
-                    child: _CalendarWidget(
+                    child: _DatePickerRow(
                       selected: _selectedDate,
                       onSelect: (d) => setState(() => _selectedDate = d),
                     ),
@@ -914,93 +914,107 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 }
 
 // ── 캘린더 위젯 ──
-class _CalendarWidget extends StatefulWidget {
+// ══════════════════════════════════════════════
+// 날짜 선택 위젯 - < 3월 5일 (목) > 방식
+// ══════════════════════════════════════════════
+class _DatePickerRow extends StatelessWidget {
   final DateTime selected;
   final ValueChanged<DateTime> onSelect;
-  const _CalendarWidget({required this.selected, required this.onSelect});
+  const _DatePickerRow({required this.selected, required this.onSelect});
 
-  @override
-  State<_CalendarWidget> createState() => _CalendarWidgetState();
-}
+  static const _weekDay = ['일', '월', '화', '수', '목', '금', '토'];
 
-class _CalendarWidgetState extends State<_CalendarWidget> {
-  late int _y, _m;
-
-  @override
-  void initState() {
-    super.initState();
-    _y = widget.selected.year;
-    _m = widget.selected.month;
+  void _prev() {
+    final d = selected.subtract(const Duration(days: 1));
+    // 오늘 이전 날짜는 선택 불가
+    if (d.isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))) return;
+    onSelect(d);
   }
+
+  void _next() => onSelect(selected.add(const Duration(days: 1)));
 
   @override
   Widget build(BuildContext context) {
-    final today    = DateTime.now();
-    final firstDay = DateTime(_y, _m, 1).weekday % 7; // 0=Sun
-    final lastDay  = DateTime(_y, _m + 1, 0).day;
-    final dow = ['일','월','화','수','목','금','토'];
+    final today = DateTime.now();
+    final isToday = selected.year == today.year &&
+                    selected.month == today.month &&
+                    selected.day == today.day;
+    final dayLabel = isToday ? '오늘' : _weekDay[selected.weekday % 7];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
-      child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // ◀ 이전날
           IconButton(
-              icon: const Icon(Icons.chevron_left, color: _text2),
-              onPressed: () => setState(() {
-                _m--; if (_m < 1) { _m = 12; _y--; }
-              })),
-          Text('$_y년 ${_m}월',
-              style: const TextStyle(color: _text, fontWeight: FontWeight.bold, fontSize: 15)),
-          IconButton(
-              icon: const Icon(Icons.chevron_right, color: _text2),
-              onPressed: () => setState(() {
-                _m++; if (_m > 12) { _m = 1; _y++; }
-              })),
-        ]),
-        Row(
-          children: dow.map((d) => Expanded(
-            child: Center(child: Text(d,
-                style: const TextStyle(color: _text2, fontSize: 12, fontWeight: FontWeight.w600))),
-          )).toList(),
-        ),
-        const SizedBox(height: 4),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7, childAspectRatio: 1.1, mainAxisSpacing: 2, crossAxisSpacing: 2),
-          itemCount: firstDay + lastDay,
-          itemBuilder: (_, i) {
-            if (i < firstDay) return const SizedBox();
-            final day = i - firstDay + 1;
-            final d   = DateTime(_y, _m, day);
-            final isSel   = d.year == widget.selected.year &&
-                            d.month == widget.selected.month && d.day == widget.selected.day;
-            final isToday = d.year == today.year && d.month == today.month && d.day == today.day;
-            return GestureDetector(
-              onTap: () => widget.onSelect(d),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                decoration: BoxDecoration(
-                    color: isSel ? _primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8)),
-                alignment: Alignment.center,
-                child: Text(
-                  '$day',
-                  style: TextStyle(
-                    color: isSel ? Colors.white : isToday ? _teal : _text,
-                    fontWeight: isSel || isToday ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 14,
+            icon: const Icon(Icons.chevron_left, color: _text2, size: 28),
+            onPressed: _prev,
+          ),
+          const SizedBox(width: 8),
+          // 날짜 표시
+          GestureDetector(
+            onTap: () async {
+              // 탭하면 달력 팝업
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: selected,
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+                builder: (ctx, child) => Theme(
+                  data: Theme.of(ctx).copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: _primary,
+                      surface: _bg2,
+                    ),
                   ),
+                  child: child!,
                 ),
+              );
+              if (picked != null) onSelect(picked);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: _bg3,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _primary.withOpacity(0.4)),
               ),
-            );
-          },
-        ),
-      ]),
+              child: Column(
+                children: [
+                  Text(
+                    '${selected.year}년 ${selected.month}월 ${selected.day}일',
+                    style: const TextStyle(
+                      color: _text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dayLabel,
+                    style: TextStyle(
+                      color: isToday ? _teal : _text2,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // ▶ 다음날
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: _text2, size: 28),
+            onPressed: _next,
+          ),
+        ],
+      ),
     );
   }
 }
+
 
 // ══════════════════════════════════════════════
 // 초대코드 시트
