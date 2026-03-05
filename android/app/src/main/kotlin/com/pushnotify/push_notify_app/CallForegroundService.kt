@@ -212,6 +212,7 @@ class CallForegroundService : Service() {
             putExtra(FakeCallActivity.EXTRA_MSG_VALUE,    msgValue)
             putExtra(FakeCallActivity.EXTRA_ALARM_ID,     alarmId)
             putExtra(FakeCallActivity.EXTRA_CONTENT_URL,  contentUrl)
+            putExtra(FakeCallActivity.EXTRA_HOMEPAGE_URL, homepageUrl)
             putExtra(FakeCallActivity.EXTRA_AUTO_ACCEPT,  true)   // 자동 수락 플래그
         }
         val acceptPi = PendingIntent.getActivity(

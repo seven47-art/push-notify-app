@@ -154,6 +154,7 @@ class AlarmPollingService : Service() {
             val msgType     = alarm.optString("msg_type", "youtube")
             val msgValue    = alarm.optString("msg_value", "")
             val contentUrl  = alarm.optString("content_url", "")
+            val homepageUrl = alarm.optString("homepage_url", "")
 
             Log.d(TAG, "폴링 알람 수신 → CallForegroundService: $channelName (id=$alarmId)")
 
@@ -161,7 +162,7 @@ class AlarmPollingService : Service() {
             withContext(Dispatchers.Main) {
                 CallForegroundService.start(
                     this@AlarmPollingService,
-                    channelName, msgType, msgValue, alarmId, contentUrl
+                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
                 )
             }
 

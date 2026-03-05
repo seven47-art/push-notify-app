@@ -25,11 +25,9 @@ import android.graphics.drawable.GradientDrawable
 /**
  * FakeCallActivity  ─ 세이투두 방식
  *
- * ① 알람 도착 → AlarmPollingService.start() 직접 이 화면 띄움
- *   (알림/Notification 없음, 잠금화면 위에 바로 표시)
+ * ① 알람 도착 → fullScreenIntent로 이 화면 띄움
  * ② 기기 기본 벨소리(STREAM_RING 볼륨) + 진동
- * ③ [수락] 버튼 → msgType에 따라 콘텐츠 즉시 실행 (YouTube/브라우저/오디오)
- *                  → Flutter MainActivity도 열어 앱 상태 동기화
+ * ③ [수락] 버튼 → ContentPlayerActivity 실행 (homepage_url 포함)
  * ④ [거절] 버튼 / 30초 타임아웃 → 화면 종료
  */
 class FakeCallActivity : Activity() {
@@ -41,6 +39,7 @@ class FakeCallActivity : Activity() {
         const val EXTRA_MSG_VALUE    = "msg_value"
         const val EXTRA_ALARM_ID     = "alarm_id"
         const val EXTRA_CONTENT_URL  = "content_url"
+        const val EXTRA_HOMEPAGE_URL = "homepage_url"  // ★ 홈페이지 URL
         const val EXTRA_AUTO_ACCEPT  = "auto_accept"   // 헤즈업 수락 버튼에서 올 때 true
 
         fun start(
@@ -49,7 +48,8 @@ class FakeCallActivity : Activity() {
             msgType: String,
             msgValue: String,
             alarmId: Int,
-            contentUrl: String
+            contentUrl: String,
+            homepageUrl: String = ""
         ) {
             val i = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -60,6 +60,7 @@ class FakeCallActivity : Activity() {
                 putExtra(EXTRA_MSG_VALUE,    msgValue)
                 putExtra(EXTRA_ALARM_ID,     alarmId)
                 putExtra(EXTRA_CONTENT_URL,  contentUrl)
+                putExtra(EXTRA_HOMEPAGE_URL, homepageUrl)
             }
             context.startActivity(i)
         }
@@ -76,8 +77,6 @@ class FakeCallActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         // ── WAKE_LOCK: Activity 레벨에서도 화면 강제 켜기 ────────────
-        // CallForegroundService 에서 이미 WakeLock 획득했지만
-        // Activity 에서도 추가로 획득해서 화면이 꺼지지 않도록 보장
         try {
             val pm = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(
@@ -112,27 +111,24 @@ class FakeCallActivity : Activity() {
         val msgValue    = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
         val alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
         val autoAccept  = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
+        val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
+        val homepageUrl = intent.getStringExtra(EXTRA_HOMEPAGE_URL) ?: ""
 
         // fullScreenIntent로 열렸을 때 트리거한 알림 즉시 취소
-        // (알림 드로어에 알림이 남지 않도록)
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.cancel(alarmId + 10000)
-            nm.cancel(CallForegroundService.NOTIFICATION_ID) // 헤즈업 알림도 제거
+            nm.cancel(CallForegroundService.NOTIFICATION_ID)
         } catch (_: Exception) {}
-        val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
 
-        buildUI(channelName, msgType, msgValue, alarmId, contentUrl)
+        buildUI(channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
 
         if (autoAccept) {
-            // 헤즈업 "수락" 버튼으로 진입 → 즉시 콘텐츠 실행
             Log.d(TAG, "AUTO_ACCEPT: 즉시 콘텐츠 실행")
-            // 짧게 UI를 보여주고 바로 수락 처리 (isAnswered는 answer() 내부에서 설정)
             Handler(Looper.getMainLooper()).postDelayed({
-                answer(channelName, msgType, msgValue, alarmId, contentUrl)
+                answer(channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
             }, 300L)
         } else {
-            // 일반 진입 → 벨소리 + 30초 자동 거절
             startRinging()
             autoDeclineRunnable = Runnable { if (!isAnswered) decline() }
             autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
@@ -142,7 +138,6 @@ class FakeCallActivity : Activity() {
     override fun onDestroy() {
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
-        // WAKE_LOCK 해제
         try {
             if (wakeLock?.isHeld == true) wakeLock?.release()
         } catch (_: Exception) {}
@@ -192,7 +187,8 @@ class FakeCallActivity : Activity() {
         msgType: String,
         msgValue: String,
         alarmId: Int,
-        contentUrl: String
+        contentUrl: String,
+        homepageUrl: String = ""
     ) {
         if (isAnswered) return
         isAnswered = true
@@ -200,7 +196,6 @@ class FakeCallActivity : Activity() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
 
-        // 알림 정리
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.cancel(9999)
@@ -208,80 +203,23 @@ class FakeCallActivity : Activity() {
             nm.cancel(CallForegroundService.NOTIFICATION_ID)
         } catch (_: Exception) {}
 
-        // CallForegroundService 종료
         CallForegroundService.stop(applicationContext)
 
-        // ★ 잠금화면 위에서 바로 ContentPlayerActivity 실행
-        // requestDismissKeyguard() 는 PIN/패턴 잠금 시 사용자에게 해제를 요구하므로 사용하지 않음
-        // ContentPlayerActivity 자체에도 setShowWhenLocked(true) 가 설정되어 있으므로
-        // 잠금화면 위에서도 전체화면으로 재생됨
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            // 현재 Activity의 잠금화면 표시 플래그 유지 (이미 onCreate에서 설정됨)
-            // ContentPlayerActivity는 자체적으로 setShowWhenLocked(true) 처리
+            // ContentPlayerActivity 자체에서 setShowWhenLocked(true) 처리
         } else {
             @Suppress("DEPRECATION")
             window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
         }
-        ContentPlayerActivity.start(applicationContext, msgType, msgValue, contentUrl, channelName)
+        // ★ homepageUrl 전달
+        ContentPlayerActivity.start(applicationContext, msgType, msgValue, contentUrl, channelName, homepageUrl)
         autoDeclineHandler.postDelayed({ finish() }, 300L)
-    }
-
-    // ── 콘텐츠 즉시 실행 ─────────────────────────────────────────────
-    private fun launchContent(msgType: String, msgValue: String, contentUrl: String) {
-        try {
-            when (msgType) {
-                "youtube" -> {
-                    val videoId = extractYoutubeId(msgValue)
-                    val youtubeAppUri = Uri.parse("vnd.youtube:$videoId")
-                    val youtubeWebUrl = if (videoId.isNotEmpty())
-                        "https://www.youtube.com/watch?v=$videoId"
-                    else if (msgValue.startsWith("http")) msgValue
-                    else contentUrl.ifEmpty { msgValue }
-
-                    val appIntent = Intent(Intent.ACTION_VIEW, youtubeAppUri).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    try {
-                        startActivity(appIntent)
-                    } catch (_: Exception) {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeWebUrl)).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
-                    }
-                }
-                "audio", "video" -> {
-                    val url = msgValue.ifEmpty { contentUrl }
-                    if (url.isNotEmpty()) {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
-                    }
-                }
-                else -> {
-                    val url = msgValue.ifEmpty { contentUrl }
-                    if (url.startsWith("http")) {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "콘텐츠 실행 실패: ${e.message}")
-        }
-    }
-
-    private fun extractYoutubeId(url: String): String {
-        if (url.length == 11 && !url.startsWith("http")) return url
-        val m = Regex("(?:v=|youtu\\.be/|embed/|shorts/)([A-Za-z0-9_-]{11})").find(url)
-        return m?.groupValues?.get(1) ?: ""
     }
 
     // ── [거절] 처리 ──────────────────────────────────────────────────
     private fun decline() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
-        // CallForegroundService 종료 (포그라운드 알림 제거)
         CallForegroundService.stop(applicationContext)
         finish()
     }
@@ -292,7 +230,8 @@ class FakeCallActivity : Activity() {
         msgType: String,
         msgValue: String,
         alarmId: Int,
-        contentUrl: String
+        contentUrl: String,
+        homepageUrl: String = ""
     ) {
         val bg = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
@@ -325,14 +264,10 @@ class FakeCallActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
         }
-
-        // 외부 링
         iconFrame.addView(View(this).apply {
             layoutParams = FrameLayout.LayoutParams(dp(160), dp(160)).apply { gravity = Gravity.CENTER }
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#2D2A6E")); alpha = 80 }
         })
-
-        // 내부 원 (펄스 애니메이션)
         iconFrame.addView(View(this).apply {
             layoutParams = FrameLayout.LayoutParams(dp(120), dp(120)).apply { gravity = Gravity.CENTER }
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#6C63FF")) }
@@ -341,8 +276,6 @@ class FakeCallActivity : Activity() {
                 duration = 800; repeatMode = Animation.REVERSE; repeatCount = Animation.INFINITE
             })
         })
-
-        // 벨 아이콘
         iconFrame.addView(ImageView(this).apply {
             setImageResource(android.R.drawable.ic_lock_silent_mode_off)
             setColorFilter(Color.WHITE)
@@ -352,7 +285,6 @@ class FakeCallActivity : Activity() {
         root.addView(iconFrame)
         root.addView(space(32))
 
-        // 채널명
         root.addView(TextView(this).apply {
             text      = channelName
             textSize  = 30f
@@ -363,7 +295,6 @@ class FakeCallActivity : Activity() {
         })
         root.addView(space(10))
 
-        // 메시지 타입 라벨
         root.addView(TextView(this).apply {
             text     = getMsgTypeLabel(msgType)
             textSize = 15f
@@ -372,7 +303,6 @@ class FakeCallActivity : Activity() {
         })
         root.addView(space(8))
 
-        // RinGo 배지
         root.addView(TextView(this).apply {
             text    = "RinGo 알람"
             textSize = 13f
@@ -386,12 +316,10 @@ class FakeCallActivity : Activity() {
             setPadding(dp(14), dp(6), dp(14), dp(6))
         })
 
-        // 가중치 스페이서
         root.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
 
-        // 수락 / 거절 버튼 행
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity     = Gravity.CENTER
@@ -399,16 +327,13 @@ class FakeCallActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        // 거절 버튼
         btnRow.addView(callBtn(android.R.drawable.ic_menu_close_clear_cancel, "#EF4444", "거절") { decline() })
-
         btnRow.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
         })
 
-        // 수락 버튼 (흔들림)
         val answerCol = callBtn(android.R.drawable.ic_menu_call, "#22C55E", "수락") {
-            answer(channelName, msgType, msgValue, alarmId, contentUrl)
+            answer(channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
         }
         (answerCol as LinearLayout).getChildAt(0)?.startAnimation(
             RotateAnimation(-8f, 8f, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f).apply {
@@ -421,7 +346,6 @@ class FakeCallActivity : Activity() {
         setContentView(root)
     }
 
-    // ── 유틸 ─────────────────────────────────────────────────────────
     private fun callBtn(iconRes: Int, color: String, label: String, onClick: () -> Unit): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

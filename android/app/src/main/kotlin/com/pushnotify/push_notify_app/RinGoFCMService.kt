@@ -44,23 +44,28 @@ class RinGoFCMService : FirebaseMessagingService() {
             return
         }
 
-        val channelName  = data["channel_name"] ?: "알람"
-        val alarmMsgType = data["msg_type"]     ?: "youtube"
-        val msgValue     = data["msg_value"]    ?: ""
+        val channelName  = data["channel_name"]  ?: "알람"
+        val alarmMsgType = data["msg_type"]      ?: "youtube"
+        val msgValue     = data["msg_value"]     ?: ""
         val alarmId      = data["alarm_id"]?.toIntOrNull() ?: 0
-        val contentUrl   = data["content_url"]  ?: ""
+        val contentUrl   = data["content_url"]   ?: ""
+        val homepageUrl  = data["homepage_url"]  ?: ""
 
         Log.d(TAG, "알람 수신 → CallForegroundService 시작: channel=$channelName, type=$alarmMsgType, id=$alarmId")
 
         // CallForegroundService 시작 (Foreground Service)
         // startForeground() → fullScreenIntent → FakeCallActivity 표시
+        // FCM이 처리한 알람 ID 등록 (폴링 중복 방지)
+        AlarmPollingService.markFcmHandled(alarmId)
+
         CallForegroundService.start(
-            context     = applicationContext,
-            channelName = channelName,
-            msgType     = alarmMsgType,
-            msgValue    = msgValue,
-            alarmId     = alarmId,
-            contentUrl  = contentUrl
+            context      = applicationContext,
+            channelName  = channelName,
+            msgType      = alarmMsgType,
+            msgValue     = msgValue,
+            alarmId      = alarmId,
+            contentUrl   = contentUrl,
+            homepageUrl  = homepageUrl
         )
     }
 
