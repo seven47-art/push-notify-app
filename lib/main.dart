@@ -353,6 +353,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   // ── 알람 폴링 ──
   Timer? _alarmPollTimer;
   bool   _isFakeCallShowing = false;
+  // 이미 처리한 alarm_id 목록 (중복 수신 방지 - FCM + 폴링 동시 수신 케이스)
+  final Set<int> _handledAlarmIds = {};
 
   @override
   void initState() {
@@ -670,7 +672,19 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     required int    alarmId,
     String contentUrl = '',
   }) {
+    // 이미 표시 중이거나 같은 alarm_id를 이미 처리했으면 무시 (중복 방지)
     if (_isFakeCallShowing) return;
+    if (alarmId > 0 && _handledAlarmIds.contains(alarmId)) {
+      debugPrint('[AlarmGuard] alarm_id=$alarmId 이미 처리됨 → 중복 무시');
+      return;
+    }
+    // 처리된 alarm_id 기록 (최대 50개 유지)
+    if (alarmId > 0) {
+      _handledAlarmIds.add(alarmId);
+      if (_handledAlarmIds.length > 50) {
+        _handledAlarmIds.remove(_handledAlarmIds.first);
+      }
+    }
     setState(() => _isFakeCallShowing = true);
 
     // 진동 (알람 패턴)
