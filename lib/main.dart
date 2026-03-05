@@ -101,6 +101,9 @@ Future<void> _initLocalNotifications() async {
   );
 
   // Android 알림 채널 설정 (벨소리 + 진동)
+  // ※ 권한 요청(requestNotificationsPermission, requestExactAlarmsPermission)은
+  //    permission_screen.dart에서 단계적으로 처리함
+  //    여기서 요청하면 Flutter 초기화 도중 팝업이 떠서 흰화면 먹통 발생!
   if (Platform.isAndroid) {
     const channel = AndroidNotificationChannel(
       'alarm_channel',
@@ -116,18 +119,7 @@ Future<void> _initLocalNotifications() async {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
-
-    // 알림 권한 요청
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-
-    // 정확한 알람 권한 요청
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestExactAlarmsPermission();
+    // 알림 권한 요청은 permission_screen에서 처리 (여기서 하면 흰화면 크래시)
   }
 }
 

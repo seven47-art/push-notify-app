@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:android_intent_plus/android_intent.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -18,7 +19,7 @@ class _PermissionScreenState extends State<PermissionScreen>
     with TickerProviderStateMixin {
 
   // ── 권한 항목 정의 ────────────────────────────────
-  // [중요도순] 알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
+  // [중요도순] 알림 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
   final List<_PermItem> _items = [
     _PermItem(
       permission:  Permission.notification,
@@ -28,6 +29,16 @@ class _PermissionScreenState extends State<PermissionScreen>
       subtitle:    '알람이 도착하면 즉시 알려드립니다',
       description: '이 앱의 핵심 기능입니다.\n승인하지 않으면 알람을 받을 수 없습니다.',
       required:    true,
+    ),
+    _PermItem(
+      permission:  Permission.notification, // placeholder (isFullScreenIntent=true 로 처리)
+      icon:        Icons.fullscreen_rounded,
+      color:       const Color(0xFFEF4444),
+      title:       '전체 화면 알림 권한',
+      subtitle:    '잠금화면 위에 알람을 표시합니다',
+      description: '이 권한이 없으면 화면이 꺼진 상태에서 알람을 받을 수 없습니다.\n설정에서 "권한 허용"을 켜주세요.',
+      required:    true,
+      isFullScreenIntent: true,
     ),
     _PermItem(
       permission:  Permission.scheduleExactAlarm,
@@ -106,6 +117,11 @@ class _PermissionScreenState extends State<PermissionScreen>
   // 이미 허용된 권한은 건너뛰기
   Future<void> _checkAlreadyGranted() async {
     for (int i = 0; i < _items.length; i++) {
+      if (_items[i].isFullScreenIntent) {
+        // 전체화면 알림 권한은 Android 채널로 확인
+        _items[i].granted = await _checkFullScreenIntentGranted();
+        continue;
+      }
       final status = await _items[i].permission.status;
       if (status.isGranted || status.isLimited) {
         _items[i].granted = true;
@@ -121,6 +137,26 @@ class _PermissionScreenState extends State<PermissionScreen>
     if (mounted) setState(() => _currentStep = first);
   }
 
+  // ── 전체화면 알림 권한 확인 (Android 14+) ─────────
+  static const _platform = MethodChannel('com.pushnotify/permissions');
+
+  Future<bool> _checkFullScreenIntentGranted() async {
+    try {
+      final result = await _platform.invokeMethod<bool>('canUseFullScreenIntent');
+      return result ?? true; // Android 13 이하는 항상 허용
+    } catch (_) {
+      return true; // 채널 없으면 허용으로 간주
+    }
+  }
+
+  Future<void> _openFullScreenIntentSettings() async {
+    try {
+      await _platform.invokeMethod('openFullScreenIntentSettings');
+    } catch (_) {
+      await openAppSettings();
+    }
+  }
+
   // ── 현재 권한 요청 ──────────────────────────────
   Future<void> _requestCurrent() async {
     if (_isRequesting) return;
@@ -130,6 +166,17 @@ class _PermissionScreenState extends State<PermissionScreen>
 
     try {
       PermissionStatus status;
+
+      // 전체화면 알림 권한 (Android 14+ 전용)
+      if (item.isFullScreenIntent) {
+        await _openFullScreenIntentSettings();
+        await Future.delayed(const Duration(seconds: 2));
+        item.granted = await _checkFullScreenIntentGranted();
+        item.denied  = !item.granted;
+        if (mounted) setState(() => _isRequesting = false);
+        await _moveToNext();
+        return;
+      }
 
       // 배터리 최적화 제외는 별도 처리 (시스템 설정 화면 이동)
       if (item.permission == Permission.ignoreBatteryOptimizations) {
@@ -520,6 +567,7 @@ class _PermItem {
   final String     subtitle;
   final String     description;
   final bool       required;
+  final bool       isFullScreenIntent; // Android 14+ 전체화면 알림 권한
   bool granted = false;
   bool denied  = false;
   bool skipped = false;
@@ -532,5 +580,6 @@ class _PermItem {
     required this.subtitle,
     required this.description,
     required this.required,
+    this.isFullScreenIntent = false,
   });
 }

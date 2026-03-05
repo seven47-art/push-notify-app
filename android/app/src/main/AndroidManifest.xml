@@ -29,8 +29,7 @@
     <!-- 포그라운드 서비스 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
-    <!-- phoneCall 타입 Foreground Service (Android 14+) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+    <!-- FOREGROUND_SERVICE_PHONE_CALL 제거: MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException -->
 
     <!-- APK 설치 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
@@ -120,14 +119,15 @@
             </intent-filter>
         </service>
 
-        <!-- 전화 수신 포그라운드 서비스
+        <!-- 알람 포그라운드 서비스
              startForeground() → fullScreenIntent → FakeCallActivity
-             foregroundServiceType="phoneCall" → CATEGORY_CALL 알림이 시스템 전화로 인식 -->
+             foregroundServiceType="dataSync" → 별도 MANAGE_OWN_CALLS 권한 없이 동작
+             (phoneCall 타입은 MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException) -->
         <service
             android:name=".CallForegroundService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="phoneCall"/>
+            android:foregroundServiceType="dataSync"/>
 
         <!-- 가상통화 전체화면 액티비티 (잠금화면 위에 표시) -->
         <activity

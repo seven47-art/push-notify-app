@@ -16,10 +16,11 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
-    private val CHANNEL_ACCOUNTS = "com.pushnotify/accounts"
-    private val CHANNEL_RINGTONE = "com.pushnotify/ringtone"
-    private val CHANNEL_SERVICE  = "com.pushnotify/alarm_service"
-    private val CHANNEL_ALARM    = "com.pushnotify/alarm_data"
+    private val CHANNEL_ACCOUNTS     = "com.pushnotify/accounts"
+    private val CHANNEL_RINGTONE     = "com.pushnotify/ringtone"
+    private val CHANNEL_SERVICE      = "com.pushnotify/alarm_service"
+    private val CHANNEL_ALARM        = "com.pushnotify/alarm_data"
+    private val CHANNEL_PERMISSIONS  = "com.pushnotify/permissions"
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
@@ -91,36 +92,49 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // ── 권한 채널 (전체화면 알림 권한 확인/설정) ──────────────────
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_PERMISSIONS)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canUseFullScreenIntent" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            // Android 14+ 에서만 런타임 권한 필요
+                            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                            result.success(nm.canUseFullScreenIntent())
+                        } else {
+                            // Android 13 이하는 항상 허용
+                            result.success(true)
+                        }
+                    }
+                    "openFullScreenIntentSettings" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            try {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                    Uri.parse("package:$packageName")
+                                )
+                                startActivity(intent)
+                                result.success(true)
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "전체화면 알림 설정 열기 실패: ${e.message}")
+                                result.success(false)
+                            }
+                        } else {
+                            result.success(true)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     // ── onCreate: 앱이 꺼진 상태에서 FakeCallActivity 수락으로 열린 경우 ──
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAlarmIntent(intent)
-
-        // Android 14(API 34)+ 에서 USE_FULL_SCREEN_INTENT 권한 확인 및 요청
-        requestFullScreenIntentPermissionIfNeeded()
-    }
-
-    // ── Android 14+ USE_FULL_SCREEN_INTENT 권한 요청 ──────────────────
-    private fun requestFullScreenIntentPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
-            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            if (!nm.canUseFullScreenIntent()) {
-                Log.w("MainActivity", "USE_FULL_SCREEN_INTENT 권한 없음 → 설정 화면 이동")
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
-                        data = Uri.parse("package:$packageName")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e("MainActivity", "전체화면 권한 설정 화면 열기 실패: ${e.message}")
-                }
-            } else {
-                Log.d("MainActivity", "USE_FULL_SCREEN_INTENT 권한 있음 ✅")
-            }
-        }
+        // ※ USE_FULL_SCREEN_INTENT 권한은 permission_screen(Flutter)에서 안내
+        //   onCreate에서 강제로 설정화면 이동하면 Flutter 초기화 전 크래시 발생
     }
 
     // ── onNewIntent: 앱이 이미 열려있는 상태에서 인텐트 수신 ──────────
