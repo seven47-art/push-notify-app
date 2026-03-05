@@ -59,7 +59,7 @@ app.get('/download', (c) => {
     </div>
     <h1 class="text-2xl font-bold text-white mb-2">PushNotify</h1>
     <p class="text-gray-400 text-sm mb-1">폐쇄형 채널 구독 앱</p>
-    <p class="text-gray-500 text-xs mb-6">Android arm64 · debug v1.0.16</p>
+    <p class="text-gray-500 text-xs mb-6">Android arm64 · debug v1.0.17</p>
 
     <a href="/static/PushNotify-debug-arm64.apk"
        download="PushNotify-debug-arm64.apk"
