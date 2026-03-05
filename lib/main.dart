@@ -921,10 +921,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   }
 
   Future<bool> _onWillPop() async {
+    // 1. 웹뷰 JS에 goBack() 요청 → 웹에서 처리하면 false(앱 유지)
+    try {
+      final result = await _controller.runJavaScriptReturningResult(
+        'App && typeof App.goBack === "function" ? App.goBack() : true'
+      );
+      // JS가 false 반환 → 웹에서 처리 완료, 앱 유지
+      if (result.toString() == 'false' || result.toString() == 'null') {
+        return false;
+      }
+    } catch (_) {}
+
+    // 2. WebView 히스토리가 있으면 뒤로
     if (await _controller.canGoBack()) {
       await _controller.goBack();
       return false;
     }
+
+    // 3. 홈 탭 상태 → 앱 종료
     return true;
   }
 
