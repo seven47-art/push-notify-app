@@ -520,9 +520,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
-    <div class="settings-menu-item" onclick="toast('v1.0.10 (web)')">
+    <div class="settings-menu-item" onclick="toast('v1.0.16 (web)')">
       <i class="fas fa-info-circle"></i> 버전
-      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.10</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.16</span>
     </div>
 
     <div class="settings-menu-label" style="margin-top:8px;">계정 정보</div>
@@ -610,14 +610,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.10 (web)')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.16 (web)')">
     <i class="fas fa-info-circle"></i> 버전
-    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.10</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.16</span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
     <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
-  <div class="drawer-version">RinGo Web v1.0.10</div>
+  <div class="drawer-version">RinGo Web v1.0.16</div>
 </div>
 
 <!-- ══ 모달: 채널 만들기 ══ -->
@@ -795,37 +795,29 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
     </div>
 
-    <!-- 날짜 선택 -->
+    <!-- 날짜 선택 (화살표 방식) -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">날짜 선택</div>
-      <div class="calendar-wrap">
-        <div class="cal-header">
-          <button class="cal-nav-btn" onclick="App.calMove(-1)"><i class="fas fa-chevron-left"></i></button>
-          <span class="cal-month" id="cal-month-label"></span>
-          <button class="cal-nav-btn" onclick="App.calMove(1)"><i class="fas fa-chevron-right"></i></button>
-        </div>
-        <div class="cal-grid">
-          <div class="cal-dow">일</div><div class="cal-dow">월</div><div class="cal-dow">화</div>
-          <div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div>
-          <div class="cal-dow">토</div>
-        </div>
-        <div class="cal-grid" id="cal-days"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0;">
+        <button class="cal-nav-btn" onclick="App.dateMove(-1)"><i class="fas fa-chevron-left"></i></button>
+        <div id="alarm-date-label" style="font-size:18px;font-weight:700;color:var(--text);min-width:160px;text-align:center;"></div>
+        <button class="cal-nav-btn" onclick="App.dateMove(1)"><i class="fas fa-chevron-right"></i></button>
       </div>
     </div>
 
-    <!-- 시간 선택 -->
+    <!-- 시간 선택 (직접 입력 가능) -->
     <div class="alarm-section-card">
-      <div class="alarm-section-title">시간 선택</div>
+      <div class="alarm-section-title">시간 선택 <span style="font-size:11px;color:var(--text3);font-weight:400;">(숫자 클릭 시 직접 입력)</span></div>
       <div class="time-picker">
         <div class="time-col">
           <button class="time-spin" onclick="App.changeHour(1)"><i class="fas fa-chevron-up"></i></button>
-          <div class="time-val" id="time-hour">09</div>
+          <div class="time-val" id="time-hour" onclick="App.inputTime('hour')" style="cursor:pointer;">09</div>
           <button class="time-spin" onclick="App.changeHour(-1)"><i class="fas fa-chevron-down"></i></button>
         </div>
         <div class="time-sep">:</div>
         <div class="time-col">
           <button class="time-spin" onclick="App.changeMin(5)"><i class="fas fa-chevron-up"></i></button>
-          <div class="time-val" id="time-min">00</div>
+          <div class="time-val" id="time-min" onclick="App.inputTime('min')" style="cursor:pointer;">00</div>
           <button class="time-spin" onclick="App.changeMin(-5)"><i class="fas fa-chevron-down"></i></button>
         </div>
       </div>

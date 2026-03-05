@@ -351,7 +351,7 @@ const App = {
     const name     = ch.name || '채널'
     const cnt      = ch.subscriber_count || 0
     const id       = ch.id
-    const hasAlarm = Store.getAlarm(id)
+    const hasAlarm = (ch.pending_alarm_count || 0) > 0
     const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
@@ -848,7 +848,7 @@ const App = {
       if (el) { el.style.display = 'none'; el.textContent = '' }
     })
 
-    this._renderCal()
+    this._renderDateLabel()
     this._renderTime()
     this.openModal('modal-alarm')
 
@@ -1006,41 +1006,35 @@ const App = {
     }
   },
 
-  // ── 달력 ─────────────────────────────
-  calMove(delta) {
-    calMonth += delta
-    if (calMonth > 11) { calMonth = 0; calYear++ }
-    if (calMonth < 0)  { calMonth = 11; calYear-- }
-    this._renderCal()
-  },
-  _renderCal() {
-    const label = document.getElementById('cal-month-label')
-    if (label) label.textContent = calYear + '년 ' + (calMonth + 1) + '월'
-    const grid = document.getElementById('cal-days')
-    if (!grid) return
+  // ── 날짜 피커 (화살표 방식) ──────────────
+  dateMove(delta) {
+    const d = new Date(alarmDate)
+    d.setDate(d.getDate() + delta)
     const today = new Date(); today.setHours(0,0,0,0)
-    const sel = alarmDate ? new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate()) : null
-    const firstDay = new Date(calYear, calMonth, 1).getDay()
-    const lastDate = new Date(calYear, calMonth + 1, 0).getDate()
-    let html = ''
-    let day = 1 - firstDay
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 7; col++, day++) {
-        const d = new Date(calYear, calMonth, day)
-        const isThisMonth = d.getMonth() === calMonth
-        const isSel = sel && d.getTime() === sel.getTime()
-        const isToday = d.getTime() === today.getTime()
-        const cls = ['cal-day', !isThisMonth ? 'other-month' : '', isSel ? 'selected' : '', isToday && !isSel ? 'today' : ''].filter(Boolean).join(' ')
-        html += `<div class="${cls}" onclick="App.selectDate(${d.getFullYear()},${d.getMonth()},${d.getDate()})">${d.getDate()}</div>`
-      }
-      if (day > lastDate + 1) break
-    }
-    grid.innerHTML = html
+    if (d < today) { toast('오늘 이후 날짜를 선택하세요'); return }
+    alarmDate = d
+    this._renderDateLabel()
   },
+  _renderDateLabel() {
+    const el = document.getElementById('alarm-date-label')
+    if (!el) return
+    const today = new Date(); today.setHours(0,0,0,0)
+    const d = new Date(alarmDate); d.setHours(0,0,0,0)
+    const dayNames = ['일','월','화','수','목','금','토']
+    const isToday = d.getTime() === today.getTime()
+    const isTomorrow = d.getTime() === today.getTime() + 86400000
+    let label = ''
+    if (isToday) label = '오늘'
+    else if (isTomorrow) label = '내일'
+    else label = dayNames[d.getDay()]
+    el.textContent = `${alarmDate.getMonth()+1}월 ${alarmDate.getDate()}일 (${label})`
+  },
+  // 구 달력 함수 (호환성 유지)
+  calMove(delta) { this.dateMove(delta) },
+  _renderCal() { this._renderDateLabel() },
   selectDate(y, m, d) {
     alarmDate = new Date(y, m, d)
-    calYear = y; calMonth = m
-    this._renderCal()
+    this._renderDateLabel()
   },
 
   // ── 시간 피커 ─────────────────────────
@@ -1050,6 +1044,19 @@ const App = {
   },
   changeMin(delta) {
     alarmMin = (alarmMin + delta + 60) % 60
+    this._renderTime()
+  },
+  // 시간 직접 입력
+  inputTime(type) {
+    const isHour = type === 'hour'
+    const cur = isHour ? alarmHour : alarmMin
+    const max = isHour ? 23 : 59
+    const label = isHour ? '시 (0~23)' : '분 (0~59)'
+    const val = prompt(`${label}\n현재: ${String(cur).padStart(2,'0')}`, String(cur))
+    if (val === null) return
+    const n = parseInt(val, 10)
+    if (isNaN(n) || n < 0 || n > max) { toast(`0~${max} 사이 숫자를 입력하세요`); return }
+    if (isHour) alarmHour = n; else alarmMin = n
     this._renderTime()
   },
   _renderTime() {

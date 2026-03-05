@@ -197,19 +197,36 @@ alarms.delete('/:id', async (c) => {
 
 // =============================================
 // POST /api/alarms/trigger  - 시간 도래한 알람 실행 (Cron 또는 폴링에서 호출)
-// 채널 운영자 + 구독자 모두에게 알람 발송
+// 채널 운영자 + 구독자 각각 독립적으로 알람 발송
+// ★ 핵심 원칙: alarm_logs(alarm_id, receiver_id) UNIQUE INDEX 로 개인별 중복 방지
+//   - FCM/Twilio: 서버가 각 수신자에게 직접 발송, alarm_logs에 기록
+//   - 폴링(app_polling): 호출자 본인의 alarm_logs 유무로 중복 판단
+//   - alarm_schedules.status는 모든 수신자 처리 완료 후 'triggered'로 변경
 // =============================================
 alarms.post('/trigger', async (c) => {
   try {
-    // UTC 기준 현재 시각 (클라이언트가 UTC ISO로 저장하므로 동일 기준으로 비교)
-    const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM (UTC)
+    // 호출자 세션 토큰으로 user_id 식별 (폴링 방식에서 개인 식별용)
+    const authHeader   = c.req.header('Authorization') || ''
+    const sessionToken = authHeader.replace('Bearer ', '').trim()
+    let pollingUserId: string | null = null
+    if (sessionToken) {
+      const sessionRow: any = await c.env.DB.prepare(
+        "SELECT user_id FROM user_sessions WHERE session_token = ? AND expires_at > datetime('now')"
+      ).bind(sessionToken).first()
+      pollingUserId = sessionRow?.user_id || null
+    }
 
-    // 현재 시각 기준 발송 대기 중인 알람 조회
+    // UTC 기준 현재 시각 (분 단위 절사)
+    const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
+
+    // 발송 대상 알람 조회: pending + triggered 모두 포함
+    // (triggered 포함 이유: FCM 발송은 완료됐어도 폴링 사용자가 아직 못 받을 수 있음)
     const { results: dueAlarms } = await c.env.DB.prepare(`
-      SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id
+      SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
+             ch.homepage_url as channel_homepage_url
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
-      WHERE a.status = 'pending'
+      WHERE a.status IN ('pending', 'triggered')
         AND replace(substr(a.scheduled_at, 1, 16), 'Z', '') <= ?
       ORDER BY a.scheduled_at ASC
       LIMIT 20
@@ -219,13 +236,12 @@ alarms.post('/trigger', async (c) => {
       return c.json({ success: true, message: '발송할 알람 없음', triggered: 0 })
     }
 
-    const twilioSid    = (c.env as any).TWILIO_ACCOUNT_SID  || ''
-    const twilioToken  = (c.env as any).TWILIO_AUTH_TOKEN   || ''
-    const twilioFrom   = (c.env as any).TWILIO_FROM_NUMBER  || ''
-    const webhookBase  = (c.env as any).WEBHOOK_BASE_URL    || 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai'
-    const useTwilio    = !!(twilioSid && twilioToken && twilioFrom)
+    const twilioSid   = (c.env as any).TWILIO_ACCOUNT_SID || ''
+    const twilioToken = (c.env as any).TWILIO_AUTH_TOKEN  || ''
+    const twilioFrom  = (c.env as any).TWILIO_FROM_NUMBER || ''
+    const webhookBase = (c.env as any).WEBHOOK_BASE_URL   || 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai'
+    const useTwilio   = !!(twilioSid && twilioToken && twilioFrom)
 
-    // FCM V1 API 설정
     const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
     const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
     const useFCM            = !!(fcmServiceAccount && fcmProjectId)
@@ -234,22 +250,16 @@ alarms.post('/trigger', async (c) => {
     const results: any[] = []
 
     for (const alarm of dueAlarms) {
-      // 즉시 triggered 상태로 변경 (중복 발송 방지)
-      await c.env.DB.prepare(
-        "UPDATE alarm_schedules SET status = 'triggered', triggered_at = datetime('now') WHERE id = ? AND status = 'pending'"
-      ).bind(alarm.id).run()
 
-      // 1) 채널 구독자 조회
+      // ── 1) 수신자 목록 구성 ─────────────────────────────────────
       const { results: subscribers } = await c.env.DB.prepare(`
         SELECT s.id, s.user_id, s.display_name, s.fcm_token,
-               u.phone_number, u.user_id as u_user_id
+               u.phone_number
         FROM subscribers s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.channel_id = ? AND s.is_active = 1
       `).bind(alarm.channel_id).all() as { results: any[] }
 
-      // 2) 채널 운영자 정보 조회 (구독자 목록에 없을 경우 추가)
-      // ※ fcm_token은 users 테이블 우선, subscribers에 없어도 전송 가능
       const ownerInfo: any = await c.env.DB.prepare(`
         SELECT u.user_id, u.display_name, u.phone_number,
                COALESCE(s.fcm_token, u.fcm_token) as fcm_token,
@@ -259,58 +269,84 @@ alarms.post('/trigger', async (c) => {
         WHERE u.user_id = ?
       `).bind(alarm.channel_id, alarm.channel_owner_id).first()
 
-      // 3) 수신자 목록 합성 (운영자 중복 방지)
-      // 구독자도 fcm_token이 비어있으면 users 테이블에서 보완
       const recipientMap = new Map<string, any>()
 
       for (const sub of subscribers) {
-        // 구독자 fcm_token이 없으면 users 테이블에서 가져옴
         let fcmToken = sub.fcm_token
-        if (!fcmToken) {
+        if (!fcmToken && sub.user_id) {
           const userRow: any = await c.env.DB.prepare(
             'SELECT fcm_token FROM users WHERE user_id = ?'
           ).bind(sub.user_id).first()
           fcmToken = userRow?.fcm_token || ''
         }
-        recipientMap.set(sub.user_id || sub.id.toString(), {
-          id: sub.id,
-          user_id: sub.user_id,
+        recipientMap.set(sub.user_id || String(sub.id), {
+          user_id:      sub.user_id,
           display_name: sub.display_name,
-          fcm_token: fcmToken,
+          fcm_token:    fcmToken,
           phone_number: sub.phone_number,
-          role: 'subscriber'
+          role:         'subscriber'
         })
       }
 
       if (ownerInfo) {
-        const ownerKey = ownerInfo.user_id
-        if (!recipientMap.has(ownerKey)) {
-          recipientMap.set(ownerKey, {
-            id: ownerInfo.sub_id || -1,
-            user_id: ownerInfo.user_id,
+        if (!recipientMap.has(ownerInfo.user_id)) {
+          recipientMap.set(ownerInfo.user_id, {
+            user_id:      ownerInfo.user_id,
             display_name: ownerInfo.display_name,
-            fcm_token: ownerInfo.fcm_token,
+            fcm_token:    ownerInfo.fcm_token,
             phone_number: ownerInfo.phone_number,
-            role: 'owner'
+            role:         'owner'
           })
         }
       }
 
-      const recipients = Array.from(recipientMap.values())
+      // ── 2) 폴링 방식: 호출자 본인만 처리 ───────────────────────
+      let recipients = Array.from(recipientMap.values())
+      const isPollingMode = pollingUserId && !useFCM && !useTwilio
 
-      // 4) 콘텐츠 서버 URL 생성 (파일/오디오/비디오인 경우)
+      if (isPollingMode) {
+        // 이 알람의 수신 대상인지 확인
+        if (!recipients.some(r => r.user_id === pollingUserId)) continue
+        // 이미 alarm_logs에 기록된 경우(이전 폴링에서 수신됨) → 중복 스킵
+        const alreadyLogged: any = await c.env.DB.prepare(
+          'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
+        ).bind(alarm.id, pollingUserId).first()
+        if (alreadyLogged) continue
+        // 호출자 본인에게만 전달
+        recipients = recipients.filter(r => r.user_id === pollingUserId)
+      }
+
+      // ── 3) 콘텐츠 URL 생성 ──────────────────────────────────────
       let contentUrl = alarm.msg_value || ''
       if (['audio', 'video', 'file'].includes(alarm.msg_type) && alarm.msg_value) {
-        // 서버에서 스트리밍 가능한 URL 생성
         contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(alarm.msg_value)}`
       }
 
+      // ── 4) 수신자별 발송 ────────────────────────────────────────
       let sentCount = 0, failedCount = 0
       const callResults: any[] = []
 
       for (const recipient of recipients) {
+        // ★ FCM/Twilio 방식: alarm_logs로 개인별 중복 체크 (이미 받은 사람 스킵)
+        if (!isPollingMode && recipient.user_id) {
+          const alreadyLogged: any = await c.env.DB.prepare(
+            'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
+          ).bind(alarm.id, recipient.user_id).first()
+          if (alreadyLogged) {
+            callResults.push({
+              user_id:      recipient.user_id,
+              display_name: recipient.display_name,
+              role:         recipient.role,
+              mode:         'skipped',
+              success:      true,
+              message:      '이미 발송됨 (alarm_logs 기준)'
+            })
+            continue
+          }
+        }
+
         if (useTwilio && recipient.phone_number) {
-          // 실제 Twilio 통화 발신
+          // ── Twilio 음성 통화 ──
           const callRes = await makeTwilioCall(
             recipient.phone_number,
             alarm.channel_name,
@@ -320,17 +356,17 @@ alarms.post('/trigger', async (c) => {
             webhookBase
           )
           callResults.push({
-            user_id: recipient.user_id,
+            user_id:      recipient.user_id,
             display_name: recipient.display_name,
-            role: recipient.role,
-            phone: recipient.phone_number,
+            role:         recipient.role,
+            phone:        recipient.phone_number,
+            mode:         'twilio',
             ...callRes
           })
           if (callRes.success) sentCount++; else failedCount++
 
         } else if (useFCM && recipient.fcm_token) {
-          // ─── FCM V1 API data-only 발송 (상단 알림 없음) ───
-          // RinGoFCMService.onMessageReceived()가 FakeCallActivity 직접 실행
+          // ── FCM 데이터 메시지 ──
           const fcmRes = await sendFCMDataMessage(
             recipient.fcm_token,
             {
@@ -340,6 +376,7 @@ alarms.post('/trigger', async (c) => {
               msg_value:    alarm.msg_value    || '',
               alarm_id:     String(alarm.id),
               content_url:  contentUrl         || '',
+              homepage_url: alarm.channel_homepage_url || '',
             },
             fcmServiceAccount,
             fcmProjectId
@@ -354,57 +391,73 @@ alarms.post('/trigger', async (c) => {
           if (fcmRes.success) sentCount++; else failedCount++
 
         } else {
-          // 시뮬레이션 모드 - 앱 폴링으로 수신 (FCM 미설정 시)
+          // ── 폴링(app_polling) 방식 ──
           callResults.push({
-            user_id: recipient.user_id,
+            user_id:      recipient.user_id,
             display_name: recipient.display_name,
-            role: recipient.role,
-            mode: 'app_polling',
-            success: true,
-            message: '앱 폴링으로 수신됨'
+            role:         recipient.role,
+            mode:         'app_polling',
+            success:      true,
+            message:      '앱 폴링으로 수신됨'
           })
           sentCount++
         }
+
+        // ★ alarm_logs INSERT OR IGNORE (UNIQUE INDEX로 자동 중복 방지)
+        if (recipient.user_id) {
+          const lastResult = callResults[callResults.length - 1]
+          if (lastResult.mode !== 'skipped') {
+            try {
+              await c.env.DB.prepare(`
+                INSERT OR IGNORE INTO alarm_logs
+                  (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                alarm.id,
+                alarm.channel_id,
+                alarm.channel_name || '알람',
+                recipient.user_id,
+                alarm.msg_type  || 'youtube',
+                alarm.msg_value || '',
+                lastResult.success ? 'received' : 'failed'
+              ).run()
+            } catch (_) {}
+          }
+        }
       }
 
-      // 발송 결과 업데이트
-      await c.env.DB.prepare(
-        'UPDATE alarm_schedules SET sent_count = ?, total_targets = ? WHERE id = ?'
-      ).bind(sentCount, recipients.length, alarm.id).run()
+      if (callResults.length === 0) continue
 
-      // alarm_logs 에 수신자별 기록 저장
-      for (const r of callResults) {
-        if (r.success) {
-          try {
-            await c.env.DB.prepare(`
-              INSERT OR IGNORE INTO alarm_logs
-                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value)
-              VALUES (?, ?, ?, ?, ?, ?)
-            `).bind(
-              alarm.id,
-              alarm.channel_id,
-              alarm.channel_name || '알람',
-              r.user_id,
-              alarm.msg_type || 'youtube',
-              alarm.msg_value || ''
-            ).run()
-          } catch (_) {}
-        }
+      // ── 5) alarm_schedules 업데이트 ─────────────────────────────
+      // 폴링 방식이 아닐 때(FCM/Twilio): 처음 발송 시 status → triggered
+      if (!isPollingMode && alarm.status === 'pending') {
+        await c.env.DB.prepare(
+          "UPDATE alarm_schedules SET status = 'triggered', triggered_at = datetime('now') WHERE id = ? AND status = 'pending'"
+        ).bind(alarm.id).run()
+      }
+
+      // 발송 카운트 누적
+      const actualSent = callResults.filter(r => r.mode !== 'skipped' && r.success).length
+      if (actualSent > 0) {
+        await c.env.DB.prepare(
+          'UPDATE alarm_schedules SET sent_count = sent_count + ?, total_targets = ? WHERE id = ?'
+        ).bind(actualSent, recipientMap.size, alarm.id).run()
       }
 
       totalTriggered++
       results.push({
-        alarm_id: alarm.id,
-        channel_name: alarm.channel_name,
-        scheduled_at: alarm.scheduled_at,
-        msg_type: alarm.msg_type,
-        msg_value: alarm.msg_value,
-        content_url: contentUrl,      // ← Flutter 앱에서 사용할 콘텐츠 URL
-        total_targets: recipients.length,
-        sent_count: sentCount,
-        failed_count: failedCount,
-        mode: useTwilio ? 'twilio' : useFCM ? 'fcm' : 'app_polling',
-        recipients: callResults
+        alarm_id:      alarm.id,
+        channel_name:  alarm.channel_name,
+        scheduled_at:  alarm.scheduled_at,
+        msg_type:      alarm.msg_type,
+        msg_value:     alarm.msg_value,
+        content_url:   contentUrl,
+        homepage_url:  alarm.channel_homepage_url || '',
+        total_targets: recipientMap.size,
+        sent_count:    sentCount,
+        failed_count:  failedCount,
+        mode:          useTwilio ? 'twilio' : useFCM ? 'fcm' : 'app_polling',
+        recipients:    callResults
       })
     }
 
