@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -88,6 +89,13 @@ class ContentPlayerActivity : Activity() {
         val msgValue   = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
         val contentUrl = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
         val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
+
+        // YouTube는 앱/브라우저로 실행 후 Activity 종료
+        if (msgType == "youtube") {
+            launchYouTube(msgValue.ifEmpty { contentUrl })
+            finish()
+            return
+        }
 
         setContentView(buildUI(channelName, msgType, msgValue, contentUrl))
     }
@@ -299,6 +307,34 @@ class ContentPlayerActivity : Activity() {
           <iframe src="$url" allow="autoplay; encrypted-media"></iframe>
         </body></html>
         """.trimIndent()
+    }
+
+    // ── YouTube: 앱 우선, 없으면 브라우저 실행 ────────────────────
+    private fun launchYouTube(url: String) {
+        val videoId = extractYoutubeId(url)
+        val watchUrl = if (videoId.isNotEmpty())
+            "https://www.youtube.com/watch?v=$videoId"
+        else if (url.startsWith("http")) url
+        else "https://www.youtube.com/watch?v=$url"
+
+        // YouTube 앱 시도
+        try {
+            val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(appIntent)
+            return
+        } catch (_: Exception) {}
+
+        // YouTube 앱 없으면 브라우저로 열기
+        try {
+            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(watchUrl)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(webIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "YouTube 실행 실패: ${e.message}")
+        }
     }
 
     private fun closePlayer() {
