@@ -517,12 +517,17 @@ alarms.post('/trigger', async (c) => {
         ).bind(alarm.id).run()
       }
 
-      // 발송 카운트 누적
+      // 발송 카운트 업데이트 (누적이 아닌 alarm_logs 기준 실제 발송 수로 덮어쓰기)
       const actualSent = callResults.filter(r => r.mode !== 'skipped' && r.success).length
       if (actualSent > 0) {
+        // alarm_logs 실제 레코드 수로 sent_count 설정 (중복 방지)
+        const { results: logCount } = await c.env.DB.prepare(
+          'SELECT COUNT(*) as cnt FROM alarm_logs WHERE alarm_id = ?'
+        ).bind(alarm.id).all() as { results: any[] }
+        const realSentCount = logCount[0]?.cnt ?? actualSent
         await c.env.DB.prepare(
-          'UPDATE alarm_schedules SET sent_count = sent_count + ?, total_targets = ? WHERE id = ?'
-        ).bind(actualSent, recipientMap.size, alarm.id).run()
+          'UPDATE alarm_schedules SET sent_count = ?, total_targets = ? WHERE id = ?'
+        ).bind(realSentCount, recipientMap.size, alarm.id).run()
       }
 
       totalTriggered++
