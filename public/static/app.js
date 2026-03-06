@@ -1058,7 +1058,7 @@ function renderAlarmTable() {
         </span>
       </td>
       <td class="px-5 py-3 text-slate-300 text-sm">${localTime}</td>
-      <td class="px-5 py-3 text-slate-300 text-sm">${a.sent_count ?? 0} / ${a.total_targets ?? 0} 명</td>
+      <td class="px-5 py-3 text-slate-300 text-sm">${a.total_targets ?? 0} / ${a.sent_count ?? 0} 명</td>
       <td class="px-5 py-3">${badge}</td>
       <td class="px-5 py-3 text-slate-400 text-sm">${createdTime}</td>
       <td class="px-5 py-3 text-center">${deleteBtn}</td>
