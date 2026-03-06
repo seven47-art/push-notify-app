@@ -17,22 +17,25 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * AlarmPollingService  v1.0.35
+ * AlarmPollingService  v1.0.36
  *
- * [수정 내역 v1.0.34]
- *  1. 헤즈업 알림 수락/거절 버튼 상시 표시
- *     - BigTextStyle 적용 → 확장 시 버튼 표시
- *     - setOngoing(true) + setAutoCancel(false) → 사용자가 직접 닫기 전까지 유지
- *     - setTimeoutAfter(30_000L) → 30초 후 자동 제거
- *  2. 헤즈업이 접혀도 알림 서랍에 남아 버튼 유지
- *     - setOngoing(true): 사용자가 스와이프로 제거 불가 (30초 타임아웃까지 유지)
+ * [수정 내역 v1.0.36]
+ *  1. 채널 ID ringo_alarm_v5 로 변경 (이전 v4 채널 설정 무시 문제 해결)
+ *     - 앱 설치 후 채널은 한번만 생성됨 → ID 변경 시 새 설정 적용
+ *     - STREAM_RING + USAGE_NOTIFICATION_RINGTONE → 핸드폰 벨소리 설정 그대로
+ *  2. 헤즈업 수락/거절 버튼 수정
+ *     - setOngoing(true) → 알림 서랍에 고정 (30초 유지)
+ *     - CATEGORY_CALL → 헤즈업 최우선 표시
+ *     - BigTextStyle → 확장 시 버튼 노출
+ *  3. 이전 알람 중복 표시 방지
+ *     - 새 알람 발행 전 기존 알림 모두 제거
  */
 class AlarmPollingService : Service() {
 
     companion object {
         const val TAG             = "AlarmPollingService"
         const val FG_CHANNEL_ID   = "fg_service_channel"
-        const val CALL_CHANNEL_ID = "ringo_alarm_v4"   // v1.0.33: 새 채널 ID → 기존 채널 설정 무시
+        const val CALL_CHANNEL_ID = "ringo_alarm_v5"   // v1.0.36: 채널 ID 변경 → 새 설정 강제 적용
         const val FG_NOTIF_ID     = 9001
         const val ACTION_START    = "ACTION_START"
         const val ACTION_STOP     = "ACTION_STOP"
@@ -81,12 +84,10 @@ class AlarmPollingService : Service() {
         /**
          * 알람 발행 (폴링 + FCM + AlarmReceiver 공용)
          *
-         * [v1.0.34 수정]
-         * 헤즈업 알림에 수락/거절 버튼 상시 표시
-         *  - BigTextStyle → 확장 뷰에서 버튼 노출
-         *  - setOngoing(true) → 스와이프 제거 불가 (30초 유지)
-         *  - setTimeoutAfter(30_000L) → 30초 후 자동 제거
-         *  - CATEGORY_CALL → 헤즈업 우선순위 최상위
+         * [v1.0.36 수정]
+         *  - 채널 ID v5 사용 (새 벨소리 설정 강제 적용)
+         *  - 기존 알림 먼저 제거 후 새 알림 발행
+         *  - CATEGORY_CALL + BigTextStyle = 헤즈업에 버튼 표시
          */
         fun showAlarm(
             context: Context,
@@ -94,6 +95,11 @@ class AlarmPollingService : Service() {
             alarmId: Int, contentUrl: String, homepageUrl: String = ""
         ) {
             val nm = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+
+            // [v1.0.36] 이전 알람 알림 모두 제거 후 새 알람 표시
+            try {
+                nm.cancel(alarmId + 10000)
+            } catch (_: Exception) {}
 
             val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
@@ -116,7 +122,7 @@ class AlarmPollingService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // [거절] 버튼 → CallForegroundService 중지 + 알림 제거
+            // [거절] 버튼 → AlarmActionReceiver → 알림 취소 + 서비스 중지
             val declineIntent = Intent(context, AlarmActionReceiver::class.java).apply {
                 action = AlarmActionReceiver.ACTION_DECLINE
                 putExtra(AlarmActionReceiver.EXTRA_ALARM_ID, alarmId)
@@ -138,10 +144,6 @@ class AlarmPollingService : Service() {
             }
             val acceptPi = PendingIntent.getActivity(context, alarmId + 2, acceptIntent, piFlags)
 
-            val ringtoneUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
-                context, RingtoneManager.TYPE_RINGTONE
-            ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
             val msgLabel = when (msgType) {
                 "youtube" -> "📺 YouTube 알람"
                 "audio"   -> "🎵 오디오 알람"
@@ -149,7 +151,7 @@ class AlarmPollingService : Service() {
                 else      -> "📎 알람"
             }
 
-            // [v1.0.34] BigTextStyle → 헤즈업 확장 시 수락/거절 버튼 항상 노출
+            // BigTextStyle → 헤즈업 확장 시 수락/거절 버튼 항상 노출
             val bigStyle = NotificationCompat.BigTextStyle()
                 .bigText("$msgLabel\n수락 또는 거절을 선택하세요")
                 .setBigContentTitle("📞 $channelName")
@@ -158,23 +160,21 @@ class AlarmPollingService : Service() {
                 .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
                 .setContentTitle("📞 $channelName")
                 .setContentText(msgLabel)
-                .setStyle(bigStyle)                          // ← BigTextStyle: 버튼 항상 표시
+                .setStyle(bigStyle)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)  // ← CALL 카테고리: 헤즈업 최우선
+                .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(fullScreenPi, true)
                 .setContentIntent(fullScreenPi)
-                .setOngoing(true)                            // ← 스와이프로 제거 불가
+                .setOngoing(true)
                 .setAutoCancel(false)
-                .setSound(ringtoneUri, android.media.AudioManager.STREAM_RING)
-                .setVibrate(longArrayOf(0, 700, 300, 700))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setTimeoutAfter(30_000L)                    // ← 30초 후 자동 제거
-                .addAction(                                  // ← 거절 버튼 (항상 표시)
+                .setTimeoutAfter(30_000L)
+                .addAction(
                     android.R.drawable.ic_menu_close_clear_cancel,
                     "거절",
                     declinePi
                 )
-                .addAction(                                  // ← 수락 버튼 (항상 표시)
+                .addAction(
                     android.R.drawable.ic_media_play,
                     "수락",
                     acceptPi
@@ -291,6 +291,7 @@ class AlarmPollingService : Service() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
+        // FG 채널 생성 (없을 때만)
         if (nm.getNotificationChannel(FG_CHANNEL_ID) == null) {
             NotificationChannel(FG_CHANNEL_ID, "RinGo 서비스", NotificationManager.IMPORTANCE_MIN).apply {
                 description = "백그라운드 알람 수신 서비스"
@@ -300,29 +301,35 @@ class AlarmPollingService : Service() {
             }
         }
 
-        listOf("ringo_alarm_v2", "ringo_alarm_channel", "ringo_call_v2", "ringo_alarm_v3").forEach {
+        // 이전 채널 정리
+        listOf("ringo_alarm_v2", "ringo_alarm_channel", "ringo_call_v2", "ringo_alarm_v3", "ringo_alarm_v4").forEach {
             try { nm.deleteNotificationChannel(it) } catch (_: Exception) {}
         }
-        try { nm.deleteNotificationChannel(CALL_CHANNEL_ID) } catch (_: Exception) {}
 
-        val ringUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
-            this, RingtoneManager.TYPE_RINGTONE
-        ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        // [v1.0.36] 새 알람 채널 생성 (ringo_alarm_v5)
+        // 채널 설정은 최초 생성 시에만 적용됨 → 매번 ID 바꿔야 새 설정 반영
+        if (nm.getNotificationChannel(CALL_CHANNEL_ID) == null) {
+            val ringUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
+                this, RingtoneManager.TYPE_RINGTONE
+            ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
-        NotificationChannel(CALL_CHANNEL_ID, "RinGo 알람", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "알람 수신 시 전화 화면 표시"
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 700, 300, 700)
-            setSound(ringUri, AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            )
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            setBypassDnd(true)
-            nm.createNotificationChannel(this)
+            NotificationChannel(CALL_CHANNEL_ID, "RinGo 알람", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "알람 수신 시 전화 화면 표시"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 700, 300, 700)
+                // [v1.0.36] STREAM_RING + USAGE_NOTIFICATION_RINGTONE → 핸드폰 벨소리 그대로
+                setSound(ringUri, AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setLegacyStreamType(android.media.AudioManager.STREAM_RING)
+                    .build()
+                )
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setBypassDnd(false)  // [v1.0.36] 핸드폰 DND 설정 따름
+                nm.createNotificationChannel(this)
+            }
+            Log.d(TAG, "알람 채널 생성: $CALL_CHANNEL_ID, ringtone=$ringUri")
         }
-        Log.d(TAG, "알람 채널 재생성: $CALL_CHANNEL_ID, ringtone=$ringUri")
     }
 
     private fun buildFgNotif(): Notification {
@@ -341,4 +348,3 @@ class AlarmPollingService : Service() {
             .build()
     }
 }
-
