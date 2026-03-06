@@ -100,6 +100,7 @@ function showPage(page) {
   else if (page === 'contents') loadContents()
   else if (page === 'subscribers') loadSubscribers()
   else if (page === 'notifications') loadNotifPage()
+  else if (page === 'alarms') loadAlarmManagement()
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
 }
@@ -944,6 +945,121 @@ async function bulkDeleteMembers() {
       loadMembers()
     }
   } catch(e) { console.error(e) }
+}
+
+// ──────────────────────────────────────────────
+// 알람 관리
+// ──────────────────────────────────────────────
+let allAlarms = []
+
+async function loadAlarmManagement() {
+  try {
+    const res = await API.get('/alarms')
+    if (!res.success) throw new Error('알람 로드 실패')
+    allAlarms = res.data || []
+
+    // 통계 계산
+    const total     = allAlarms.length
+    const pending   = allAlarms.filter(a => a.status === 'pending').length
+    const triggered = allAlarms.filter(a => a.status === 'triggered').length
+    const cancelled = allAlarms.filter(a => a.status === 'cancelled').length
+
+    document.getElementById('alarmStatTotal').textContent     = total
+    document.getElementById('alarmStatPending').textContent   = pending
+    document.getElementById('alarmStatTriggered').textContent = triggered
+    document.getElementById('alarmStatCancelled').textContent = cancelled
+
+    // 채널 필터 옵션 구성
+    const channelSel = document.getElementById('alarmFilterChannel')
+    const channels   = [...new Set(allAlarms.map(a => a.channel_name).filter(Boolean))]
+    const prevVal    = channelSel.value
+    channelSel.innerHTML = '<option value="">전체 채널</option>' +
+      channels.map(ch => `<option value="${ch}" ${ch === prevVal ? 'selected' : ''}>${ch}</option>`).join('')
+
+    renderAlarmTable()
+  } catch (e) {
+    console.error(e)
+    document.getElementById('alarmTableBody').innerHTML =
+      '<tr><td colspan="7" class="text-center py-10 text-rose-400">불러오기 실패</td></tr>'
+  }
+}
+
+function filterAlarms() {
+  renderAlarmTable()
+}
+
+function renderAlarmTable() {
+  const statusFilter  = document.getElementById('alarmFilterStatus')?.value  || ''
+  const channelFilter = document.getElementById('alarmFilterChannel')?.value || ''
+
+  let list = allAlarms
+  if (statusFilter)  list = list.filter(a => a.status === statusFilter)
+  if (channelFilter) list = list.filter(a => a.channel_name === channelFilter)
+
+  // 최신순 정렬
+  list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  const tbody = document.getElementById('alarmTableBody')
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-500">알람이 없습니다</td></tr>'
+    return
+  }
+
+  const msgTypeLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', text:'텍스트', image:'이미지' }
+  const statusBadge  = {
+    pending:   '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400"><i class="fas fa-clock"></i> 대기중</span>',
+    triggered: '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400"><i class="fas fa-check"></i> 발송완료</span>',
+    cancelled: '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-500/20 text-rose-400"><i class="fas fa-ban"></i> 취소됨</span>',
+  }
+
+  tbody.innerHTML = list.map(a => {
+    const localTime = a.scheduled_at
+      ? new Date(a.scheduled_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '-'
+    const createdTime = a.created_at
+      ? new Date(a.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '-'
+    const badge    = statusBadge[a.status] || `<span class="text-slate-400 text-xs">${a.status}</span>`
+    const typeLabel = msgTypeLabel[a.msg_type] || a.msg_type || '-'
+    const canDelete = a.status === 'pending' || a.status === 'cancelled'
+    const deleteBtn = `<button onclick="deleteAlarm(${a.id})"
+      class="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-1 rounded transition text-sm"
+      title="삭제">
+      <i class="fas fa-trash"></i>
+    </button>`
+
+    return `<tr class="border-b border-slate-700/30 hover:bg-slate-700/20 transition">
+      <td class="px-5 py-3 text-slate-200 font-medium">${a.channel_name || '-'}</td>
+      <td class="px-5 py-3">
+        <span class="inline-flex items-center gap-1.5 text-sm text-slate-300">
+          ${a.msg_type === 'youtube' ? '<i class="fab fa-youtube text-rose-400"></i>' :
+            a.msg_type === 'audio'   ? '<i class="fas fa-music text-sky-400"></i>' :
+            a.msg_type === 'video'   ? '<i class="fas fa-video text-purple-400"></i>' :
+            '<i class="fas fa-font text-slate-400"></i>'}
+          ${typeLabel}
+        </span>
+      </td>
+      <td class="px-5 py-3 text-slate-300 text-sm">${localTime}</td>
+      <td class="px-5 py-3 text-slate-300 text-sm">${a.sent_count ?? 0} / ${a.total_targets ?? 0} 명</td>
+      <td class="px-5 py-3">${badge}</td>
+      <td class="px-5 py-3 text-slate-400 text-sm">${createdTime}</td>
+      <td class="px-5 py-3 text-center">${deleteBtn}</td>
+    </tr>`
+  }).join('')
+}
+
+async function deleteAlarm(id) {
+  const alarm = allAlarms.find(a => a.id === id)
+  const label = alarm ? `채널 "${alarm.channel_name}" 알람 (${new Date(alarm.scheduled_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})})` : `알람 #${id}`
+  if (!confirm(`${label}\n\n이 알람을 삭제하시겠습니까?`)) return
+  try {
+    const res = await API.delete(`/alarms/${id}`)
+    if (!res.success) throw new Error(res.error || '삭제 실패')
+    toast('알람이 삭제되었습니다')
+    await loadAlarmManagement()
+  } catch (e) {
+    toast('삭제 실패: ' + e.message, 'error')
+  }
 }
 
 async function loadMembers() {

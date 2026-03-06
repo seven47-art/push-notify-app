@@ -362,6 +362,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notifications')">
       <i class="fas fa-paper-plane w-4 text-center text-sky-400"></i> 알림 발송
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarms')">
+      <i class="fas fa-bell w-4 text-center text-orange-400"></i> 알람 관리
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
     </a>
@@ -687,6 +690,71 @@ app.get('/', (c) => {
               <th class="text-left px-5 py-3 text-slate-400 font-medium">액션 시각</th>
             </tr></thead>
             <tbody id="logsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알람 관리 ===== -->
+    <div id="page-alarms" class="page">
+      <!-- 통계 카드 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-white" id="alarmStatTotal">-</div>
+          <div class="text-slate-400 text-sm mt-1">전체 알람</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-amber-400" id="alarmStatPending">-</div>
+          <div class="text-slate-400 text-sm mt-1">대기중</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-emerald-400" id="alarmStatTriggered">-</div>
+          <div class="text-slate-400 text-sm mt-1">발송완료</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-rose-400" id="alarmStatCancelled">-</div>
+          <div class="text-slate-400 text-sm mt-1">취소됨</div>
+        </div>
+      </div>
+
+      <!-- 필터 + 전체삭제 -->
+      <div class="card mb-4">
+        <div class="card-header px-5 py-4 flex flex-wrap items-center gap-3">
+          <i class="fas fa-bell text-orange-400"></i>
+          <span class="text-white font-semibold">알람 목록</span>
+          <div class="ml-auto flex items-center gap-2 flex-wrap">
+            <select id="alarmFilterStatus" onchange="filterAlarms()" class="bg-slate-700 border border-slate-600 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+              <option value="">전체 상태</option>
+              <option value="pending">대기중</option>
+              <option value="triggered">발송완료</option>
+              <option value="cancelled">취소됨</option>
+            </select>
+            <select id="alarmFilterChannel" onchange="filterAlarms()" class="bg-slate-700 border border-slate-600 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+              <option value="">전체 채널</option>
+            </select>
+            <button onclick="loadAlarmManagement()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
+              <i class="fas fa-refresh"></i> 새로고침
+            </button>
+          </div>
+        </div>
+
+        <!-- 알람 테이블 -->
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-slate-700/50">
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">채널</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">콘텐츠 유형</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">예약 시간</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">대상/발송</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">상태</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">등록일</th>
+                <th class="text-center px-5 py-3 text-slate-400 font-medium text-sm">삭제</th>
+              </tr>
+            </thead>
+            <tbody id="alarmTableBody">
+              <tr><td colspan="7" class="text-center py-10 text-slate-500">불러오는 중...</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
