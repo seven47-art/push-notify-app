@@ -68,17 +68,8 @@ class AlarmReceiver : BroadcastReceiver() {
         // ★ AlarmManager 예약 취소 — 실행 후 재부팅/재시작 시 재발동 방지
         AlarmScheduler.cancel(context, alarmId)
 
-        // ① WakeLock 먼저 — 화면을 강제로 깨움 (fullScreenIntent 실행 전 화면 켜기)
-        //    기본 알람 앱도 동일하게 WakeLock으로 화면 먼저 켬
-        CallForegroundService.start(
-            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
-        )
-
-        // ② nm.notify(fullScreenIntent) — 기본 알람과 동일한 방식
-        //    - 화면 OFF/잠금 상태: OS가 fullScreenIntent로 FakeCallActivity 전체화면 실행
-        //    - 화면 ON 상태: OS가 자동으로 헤즈업 표시
-        //    FakeCallActivity 내부에 setShowWhenLocked(true) + setTurnScreenOn(true) 이미 설정됨
-        AlarmPollingService.showAlarm(
+        // [v1.0.37] FakeCallActivity 직접 실행 (WakeLock + 풀스크린 통화 수신 화면)
+        AlarmPollingService.triggerAlarm(
             context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
         )
 
