@@ -1,5 +1,6 @@
 package com.pushnotify.push_notify_app
 
+import android.animation.*
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -13,26 +14,22 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.*
 import android.widget.*
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity  v1.0.36
+ * FakeCallActivity  v1.0.37
  *
- * [수정 내역 v1.0.36]
- *  1. 벨소리: USAGE_NOTIFICATION_RINGTONE + STREAM_RING → 핸드폰 벨소리 설정 그대로
- *  2. 진동: 핸드폰 진동 모드일 때만 진동, 무음 모드는 조용히
- *  3. 볼륨 강제 설정 없음 → 사용자 볼륨 설정 그대로
- *  4. AudioManager.RINGER_MODE 확인 → 모드별 처리
- *     - NORMAL: 벨소리 + 진동
- *     - VIBRATE: 진동만
- *     - SILENT: 조용히
+ * [수정 내역 v1.0.37]
+ *  - 통화 수신 UI (전화기 아이콘 + 링 애니메이션 + 채널명 + 수락/거절 버튼)
+ *  - startActivity()로 직접 실행 → 화면 켜져 있어도 항상 풀스크린
+ *  - 핸드폰 벨소리/진동 모드 그대로 따름 (STREAM_RING)
+ *  - 30초 타임아웃 자동 거절
  */
 class FakeCallActivity : Activity() {
 
@@ -45,6 +42,28 @@ class FakeCallActivity : Activity() {
         const val EXTRA_CONTENT_URL  = "content_url"
         const val EXTRA_HOMEPAGE_URL = "homepage_url"
         const val EXTRA_AUTO_ACCEPT  = "auto_accept"
+
+        /** FCM/폴링 수신 즉시 이 Activity를 풀스크린으로 실행 */
+        fun start(
+            context: Context,
+            channelName: String, msgType: String, msgValue: String,
+            alarmId: Int, contentUrl: String, homepageUrl: String = "",
+            autoAccept: Boolean = false
+        ) {
+            val intent = Intent(context, FakeCallActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(EXTRA_CHANNEL_NAME, channelName)
+                putExtra(EXTRA_MSG_TYPE,     msgType)
+                putExtra(EXTRA_MSG_VALUE,    msgValue)
+                putExtra(EXTRA_ALARM_ID,     alarmId)
+                putExtra(EXTRA_CONTENT_URL,  contentUrl)
+                putExtra(EXTRA_HOMEPAGE_URL, homepageUrl)
+                putExtra(EXTRA_AUTO_ACCEPT,  autoAccept)
+            }
+            context.startActivity(intent)
+        }
     }
 
     private var ringtone: Ringtone? = null
@@ -56,21 +75,24 @@ class FakeCallActivity : Activity() {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private var alarmId      = 0
-    private var channelName  = ""
-    private var msgType      = ""
-    private var msgValue     = ""
-    private var contentUrl   = ""
-    private var homepageUrl  = ""
-    private var autoAccept   = false
+    private var alarmId     = 0
+    private var channelName = ""
+    private var msgType     = ""
+    private var msgValue    = ""
+    private var contentUrl  = ""
+    private var homepageUrl = ""
+    private var autoAccept  = false
 
-    private var autoDeclineHandler  = Handler(Looper.getMainLooper())
+    private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
+
+    // 링 애니메이션용
+    private var ringAnimator: AnimatorSet? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 잠금화면 위 표시 설정
+        // ── 잠금화면 위 풀스크린 표시 ───────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -78,19 +100,20 @@ class FakeCallActivity : Activity() {
             @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON  or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
             )
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // WakeLock 획득
+        // ── WakeLock ─────────────────────────────────────────────────
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "RinGo:FakeCallWakeLock"
         ).also { it.acquire(35_000L) }
 
-        // 인텐트 데이터 추출
+        // ── 인텐트 데이터 추출 ───────────────────────────────────────
         alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
         msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
@@ -108,17 +131,17 @@ class FakeCallActivity : Activity() {
             return
         }
 
-        // 30초 후 자동 거절
+        // 30초 타임아웃
         autoDeclineRunnable = Runnable {
-            Log.d(TAG, "30초 타임아웃: 자동 거절")
+            Log.d(TAG, "30초 타임아웃 → 자동 거절")
             recordAlarmStatus(alarmId, "timeout")
-            stopRinging()
-            finish()
+            finishAlarm()
         }
         autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
     }
 
     override fun onDestroy() {
+        ringAnimator?.cancel()
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
@@ -126,22 +149,17 @@ class FakeCallActivity : Activity() {
         super.onDestroy()
     }
 
-    // ── 벨소리 + 진동 ────────────────────────────────────────────────
+    // ── 벨소리 + 진동 (핸드폰 설정 그대로) ─────────────────────────
     private fun startRinging() {
         val am = getSystemService(AUDIO_SERVICE) as AudioManager
-
-        // [v1.0.36] 핸드폰 벨소리/진동 모드 그대로 따름
         val ringerMode = am.ringerMode
-        Log.d(TAG, "ringerMode: $ringerMode (NORMAL=2, VIBRATE=1, SILENT=0)")
+        Log.d(TAG, "ringerMode=$ringerMode")
 
-        // 벨소리 모드일 때만 소리 재생 (볼륨 강제 설정 없음)
         if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
             val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
             ringtone = RingtoneManager.getRingtone(this, uri)?.also { r ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) r.isLooping = true
-                // [v1.0.36] USAGE_NOTIFICATION_RINGTONE → 핸드폰 벨소리 채널 사용
                 r.audioAttributes = AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -152,22 +170,21 @@ class FakeCallActivity : Activity() {
             }
         }
 
-        // 진동 모드 또는 벨소리 모드 모두 진동 실행
-        if (ringerMode == AudioManager.RINGER_MODE_NORMAL || ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
+        if (ringerMode == AudioManager.RINGER_MODE_NORMAL ||
+            ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
             vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 getSystemService(VIBRATOR_SERVICE) as Vibrator
             }
-            val pattern = longArrayOf(0, 700, 300, 700, 300, 700, 300, 700)
+            val pattern = longArrayOf(0, 800, 400, 800, 400, 800, 400, 800)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
             } else {
                 @Suppress("DEPRECATION")
                 vibrator?.vibrate(pattern, 0)
             }
-            Log.d(TAG, "진동 시작")
         }
     }
 
@@ -176,44 +193,14 @@ class FakeCallActivity : Activity() {
         try { vibrator?.cancel() } catch (_: Exception) {}
     }
 
-    // ── 서버에 알람 상태 기록 ────────────────────────────────────────
-    private fun recordAlarmStatus(alarmId: Int, status: String) {
-        if (alarmId <= 0) return
-        scope.launch {
-            try {
-                val prefs = applicationContext.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-                val token = prefs.getString("flutter.session_token", "") ?: ""
-                if (token.isEmpty()) return@launch
-
-                val baseUrlRaw = prefs.getString("flutter.base_url", "") ?: ""
-                val baseUrl = baseUrlRaw.trimEnd('/')
-                if (baseUrl.isEmpty()) return@launch
-
-                val json = """{"alarm_schedule_id":$alarmId,"status":"$status"}"""
-                val req = Request.Builder()
-                    .url("$baseUrl/api/alarms/status")
-                    .post(json.toRequestBody("application/json".toMediaType()))
-                    .addHeader("Authorization", "Bearer $token")
-                    .build()
-                val resp = http.newCall(req).execute()
-                Log.d(TAG, "상태 기록: $status → ${resp.code}")
-            } catch (e: Exception) {
-                Log.e(TAG, "상태 기록 실패: ${e.message}")
-            }
-        }
-    }
-
     // ── 수락 처리 ────────────────────────────────────────────────────
     private fun handleAccept() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
+        dismissNotification()
+        CallForegroundService.stop(this)
 
-        // 알림 제거
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        try { nm.cancel(alarmId + 10000) } catch (_: Exception) {}
-
-        // 콘텐츠 화면 열기
         val target = contentUrl.ifEmpty { homepageUrl }
         if (target.isNotEmpty()) {
             try {
@@ -230,101 +217,269 @@ class FakeCallActivity : Activity() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "rejected")
+        finishAlarm()
+    }
 
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        try { nm.cancel(alarmId + 10000) } catch (_: Exception) {}
-
+    private fun finishAlarm() {
+        dismissNotification()
         CallForegroundService.stop(this)
         finish()
     }
 
-    // ── UI 구성 ──────────────────────────────────────────────────────
+    private fun dismissNotification() {
+        try {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancel(alarmId + 10000)
+        } catch (_: Exception) {}
+    }
+
+    // ── 서버 상태 기록 ───────────────────────────────────────────────
+    private fun recordAlarmStatus(alarmId: Int, status: String) {
+        if (alarmId <= 0) return
+        scope.launch {
+            try {
+                val prefs = applicationContext.getSharedPreferences(
+                    "FlutterSharedPreferences", Context.MODE_PRIVATE
+                )
+                val token   = prefs.getString("flutter.session_token", "") ?: ""
+                val baseUrl = (prefs.getString("flutter.base_url", "") ?: "").trimEnd('/')
+                if (token.isEmpty() || baseUrl.isEmpty()) return@launch
+
+                val json = """{"alarm_schedule_id":$alarmId,"status":"$status"}"""
+                val req = Request.Builder()
+                    .url("$baseUrl/api/alarms/status")
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+                val resp = http.newCall(req).execute()
+                Log.d(TAG, "상태 기록: $status → ${resp.code}")
+            } catch (e: Exception) {
+                Log.e(TAG, "상태 기록 실패: ${e.message}")
+            }
+        }
+    }
+
+    // ── 통화 수신 UI ─────────────────────────────────────────────────
     private fun buildUi() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(0xFF1A1A2E.toInt())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(0xFF0D1117.toInt())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
 
-        // 아이콘
-        val icon = TextView(this).apply {
-            text = "📞"
-            textSize = 72f
-            gravity = Gravity.CENTER
+        // 메인 컨텐츠 (세로 정렬)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER_HORIZONTAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.gravity = Gravity.CENTER_VERTICAL; it.topMargin = dpToPx(40) }
         }
 
-        // 채널 이름
-        val titleTv = TextView(this).apply {
-            text = channelName
-            textSize = 28f
+        // ── 채널명 ───────────────────────────────────────────────────
+        val channelTv = TextView(this).apply {
+            text      = channelName
+            textSize  = 30f
             setTextColor(0xFFFFFFFF.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 32, 0, 8)
+            gravity   = Gravity.CENTER
+            typeface  = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dpToPx(24), 0, dpToPx(24), 0)
         }
 
-        // 알람 유형
-        val msgLabel = when (msgType) {
-            "youtube" -> "📺 YouTube 알람"
-            "audio"   -> "🎵 오디오 알람"
-            "video"   -> "🎬 비디오 알람"
-            else      -> "📎 알람"
+        // ── 서브 텍스트 (알람 유형) ───────────────────────────────────
+        val subLabel = when (msgType) {
+            "youtube" -> "YouTube 알람"
+            "audio"   -> "오디오 알람"
+            "video"   -> "비디오 알람"
+            else      -> "알람"
         }
-        val subtitleTv = TextView(this).apply {
-            text = msgLabel
-            textSize = 18f
+        val subTv = TextView(this).apply {
+            text     = subLabel
+            textSize = 16f
             setTextColor(0xFFAAAAAA.toInt())
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 48)
+            gravity  = Gravity.CENTER
+            setPadding(0, dpToPx(8), 0, dpToPx(40))
         }
 
-        // 버튼 레이아웃
-        val btnLayout = LinearLayout(this).apply {
+        // ── 전화기 아이콘 + 링 애니메이션 컨테이너 ────────────────────
+        val iconContainer = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(180), dpToPx(180)).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+            }
+        }
+
+        // 링 효과 원 3개
+        val ringSize = dpToPx(180)
+        val rings = (0..2).map { i ->
+            View(this).apply {
+                val size = ringSize - i * dpToPx(20)
+                layoutParams = FrameLayout.LayoutParams(size, size).also {
+                    it.gravity = Gravity.CENTER
+                }
+                background = createCircleDrawable(
+                    when (i) {
+                        0 -> 0x1A4CAF50.toInt()
+                        1 -> 0x334CAF50.toInt()
+                        else -> 0x4D4CAF50.toInt()
+                    }
+                )
+                alpha = 0f
+            }
+        }
+
+        // 전화기 원형 배경
+        val phoneBg = View(this).apply {
+            val size = dpToPx(90)
+            layoutParams = FrameLayout.LayoutParams(size, size).also {
+                it.gravity = Gravity.CENTER
+            }
+            background = createCircleDrawable(0xFF4CAF50.toInt())
+        }
+
+        // 전화기 이모지
+        val phoneTv = TextView(this).apply {
+            text     = "📞"
+            textSize = 36f
+            gravity  = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.gravity = Gravity.CENTER }
+        }
+
+        rings.forEach { iconContainer.addView(it) }
+        iconContainer.addView(phoneBg)
+        iconContainer.addView(phoneTv)
+
+        // 링 애니메이션 시작
+        startRingAnimation(rings)
+
+        // ── 버튼 영역 ────────────────────────────────────────────────
+        val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+            gravity     = Gravity.CENTER
+            setPadding(dpToPx(24), dpToPx(60), dpToPx(24), 0)
         }
 
         // [거절] 버튼
-        val declineBtn = Button(this).apply {
-            text = "거절"
-            textSize = 18f
-            setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundColor(0xFFE53935.toInt())
-            setPadding(48, 24, 48, 24)
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(32, 0, 32, 0) }
-            layoutParams = params
-            setOnClickListener { handleDecline() }
+        val declineLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        val declineCircle = FrameLayout(this).apply {
+            val size = dpToPx(72)
+            layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
+            background = createCircleDrawable(0xFFE53935.toInt())
+            isClickable  = true
+            isFocusable  = true
+        }
+        val declineEmoji = TextView(this).apply {
+            text     = "📵"
+            textSize = 28f
+            gravity  = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        val declineLabel = TextView(this).apply {
+            text     = "거절"
+            textSize = 14f
+            setTextColor(0xFFAAAAAA.toInt())
+            gravity  = Gravity.CENTER
+            setPadding(0, dpToPx(8), 0, 0)
+        }
+        declineCircle.addView(declineEmoji)
+        declineCircle.setOnClickListener { handleDecline() }
+        declineLayout.addView(declineCircle)
+        declineLayout.addView(declineLabel)
 
         // [수락] 버튼
-        val acceptBtn = Button(this).apply {
-            text = "수락"
-            textSize = 18f
-            setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundColor(0xFF43A047.toInt())
-            setPadding(48, 24, 48, 24)
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(32, 0, 32, 0) }
-            layoutParams = params
-            setOnClickListener { handleAccept() }
+        val acceptLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        val acceptCircle = FrameLayout(this).apply {
+            val size = dpToPx(72)
+            layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
+            background = createCircleDrawable(0xFF4CAF50.toInt())
+            isClickable  = true
+            isFocusable  = true
+        }
+        val acceptEmoji = TextView(this).apply {
+            text     = "📞"
+            textSize = 28f
+            gravity  = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        val acceptLabel = TextView(this).apply {
+            text     = "수락"
+            textSize = 14f
+            setTextColor(0xFFAAAAAA.toInt())
+            gravity  = Gravity.CENTER
+            setPadding(0, dpToPx(8), 0, 0)
+        }
+        acceptCircle.addView(acceptEmoji)
+        acceptCircle.setOnClickListener { handleAccept() }
+        acceptLayout.addView(acceptCircle)
+        acceptLayout.addView(acceptLabel)
 
-        btnLayout.addView(declineBtn)
-        btnLayout.addView(acceptBtn)
+        btnRow.addView(declineLayout)
+        btnRow.addView(acceptLayout)
 
-        root.addView(icon)
-        root.addView(titleTv)
-        root.addView(subtitleTv)
-        root.addView(btnLayout)
+        content.addView(channelTv)
+        content.addView(subTv)
+        content.addView(iconContainer)
+        content.addView(btnRow)
+        root.addView(content)
 
         setContentView(root)
+    }
+
+    // 링 파동 애니메이션
+    private fun startRingAnimation(rings: List<View>) {
+        val animators = rings.mapIndexed { i, ring ->
+            AnimatorSet().apply {
+                val scaleX = ObjectAnimator.ofFloat(ring, "scaleX", 0.6f, 1.2f)
+                val scaleY = ObjectAnimator.ofFloat(ring, "scaleY", 0.6f, 1.2f)
+                val alpha  = ObjectAnimator.ofFloat(ring, "alpha",  0.8f, 0f)
+                playTogether(scaleX, scaleY, alpha)
+                duration  = 1500L
+                startDelay = i * 400L
+                interpolator = AccelerateDecelerateInterpolator()
+            }
+        }
+        ringAnimator = AnimatorSet().apply {
+            playTogether(*animators.toTypedArray())
+        }
+        // 반복 실행
+        val repeatHandler = Handler(Looper.getMainLooper())
+        val repeatRunnable = object : Runnable {
+            override fun run() {
+                rings.forEach { it.alpha = 0f; it.scaleX = 0.6f; it.scaleY = 0.6f }
+                ringAnimator?.start()
+                repeatHandler.postDelayed(this, 1800L)
+            }
+        }
+        repeatHandler.post(repeatRunnable)
+    }
+
+    private fun createCircleDrawable(color: Int): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(color)
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 }
