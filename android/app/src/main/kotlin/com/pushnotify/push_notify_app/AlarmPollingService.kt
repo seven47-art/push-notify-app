@@ -13,14 +13,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/**
- * AlarmPollingService  v1.0.38
- *
- * [수정 내역 v1.0.38]
- *  - showAlarm() 완전 제거 → triggerAlarm()으로 통일
- *  - FakeCallActivity.start() 직접 호출로 항상 풀스크린 표시
- *  - 화면 켜져 있어도 항상 풀스크린 통화 수신 화면 표시
- */
 class AlarmPollingService : Service() {
 
     companion object {
@@ -70,24 +62,16 @@ class AlarmPollingService : Service() {
             context.stopService(Intent(context, AlarmPollingService::class.java))
         }
 
-        /**
-         * [v1.0.38] 알람 발동
-         * - CallForegroundService: WakeLock 획득 (화면 강제 켜기)
-         * - FakeCallActivity.start(): 풀스크린 통화 수신 화면 직접 실행
-         */
+        // v1.0.38: WakeLock 획득 후 FakeCallActivity 풀스크린 직접 실행
         fun triggerAlarm(
             context: Context,
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = ""
         ) {
-            Log.d(TAG, "알람 발동: $channelName (id=$alarmId) → FakeCallActivity.start()")
-
-            // WakeLock 먼저 획득 (화면 강제 켜기)
+            Log.d(TAG, "triggerAlarm: $channelName (id=$alarmId)")
             CallForegroundService.start(
                 context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
             )
-
-            // 즉시 풀스크린 통화 수신 화면 실행
             FakeCallActivity.start(
                 context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
             )
@@ -110,15 +94,11 @@ class AlarmPollingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
-
         sessionToken = intent?.getStringExtra(EXTRA_TOKEN)    ?: sessionToken
         baseUrl      = intent?.getStringExtra(EXTRA_BASE_URL) ?: baseUrl
-
         startForeground(FG_NOTIF_ID, buildFgNotif())
-
         pollingJob?.cancel()
         pollingJob = scope.launch { runPolling() }
-
         return START_STICKY
     }
 
@@ -164,7 +144,7 @@ class AlarmPollingService : Service() {
                 if (alarmId <= 0) continue
 
                 if (isFcmHandled(this@AlarmPollingService, alarmId)) {
-                    Log.d(TAG, "alarm $alarmId → 이미 처리됨, 스킵")
+                    Log.d(TAG, "alarm $alarmId skipped (already handled)")
                     continue
                 }
 
@@ -176,9 +156,8 @@ class AlarmPollingService : Service() {
                 val contentUrl  = alarm.optString("content_url",  "")
                 val homepageUrl = alarm.optString("homepage_url", "")
 
-                Log.d(TAG, "폴링 알람 수신: $channelName (id=$alarmId)")
+                Log.d(TAG, "polling alarm: $channelName (id=$alarmId)")
 
-                // 풀스크린 직접 실행
                 triggerAlarm(
                     this@AlarmPollingService,
                     channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
@@ -186,7 +165,7 @@ class AlarmPollingService : Service() {
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "폴링 오류: ${e.message}")
+            Log.e(TAG, "poll error: ${e.message}")
         }
     }
 
