@@ -89,7 +89,7 @@ function showPage(page) {
   const titles = {
     dashboard: '대시보드', channels: '채널 관리', invites: '초대 링크 관리',
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
-    notifications: '알림 발송', logs: '발송 로그'
+    notifications: '알림 발송', logs: '발송 로그', members: '회원 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -101,6 +101,7 @@ function showPage(page) {
   else if (page === 'subscribers') loadSubscribers()
   else if (page === 'notifications') loadNotifPage()
   else if (page === 'logs') loadLogBatches()
+  else if (page === 'members') loadMembers()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }
@@ -869,6 +870,269 @@ function viewBatchLogs(batchId) {
 // 구독자 목록에서 초대 링크 이름 표시 위해 subscribers.ts 확장 필요
 // 여기서는 프론트에서 처리
 // =============================================
+
+// =============================================
+// 회원 관리
+// =============================================
+let memberPage = 1
+let memberSearchTimer = null
+const selectedMemberIds = new Set()
+
+function escHtml(str) {
+  if (!str) return ''
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+function debounceSearchMembers() {
+  clearTimeout(memberSearchTimer)
+  memberSearchTimer = setTimeout(() => { memberPage = 1; selectedMemberIds.clear(); loadMembers() }, 400)
+}
+
+function updateBulkBar() {
+  const bar   = document.getElementById('bulkDeleteBar')
+  const cnt   = document.getElementById('selectedCount')
+  const n     = selectedMemberIds.size
+  if (!bar) return
+  if (n > 0) {
+    bar.classList.remove('hidden')
+    bar.classList.add('flex')
+    cnt.textContent = `${n}명 선택됨`
+  } else {
+    bar.classList.add('hidden')
+    bar.classList.remove('flex')
+  }
+}
+
+function toggleCheckAll(el) {
+  document.querySelectorAll('.member-check').forEach(cb => {
+    cb.checked = el.checked
+    const uid = cb.dataset.uid
+    if (el.checked) selectedMemberIds.add(uid)
+    else selectedMemberIds.delete(uid)
+  })
+  updateBulkBar()
+}
+
+function onMemberCheck(cb) {
+  const uid = cb.dataset.uid
+  if (cb.checked) selectedMemberIds.add(uid)
+  else selectedMemberIds.delete(uid)
+  // 전체선택 체크박스 동기화
+  const all = document.querySelectorAll('.member-check')
+  const checked = document.querySelectorAll('.member-check:checked')
+  const checkAll = document.getElementById('checkAll')
+  if (checkAll) checkAll.checked = all.length > 0 && all.length === checked.length
+  updateBulkBar()
+}
+
+function clearMemberSelection() {
+  selectedMemberIds.clear()
+  document.querySelectorAll('.member-check').forEach(cb => cb.checked = false)
+  const checkAll = document.getElementById('checkAll')
+  if (checkAll) checkAll.checked = false
+  updateBulkBar()
+}
+
+async function bulkDeleteMembers() {
+  if (selectedMemberIds.size === 0) return
+  if (!confirm(`선택한 ${selectedMemberIds.size}명을 삭제하시겠습니까?\n\n⚠️ 구독 정보를 포함한 모든 데이터가 삭제됩니다.`)) return
+  try {
+    const res = await API.post('/users/bulk-delete', { user_ids: [...selectedMemberIds] })
+    if (res.data?.success) {
+      showToast(`${res.data.deleted}명이 삭제되었습니다`)
+      selectedMemberIds.clear()
+      loadMembers()
+    }
+  } catch(e) { console.error(e) }
+}
+
+async function loadMembers() {
+  const search = document.getElementById('memberSearch')?.value || ''
+  try {
+    // 통계 로드
+    const statsRes = await API.get('/users/stats/summary')
+    if (statsRes.data?.success) {
+      const s = statsRes.data.data
+      document.getElementById('statTotal').textContent  = s.total
+      document.getElementById('statActive').textContent = s.active
+      document.getElementById('statFcm').textContent    = s.has_fcm
+      document.getElementById('statWeek').textContent   = s.week
+    }
+
+    // 목록 로드
+    const res = await API.get(`/users?search=${encodeURIComponent(search)}&page=${memberPage}&limit=20`)
+    if (!res.data?.success) return
+
+    const { data, pagination } = res.data
+    const tbody = document.getElementById('membersTable')
+    if (!tbody) return
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-500 py-10">등록된 회원이 없습니다</td></tr>`
+    } else {
+      tbody.innerHTML = data.map(m => {
+        const isChecked = selectedMemberIds.has(m.user_id)
+        const activeBtn = m.is_active
+          ? `bg-emerald-900/50 text-emerald-400 hover:bg-red-900/50 hover:text-red-400`
+          : `bg-slate-700 text-slate-400 hover:bg-emerald-900/50 hover:text-emerald-400`
+        return `
+        <tr class="border-t border-slate-700/50 hover:bg-slate-800/50 ${isChecked ? 'bg-indigo-950/40' : ''}">
+          <td class="px-4 py-3 text-center">
+            <input type="checkbox" class="member-check w-4 h-4 accent-indigo-500 cursor-pointer"
+              data-uid="${m.user_id}" ${isChecked ? 'checked' : ''} onchange="onMemberCheck(this)">
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium text-white text-sm">${escHtml(m.display_name || '이름 없음')}</div>
+            <div class="text-slate-500 text-xs mt-0.5 font-mono">${escHtml(m.user_id?.substring(0,14))}…</div>
+          </td>
+          <td class="px-4 py-3 text-slate-300 text-sm">${escHtml(m.email)}</td>
+          <td class="px-4 py-3 text-center">
+            <span class="bg-indigo-900/50 text-indigo-300 text-xs px-2 py-1 rounded-full">${m.subscribe_count}개</span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            ${m.has_fcm
+              ? '<span class="text-emerald-400 text-xs"><i class="fas fa-check-circle"></i> 등록</span>'
+              : '<span class="text-slate-500 text-xs"><i class="fas fa-times-circle"></i> 미등록</span>'}
+          </td>
+          <td class="px-4 py-3 text-center">
+            <button onclick="toggleMember('${m.user_id}', ${m.is_active})"
+              class="text-xs px-2 py-1 rounded-full font-semibold cursor-pointer ${activeBtn} transition-colors">
+              ${m.is_active ? '활성' : '비활성'}
+            </button>
+          </td>
+          <td class="px-4 py-3 text-slate-400 text-xs">${formatDate(m.created_at)}</td>
+          <td class="px-4 py-3 text-center">
+            <button onclick="viewMember('${m.user_id}')" title="상세보기"
+              class="text-indigo-400 hover:text-indigo-300 text-sm mr-2"><i class="fas fa-eye"></i></button>
+            <button onclick="deleteMember('${m.user_id}', '${escHtml(m.email)}')" title="삭제"
+              class="text-red-400 hover:text-red-300 text-sm"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>`
+      }).join('')
+    }
+
+    // 체크박스 상태 동기화 (페이지 이동 후에도 유지)
+    document.querySelectorAll('.member-check').forEach(cb => {
+      if (selectedMemberIds.has(cb.dataset.uid)) cb.checked = true
+    })
+    updateBulkBar()
+
+    // 페이지네이션
+    const pag = document.getElementById('memberPagination')
+    if (pag && pagination.total > 0) {
+      const start = (pagination.page - 1) * pagination.limit + 1
+      const end   = Math.min(pagination.page * pagination.limit, pagination.total)
+      pag.innerHTML = `
+        <span>전체 <strong class="text-white">${pagination.total}</strong>명 중 ${start}~${end}명</span>
+        <div class="flex gap-2 items-center">
+          <button onclick="changeMemberPage(${pagination.page - 1})" ${pagination.page <= 1 ? 'disabled' : ''}
+            class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span>${pagination.page} / ${pagination.pages}</span>
+          <button onclick="changeMemberPage(${pagination.page + 1})" ${pagination.page >= pagination.pages ? 'disabled' : ''}
+            class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>`
+    } else if (pag) {
+      pag.innerHTML = ''
+    }
+  } catch(e) {
+    console.error('loadMembers error:', e)
+  }
+}
+
+function changeMemberPage(page) {
+  if (page < 1) return
+  memberPage = page
+  loadMembers()
+}
+
+async function viewMember(userId) {
+  try {
+    const res = await API.get(`/users/${userId}`)
+    if (!res.data?.success) return
+    const m = res.data.data
+
+    const subRows = (m.subscriptions || []).length === 0
+      ? '<div class="text-slate-500 text-sm py-1">구독 채널 없음</div>'
+      : (m.subscriptions || []).map(s => `
+          <div class="flex items-center justify-between py-1.5 border-t border-slate-700/50">
+            <span class="text-white text-sm">${escHtml(s.channel_name)}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full ${s.is_active ? 'bg-emerald-900/50 text-emerald-400' : 'bg-slate-700 text-slate-400'}">
+              ${s.is_active ? '활성' : '비활성'}
+            </span>
+          </div>`).join('')
+
+    document.getElementById('memberModalContent').innerHTML = `
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-800 rounded-xl p-3">
+            <div class="text-slate-400 text-xs mb-1">이름</div>
+            <div class="text-white font-semibold">${escHtml(m.display_name || '-')}</div>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-3">
+            <div class="text-slate-400 text-xs mb-1">상태</div>
+            <div class="font-semibold ${m.is_active ? 'text-emerald-400' : 'text-slate-500'}">${m.is_active ? '활성' : '비활성'}</div>
+          </div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-slate-400 text-xs mb-1">이메일</div>
+          <div class="text-white">${escHtml(m.email)}</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-slate-400 text-xs mb-1">User ID</div>
+          <div class="text-white font-mono text-xs break-all">${escHtml(m.user_id)}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-800 rounded-xl p-3">
+            <div class="text-slate-400 text-xs mb-1">FCM 토큰</div>
+            <div class="${m.has_fcm ? 'text-emerald-400' : 'text-slate-500'} text-sm">${m.has_fcm ? '✅ 등록됨' : '❌ 미등록'}</div>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-3">
+            <div class="text-slate-400 text-xs mb-1">전화번호</div>
+            <div class="text-white text-sm">${escHtml(m.phone_number || '-')}</div>
+          </div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-slate-400 text-xs mb-2 font-semibold">구독 채널 (${m.subscriptions?.length || 0}개)</div>
+          ${subRows}
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-slate-400 text-xs mb-1">가입일</div>
+          <div class="text-white text-sm">${formatDate(m.created_at)}</div>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button onclick="closeModal('memberModal')"
+            class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm">
+            <i class="fas fa-times mr-1"></i>닫기
+          </button>
+          <button onclick="closeModal('memberModal'); deleteMember('${m.user_id}', '${escHtml(m.email)}')"
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-sm">
+            <i class="fas fa-trash mr-1"></i>삭제
+          </button>
+        </div>
+      </div>`
+    document.getElementById('memberModal').classList.remove('hidden')
+  } catch(e) { console.error(e) }
+}
+
+async function toggleMember(userId, currentStatus) {
+  if (!confirm(currentStatus ? '회원을 비활성 상태로 변경할까요?' : '회원을 활성 상태로 변경할까요?')) return
+  try {
+    const res = await API.patch(`/users/${userId}/toggle`)
+    if (res.data?.success) { showToast('상태가 변경되었습니다'); loadMembers() }
+  } catch(e) { console.error(e) }
+}
+
+async function deleteMember(userId, email) {
+  if (!confirm(`회원 "${email}"을(를) 삭제하시겠습니까?\n\n⚠️ 구독 정보를 포함한 모든 데이터가 삭제됩니다.`)) return
+  try {
+    const res = await API.delete(`/users/${userId}`)
+    if (res.data?.success) { showToast('회원이 삭제되었습니다'); selectedMemberIds.delete(userId); loadMembers() }
+  } catch(e) { console.error(e) }
+}
 
 // =============================================
 // 초기화

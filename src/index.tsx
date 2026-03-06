@@ -14,6 +14,7 @@ import invites from './routes/invites'
 import auth from './routes/auth'
 import alarms from './routes/alarms'
 import fcm from './routes/fcm'
+import users from './routes/users'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -35,6 +36,7 @@ app.route('/api/invites', invites)
 app.route('/api/auth', auth)
 app.route('/api/alarms', alarms)
 app.route('/api/fcm', fcm)
+app.route('/api/users', users)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })
@@ -363,6 +365,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('members')">
+      <i class="fas fa-user-gear w-4 text-center text-pink-400"></i> 회원 관리
+    </a>
   </nav>
 
   <div class="p-4 border-t border-slate-700/50">
@@ -687,7 +692,76 @@ app.get('/', (c) => {
       </div>
     </div>
 
+    <!-- ===== 회원 관리 ===== -->
+    <div id="page-members" class="page">
+      <!-- 통계 카드 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-white" id="statTotal">-</div>
+          <div class="text-slate-400 text-sm mt-1">전체 회원</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-emerald-400" id="statActive">-</div>
+          <div class="text-slate-400 text-sm mt-1">활성 회원</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-sky-400" id="statFcm">-</div>
+          <div class="text-slate-400 text-sm mt-1">FCM 등록</div>
+        </div>
+        <div class="card p-4 text-center">
+          <div class="text-2xl font-bold text-amber-400" id="statWeek">-</div>
+          <div class="text-slate-400 text-sm mt-1">최근 7일 가입</div>
+        </div>
+      </div>
+      <!-- 검색 + 선택삭제 툴바 -->
+      <div class="flex gap-3 mb-4 items-center flex-wrap">
+        <input id="memberSearch" type="text" class="input-field flex-1 min-w-48" placeholder="이메일, 이름, ID 검색..." oninput="debounceSearchMembers()">
+        <button onclick="loadMembers()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-semibold">
+          <i class="fas fa-search mr-1"></i>검색
+        </button>
+        <div id="bulkDeleteBar" class="hidden flex items-center gap-2">
+          <span id="selectedCount" class="text-slate-300 text-sm font-semibold"></span>
+          <button onclick="bulkDeleteMembers()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+            <i class="fas fa-trash mr-1"></i>선택 삭제
+          </button>
+          <button onclick="clearMemberSelection()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm">
+            취소
+          </button>
+        </div>
+      </div>
+      <!-- 목록 테이블 -->
+      <div class="card overflow-hidden">
+        <table class="w-full">
+          <thead><tr class="border-b border-slate-700">
+            <th class="px-4 py-3 w-10">
+              <input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer">
+            </th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">회원</th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">이메일</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">구독</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">FCM</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">상태</th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">가입일</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">관리</th>
+          </tr></thead>
+          <tbody id="membersTable"></tbody>
+        </table>
+        <div id="memberPagination" class="px-5 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400"></div>
+      </div>
+    </div>
+
   </main>
+</div>
+
+<!-- ===== 회원 상세 모달 ===== -->
+<div id="memberModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+  <div class="card w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+    <div class="card-header px-6 py-4 flex items-center justify-between sticky top-0">
+      <h3 class="text-white font-semibold"><i class="fas fa-user mr-2"></i>회원 상세</h3>
+      <button onclick="closeModal('memberModal')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="memberModalContent" class="p-6"></div>
+  </div>
 </div>
 
 <!-- ===== 채널 모달 ===== -->

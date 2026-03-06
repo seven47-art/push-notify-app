@@ -153,9 +153,44 @@ channels.post('/', async (c) => {
       VALUES (?, ?, ?, ?, ?)
     `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId).run()
 
+    const newChannelId = result.meta.last_row_id as number
+
+    // ── 채널 운영자를 구독자로 자동 등록 ────────────────────────────
+    // 채널 생성 즉시 운영자도 구독자(is_active=1)로 등록하여
+    // 운영자가 직접 보낸 알람도 본인에게 수신되도록 보장
+    // 이후 알람 발송은 subscribers 테이블만 조회하면 됨 (운영자 별도 조회 불필요)
+    if (finalOwnerId && finalOwnerId !== 'web_user') {
+      try {
+        // 운영자의 display_name, fcm_token 조회
+        const ownerUser: any = await c.env.DB.prepare(
+          'SELECT display_name, fcm_token FROM users WHERE user_id = ?'
+        ).bind(finalOwnerId).first()
+
+        const ownerFcmToken = ownerUser?.fcm_token || ''
+        const ownerPlatform = 'android'   // 앱 사용자는 android 기본값
+
+        // fcm_token NOT NULL 조건 때문에 토큰 없으면 빈 문자열로 대체
+        await c.env.DB.prepare(`
+          INSERT OR IGNORE INTO subscribers
+            (channel_id, user_id, display_name, fcm_token, platform, is_active)
+          VALUES (?, ?, ?, ?, ?, 1)
+        `).bind(
+          newChannelId,
+          finalOwnerId,
+          ownerUser?.display_name || null,
+          ownerFcmToken,
+          ownerPlatform
+        ).run()
+      } catch (subErr: any) {
+        // 자동 등록 실패해도 채널 생성은 성공으로 처리
+        console.error('운영자 자동 구독 등록 실패:', subErr.message)
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     return c.json({
       success: true,
-      data: { id: result.meta.last_row_id, name, description, owner_id: finalOwnerId, public_id: publicId }
+      data: { id: newChannelId, name, description, owner_id: finalOwnerId, public_id: publicId }
     }, 201)
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

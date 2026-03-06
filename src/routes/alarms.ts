@@ -136,10 +136,68 @@ alarms.post('/', async (c) => {
       VALUES (?, ?, ?, ?, ?, 'pending', ?)
     `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0).run()
 
+    const alarmId = result.meta.last_row_id as number
+
+    // ── 5분 전 FCM 예약 신호 발송 (AlarmManager 방식) ─────────────────
+    // 알람 시간 5분 전에 각 앱에 "예약 신호(type=alarm_schedule)"를 FCM으로 전송
+    // 앱은 이 신호를 받아 AlarmManager.setExactAndAllowWhileIdle()로 정확한 시간 예약
+    const scheduledMs   = scheduledDate.getTime()         // 알람 실행 시각 (ms)
+    const notifyMs      = scheduledMs - 2 * 60 * 1000     // 2분 전
+    const nowMs         = Date.now()
+    const delaySeconds  = Math.max(0, Math.floor((notifyMs - nowMs) / 1000))
+
+    // 콘텐츠 URL 생성
+    const webhookBase = (c.env as any).WEBHOOK_BASE_URL || 'https://ringo-server.pages.dev'
+    let contentUrl = safeValue
+    if (['audio', 'video', 'file'].includes(msg_type) && safeValue) {
+      contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(safeValue)}`
+    }
+
+    // 구독자 + 채널 운영자 FCM 토큰 수집
+    const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+    const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
+
+    if (fcmServiceAccount && fcmProjectId) {
+      // 구독자 목록 조회 (채널 생성 시 운영자도 자동 등록되므로 별도 조회 불필요)
+      const { results: subs } = await c.env.DB.prepare(`
+        SELECT s.user_id, COALESCE(s.fcm_token, u.fcm_token) as fcm_token
+        FROM subscribers s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        WHERE s.channel_id = ? AND s.is_active = 1
+          AND COALESCE(s.fcm_token, u.fcm_token) IS NOT NULL
+      `).bind(channel_id).all() as { results: any[] }
+
+      const fcmTargets = new Map<string, string>()
+      for (const s of subs) {
+        if (s.fcm_token) fcmTargets.set(s.user_id, s.fcm_token)
+      }
+
+      // 각 기기에 예약 신호 전송 (비동기, 결과 무시 — 실패해도 폴링 폴백 동작)
+      const schedulePayload: Record<string, string> = {
+        type:           'alarm_schedule',       // 앱이 AlarmManager 예약하는 신호
+        alarm_id:       String(alarmId),
+        channel_name:   (channel as any).name,
+        msg_type:       msg_type,
+        msg_value:      safeValue,
+        content_url:    contentUrl,
+        homepage_url:   '',
+        scheduled_time: String(scheduledMs),    // 앱이 AlarmManager에 넘길 Unix ms
+        notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
+      }
+
+      // 모든 토큰에 FCM 발송 (fire-and-forget)
+      const sendPromises = Array.from(fcmTargets.values()).map(token =>
+        sendFCMDataMessage(token, schedulePayload, fcmServiceAccount, fcmProjectId)
+          .catch(() => ({ success: false }))
+      )
+      c.executionCtx?.waitUntil(Promise.all(sendPromises))
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     return c.json({
       success: true,
       data: {
-        id: result.meta.last_row_id,
+        id: alarmId,
         channel_id,
         channel_name: (channel as any).name,
         scheduled_at,
@@ -252,52 +310,27 @@ alarms.post('/trigger', async (c) => {
     for (const alarm of dueAlarms) {
 
       // ── 1) 수신자 목록 구성 ─────────────────────────────────────
+      // 채널 생성 시 운영자가 자동으로 구독자에 등록되므로
+      // subscribers 테이블만 조회하면 운영자 포함 전체 수신자 목록을 얻을 수 있다.
       const { results: subscribers } = await c.env.DB.prepare(`
-        SELECT s.id, s.user_id, s.display_name, s.fcm_token,
+        SELECT s.id, s.user_id, s.display_name,
+               COALESCE(s.fcm_token, u.fcm_token) as fcm_token,
                u.phone_number
         FROM subscribers s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.channel_id = ? AND s.is_active = 1
       `).bind(alarm.channel_id).all() as { results: any[] }
 
-      const ownerInfo: any = await c.env.DB.prepare(`
-        SELECT u.user_id, u.display_name, u.phone_number,
-               COALESCE(s.fcm_token, u.fcm_token) as fcm_token,
-               s.id as sub_id
-        FROM users u
-        LEFT JOIN subscribers s ON u.user_id = s.user_id AND s.channel_id = ?
-        WHERE u.user_id = ?
-      `).bind(alarm.channel_id, alarm.channel_owner_id).first()
-
       const recipientMap = new Map<string, any>()
 
       for (const sub of subscribers) {
-        let fcmToken = sub.fcm_token
-        if (!fcmToken && sub.user_id) {
-          const userRow: any = await c.env.DB.prepare(
-            'SELECT fcm_token FROM users WHERE user_id = ?'
-          ).bind(sub.user_id).first()
-          fcmToken = userRow?.fcm_token || ''
-        }
         recipientMap.set(sub.user_id || String(sub.id), {
           user_id:      sub.user_id,
           display_name: sub.display_name,
-          fcm_token:    fcmToken,
+          fcm_token:    sub.fcm_token || '',
           phone_number: sub.phone_number,
-          role:         'subscriber'
+          role:         sub.user_id === alarm.channel_owner_id ? 'owner' : 'subscriber'
         })
-      }
-
-      if (ownerInfo) {
-        if (!recipientMap.has(ownerInfo.user_id)) {
-          recipientMap.set(ownerInfo.user_id, {
-            user_id:      ownerInfo.user_id,
-            display_name: ownerInfo.display_name,
-            fcm_token:    ownerInfo.fcm_token,
-            phone_number: ownerInfo.phone_number,
-            role:         'owner'
-          })
-        }
       }
 
       // ── 2) 폴링 방식: 호출자 본인만 처리 ───────────────────────
@@ -554,7 +587,7 @@ alarms.post('/inbox/:id/status', async (c) => {
     if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
     const id     = Number(c.req.param('id'))
     const { status } = await c.req.json() as { status: string }
-    if (!['received','accepted','rejected'].includes(status))
+    if (!['received','accepted','rejected','timeout'].includes(status))
       return c.json({ success: false, error: 'invalid status' }, 400)
 
     await c.env.DB.prepare(
@@ -603,6 +636,82 @@ alarms.get('/outbox', async (c) => {
     }
 
     return c.json({ success: true, data: Object.values(groups) })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// POST /api/alarms/status  - 앱(FakeCallActivity)에서 alarm 상태 기록
+// alarm_schedule_id + user의 alarm_logs 레코드를 찾아 status 업데이트
+// =============================================
+alarms.post('/status', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const { alarm_schedule_id, status } = await c.req.json() as {
+      alarm_schedule_id: number
+      status: string
+    }
+
+    if (!alarm_schedule_id || !status) {
+      return c.json({ success: false, error: 'alarm_schedule_id, status 필수' }, 400)
+    }
+    if (!['accepted', 'rejected', 'timeout'].includes(status)) {
+      return c.json({ success: false, error: '유효하지 않은 status' }, 400)
+    }
+
+    // alarm_logs에서 해당 alarm_schedule_id + receiver_id 로 로그 찾기
+    const log: any = await c.env.DB.prepare(
+      'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
+    ).bind(alarm_schedule_id, user.user_id).first()
+
+    if (!log) {
+      // 로그가 없으면 새로 생성 (폴링 수신 후 app 응답)
+      // alarm_schedules에서 채널 정보 조회
+      const alarm: any = await c.env.DB.prepare(`
+        SELECT a.*, ch.name as channel_name
+        FROM alarm_schedules a
+        JOIN channels ch ON a.channel_id = ch.id
+        WHERE a.id = ?
+      `).bind(alarm_schedule_id).first()
+
+      if (alarm) {
+        await c.env.DB.prepare(`
+          INSERT OR IGNORE INTO alarm_logs
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          alarm_schedule_id,
+          alarm.channel_id,
+          alarm.channel_name || '알람',
+          user.user_id,
+          alarm.msg_type || 'youtube',
+          alarm.msg_value || '',
+          status
+        ).run()
+      }
+      return c.json({ success: true, action: 'created', status })
+    }
+
+    // 기존 로그 업데이트
+    await c.env.DB.prepare(
+      'UPDATE alarm_logs SET status = ? WHERE id = ? AND receiver_id = ?'
+    ).bind(status, log.id, user.user_id).run()
+
+    // accepted/rejected 카운트 업데이트
+    if (status === 'accepted') {
+      await c.env.DB.prepare(
+        'UPDATE subscribers SET accepted_count = accepted_count + 1 WHERE user_id = ? AND channel_id = (SELECT channel_id FROM alarm_schedules WHERE id = ?)'
+      ).bind(user.user_id, alarm_schedule_id).run().catch(() => {})
+    } else if (status === 'rejected') {
+      await c.env.DB.prepare(
+        'UPDATE subscribers SET rejected_count = rejected_count + 1 WHERE user_id = ? AND channel_id = (SELECT channel_id FROM alarm_schedules WHERE id = ?)'
+      ).bind(user.user_id, alarm_schedule_id).run().catch(() => {})
+    }
+
+    return c.json({ success: true, action: 'updated', status })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
