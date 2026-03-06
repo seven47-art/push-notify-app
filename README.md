@@ -117,3 +117,5 @@ lib/
 3. Artifacts에서 `push-notify-debug-apk` 다운로드
 
 <!-- v1.0.32 build trigger -->
+
+<!-- v1.0.33 build trigger 20260306_123604 -->
