@@ -17,7 +17,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * AlarmPollingService  v1.0.34
+ * AlarmPollingService  v1.0.35
  *
  * [수정 내역 v1.0.34]
  *  1. 헤즈업 알림 수락/거절 버튼 상시 표시
@@ -314,7 +314,7 @@ class AlarmPollingService : Service() {
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 700, 300, 700)
             setSound(ringUri, AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
             )
@@ -341,3 +341,4 @@ class AlarmPollingService : Service() {
             .build()
     }
 }
+
