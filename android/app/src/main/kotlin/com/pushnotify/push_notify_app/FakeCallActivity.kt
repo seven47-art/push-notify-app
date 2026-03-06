@@ -2,14 +2,17 @@ package com.pushnotify.push_notify_app
 
 import android.animation.*
 import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.*
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -22,15 +25,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-/**
- * FakeCallActivity  v1.0.37
- *
- * [수정 내역 v1.0.37]
- *  - 통화 수신 UI (전화기 아이콘 + 링 애니메이션 + 채널명 + 수락/거절 버튼)
- *  - startActivity()로 직접 실행 → 화면 켜져 있어도 항상 풀스크린
- *  - 핸드폰 벨소리/진동 모드 그대로 따름 (STREAM_RING)
- *  - 30초 타임아웃 자동 거절
- */
 class FakeCallActivity : Activity() {
 
     companion object {
@@ -43,7 +37,6 @@ class FakeCallActivity : Activity() {
         const val EXTRA_HOMEPAGE_URL = "homepage_url"
         const val EXTRA_AUTO_ACCEPT  = "auto_accept"
 
-        /** FCM/폴링 수신 즉시 이 Activity를 풀스크린으로 실행 */
         fun start(
             context: Context,
             channelName: String, msgType: String, msgValue: String,
@@ -67,10 +60,10 @@ class FakeCallActivity : Activity() {
     }
 
     private var ringtone: Ringtone? = null
-    private var vibrator: Vibrator? = null
+    private var vibrator: Vibrator?  = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val http = OkHttpClient.Builder()
+    private val http  = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
@@ -85,35 +78,48 @@ class FakeCallActivity : Activity() {
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
-
-    // 링 애니메이션용
     private var ringAnimator: AnimatorSet? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ── 잠금화면 위 풀스크린 표시 ───────────────────────────────
+        // ── 1. 화면/잠금 플래그 (API 27 이하 방식) ───────────────────
+        @Suppress("DEPRECATION")
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED    or
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD    or
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON      or
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        )
+
+        // ── 2. API 27+ 추가 처리 ────────────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+        }
+
+        // ── 3. KeyguardManager로 잠금화면 강제 해제 (파워알람 방식) ──
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            km.requestDismissKeyguard(this, null)
         } else {
             @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON  or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
+            km.newKeyguardLock("RinGo:KeyguardLock").disableKeyguard()
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // ── WakeLock ─────────────────────────────────────────────────
+        // ── 4. WakeLock (화면 강제 켜기) ─────────────────────────────
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "RinGo:FakeCallWakeLock"
         ).also { it.acquire(35_000L) }
 
-        // ── 인텐트 데이터 추출 ───────────────────────────────────────
+        // ── 5. SYSTEM_ALERT_WINDOW: 화면 켜진 상태에서도 최상위 표시 ─
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+            window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        }
+
+        // ── 인텐트 데이터 추출 ──────────────────────────────────────
         alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
         msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
@@ -125,13 +131,11 @@ class FakeCallActivity : Activity() {
         buildUi()
         startRinging()
 
-        // 자동 수락
         if (autoAccept) {
             autoDeclineHandler.postDelayed({ handleAccept() }, 300L)
             return
         }
 
-        // 30초 타임아웃
         autoDeclineRunnable = Runnable {
             Log.d(TAG, "30초 타임아웃 → 자동 거절")
             recordAlarmStatus(alarmId, "timeout")
@@ -149,7 +153,7 @@ class FakeCallActivity : Activity() {
         super.onDestroy()
     }
 
-    // ── 벨소리 + 진동 (핸드폰 설정 그대로) ─────────────────────────
+    // ── 벨소리 + 진동 ──────────────────────────────────────────────
     private fun startRinging() {
         val am = getSystemService(AUDIO_SERVICE) as AudioManager
         val ringerMode = am.ringerMode
@@ -193,14 +197,13 @@ class FakeCallActivity : Activity() {
         try { vibrator?.cancel() } catch (_: Exception) {}
     }
 
-    // ── 수락 처리 ────────────────────────────────────────────────────
+    // ── 수락 ───────────────────────────────────────────────────────
     private fun handleAccept() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
         dismissNotification()
         CallForegroundService.stop(this)
-
         val target = contentUrl.ifEmpty { homepageUrl }
         if (target.isNotEmpty()) {
             try {
@@ -212,7 +215,7 @@ class FakeCallActivity : Activity() {
         finish()
     }
 
-    // ── 거절 처리 ────────────────────────────────────────────────────
+    // ── 거절 ───────────────────────────────────────────────────────
     private fun handleDecline() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
@@ -233,7 +236,7 @@ class FakeCallActivity : Activity() {
         } catch (_: Exception) {}
     }
 
-    // ── 서버 상태 기록 ───────────────────────────────────────────────
+    // ── 서버 상태 기록 ─────────────────────────────────────────────
     private fun recordAlarmStatus(alarmId: Int, status: String) {
         if (alarmId <= 0) return
         scope.launch {
@@ -259,7 +262,7 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    // ── 통화 수신 UI ─────────────────────────────────────────────────
+    // ── 통화 수신 UI ────────────────────────────────────────────────
     private fun buildUi() {
         val root = FrameLayout(this).apply {
             setBackgroundColor(0xFF0D1117.toInt())
@@ -269,7 +272,6 @@ class FakeCallActivity : Activity() {
             )
         }
 
-        // 메인 컨텐츠 (세로 정렬)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER_HORIZONTAL
@@ -279,7 +281,7 @@ class FakeCallActivity : Activity() {
             ).also { it.gravity = Gravity.CENTER_VERTICAL; it.topMargin = dpToPx(40) }
         }
 
-        // ── 채널명 ───────────────────────────────────────────────────
+        // 채널명
         val channelTv = TextView(this).apply {
             text      = channelName
             textSize  = 30f
@@ -289,7 +291,7 @@ class FakeCallActivity : Activity() {
             setPadding(dpToPx(24), 0, dpToPx(24), 0)
         }
 
-        // ── 서브 텍스트 (알람 유형) ───────────────────────────────────
+        // 서브 라벨
         val subLabel = when (msgType) {
             "youtube" -> "YouTube 알람"
             "audio"   -> "오디오 알람"
@@ -304,25 +306,22 @@ class FakeCallActivity : Activity() {
             setPadding(0, dpToPx(8), 0, dpToPx(40))
         }
 
-        // ── 전화기 아이콘 + 링 애니메이션 컨테이너 ────────────────────
+        // 전화기 아이콘 + 링 애니메이션
         val iconContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(dpToPx(180), dpToPx(180)).also {
                 it.gravity = Gravity.CENTER_HORIZONTAL
             }
         }
 
-        // 링 효과 원 3개
         val ringSize = dpToPx(180)
         val rings = (0..2).map { i ->
             View(this).apply {
                 val size = ringSize - i * dpToPx(20)
-                layoutParams = FrameLayout.LayoutParams(size, size).also {
-                    it.gravity = Gravity.CENTER
-                }
+                layoutParams = FrameLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER }
                 background = createCircleDrawable(
                     when (i) {
-                        0 -> 0x1A4CAF50.toInt()
-                        1 -> 0x334CAF50.toInt()
+                        0    -> 0x1A4CAF50.toInt()
+                        1    -> 0x334CAF50.toInt()
                         else -> 0x4D4CAF50.toInt()
                     }
                 )
@@ -330,16 +329,12 @@ class FakeCallActivity : Activity() {
             }
         }
 
-        // 전화기 원형 배경
         val phoneBg = View(this).apply {
             val size = dpToPx(90)
-            layoutParams = FrameLayout.LayoutParams(size, size).also {
-                it.gravity = Gravity.CENTER
-            }
+            layoutParams = FrameLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER }
             background = createCircleDrawable(0xFF4CAF50.toInt())
         }
 
-        // 전화기 이모지
         val phoneTv = TextView(this).apply {
             text     = "📞"
             textSize = 36f
@@ -353,18 +348,16 @@ class FakeCallActivity : Activity() {
         rings.forEach { iconContainer.addView(it) }
         iconContainer.addView(phoneBg)
         iconContainer.addView(phoneTv)
-
-        // 링 애니메이션 시작
         startRingAnimation(rings)
 
-        // ── 버튼 영역 ────────────────────────────────────────────────
+        // 버튼 영역
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity     = Gravity.CENTER
             setPadding(dpToPx(24), dpToPx(60), dpToPx(24), 0)
         }
 
-        // [거절] 버튼
+        // 거절 버튼
         val declineLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER
@@ -373,7 +366,7 @@ class FakeCallActivity : Activity() {
         val declineCircle = FrameLayout(this).apply {
             val size = dpToPx(72)
             layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
-            background = createCircleDrawable(0xFFE53935.toInt())
+            background   = createCircleDrawable(0xFFE53935.toInt())
             isClickable  = true
             isFocusable  = true
         }
@@ -398,7 +391,7 @@ class FakeCallActivity : Activity() {
         declineLayout.addView(declineCircle)
         declineLayout.addView(declineLabel)
 
-        // [수락] 버튼
+        // 수락 버튼
         val acceptLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER
@@ -407,7 +400,7 @@ class FakeCallActivity : Activity() {
         val acceptCircle = FrameLayout(this).apply {
             val size = dpToPx(72)
             layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
-            background = createCircleDrawable(0xFF4CAF50.toInt())
+            background   = createCircleDrawable(0xFF4CAF50.toInt())
             isClickable  = true
             isFocusable  = true
         }
@@ -444,7 +437,6 @@ class FakeCallActivity : Activity() {
         setContentView(root)
     }
 
-    // 링 파동 애니메이션
     private fun startRingAnimation(rings: List<View>) {
         val animators = rings.mapIndexed { i, ring ->
             AnimatorSet().apply {
@@ -452,16 +444,14 @@ class FakeCallActivity : Activity() {
                 val scaleY = ObjectAnimator.ofFloat(ring, "scaleY", 0.6f, 1.2f)
                 val alpha  = ObjectAnimator.ofFloat(ring, "alpha",  0.8f, 0f)
                 playTogether(scaleX, scaleY, alpha)
-                duration  = 1500L
-                startDelay = i * 400L
+                duration     = 1500L
+                startDelay   = i * 400L
                 interpolator = AccelerateDecelerateInterpolator()
             }
         }
-        ringAnimator = AnimatorSet().apply {
-            playTogether(*animators.toTypedArray())
-        }
-        // 반복 실행
-        val repeatHandler = Handler(Looper.getMainLooper())
+        ringAnimator = AnimatorSet().apply { playTogether(*animators.toTypedArray()) }
+
+        val repeatHandler  = Handler(Looper.getMainLooper())
         val repeatRunnable = object : Runnable {
             override fun run() {
                 rings.forEach { it.alpha = 0f; it.scaleX = 0.6f; it.scaleY = 0.6f }
@@ -479,7 +469,5 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    private fun dpToPx(dp: Int): Int {
-        return (dp * resources.displayMetrics.density).toInt()
-    }
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 }

@@ -17,10 +17,16 @@
     <!-- 카메라 -->
     <uses-permission android:name="android.permission.CAMERA"/>
 
-    <!-- 화면 깨우기 (알람 수신 시 WAKE_LOCK 필수) -->
+    <!-- 화면 깨우기 -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-    <!-- 전화 상태 읽기 (CATEGORY_CALL 알림이 시스템에서 전화로 인식되게 함) -->
+    <!-- 잠금화면 강제 해제 (파워알람 방식 - 풀스크린 Activity 표시 핵심) -->
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
+
+    <!-- 다른 앱 위에 표시 (화면 켜진 상태에서도 풀스크린 오버레이) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
+    <!-- 전화 상태 읽기 -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
     <!-- 부팅 후 자동 시작 -->
@@ -30,7 +36,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-    <!-- FOREGROUND_SERVICE_PHONE_CALL 제거: MANAGE_OWN_CALLS 권한 없으면 Android 14에서 SecurityException -->
 
     <!-- APK 설치 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
@@ -39,10 +44,10 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
-    <!-- 배터리 최적화 제외 (앱 종료 상태에서도 FCM 수신) -->
+    <!-- 배터리 최적화 제외 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- 잠금화면 위 전체화면 표시 (fullScreenIntent 핵심 권한) -->
+    <!-- 잠금화면 위 전체화면 표시 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
     <!-- 미디어 파일 읽기 -->
@@ -75,13 +80,11 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>
 
-            <!-- 기본 런처 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- 딥링크: pushapp://join/TOKEN -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -91,9 +94,6 @@
 
         </activity>
 
-        <!-- AlarmManager BroadcastReceiver
-             정확한 알람 시간에 OS가 실행 → FakeCallActivity 전체화면 표시
-             도즈(Doze) 모드, 배터리 최적화 완전 무시 -->
         <receiver
             android:name=".AlarmReceiver"
             android:enabled="true"
@@ -104,7 +104,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- 부팅 후 알람 서비스 재시작 -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="false">
@@ -114,17 +113,14 @@
             </intent-filter>
         </receiver>
 
-        <!-- 로컬 알림 브로드캐스트 -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>
 
-        <!-- 알림 dismiss 수신 -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
-        <!-- FCM 메시지 수신 서비스 -->
         <service
             android:name=".RinGoFCMService"
             android:exported="false">
@@ -133,25 +129,18 @@
             </intent-filter>
         </service>
 
-        <!-- 알람 포그라운드 서비스
-             foregroundServiceType="mediaPlayback"
-             - dataSync 와 달리 크래시 없이 Android 10~15 모두 안정적 동작
-             - fullScreenIntent 와 함께 사용 시 잠금화면 위 Activity 표시 가능 -->
         <service
             android:name=".CallForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback"/>
 
-
-        <!-- 알람 폴링 서비스 (백그라운드에서 1분마다 서버 폴링) -->
         <service
             android:name=".AlarmPollingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
 
-        <!-- 헤즈업 알림 수락/거절 버튼 BroadcastReceiver -->
         <receiver
             android:name=".AlarmActionReceiver"
             android:enabled="true"
@@ -161,8 +150,9 @@
             </intent-filter>
         </receiver>
 
-        <!-- 가상통화 전체화면 액티비티 (잠금화면 위에 표시) -->
-        <!-- taskAffinity 제거: 별도 Task 분리 시 잠금화면에서 startActivity 차단됨 -->
+        <!-- 가상통화 전체화면 액티비티
+             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" 으로 변경:
+             Flutter LaunchTheme 대신 순수 안드로이드 전체화면 테마 사용 (파워알람 방식) -->
         <activity
             android:name=".FakeCallActivity"
             android:exported="false"
@@ -170,9 +160,8 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
-            android:theme="@style/LaunchTheme"/>
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"/>
 
-        <!-- 인앱 콘텐츠 플레이어 (YouTube embed / 오디오 / 비디오 WebView) -->
         <activity
             android:name=".ContentPlayerActivity"
             android:exported="false"
@@ -209,7 +198,6 @@
         <intent>
             <action android:name="android.intent.action.GET_CONTENT"/>
         </intent>
-        <!-- YouTube 앱 -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="vnd.youtube"/>
