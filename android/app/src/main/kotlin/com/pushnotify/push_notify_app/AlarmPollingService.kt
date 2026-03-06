@@ -14,13 +14,12 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * AlarmPollingService  v1.0.37
+ * AlarmPollingService  v1.0.38
  *
- * [수정 내역 v1.0.37]
- *  - showAlarm() 제거 → FakeCallActivity.start() 직접 호출
+ * [수정 내역 v1.0.38]
+ *  - showAlarm() 완전 제거 → triggerAlarm()으로 통일
+ *  - FakeCallActivity.start() 직접 호출로 항상 풀스크린 표시
  *  - 화면 켜져 있어도 항상 풀스크린 통화 수신 화면 표시
- *  - RinGo 방식: FCM/폴링 수신 즉시 → startActivity(FakeCallActivity)
- *    (파워알람처럼 AlarmManager 불필요, 받는 즉시 바로 실행)
  */
 class AlarmPollingService : Service() {
 
@@ -72,11 +71,9 @@ class AlarmPollingService : Service() {
         }
 
         /**
-         * [v1.0.37] 알람 발동
-         *
-         * NotificationManager.notify() 방식 제거
-         * → FakeCallActivity.start() 직접 호출
-         * → 화면 켜짐/꺼짐 모두 풀스크린 통화 수신 화면 표시
+         * [v1.0.38] 알람 발동
+         * - CallForegroundService: WakeLock 획득 (화면 강제 켜기)
+         * - FakeCallActivity.start(): 풀스크린 통화 수신 화면 직접 실행
          */
         fun triggerAlarm(
             context: Context,
@@ -181,7 +178,7 @@ class AlarmPollingService : Service() {
 
                 Log.d(TAG, "폴링 알람 수신: $channelName (id=$alarmId)")
 
-                // [v1.0.37] 풀스크린 직접 실행
+                // 풀스크린 직접 실행
                 triggerAlarm(
                     this@AlarmPollingService,
                     channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
