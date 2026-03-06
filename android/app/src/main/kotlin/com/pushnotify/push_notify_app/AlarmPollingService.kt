@@ -249,8 +249,6 @@ class AlarmPollingService : Service() {
             val homepageUrl = alarm.optString("homepage_url", "")
 
             Log.d(TAG, "알람 수신: $channelName (id=$alarmId)")
-            // 폴링에서 처리한 경우도 영구 기록 (앱 재시작 후 중복 방지)
-            markFcmHandled(this@AlarmPollingService, alarmId)
             // companion.showAlarm()으로 알림 발행 (FCM 경로와 동일한 코드 공유)
             showAlarm(this@AlarmPollingService, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
             // WakeLock 획득 (화면 켜기 보조)
@@ -312,4 +310,3 @@ class AlarmPollingService : Service() {
             .build()
     }
 }
-
