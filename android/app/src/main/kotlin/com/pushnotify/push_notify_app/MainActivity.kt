@@ -3,7 +3,6 @@ package com.pushnotify.push_notify_app
 import android.accounts.AccountManager
 import android.app.Activity
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
@@ -134,37 +133,8 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAlarmIntent(intent)
-        // 버전 업데이트 시 이전 버전의 AlarmManager 잔류 예약 정리
-        clearLegacyAlarmSchedules()
         // ※ USE_FULL_SCREEN_INTENT 권한은 permission_screen(Flutter)에서 안내
         //   onCreate에서 강제로 설정화면 이동하면 Flutter 초기화 전 크래시 발생
-    }
-
-    /**
-     * 이전 버전의 AlarmManager 잔류 예약 정리
-     * 앱 업데이트/재설치 후 첫 실행 시, 이전 버전에서 등록된 알람들을 모두 취소한다.
-     * SharedPreferences에 현재 버전을 저장하고, 버전이 바뀌면 잔류 알람을 정리한다.
-     */
-    private fun clearLegacyAlarmSchedules() {
-        val prefs = getSharedPreferences("ringo_alarm_prefs", Context.MODE_PRIVATE)
-        val lastVersion = prefs.getString("last_app_version", "") ?: ""
-        val currentVersion = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-        } catch (e: Exception) { "" }
-
-        if (lastVersion != currentVersion) {
-            Log.d("MainActivity", "버전 변경 감지 ($lastVersion → $currentVersion): 잔류 AlarmManager 예약 정리")
-            // 기존에 등록된 알람 ID 범위를 순회하며 취소 (ID 1~200 범위)
-            for (id in 1..200) {
-                AlarmScheduler.cancel(applicationContext, id)
-            }
-            // 처리된 알람 ID 목록도 초기화 (이전 버전 캐시 제거)
-            prefs.edit()
-                .putString("last_app_version", currentVersion)
-                .remove("handled_alarm_ids")
-                .apply()
-            Log.d("MainActivity", "잔류 예약 정리 완료, handled_alarm_ids 초기화")
-        }
     }
 
     // ── onNewIntent: 앱이 이미 열려있는 상태에서 인텐트 수신 ──────────
@@ -243,4 +213,3 @@ class MainActivity : FlutterActivity() {
         }
     }
 }
-
