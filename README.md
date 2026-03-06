@@ -115,3 +115,5 @@ lib/
 1. GitHub 레포 생성 후 push
 2. Actions 탭 → `Build APK` 실행 확인
 3. Artifacts에서 `push-notify-debug-apk` 다운로드
+
+<!-- v1.0.32 build trigger -->
