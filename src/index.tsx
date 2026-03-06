@@ -347,8 +347,17 @@ app.get('/', (c) => {
     <a href="#" class="nav-item active flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('dashboard')">
       <i class="fas fa-chart-line w-4 text-center text-indigo-400"></i> 대시보드
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('members')">
+      <i class="fas fa-user-gear w-4 text-center text-pink-400"></i> 회원 관리
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('channels')">
       <i class="fas fa-layer-group w-4 text-center text-purple-400"></i> 채널 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('subscribers')">
+      <i class="fas fa-users w-4 text-center text-emerald-400"></i> 구독자 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarms')">
+      <i class="fas fa-bell w-4 text-center text-orange-400"></i> 알람 관리
     </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('invites')">
       <i class="fas fa-link w-4 text-center text-amber-400"></i> 초대 링크
@@ -356,20 +365,11 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('contents')">
       <i class="fas fa-photo-film w-4 text-center text-blue-400"></i> 콘텐츠 관리
     </a>
-    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('subscribers')">
-      <i class="fas fa-users w-4 text-center text-emerald-400"></i> 구독자 관리
-    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notifications')">
       <i class="fas fa-paper-plane w-4 text-center text-sky-400"></i> 알림 발송
     </a>
-    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarms')">
-      <i class="fas fa-bell w-4 text-center text-orange-400"></i> 알람 관리
-    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
-    </a>
-    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('members')">
-      <i class="fas fa-user-gear w-4 text-center text-pink-400"></i> 회원 관리
     </a>
   </nav>
 
