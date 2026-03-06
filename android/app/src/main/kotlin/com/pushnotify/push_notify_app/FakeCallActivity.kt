@@ -27,12 +27,16 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity  v1.0.33
+ * FakeCallActivity  v1.0.35
  *
- * [수정 내역]
- *  1. 벨소리: USAGE_ALARM 으로 변경 → DND 무시, 항상 벨소리 재생
- *  2. streamType: STREAM_RING → STREAM_ALARM 으로 변경
- *  3. 볼륨 강제 설정: AudioManager로 STREAM_ALARM 최대 볼륨 설정 후 복원
+ * [수정 내역 v1.0.35]
+ *  1. 벨소리: USAGE_NOTIFICATION_RINGTONE → 핸드폰 설정 그대로 따름
+ *     - 벨소리 모드: 설정된 벨소리 재생
+ *     - 진동 모드: 진동만
+ *     - 무음 모드: 무음
+ *  2. STREAM_RING 사용 → 핸드폰 벨소리 볼륨 채널 그대로
+ *  3. 볼륨 강제 설정 제거 → 사용자 설정 그대로
+ *  4. AudioManager.RINGER_MODE 확인 → 모드별 처리
  */
 class FakeCallActivity : Activity() {
 
@@ -54,7 +58,6 @@ class FakeCallActivity : Activity() {
     private var isAnswered       = false
     private var isTimeoutDecline = false
     private var wakeLock: PowerManager.WakeLock? = null
-    private var savedAlarmVolume = -1  // 벨소리 볼륨 복원용
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -140,57 +143,49 @@ class FakeCallActivity : Activity() {
     private fun startRinging() {
         val am = getSystemService(AUDIO_SERVICE) as AudioManager
 
-        // [수정] STREAM_ALARM 볼륨 강제 최대 설정 (벨소리가 안 들리는 문제 해결)
-        // 단, 사용자 볼륨 0으로 설정한 경우에도 소리가 나야 하므로 최소 60% 보장
-        try {
-            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            savedAlarmVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
-            val targetVol = maxOf(savedAlarmVolume, (maxVol * 0.6).toInt())
-            am.setStreamVolume(AudioManager.STREAM_ALARM, targetVol, 0)
-            Log.d(TAG, "ALARM 볼륨: $savedAlarmVolume → $targetVol / $maxVol")
-        } catch (e: Exception) {
-            Log.e(TAG, "볼륨 설정 실패: ${e.message}")
+        // [v1.0.35] 핸드폰 벨소리/진동 모드 그대로 따름 (볼륨 강제 설정 없음)
+        val ringerMode = am.ringerMode
+        Log.d(TAG, "ringerMode: $ringerMode (NORMAL=2, VIBRATE=1, SILENT=0)")
+
+        // 벨소리 모드일 때만 소리 재생
+        if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+            val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+            ringtone = RingtoneManager.getRingtone(this, uri)?.also { r ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) r.isLooping = true
+                // USAGE_NOTIFICATION_RINGTONE → 핸드폰 벨소리 설정 그대로 따름
+                r.audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                r.play()
+                Log.d(TAG, "벨소리 재생: $uri")
+            }
         }
 
-        val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-        ringtone = RingtoneManager.getRingtone(this, uri)?.also { r ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) r.isLooping = true
-            // [수정] USAGE_ALARM → DND 우회, 항상 재생
-            r.audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            r.play()
-        }
-
-        vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(VIBRATOR_SERVICE) as Vibrator
-        }
-        val pattern = longArrayOf(0, 700, 300, 700, 300, 700, 300, 700)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(pattern, 0)
+        // 진동 모드 또는 벨소리 모드 모두 진동 실행
+        if (ringerMode == AudioManager.RINGER_MODE_NORMAL || ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
+            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            val pattern = longArrayOf(0, 700, 300, 700, 300, 700, 300, 700)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0)
+            }
+            Log.d(TAG, "진동 시작")
         }
     }
 
     private fun stopRinging() {
         try { ringtone?.stop() } catch (_: Exception) {}
         try { vibrator?.cancel() } catch (_: Exception) {}
-        // 저장된 볼륨 복원
-        if (savedAlarmVolume >= 0) {
-            try {
-                val am = getSystemService(AUDIO_SERVICE) as AudioManager
-                am.setStreamVolume(AudioManager.STREAM_ALARM, savedAlarmVolume, 0)
-            } catch (_: Exception) {}
-            savedAlarmVolume = -1
-        }
     }
 
     // ── 서버에 알람 상태 기록 ────────────────────────────────────────
@@ -382,3 +377,4 @@ class FakeCallActivity : Activity() {
         else      -> "📎 파일 알람"
     }
 }
+
