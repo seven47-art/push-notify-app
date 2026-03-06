@@ -1,180 +1,117 @@
-# 📡 Push Notification Admin Dashboard
+# PushNotify - 폐쇄형 채널 구독 앱
 
-## 프로젝트 개요
-채널 기반 푸시 알림 관리 시스템 (Admin/Channel Owner용 웹 대시보드)
-
-- **목표**: 오디오/비디오/유튜브 콘텐츠를 등록하고, Flutter 앱 구독자에게 FCM 푸시 알림을 발송하는 관리 시스템
-- **아키텍처**: Admin Web → Hono API → D1 DB + FCM → Flutter App (구독자)
-
-## 시스템 아키텍처
-
-```
-[Admin 웹 대시보드]
-        ↓ 1) 콘텐츠 등록 (audio/video/youtube)
-[Hono API 서버 (Cloudflare Workers)]
-        ↓ 2) 구독자 조회 + 배치 생성
-[D1 Database (notification_batches)]
-        ↓ 3) FCM 배치 발송
-[FCM / APNs]
-        ↓ 4) 푸시 수신 (수락/거절)
-[Flutter 앱 (구독자)]
-        ↓ 5) 수락 이벤트 기록
-[D1 Database (notification_logs)]
-```
-
-## 현재 구현된 기능
-
-### ✅ 완료된 기능
-1. **대시보드** - 채널/구독자/콘텐츠/발송 통계 카드, 일별 발송 차트, 수락률 도넛 차트
-2. **채널 관리** - 채널 CRUD, 구독자 수/콘텐츠 수 표시
-3. **콘텐츠 관리** - audio/video/youtube 등록, 등록 후 즉시 발송 옵션
-4. **구독자 관리** - FCM 토큰 관리, 플랫폼별 필터, 수락/거절 이력
-5. **알림 발송** - 채널별 구독자 전체 발송, 발송 이력 조회
-6. **발송 로그** - 개별 발송 상태 (sent/accepted/rejected/failed) 추적
-7. **FCM 발송** - 실제 FCM Server Key 설정 시 live 발송, 미설정 시 시뮬레이션 모드
-
-## API 엔드포인트
-
-### 채널 API
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/api/channels` | 채널 목록 (구독자 수, 콘텐츠 수 포함) |
-| GET | `/api/channels/:id` | 채널 상세 |
-| POST | `/api/channels` | 채널 생성 |
-| PUT | `/api/channels/:id` | 채널 수정 |
-| DELETE | `/api/channels/:id` | 채널 삭제 |
-
-### 콘텐츠 API
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/api/contents?channel_id=X` | 콘텐츠 목록 |
-| GET | `/api/contents/:id` | 콘텐츠 상세 |
-| POST | `/api/contents` | 콘텐츠 등록 (audio/video/youtube) |
-| PUT | `/api/contents/:id` | 콘텐츠 수정 |
-| DELETE | `/api/contents/:id` | 콘텐츠 삭제 |
-
-### 구독자 API (Flutter 앱 연동)
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/api/subscribers?channel_id=X` | 구독자 목록 |
-| POST | `/api/subscribers/register` | FCM 토큰 등록/갱신 (Flutter 앱) |
-| PUT | `/api/subscribers/:id/token` | FCM 토큰 갱신 |
-| DELETE | `/api/subscribers/:id` | 구독 취소 |
-| POST | `/api/subscribers/action` | 수락/거절 이벤트 기록 (Flutter 앱) |
-
-### 알림 API
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/api/notifications/batches` | 발송 배치 목록 |
-| GET | `/api/notifications/batches/:id` | 배치 상세 + 개별 로그 |
-| POST | `/api/notifications/send` | 푸시 알림 발송 |
-| GET | `/api/notifications/stats` | 통계 (전체/채널별) |
-
-## 데이터 모델
-
-### 핵심 테이블
-- **channels**: 채널 정보 (name, owner_id, is_active)
-- **subscribers**: 구독자 + FCM 토큰 (channel_id, user_id, fcm_token, platform)
-- **contents**: 콘텐츠 (channel_id, title, content_type, content_url)
-- **notification_batches**: 발송 배치 (status, total_targets, sent_count, accepted_count)
-- **notification_logs**: 개별 발송 로그 (batch_id, subscriber_id, status, action_at)
-
-### 스토리지
-- **Cloudflare D1** (SQLite): 모든 데이터 저장
-
-## Flutter 앱 연동 가이드
-
-### 1. FCM 토큰 등록
-```dart
-// 앱 시작 시 구독 등록
-await http.post(
-  Uri.parse('/api/subscribers/register'),
-  body: jsonEncode({
-    'channel_id': 1,
-    'user_id': 'unique_user_id',
-    'display_name': '홍길동',
-    'fcm_token': await FirebaseMessaging.instance.getToken(),
-    'platform': Platform.isIOS ? 'ios' : 'android',
-  })
-);
-```
-
-### 2. 수락/거절 이벤트 전송
-```dart
-// 푸시 알림 수락 시 (data payload에서 batch_id, subscriber_id 파싱)
-await http.post(
-  Uri.parse('/api/subscribers/action'),
-  body: jsonEncode({
-    'batch_id': batchId,
-    'subscriber_id': subscriberId,
-    'action': 'accepted', // or 'rejected'
-  })
-);
-```
-
-## FCM 설정 방법
-
-### 로컬 개발 (.dev.vars)
-```
-FCM_SERVER_KEY=your-firebase-server-key
-FCM_PROJECT_ID=your-firebase-project-id
-ADMIN_SECRET=your-admin-secret
-```
-
-### Cloudflare Pages 배포 시
-```bash
-npx wrangler pages secret put FCM_SERVER_KEY --project-name webapp
-```
-
-> FCM_SERVER_KEY가 없으면 자동으로 **시뮬레이션 모드**로 동작 (90% 성공률 랜덤 시뮬레이션)
-
-## 로컬 개발 실행
-
-```bash
-# 의존성 설치
-npm install
-
-# D1 마이그레이션 + 시드 데이터
-npm run db:migrate:local
-npm run db:seed
-
-# 빌드 + 서버 실행
-npm run build
-pm2 start ecosystem.config.cjs
-
-# 서버 확인
-curl http://localhost:3000/api/health
-```
-
-## 배포
-
-```bash
-# Cloudflare D1 생성
-npx wrangler d1 create webapp-production
-
-# wrangler.jsonc의 database_id 업데이트 후
-npm run db:migrate:prod
-npm run deploy:prod
-```
-
-## 기술 스택
-- **Backend**: Hono v4 + TypeScript
-- **Runtime**: Cloudflare Workers / Pages
-- **Database**: Cloudflare D1 (SQLite)
-- **Build**: Vite + @hono/vite-build
-- **Frontend**: TailwindCSS CDN + Chart.js + Axios (CDN)
-- **Push**: FCM Legacy API (Server Key 방식)
-
-## 미구현 / 추후 계획
-
-- [ ] Flutter 앱 클라이언트 구현
-- [ ] FCM v1 HTTP API (OAuth2) 전환
-- [ ] 예약 발송 기능 (Cloud Tasks / Cron Triggers)
-- [ ] 구독자 세그먼트 발송 (플랫폼별, 태그별)
-- [ ] R2 Storage 연동 (오디오/비디오 파일 직접 업로드)
-- [ ] 관리자 인증 (JWT 기반)
-- [ ] 웹훅 연동 (발송 결과 외부 시스템 연동)
-- [ ] 다국어 지원
+초대 링크로만 참여 가능한 폐쇄형 채널에서 푸시 알림을 받는 Flutter Android 앱입니다.
 
 ---
-**Last Updated**: 2026-03-01 | **Status**: ✅ 로컬 개발 환경 동작 중
+
+## 📱 앱 기능
+
+| 화면 | 기능 |
+|------|------|
+| 홈 | 내 구독 채널 목록, 초대 링크 입력 |
+| 채널 | 구독 중인 채널 목록 및 상세 콘텐츠 |
+| 알림 | 받은 알림 목록, 수락/거절 |
+| 설정 | 기기 ID, FCM 토큰 확인, 초기화 |
+
+---
+
+## 🔨 로컬 빌드 방법
+
+### 사전 요구사항
+- Flutter SDK 3.x 이상
+- Android Studio 또는 Android SDK (API 34)
+- Java 17
+
+### ✅ 권장 빌드 명령어 (설치 가능 + 소형 APK)
+
+```bash
+# 1. 패키지 설치
+flutter pub get
+
+# 2. APK 빌드 - arm64 단일 아키텍처 (권장: 파일 작음, 최신폰 대부분 지원)
+flutter build apk --debug --target-platform android-arm64
+
+# APK 위치: build/app/outputs/flutter-apk/app-debug.apk
+# 예상 크기: 약 20~25MB
+```
+
+### 구형 폰도 지원이 필요하다면 (arm 포함)
+```bash
+flutter build apk --debug --target-platform android-arm,android-arm64
+# 예상 크기: 약 35~40MB
+```
+
+### 기기 직접 설치
+```bash
+# USB 연결 후
+flutter install
+
+# 또는 ADB
+adb install build/app/outputs/flutter-apk/app-debug.apk
+```
+
+---
+
+## ⚠️ 핸드폰 설치 전 체크리스트
+
+1. **출처를 알 수 없는 앱 허용**: 설정 → 보안 → 알 수 없는 앱 설치 허용
+2. **Android 5.0 이상** 필요 (minSdk=21)
+3. **arm64 기기** 필요 (2016년 이후 출시 스마트폰 대부분 해당)
+
+---
+
+## ⚙️ API 서버 URL 설정
+
+`lib/services/api_service.dart` 파일에서 `_baseUrl` 변경:
+
+```dart
+// 현재 (샌드박스 테스트 서버 - 임시)
+static const String _baseUrl = 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai';
+
+// Cloudflare Pages 배포 후 변경
+static const String _baseUrl = 'https://your-project.pages.dev';
+
+// 로컬 PC 테스트 시 (Android 에뮬레이터)
+static const String _baseUrl = 'http://10.0.2.2:3000';
+```
+
+---
+
+## 🔗 주요 API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/invites/verify/:token` | 초대 링크 검증 |
+| POST | `/api/invites/join` | 채널 참여 |
+| GET | `/api/subscribers?user_id=` | 내 구독 채널 |
+| POST | `/api/subscribers/action` | 알림 수락/거절 |
+| GET | `/api/contents?channel_id=` | 채널 콘텐츠 |
+
+---
+
+## 📂 프로젝트 구조
+
+```
+lib/
+├── main.dart                     # 앱 진입점, 라우팅
+├── services/
+│   └── api_service.dart          # API 통신 (URL 설정 여기서)
+└── screens/
+    ├── splash_screen.dart         # 스플래시
+    ├── home_screen.dart           # 홈 (초대 링크 입력)
+    ├── join_channel_screen.dart   # 채널 참여
+    ├── my_channels_screen.dart    # 내 채널 목록
+    ├── channel_detail_screen.dart # 채널 콘텐츠
+    ├── notification_screen.dart   # 알림 내역
+    └── settings_screen.dart       # 설정
+```
+
+---
+
+## 🚀 GitHub Actions 자동 빌드
+
+`.github/workflows/build.yml` 포함 — GitHub에 push하면 자동으로 APK 생성.
+
+1. GitHub 레포 생성 후 push
+2. Actions 탭 → `Build APK` 실행 확인
+3. Artifacts에서 `push-notify-debug-apk` 다운로드
