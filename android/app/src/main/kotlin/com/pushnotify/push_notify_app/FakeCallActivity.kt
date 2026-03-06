@@ -27,16 +27,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity
+ * FakeCallActivity  v1.0.33
  *
- * 역할: fullScreenIntent로 잠금화면 위에 표시되는 전화 수신 UI
- *
- * 흐름:
- *   AlarmPollingService / RinGoFCMService
- *   → nm.notify(fullScreenIntent) → 이 Activity 실행
- *   → 벨소리 + 진동 + 수락/거절 UI
- *   → [수락] → ContentPlayerActivity (콘텐츠 재생)
- *   → [거절/타임아웃] → 서버에 상태 기록 후 종료
+ * [수정 내역]
+ *  1. 벨소리: USAGE_ALARM 으로 변경 → DND 무시, 항상 벨소리 재생
+ *  2. streamType: STREAM_RING → STREAM_ALARM 으로 변경
+ *  3. 볼륨 강제 설정: AudioManager로 STREAM_ALARM 최대 볼륨 설정 후 복원
  */
 class FakeCallActivity : Activity() {
 
@@ -58,6 +54,7 @@ class FakeCallActivity : Activity() {
     private var isAnswered       = false
     private var isTimeoutDecline = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private var savedAlarmVolume = -1  // 벨소리 볼륨 복원용
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -68,7 +65,7 @@ class FakeCallActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // WakeLock — Activity 레벨에서 화면 강제 켜기 (서비스의 WakeLock 보조)
+        // WakeLock — Activity 레벨 화면 강제 켜기
         try {
             val pm = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(
@@ -81,7 +78,7 @@ class FakeCallActivity : Activity() {
             Log.e(TAG, "WakeLock 실패: ${e.message}")
         }
 
-        // 잠금화면 위 표시 설정
+        // 잠금화면 위 표시
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -105,7 +102,7 @@ class FakeCallActivity : Activity() {
         val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
         val homepageUrl = intent.getStringExtra(EXTRA_HOMEPAGE_URL) ?: ""
 
-        // fullScreenIntent로 열릴 때 발행된 알림 취소 (드로어에 남지 않도록)
+        // fullScreenIntent로 열릴 때 발행된 알림 취소
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.cancel(alarmId + 10000)
@@ -141,17 +138,30 @@ class FakeCallActivity : Activity() {
 
     // ── 벨소리 + 진동 ────────────────────────────────────────────────
     private fun startRinging() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+
+        // [수정] STREAM_ALARM 볼륨 강제 최대 설정 (벨소리가 안 들리는 문제 해결)
+        // 단, 사용자 볼륨 0으로 설정한 경우에도 소리가 나야 하므로 최소 60% 보장
+        try {
+            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            savedAlarmVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            val targetVol = maxOf(savedAlarmVolume, (maxVol * 0.6).toInt())
+            am.setStreamVolume(AudioManager.STREAM_ALARM, targetVol, 0)
+            Log.d(TAG, "ALARM 볼륨: $savedAlarmVolume → $targetVol / $maxVol")
+        } catch (e: Exception) {
+            Log.e(TAG, "볼륨 설정 실패: ${e.message}")
+        }
+
         val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
         ringtone = RingtoneManager.getRingtone(this, uri)?.also { r ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) r.isLooping = true
+            // [수정] USAGE_ALARM → DND 우회, 항상 재생
             r.audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
-            @Suppress("DEPRECATION")
-            r.streamType = AudioManager.STREAM_RING
             r.play()
         }
 
@@ -173,6 +183,14 @@ class FakeCallActivity : Activity() {
     private fun stopRinging() {
         try { ringtone?.stop() } catch (_: Exception) {}
         try { vibrator?.cancel() } catch (_: Exception) {}
+        // 저장된 볼륨 복원
+        if (savedAlarmVolume >= 0) {
+            try {
+                val am = getSystemService(AUDIO_SERVICE) as AudioManager
+                am.setStreamVolume(AudioManager.STREAM_ALARM, savedAlarmVolume, 0)
+            } catch (_: Exception) {}
+            savedAlarmVolume = -1
+        }
     }
 
     // ── 서버에 알람 상태 기록 ────────────────────────────────────────
@@ -261,7 +279,6 @@ class FakeCallActivity : Activity() {
         })
         root.addView(space(32))
 
-        // 아이콘 (맥박 펄스 애니메이션)
         val iconFrame = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(160), dp(160)).apply { gravity = Gravity.CENTER_HORIZONTAL }
         }
@@ -307,12 +324,10 @@ class FakeCallActivity : Activity() {
             setPadding(dp(14), dp(6), dp(14), dp(6))
         })
 
-        // 빈 공간 (버튼을 아래로)
         root.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
 
-        // 거절/수락 버튼 행
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
