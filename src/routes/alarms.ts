@@ -239,14 +239,62 @@ alarms.get('/', async (c) => {
 })
 
 // =============================================
-// DELETE /api/alarms/:id  - 알람 취소
+// DELETE /api/alarms/:id  - 알람 삭제 + FCM alarm_cancel 신호 발송
 // =============================================
 alarms.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
+
+    // 알람 + 채널 정보 조회
+    const alarm: any = await c.env.DB.prepare(`
+      SELECT a.id, a.status, a.channel_id, a.msg_type, ch.name as channel_name
+      FROM alarm_schedules a
+      LEFT JOIN channels ch ON ch.id = a.channel_id
+      WHERE a.id = ?
+    `).bind(id).first()
+    if (!alarm) return c.json({ success: false, error: '알람을 찾을 수 없습니다' }, 404)
+
+    // FCM alarm_cancel 신호 발송 (pending 상태인 경우만 - 아직 앱에 예약된 상태)
+    if (alarm.status === 'pending') {
+      const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+      const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
+
+      if (fcmServiceAccount && fcmProjectId) {
+        // 해당 채널 구독자 FCM 토큰 수집
+        const { results: subs } = await c.env.DB.prepare(`
+          SELECT s.user_id, COALESCE(s.fcm_token, u.fcm_token) as fcm_token
+          FROM subscribers s
+          LEFT JOIN users u ON s.user_id = u.user_id
+          WHERE s.channel_id = ? AND s.is_active = 1
+            AND COALESCE(s.fcm_token, u.fcm_token) IS NOT NULL
+        `).bind(alarm.channel_id).all() as { results: any[] }
+
+        const cancelPayload: Record<string, string> = {
+          type:         'alarm_cancel',   // 앱이 AlarmManager 취소하는 신호
+          alarm_id:     String(id),
+          channel_name: alarm.channel_name || '',
+        }
+
+        // 모든 구독자에게 취소 신호 발송 (fire-and-forget)
+        const sendPromises = subs
+          .filter(s => s.fcm_token)
+          .map(s => sendFCMDataMessage(s.fcm_token, cancelPayload, fcmServiceAccount, fcmProjectId)
+            .catch(() => ({ success: false }))
+          )
+        c.executionCtx?.waitUntil(Promise.all(sendPromises))
+      }
+    }
+
+    // alarm_logs 먼저 삭제 (FK 제약 방지)
     await c.env.DB.prepare(
-      "UPDATE alarm_schedules SET status = 'cancelled' WHERE id = ? AND status = 'pending'"
+      "DELETE FROM alarm_logs WHERE alarm_id = ?"
     ).bind(id).run()
+
+    // 알람 스케줄 삭제
+    await c.env.DB.prepare(
+      "DELETE FROM alarm_schedules WHERE id = ?"
+    ).bind(id).run()
+
     return c.json({ success: true })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

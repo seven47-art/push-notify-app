@@ -714,8 +714,26 @@ async function loadSubscribers() {
         <td class="px-5 py-3 text-center">
           <span class="${s.is_active ? 'badge-completed' : 'badge-failed'} badge">${s.is_active ? '활성' : '비활성'}</span>
         </td>
+        <td class="px-5 py-3 text-center">
+          <button onclick="deleteSubscriber(${s.id}, '${(s.display_name || s.user_id).replace(/'/g, "\\'")}')"
+            class="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-1 rounded transition text-sm"
+            title="삭제"><i class="fas fa-trash"></i>
+          </button>
+        </td>
       </tr>`).join('')
   } catch (e) { showToast('구독자 로드 오류: ' + e.message, 'error') }
+}
+
+async function deleteSubscriber(id, name) {
+  if (!confirm(`"${name}" 구독자를 삭제하시겠습니까?`)) return
+  try {
+    const { data: res } = await API.delete(`/subscribers/${id}`)
+    if (!res.success) throw new Error(res.error || '삭제 실패')
+    showToast('구독자가 삭제되었습니다')
+    await loadSubscribers()
+  } catch (e) {
+    showToast('삭제 실패: ' + e.message, 'error')
+  }
 }
 
 // =============================================
@@ -954,7 +972,7 @@ let allAlarms = []
 
 async function loadAlarmManagement() {
   try {
-    const res = await API.get('/alarms')
+    const { data: res } = await API.get('/alarms')
     if (!res.success) throw new Error('알람 로드 실패')
     allAlarms = res.data || []
 
@@ -1053,12 +1071,12 @@ async function deleteAlarm(id) {
   const label = alarm ? `채널 "${alarm.channel_name}" 알람 (${new Date(alarm.scheduled_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})})` : `알람 #${id}`
   if (!confirm(`${label}\n\n이 알람을 삭제하시겠습니까?`)) return
   try {
-    const res = await API.delete(`/alarms/${id}`)
+    const { data: res } = await API.delete(`/alarms/${id}`)
     if (!res.success) throw new Error(res.error || '삭제 실패')
-    toast('알람이 삭제되었습니다')
+    showToast('알람이 삭제되었습니다')
     await loadAlarmManagement()
   } catch (e) {
-    toast('삭제 실패: ' + e.message, 'error')
+    showToast('삭제 실패: ' + e.message, 'error')
   }
 }
 

@@ -572,6 +572,7 @@ app.get('/', (c) => {
               <th class="text-center px-5 py-3 text-slate-400 font-medium">거절</th>
               <th class="text-left px-5 py-3 text-slate-400 font-medium">구독일</th>
               <th class="text-center px-5 py-3 text-slate-400 font-medium">상태</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">삭제</th>
             </tr></thead>
             <tbody id="subscribersTable"></tbody>
           </table>

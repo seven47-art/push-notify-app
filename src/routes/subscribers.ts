@@ -105,14 +105,14 @@ subscribers.delete('/leave', async (c) => {
   }
 })
 
-// DELETE /api/subscribers/:id - 구독 취소 (subscriber row id)
+// DELETE /api/subscribers/:id - 구독자 완전 삭제 (subscriber row id)
 subscribers.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     await c.env.DB.prepare(`
-      UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      DELETE FROM subscribers WHERE id = ?
     `).bind(id).run()
-    return c.json({ success: true, message: 'Subscription cancelled' })
+    return c.json({ success: true, message: 'Subscriber deleted' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
