@@ -2,7 +2,7 @@ name: push_notify_app
 description: "Push Notification Subscriber App - 폐쇄형 채널 구독 앱"
 publish_to: 'none'
 
-version: 1.0.31+31
+version: 1.0.32+32
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -34,3 +34,4 @@ flutter:
   assets:
     - assets/images/
     - assets/sounds/
+
