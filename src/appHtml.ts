@@ -729,10 +729,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-video" style="color:#fff;"></i></div>
           <span class="msg-type-label">비디오</span>
         </div>
-        <div class="msg-type-btn" id="src-file" onclick="App.selectMsgSrc('file')">
-          <div class="msg-type-icon" style="background:#9C27B0;"><i class="fas fa-paperclip" style="color:#fff;"></i></div>
-          <span class="msg-type-label">파일</span>
-        </div>
       </div>
       <!-- 소스별 입력 영역 -->
       <div class="msg-input-area" id="alarm-input-area">
@@ -744,49 +740,54 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
             class="form-input" style="margin:0;">
         </div>
 
-        <!-- 오디오: 녹음 앱 실행 버튼 -->
+        <!-- 오디오: 직접 녹음 / 파일 선택 -->
         <div id="alarm-area-audio" style="display:none;">
-          <button class="alarm-media-launch-btn" onclick="App.launchRecorder('audio')">
-            <i class="fas fa-microphone" style="font-size:22px;color:#4CAF50;"></i>
-            <div>
-              <div style="font-weight:700;font-size:14px;">녹음 앱 실행</div>
-              <div style="font-size:11px;color:var(--text3);">Android 녹음 앱을 열어 녹음 후 파일을 선택하세요</div>
-            </div>
-          </button>
+          <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.launchRecorder('audio')">
+              <i class="fas fa-microphone" style="font-size:20px;color:#4CAF50;"></i>
+              <div>
+                <div style="font-weight:700;font-size:13px;">직접 녹음</div>
+                <div style="font-size:11px;color:var(--text3);">녹음 앱 실행</div>
+              </div>
+            </button>
+            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.pickAudioFile()">
+              <i class="fas fa-folder-open" style="font-size:20px;color:#4CAF50;"></i>
+              <div>
+                <div style="font-weight:700;font-size:13px;">파일 선택</div>
+                <div style="font-size:11px;color:var(--text3);">mp3 파일만 선택 가능</div>
+              </div>
+            </button>
+          </div>
           <input id="alarm-audio-file" type="file" accept="audio/mpeg,.mp3"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
-          <button class="alarm-file-select-btn" onclick="App.pickAudioFile()">
-            <i class="fas fa-folder-open"></i> 저장된 오디오 파일 선택
-          </button>
           <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
 
-        <!-- 비디오: 녹화 앱 실행 버튼 -->
+        <!-- 비디오: 직접 녹화 / 파일 선택 -->
         <div id="alarm-area-video" style="display:none;">
-          <button class="alarm-media-launch-btn" onclick="App.launchRecorder('video')">
-            <i class="fas fa-video" style="font-size:22px;color:#2196F3;"></i>
-            <div>
-              <div style="font-weight:700;font-size:14px;">카메라(녹화) 앱 실행</div>
-              <div style="font-size:11px;color:var(--text3);">Android 카메라 앱을 열어 녹화 후 파일을 선택하세요</div>
-            </div>
-          </button>
+          <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.launchRecorder('video')">
+              <i class="fas fa-video" style="font-size:20px;color:#2196F3;"></i>
+              <div>
+                <div style="font-weight:700;font-size:13px;">직접 녹화</div>
+                <div style="font-size:11px;color:var(--text3);">카메라 앱 실행</div>
+              </div>
+            </button>
+            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.pickVideoFile()">
+              <i class="fas fa-folder-open" style="font-size:20px;color:#2196F3;"></i>
+              <div>
+                <div style="font-weight:700;font-size:13px;">파일 선택</div>
+                <div style="font-size:11px;color:var(--text3);">mp4 파일만 선택 가능</div>
+              </div>
+            </button>
+          </div>
           <input id="alarm-video-file" type="file" accept="video/mp4,.mp4"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
-          <button class="alarm-file-select-btn" onclick="App.pickVideoFile()">
-            <i class="fas fa-folder-open"></i> 저장된 비디오 파일 선택
-          </button>
           <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
 
-        <!-- 파일: 사용할 앱 선택 (Android 공유 시트) -->
+        <!-- 파일: 하위 호환용 (숨김 유지) -->
         <div id="alarm-area-file" style="display:none;">
-          <button class="alarm-media-launch-btn" onclick="App.launchFilePicker()">
-            <i class="fas fa-share-alt" style="font-size:22px;color:#9C27B0;"></i>
-            <div>
-              <div style="font-weight:700;font-size:14px;">파일 선택 (앱 선택)</div>
-              <div style="font-size:11px;color:var(--text3);">mp3, mp4 파일만 선택 가능합니다</div>
-            </div>
-          </button>
           <input id="alarm-attach-file" type="file" accept="audio/mpeg,video/mp4,.mp3,.mp4"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
           <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>

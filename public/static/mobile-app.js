@@ -946,8 +946,8 @@ const App = {
     alarmMsgSrc = src
     window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
 
-    // 버튼 선택 표시
-    ;['youtube','audio','video','file'].forEach(s => {
+    // 버튼 선택 표시 (youtube, audio, video 3개)
+    ;['youtube','audio','video'].forEach(s => {
       document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
     })
     // 영역 전환: 각 소스별 div 표시/숨김
