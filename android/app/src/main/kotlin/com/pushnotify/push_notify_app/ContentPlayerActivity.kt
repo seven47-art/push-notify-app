@@ -339,7 +339,7 @@ class ContentPlayerActivity : Activity() {
             setPadding(dp(20), dp(16), dp(20), dp(20))
         }
 
-        // ── 채널 대표이미지 (사각형 썸네일, 둥근 모서리) ──────────────
+        // ── 채널 대표이미지 (원형) ─────────────────────────────────
         val thumbSize = dp(100)
         val channelThumb = ImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also {
@@ -347,19 +347,16 @@ class ContentPlayerActivity : Activity() {
             }
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
+                shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#3D2F6E"))
             }
-            // clipToOutline: 배경 둥근 모서리가 이미지에도 적용되도록
-            clipToOutline = true
-            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
             setImageResource(R.drawable.ringo_icon)
         }
         infoPanel.addView(channelThumb)
 
         // 채널 이미지 비동기 로드
         if (channelPublicId.isNotEmpty()) {
-            loadChannelImageIntoView(channelPublicId, channelThumb, rounded = true)
+            loadChannelImageIntoView(channelPublicId, channelThumb)
         }
 
         // ── 채널명 ────────────────────────────────────────────────
@@ -383,7 +380,8 @@ class ContentPlayerActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(1, 0, 1f)
         })
 
-        // ── 홈페이지 버튼 (있을 때만) ─────────────────────────────
+        // ── 종료 버튼 + 홈페이지 버튼 묶음 (홈페이지 버튼이 종료 버튼 바로 위) ──
+        // 홈페이지 버튼 (있을 때만)
         if (homepageUrl.isNotEmpty()) {
             val hpUrl = if (homepageUrl.startsWith("http")) homepageUrl else "https://$homepageUrl"
             infoPanel.addView(TextView(this).apply {
@@ -461,8 +459,7 @@ class ContentPlayerActivity : Activity() {
     // ── 채널 이미지 API 로드 ──────────────────────────────────────
     private fun loadChannelImageIntoView(
         publicId: String,
-        imageView: ImageView,
-        rounded: Boolean = false
+        imageView: ImageView
     ) {
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
         val baseUrl = prefs.getString("base_url", "")
@@ -497,12 +494,13 @@ class ContentPlayerActivity : Activity() {
                         bmp
                     }
                     // rounded=true 이면 원형, false면 원본 비트맵 그대로 (사각형은 clipToOutline으로 처리)
-                    if (rounded) raw?.let { toCircleBitmap(it) } else raw
+                    // 항상 원형으로 처리
+                    raw?.let { toCircleBitmap(it) }
                 }
 
                 if (bitmap != null) {
                     imageView.background = GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
+                        shape = GradientDrawable.OVAL
                         setColor(Color.BLACK)
                     }
                     imageView.setImageBitmap(bitmap)

@@ -597,7 +597,8 @@ alarms.post('/trigger', async (c) => {
 alarms.get('/pending', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
-      SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id
+      SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id,
+             ch.homepage_url as channel_homepage_url
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status = 'pending'
