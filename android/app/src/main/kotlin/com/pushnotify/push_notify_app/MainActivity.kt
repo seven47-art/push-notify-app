@@ -4,6 +4,7 @@ import android.accounts.AccountManager
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
+import android.media.MediaRecorder
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -29,10 +30,14 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_SERVICE      = "com.pushnotify/alarm_service"
     private val CHANNEL_ALARM        = "com.pushnotify/alarm_data"
     private val CHANNEL_PERMISSIONS  = "com.pushnotify/permissions"
+    private val CHANNEL_AUDIO        = "com.pushnotify.push_notify_app/audio_recorder"
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
     private var alarmChannel: MethodChannel? = null
+
+    // 오디오 녹음
+    private var mediaRecorder: MediaRecorder? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -161,6 +166,52 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) { result.success(false) }
                     }
 
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 오디오 녹음 채널 (MediaRecorder 직접 구현)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_AUDIO)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startRecording" -> {
+                        try {
+                            val path = call.argument<String>("path") ?: ""
+                            mediaRecorder?.release()
+                            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                MediaRecorder(applicationContext)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaRecorder()
+                            }
+                            mediaRecorder!!.apply {
+                                setAudioSource(MediaRecorder.AudioSource.MIC)
+                                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                                setAudioSamplingRate(44100)
+                                setAudioEncodingBitRate(128000)
+                                setOutputFile(path)
+                                prepare()
+                                start()
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            mediaRecorder?.release()
+                            mediaRecorder = null
+                            result.error("RECORD_ERROR", e.message, null)
+                        }
+                    }
+                    "stopRecording" -> {
+                        try {
+                            mediaRecorder?.apply { stop(); release() }
+                            mediaRecorder = null
+                            result.success(true)
+                        } catch (e: Exception) {
+                            mediaRecorder?.release()
+                            mediaRecorder = null
+                            result.error("STOP_ERROR", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -11,9 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-// android_intent_plus: 미사용 (record_audio/video가 record/ImagePicker로 대체됨)
+// android_intent_plus: 미사용 (record_audio/video가 MethodChannel/ImagePicker로 대체됨)
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -276,8 +275,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   bool  _hasError = false;
   int   _loadingProgress = 0;
 
-  // ── 오디오 녹음 상태 ──
-  Record? _pendingAudioRecorder;
+  // ── 오디오 녹음 상태 (Kotlin MethodChannel 방식) ──
+  static const _audioChannel = MethodChannel('com.pushnotify.push_notify_app/audio_recorder');
+  bool _isAudioRecording = false;
   String? _pendingAudioPath;
   int? _pendingAudioTimestamp;
 
@@ -572,79 +572,61 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   }
 
   Future<void> _launchAudioRecorder() async {
-    final recorder = Record();
     try {
-      // 마이크 권한 확인
-      final hasPermission = await recorder.hasPermission();
-      if (!hasPermission) {
-        await recorder.dispose();
-        _sendToWeb('window._flutterFileError', {
-          'type': 'audio',
-          'error': '마이크 권한이 없습니다.'
-        });
-        return;
-      }
-
-      // 임시 저장 경로 설정
       final dir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final filePath = '${dir.path}/recording_$timestamp.m4a';
 
-      // 녹음 시작
-      await recorder.start(
-        path: filePath,
-        encoder: AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-      );
-
-      // 녹음 중임을 웹에 알림 (UI 표시용)
-      _controller.runJavaScript('''
-        if (typeof showToast === "function") showToast("🎙️ 녹음 중... 완료하려면 다시 누르세요");
-      ''');
-
-      // 웹에서 녹음 중지 신호를 받을 때까지 대기
-      // FlutterBridge로 stop_audio_record 메시지를 받으면 중지
-      _pendingAudioRecorder = recorder;
-      _pendingAudioPath = filePath;
-      _pendingAudioTimestamp = timestamp;
+      // Kotlin MediaRecorder 시작
+      final result = await _audioChannel.invokeMethod('startRecording', {'path': filePath});
+      if (result == true) {
+        _isAudioRecording = true;
+        _pendingAudioPath = filePath;
+        _pendingAudioTimestamp = timestamp;
+        _controller.runJavaScript(
+          'if (typeof showToast === "function") showToast("🎙️ 녹음 중... 완료하려면 다시 누르세요");'
+        );
+      } else {
+        _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': '녹음 시작 실패'});
+      }
     } catch (e) {
-      await recorder.dispose();
       _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
     }
   }
 
   // 녹음 중지 및 파일 반환
   Future<void> _stopAudioRecorder() async {
-    if (_pendingAudioRecorder == null) return;
+    if (!_isAudioRecording) return;
     try {
-      await _pendingAudioRecorder!.stop();
-      await _pendingAudioRecorder!.dispose();
+      // Kotlin MediaRecorder 중지
+      await _audioChannel.invokeMethod('stopRecording');
+      _isAudioRecording = false;
+
       final path = _pendingAudioPath;
       final timestamp = _pendingAudioTimestamp;
-      _pendingAudioRecorder = null;
       _pendingAudioPath = null;
       _pendingAudioTimestamp = null;
 
       if (path != null) {
         final file = File(path);
-        final fileSize = await file.length();
-        final fileName = 'recording_${timestamp ?? DateTime.now().millisecondsSinceEpoch}.m4a';
-        _sendToWeb('window._flutterFileCallback', {
-          'type': 'audio',
-          'name': fileName,
-          'path': path,
-          'size': fileSize,
-          'base64': ''
-        });
+        if (await file.exists()) {
+          final fileSize = await file.length();
+          final fileName = 'recording_${timestamp ?? DateTime.now().millisecondsSinceEpoch}.m4a';
+          _sendToWeb('window._flutterFileCallback', {
+            'type': 'audio',
+            'name': fileName,
+            'path': path,
+            'size': fileSize,
+            'base64': ''
+          });
+        } else {
+          _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
+        }
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
     } catch (e) {
-      _pendingAudioRecorder?.dispose();
-      _pendingAudioRecorder = null;
-      _pendingAudioPath = null;
-      _pendingAudioTimestamp = null;
+      _isAudioRecording = false;
       _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
     }
   }
