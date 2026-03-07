@@ -537,21 +537,19 @@ class FakeCallActivity : Activity() {
     // 수락 / 거절
     // ─────────────────────────────────────────────────────────────────────
     private fun handleAccept() {
-        Log.d(TAG, "수락 → alarmId=$alarmId")
+        Log.d(TAG, "수락 → alarmId=$alarmId, msgType=$msgType, msgValue=$msgValue")
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
-        // 메인 앱으로 알람 데이터 전달
-        val mainIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("alarm_answered",    true)
-            putExtra("alarm_channel_name", channelName)
-            putExtra("alarm_msg_type",     msgType)
-            putExtra("alarm_msg_value",    msgValue)
-            putExtra("alarm_id",           alarmId)
-            putExtra("alarm_content_url",  contentUrl)
-        }
-        startActivity(mainIntent)
+        // ContentPlayerActivity로 바로 이동 (콘텐츠 재생 화면)
+        ContentPlayerActivity.start(
+            context     = this,
+            msgType     = msgType,
+            msgValue    = msgValue,
+            contentUrl  = contentUrl,
+            channelName = channelName,
+            homepageUrl = homepageUrl
+        )
         finishAlarm()
     }
 
