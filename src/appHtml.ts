@@ -743,11 +743,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <!-- 오디오: 직접 녹음 / 파일 선택 -->
         <div id="alarm-area-audio" style="display:none;">
           <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.launchRecorder('audio')">
+            <button id="record-audio-btn" class="alarm-media-launch-btn bg-teal-500 hover:bg-teal-600" style="flex:1;" onclick="App.launchRecorder('audio')">
               <i class="fas fa-microphone" style="font-size:20px;color:#4CAF50;"></i>
               <div>
                 <div style="font-weight:700;font-size:13px;">직접 녹음</div>
-                <div style="font-size:11px;color:var(--text3);">녹음 앱 실행</div>
+                <div style="font-size:11px;color:var(--text3);">녹음 시작/중지</div>
               </div>
             </button>
             <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.pickAudioFile()">

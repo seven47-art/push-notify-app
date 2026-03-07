@@ -1016,10 +1016,38 @@ const App = {
   // ── 녹음/녹화/파일 앱 실행 ──────────────────
   // Flutter: FlutterBridge.postMessage → 네이티브 Intent
   // 브라우저: input[type=file] 직접 호출
+  _audioRecording: false,  // 오디오 녹음 진행 중 여부
+
   launchRecorder(type) {
     if (window.FlutterBridge) {
-      const actionMap = { audio: 'record_audio', video: 'record_video' }
-      window.FlutterBridge.postMessage(JSON.stringify({ action: actionMap[type] || 'record_audio' }))
+      if (type === 'audio') {
+        // 오디오: 시작/중지 토글
+        if (!this._audioRecording) {
+          // 녹음 시작
+          this._audioRecording = true
+          const btn = document.getElementById('record-audio-btn')
+          if (btn) {
+            btn.innerHTML = '<i class="fas fa-stop-circle mr-1"></i>녹음 중지'
+            btn.classList.remove('bg-teal-500', 'hover:bg-teal-600')
+            btn.classList.add('bg-red-500', 'hover:bg-red-600')
+          }
+          if (typeof showToast === 'function') showToast('🎙️ 녹음 중... 완료하려면 다시 누르세요')
+          window.FlutterBridge.postMessage(JSON.stringify({ action: 'record_audio' }))
+        } else {
+          // 녹음 중지
+          this._audioRecording = false
+          const btn = document.getElementById('record-audio-btn')
+          if (btn) {
+            btn.innerHTML = '<i class="fas fa-microphone mr-1"></i>직접 녹음'
+            btn.classList.remove('bg-red-500', 'hover:bg-red-600')
+            btn.classList.add('bg-teal-500', 'hover:bg-teal-600')
+          }
+          window.FlutterBridge.postMessage(JSON.stringify({ action: 'stop_audio_record' }))
+        }
+      } else {
+        // 비디오: 기존 방식
+        window.FlutterBridge.postMessage(JSON.stringify({ action: 'record_video' }))
+      }
     } else {
       const inputId = { audio: 'alarm-audio-file', video: 'alarm-video-file' }[type]
       const input = document.getElementById(inputId)
@@ -1505,6 +1533,17 @@ window._flutterFileCallback = function(data) {
   // ⚠️ base64는 비어 있음 - SQLITE_TOOBIG 방지, 파일명/경로만 저장
   const { type, name, path, size } = data
 
+  // 오디오 녹음 완료 시 버튼 상태 리셋
+  if (type === 'audio' && App._audioRecording) {
+    App._audioRecording = false
+    const btn = document.getElementById('record-audio-btn')
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-microphone mr-1"></i>직접 녹음'
+      btn.classList.remove('bg-red-500', 'hover:bg-red-600')
+      btn.classList.add('bg-teal-500', 'hover:bg-teal-600')
+    }
+  }
+
   // 파일명을 msg_value로 사용 (DB 저장용)
   window._selectedAlarmFile = name  // 파일명만 저장
   window._selectedAlarmPath = path  // 로컬 경로 (참고용)
@@ -1518,6 +1557,16 @@ window._flutterFileCallback = function(data) {
 }
 
 window._flutterFileCancelled = function(data) {
+  // 오디오 녹음 취소 시 버튼 상태 리셋
+  if (data?.type === 'audio' && App._audioRecording) {
+    App._audioRecording = false
+    const btn = document.getElementById('record-audio-btn')
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-microphone mr-1"></i>직접 녹음'
+      btn.classList.remove('bg-red-500', 'hover:bg-red-600')
+      btn.classList.add('bg-teal-500', 'hover:bg-teal-600')
+    }
+  }
   // 녹음/녹화 앱 실행 후 취소 or 앱이 열린 경우 안내
   if (data?.message) {
     toast('📱 ' + data.message, 5000)
@@ -1525,6 +1574,16 @@ window._flutterFileCancelled = function(data) {
 }
 
 window._flutterFileError = function(data) {
+  // 오디오 녹음 오류 시 버튼 상태 리셋
+  if (data?.type === 'audio' && App._audioRecording) {
+    App._audioRecording = false
+    const btn = document.getElementById('record-audio-btn')
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-microphone mr-1"></i>직접 녹음'
+      btn.classList.remove('bg-red-500', 'hover:bg-red-600')
+      btn.classList.add('bg-teal-500', 'hover:bg-teal-600')
+    }
+  }
   toast('파일 선택 오류: ' + (data?.error || '알 수 없는 오류'), 3000)
 }
 
