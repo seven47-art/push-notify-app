@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 40),
                 const Center(
                   child: Text(
-                    'RinGo v1.0.31\n© 2026 RinGo',
+                    'RinGo v1.0.48\n© 2026 RinGo',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
@@ -240,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               Text(
-                '폐쇄형 채널 알림 앱 v1.0.31',
+                '폐쇄형 채널 알림 앱 v1.0.48',
                 style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ],

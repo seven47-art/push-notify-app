@@ -520,9 +520,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
-    <div class="settings-menu-item" onclick="toast('v1.0.30 (web)')">
+    <div class="settings-menu-item" onclick="toast('v1.0.48 (web)')">
       <i class="fas fa-info-circle"></i> 버전
-      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.30</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.48</span>
     </div>
 
     <div class="settings-menu-label" style="margin-top:8px;">계정 정보</div>
@@ -610,14 +610,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.30 (web)')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.48 (web)')">
     <i class="fas fa-info-circle"></i> 버전
-    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.30</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.48</span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
     <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
-  <div class="drawer-version">RinGo Web v1.0.30</div>
+  <div class="drawer-version">RinGo Web v1.0.48</div>
 </div>
 
 <!-- ══ 모달: 채널 만들기 ══ -->
@@ -895,6 +895,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
-<script src="/static/mobile-app.js?v=202603051220"></script>
+<script src="/static/mobile-app.js?v=202603071500"></script>
 </body>
 </html>`;
