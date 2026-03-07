@@ -975,15 +975,11 @@ const App = {
       return
     }
 
-    // 프리뷰 ID 매핑
+    // 프리뷰 표시 (파일명 + 용량 + X 버튼)
     const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
-    const preview = document.getElementById(previewId)
-    if (!preview) return
     const icons = { audio:'🎵', video:'🎬', file:'📎' }
-    const sizeMB = (file.size / 1024 / 1024).toFixed(2)
-    const sizeStr = file.size > 1024*1024 ? sizeMB + ' MB' : (file.size/1024).toFixed(0) + ' KB'
-    preview.textContent = (icons[type] || '📎') + ' ' + file.name + ' (' + sizeStr + ')'
-    preview.style.display = 'block'
+    const sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(2) + ' MB' : Math.round(file.size/1024) + ' KB'
+    App._showFilePreview(previewId, (icons[type] || '📎') + ' ' + file.name + ' (' + sizeStr + ')', type)
 
     // FileReader로 base64 변환 후 저장 (서버 전송용)
     const reader = new FileReader()
@@ -992,6 +988,34 @@ const App = {
     }
     reader.readAsDataURL(file)
     input.value = ''
+  },
+
+  // 파일 프리뷰 표시 (파일명 + X 삭제 버튼)
+  _showFilePreview(previewId, label, type) {
+    const preview = document.getElementById(previewId)
+    if (!preview) return
+    preview.innerHTML = `
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</span>
+      <button onclick="App._clearFilePreview('${previewId}','${type}')" style="
+        background:rgba(255,59,48,0.15);border:none;border-radius:50%;width:22px;height:22px;
+        display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-left:8px;
+        color:#FF3B30;font-size:13px;font-weight:bold;line-height:1;
+      ">✕</button>
+    `
+    preview.style.cssText += ';display:flex;align-items:center;'
+  },
+
+  // 파일 프리뷰 삭제 (X 버튼 클릭)
+  _clearFilePreview(previewId, type) {
+    const preview = document.getElementById(previewId)
+    if (preview) { preview.innerHTML = ''; preview.style.display = 'none' }
+    window._selectedAlarmFile = null
+    window._selectedAlarmPath = null
+    // 파일 input 초기화 (재선택 가능하도록)
+    const inputId = { audio:'alarm-audio-file', video:'alarm-video-file', file:'alarm-attach-file' }[type]
+    const input = document.getElementById(inputId)
+    if (input) input.value = ''
+    toast('파일이 삭제되었습니다')
   },
 
   // ── 녹음/녹화/파일 앱 실행 ──────────────────
@@ -1490,15 +1514,11 @@ window._flutterFileCallback = function(data) {
   window._selectedAlarmFile = name  // 파일명만 저장
   window._selectedAlarmPath = path  // 로컬 경로 (참고용)
 
-  // 프리뷰 표시
+  // 프리뷰 표시 (파일명 + 용량 + X 버튼)
   const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
-  const preview = document.getElementById(previewId)
-  if (preview) {
-    const icons = { audio:'🎵', video:'🎬', file:'📎' }
-    const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
-    preview.textContent = (icons[type] || '📎') + ' ' + name + ' (' + sizeStr + ')'
-    preview.style.display = 'block'
-  }
+  const icons = { audio:'🎵', video:'🎬', file:'📎' }
+  const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
+  App._showFilePreview(previewId, (icons[type] || '📎') + ' ' + name + ' (' + sizeStr + ')', type)
   toast('✅ 파일 선택 완료: ' + name, 2000)
 }
 

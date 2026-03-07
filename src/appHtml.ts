@@ -311,7 +311,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .alarm-media-launch-btn:active { border-color:var(--primary); background:var(--primary-dim); }
 .alarm-file-select-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:none; border:1px dashed var(--border); border-radius:10px; padding:10px; cursor:pointer; color:var(--text3); font-size:13px; margin-top:4px; }
 .alarm-file-select-btn:active { background:var(--bg3); }
-.alarm-media-preview { padding:10px 12px; background:var(--bg); border:1px solid var(--teal); border-radius:10px; font-size:13px; color:var(--teal); margin-top:4px; }
+.alarm-media-preview { padding:10px 12px; background:var(--bg); border:1px solid var(--teal); border-radius:10px; font-size:13px; color:var(--teal); margin-top:8px; display:flex; align-items:center; gap:4px; }
 /* ── 서브화면 앱바 ── */
 .appbar-back { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; padding:6px 8px 6px 0; }
 /* ── 전체화면 오버레이 ── */
