@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:android_intent_plus/android_intent.dart';
+// android_intent_plus: 미사용 (record_audio/video가 FilePicker/ImagePicker로 대체됨)
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -563,23 +563,23 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _launchAudioRecorder() async {
     try {
-      if (Platform.isAndroid) {
-        const intent = AndroidIntent(
-          action: 'android.provider.MediaStore.action.AUDIO_CAPTURE',
-        );
-        await intent.launch();
-        _sendToWeb('window._flutterFileCancelled', {
+      // FilePicker 오디오 타입으로 녹음 앱 실행 → 완료 후 파일 자동 첨부
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        withData: false,
+        withReadStream: false,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final f = result.files.first;
+        _sendToWeb('window._flutterFileCallback', {
           'type': 'audio',
-          'message': '녹음 앱이 실행됐습니다. 녹음 후 저장하고 아래 "파일 선택" 버튼으로 파일을 선택하세요.',
+          'name': f.name,
+          'path': f.path ?? '',
+          'size': f.size,
+          'base64': ''
         });
       } else {
-        final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: false, withReadStream: false);
-        if (result != null && result.files.isNotEmpty) {
-          final f = result.files.first;
-          _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
-        } else {
-          _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
-        }
+        _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
@@ -588,21 +588,25 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _launchVideoRecorder() async {
     try {
-      if (Platform.isAndroid) {
-        const intent = AndroidIntent(action: 'android.media.action.VIDEO_CAPTURE');
-        await intent.launch();
-        _sendToWeb('window._flutterFileCancelled', {
+      // ImagePicker 카메라 모드로 녹화 → 완료 후 파일 자동 첨부
+      final picker = ImagePicker();
+      final XFile? video = await picker.pickVideo(
+        source: ImageSource.camera,
+        maxDuration: const Duration(minutes: 10),
+      );
+      if (video != null) {
+        final file = File(video.path);
+        final fileSize = await file.length();
+        final fileName = video.path.split('/').last;
+        _sendToWeb('window._flutterFileCallback', {
           'type': 'video',
-          'message': '카메라 앱이 실행됐습니다. 녹화 후 저장하고 아래 "파일 선택" 버튼으로 파일을 선택하세요.',
+          'name': fileName,
+          'path': video.path,
+          'size': fileSize,
+          'base64': ''
         });
       } else {
-        final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: false, withReadStream: false);
-        if (result != null && result.files.isNotEmpty) {
-          final f = result.files.first;
-          _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
-        } else {
-          _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
-        }
+        _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
       }
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
