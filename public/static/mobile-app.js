@@ -964,16 +964,11 @@ const App = {
   onAlarmFileSelected(input, type) {
     const file = input.files?.[0]; if (!file) return
 
-    // ★ mp3/mp4만 허용 검증
-    const allowedExts = ['.mp3', '.mp4']
-    const allowedMimes = ['audio/mpeg', 'audio/mp3', 'video/mp4']
-    const fileName = file.name.toLowerCase()
-    const isAllowed = allowedExts.some(ext => fileName.endsWith(ext)) || allowedMimes.includes(file.type)
-    if (!isAllowed) {
-      toast('mp3, mp4 파일만 업로드 가능합니다')
-      input.value = ''
-      return
-    }
+    // 타입별 허용 검증 (오디오: audio/* / 비디오: video/*)
+    const isAudio = file.type.startsWith('audio/') || ['.mp3','.m4a','.wav','.aac','.ogg','.flac','.wma'].some(e => file.name.toLowerCase().endsWith(e))
+    const isVideo = file.type.startsWith('video/') || ['.mp4','.mov','.mkv','.avi','.wmv','.m4v','.webm'].some(e => file.name.toLowerCase().endsWith(e))
+    if (type === 'audio' && !isAudio) { toast('오디오 파일을 선택해 주세요'); input.value = ''; return }
+    if (type === 'video' && !isVideo) { toast('비디오 파일을 선택해 주세요'); input.value = ''; return }
 
     // 프리뷰 표시 (파일명 + 용량 + X 버튼)
     const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'

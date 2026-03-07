@@ -754,11 +754,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
               <i class="fas fa-folder-open" style="font-size:20px;color:#4CAF50;"></i>
               <div>
                 <div style="font-weight:700;font-size:13px;">파일 선택</div>
-                <div style="font-size:11px;color:var(--text3);">mp3 파일만 선택 가능</div>
+                <div style="font-size:11px;color:var(--text3);">모든 오디오 파일 선택 가능</div>
               </div>
             </button>
           </div>
-          <input id="alarm-audio-file" type="file" accept="audio/mpeg,.mp3"
+          <input id="alarm-audio-file" type="file" accept="audio/*"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
           <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
@@ -777,11 +777,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
               <i class="fas fa-folder-open" style="font-size:20px;color:#2196F3;"></i>
               <div>
                 <div style="font-weight:700;font-size:13px;">파일 선택</div>
-                <div style="font-size:11px;color:var(--text3);">mp4 파일만 선택 가능</div>
+                <div style="font-size:11px;color:var(--text3);">모든 비디오 파일 선택 가능</div>
               </div>
             </button>
           </div>
-          <input id="alarm-video-file" type="file" accept="video/mp4,.mp4"
+          <input id="alarm-video-file" type="file" accept="video/*"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
           <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
