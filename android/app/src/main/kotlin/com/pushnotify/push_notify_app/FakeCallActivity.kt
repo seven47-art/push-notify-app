@@ -147,10 +147,8 @@ class FakeCallActivity : Activity() {
         buildUi()
         startRinging()
 
-        // 채널 public_id가 있으면 비동기로 이미지 로드
-        if (channelPublicId.isNotEmpty()) {
-            loadChannelImage(channelPublicId)
-        }
+        // 채널 이미지 로드 (public_id 있으면 API 호출, 없으면 바로 링고 아이콘)
+        loadChannelImage(channelPublicId)
 
         if (autoAccept) {
             autoDeclineHandler.postDelayed({ handleAccept() }, 300L)
@@ -181,7 +179,12 @@ class FakeCallActivity : Activity() {
     private fun loadChannelImage(publicId: String) {
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
         val baseUrl = prefs.getString("base_url", "") ?: ""
-        if (baseUrl.isEmpty()) return
+
+        // public_id 없거나 base_url 없으면 바로 링고 아이콘
+        if (publicId.isEmpty() || baseUrl.isEmpty()) {
+            showRingoIcon()
+            return
+        }
 
         scope.launch {
             try {
@@ -192,10 +195,19 @@ class FakeCallActivity : Activity() {
                         .build()
                 ).execute()
 
-                if (!response.isSuccessful) return@launch
-                val body = response.body?.string() ?: return@launch
+                if (!response.isSuccessful) {
+                    withContext(Dispatchers.Main) { showRingoIcon() }
+                    return@launch
+                }
+                val body = response.body?.string() ?: run {
+                    withContext(Dispatchers.Main) { showRingoIcon() }
+                    return@launch
+                }
                 val json = JSONObject(body)
-                val data = json.optJSONObject("data") ?: return@launch
+                val data = json.optJSONObject("data") ?: run {
+                    withContext(Dispatchers.Main) { showRingoIcon() }
+                    return@launch
+                }
                 val imageUrl = data.optString("image_url", "")
 
                 if (imageUrl.isNotEmpty()) {
@@ -209,16 +221,17 @@ class FakeCallActivity : Activity() {
                         val imgResponse = http.newCall(
                             Request.Builder().url(imageUrl).get().build()
                         ).execute()
-                        val imgBytes = imgResponse.body?.bytes() ?: return@launch
+                        val imgBytes = imgResponse.body?.bytes() ?: run {
+                            withContext(Dispatchers.Main) { showRingoIcon() }
+                            return@launch
+                        }
                         BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
                     }
 
                     if (bitmap != null) {
-                        // 원형으로 크롭
                         val circularBitmap = toCircularBitmap(bitmap)
                         withContext(Dispatchers.Main) {
                             profileIcon?.apply {
-                                // 배경 투명으로 변경 (이미지가 원형이므로)
                                 background = GradientDrawable().apply {
                                     shape = GradientDrawable.OVAL
                                     setColor(Color.TRANSPARENT)
@@ -227,12 +240,29 @@ class FakeCallActivity : Activity() {
                                 scaleType = ImageView.ScaleType.CENTER_CROP
                             }
                         }
+                    } else {
+                        withContext(Dispatchers.Main) { showRingoIcon() }
                     }
+                } else {
+                    // image_url이 비어있으면 링고 아이콘 표시
+                    withContext(Dispatchers.Main) { showRingoIcon() }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "채널 이미지 로드 실패: ${e.message}")
-                // 실패 시 기본 아이콘 유지 (아무 처리 안 해도 됨)
+                withContext(Dispatchers.Main) { showRingoIcon() }
             }
+        }
+    }
+
+    // 내장 링고 아이콘 표시
+    private fun showRingoIcon() {
+        profileIcon?.apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#FEE500"))
+            }
+            setImageResource(R.drawable.ringo_icon)
+            scaleType = ImageView.ScaleType.CENTER_CROP
         }
     }
 

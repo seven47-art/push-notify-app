@@ -109,6 +109,17 @@ class AlarmPollingService : Service() {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
         sessionToken = intent?.getStringExtra(EXTRA_TOKEN)    ?: sessionToken
         baseUrl      = intent?.getStringExtra(EXTRA_BASE_URL) ?: baseUrl
+
+        // base_url과 session_token을 SharedPreferences에 저장
+        // FakeCallActivity에서 API 호출 시 사용 (앱이 종료된 상태에서도 접근 가능)
+        if (baseUrl.isNotEmpty() || sessionToken.isNotEmpty()) {
+            getSharedPreferences(PREF_NAME, MODE_PRIVATE).edit().apply {
+                if (baseUrl.isNotEmpty())      putString("base_url",      baseUrl)
+                if (sessionToken.isNotEmpty()) putString("session_token", sessionToken)
+                apply()
+            }
+        }
+
         startForeground(FG_NOTIF_ID, buildFgNotif())
         pollingJob?.cancel()
         pollingJob = scope.launch { runPolling() }
