@@ -665,12 +665,13 @@ class FakeCallActivity : Activity() {
         recordAlarmStatus(alarmId, "accepted")
         // ContentPlayerActivity로 바로 이동 (콘텐츠 재생 화면)
         ContentPlayerActivity.start(
-            context     = this,
-            msgType     = msgType,
-            msgValue    = msgValue,
-            contentUrl  = contentUrl,
-            channelName = channelName,
-            homepageUrl = homepageUrl
+            context          = this,
+            msgType          = msgType,
+            msgValue         = msgValue,
+            contentUrl       = contentUrl,
+            channelName      = channelName,
+            homepageUrl      = homepageUrl,
+            channelPublicId  = channelPublicId
         )
         finishAlarm()
     }
