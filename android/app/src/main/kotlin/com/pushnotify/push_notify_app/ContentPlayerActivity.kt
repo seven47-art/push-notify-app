@@ -154,9 +154,9 @@ class ContentPlayerActivity : Activity() {
 
         when (effectiveType) {
 
-            // ── YouTube 웹 버전 ───────────────────────────────────
+            // ── YouTube IFrame Embed ───────────────────────────────────
             "youtube" -> {
-                val youtubeUrl = buildYoutubeWebUrl(msgValue, contentUrl)
+                val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
                     layoutParams = playerParams
                     settings.apply {
@@ -165,11 +165,8 @@ class ContentPlayerActivity : Activity() {
                         mediaPlaybackRequiresUserGesture = false
                         useWideViewPort = true
                         loadWithOverviewMode = true
-                        setSupportZoom(true)
-                        builtInZoomControls = false
-                        displayZoomControls = false
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        // ★ 데스크탑 Chrome User-Agent → "앱에서 보기" 팝업 방지
+                        // IFrame Player API를 위한 User-Agent
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                         cacheMode = WebSettings.LOAD_DEFAULT
                     }
@@ -179,18 +176,34 @@ class ContentPlayerActivity : Activity() {
                     }
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                            // YouTube 내부 링크는 WebView 내에서 처리
                             val url = request?.url?.toString() ?: return false
                             return if (url.contains("youtube.com") || url.contains("youtu.be") || url.contains("googlevideo.com")) {
-                                false // WebView 내에서 처리
+                                false
                             } else {
-                                // 외부 링크는 브라우저로
                                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
                                 true
                             }
                         }
                     }
-                    loadUrl(youtubeUrl)
+                    if (videoId.isNotEmpty()) {
+                        // IFrame HTML 직접 로드 → 오류 153 방지
+                        val html = """
+                            <!DOCTYPE html><html><head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <style>*{margin:0;padding:0;background:#000;} iframe{width:100%;height:100vh;border:none;}</style>
+                            </head><body>
+                            <iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
+                                allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                            </body></html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                    } else {
+                        // videoId 추출 실패 → 원본 URL 직접 열기
+                        val fallbackUrl = if (msgValue.startsWith("http")) msgValue
+                                         else if (contentUrl.startsWith("http")) contentUrl
+                                         else "https://m.youtube.com"
+                        loadUrl(fallbackUrl)
+                    }
                 }
                 root.addView(webView)
             }
@@ -453,11 +466,12 @@ class ContentPlayerActivity : Activity() {
         return root
     }
 
-    // YouTube 웹 URL 생성 (watch?v= 형식)
+    // YouTube videoId 추출 (embed URL 방식으로 전환하여 buildYoutubeWebUrl 불필요)
+    // 기존 함수는 fallback 용도로 유지
     private fun buildYoutubeWebUrl(msgValue: String, contentUrl: String): String {
         val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
         return if (videoId.isNotEmpty()) {
-            "https://m.youtube.com/watch?v=$videoId"
+            "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1"
         } else if (msgValue.startsWith("http")) {
             msgValue
         } else if (contentUrl.startsWith("http")) {
