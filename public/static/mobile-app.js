@@ -1424,7 +1424,11 @@ const App = {
   },
   pickImageFrom(source) {
     this.closeModal('modal-img-src')
-    document.getElementById(source === 'camera' ? 'camera-input' : 'file-input').click()
+    // 모달이 완전히 닫힌 후 파일 선택 창을 열어야
+    // 갤러리 창이 즉시 닫히는 문제(이벤트 버블링/포커스 충돌)를 방지
+    setTimeout(() => {
+      document.getElementById(source === 'camera' ? 'camera-input' : 'file-input').click()
+    }, 300)
   },
   onFileSelected(input) {
     const file = input.files?.[0]; if (!file) return

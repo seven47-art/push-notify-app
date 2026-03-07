@@ -149,9 +149,9 @@ channels.post('/', async (c) => {
     const publicId = generatePublicId()
 
     const result = await c.env.DB.prepare(`
-      INSERT INTO channels (name, description, image_url, owner_id, public_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId).run()
+      INSERT INTO channels (name, description, image_url, owner_id, public_id, homepage_url)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId, homepage_url || null).run()
 
     const newChannelId = result.meta.last_row_id as number
 
