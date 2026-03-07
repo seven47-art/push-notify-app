@@ -5,7 +5,8 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.PixelFormat
+import android.graphics.*
+import android.graphics.drawable.*
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
@@ -25,6 +26,13 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+/**
+ * FakeCallActivity v1.0.40
+ * - 카카오톡 전화 스타일 UI
+ * - 상단: 발신자 이름 + "RinGo 알람" 부제목
+ * - 중앙: 프로필 원형 아이콘 + 파동 링 애니메이션
+ * - 하단: 거절(빨강 왼쪽) / 수락(초록 오른쪽) 버튼
+ */
 class FakeCallActivity : Activity() {
 
     companion object {
@@ -78,12 +86,12 @@ class FakeCallActivity : Activity() {
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
-    private var ringAnimator: AnimatorSet? = null
+    private var rippleAnimators = mutableListOf<Animator>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ── 1. 화면/잠금 플래그 (API 27 이하 방식) ───────────────────
+        // ── 1. 윈도우 플래그 (잠금화면 위에 표시) ─────────────────────
         @Suppress("DEPRECATION")
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED    or
@@ -91,14 +99,12 @@ class FakeCallActivity : Activity() {
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON      or
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
-
-        // ── 2. API 27+ 추가 처리 ────────────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
 
-        // ── 3. KeyguardManager로 잠금화면 강제 해제 (파워알람 방식) ──
+        // ── 2. KeyguardManager 잠금화면 강제 해제 ─────────────────────
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             km.requestDismissKeyguard(this, null)
@@ -107,19 +113,19 @@ class FakeCallActivity : Activity() {
             km.newKeyguardLock("RinGo:KeyguardLock").disableKeyguard()
         }
 
-        // ── 4. WakeLock (화면 강제 켜기) ─────────────────────────────
+        // ── 3. WakeLock ────────────────────────────────────────────────
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "RinGo:FakeCallWakeLock"
         ).also { it.acquire(35_000L) }
 
-        // ── 5. SYSTEM_ALERT_WINDOW: 화면 켜진 상태에서도 최상위 표시 ─
+        // ── 4. SYSTEM_ALERT_WINDOW 최상위 ──────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
             window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         }
 
-        // ── 인텐트 데이터 추출 ──────────────────────────────────────
+        // ── 인텐트 데이터 추출 ──────────────────────────────────────────
         alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
         msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
@@ -145,49 +151,377 @@ class FakeCallActivity : Activity() {
     }
 
     override fun onDestroy() {
-        ringAnimator?.cancel()
+        rippleAnimators.forEach { it.cancel() }
+        rippleAnimators.clear()
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
-        try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
         scope.cancel()
+        try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
         super.onDestroy()
     }
 
-    // ── 벨소리 + 진동 ──────────────────────────────────────────────
-    private fun startRinging() {
-        val am = getSystemService(AUDIO_SERVICE) as AudioManager
-        val ringerMode = am.ringerMode
-        Log.d(TAG, "ringerMode=$ringerMode")
+    // ─────────────────────────────────────────────────────────────────────
+    // UI 구성 (카카오톡 전화 스타일)
+    // ─────────────────────────────────────────────────────────────────────
+    private fun buildUi() {
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#1A1A2E"))  // 카카오 스타일 어두운 배경
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
 
-        if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-            val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ringtone = RingtoneManager.getRingtone(this, uri)?.also { r ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) r.isLooping = true
-                r.audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setLegacyStreamType(AudioManager.STREAM_RING)
-                    .build()
-                r.play()
-                Log.d(TAG, "벨소리 재생: $uri")
+        // ── 중앙 컨텐츠 (이름 + 아이콘 + 파동) ──────────────────────────
+        val centerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER_HORIZONTAL
+        }
+
+        // 수신 타입 텍스트 (상단 안내)
+        val incomingLabel = TextView(this).apply {
+            text      = "RinGo 알람"
+            textSize  = 14f
+            setTextColor(Color.parseColor("#AAAAAA"))
+            gravity   = Gravity.CENTER
+            setPadding(0, 0, 0, dpToPx(8))
+        }
+
+        // 발신자 이름
+        val nameText = TextView(this).apply {
+            text     = channelName
+            textSize = 28f
+            setTextColor(Color.WHITE)
+            gravity  = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, dpToPx(6))
+        }
+
+        // "전화 수신 중" 상태 텍스트
+        val statusText = TextView(this).apply {
+            text      = "전화 수신 중..."
+            textSize  = 15f
+            setTextColor(Color.parseColor("#AAAAAA"))
+            gravity   = Gravity.CENTER
+            setPadding(0, 0, 0, dpToPx(40))
+        }
+
+        // 프로필 아이콘 컨테이너 (파동 + 원형 아이콘)
+        val profileContainer = FrameLayout(this).apply {
+            val size = dpToPx(180)
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dpToPx(50)
             }
         }
 
-        if (ringerMode == AudioManager.RINGER_MODE_NORMAL ||
-            ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
-            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                getSystemService(VIBRATOR_SERVICE) as Vibrator
+        val iconSize = dpToPx(100)
+
+        // 파동 원 3개
+        val rippleColors = listOf(
+            Color.parseColor("#3A3A5C"),
+            Color.parseColor("#2D2D4E"),
+            Color.parseColor("#232340")
+        )
+        val ripleSizes = listOf(dpToPx(170), dpToPx(145), dpToPx(120))
+        val rippleViews = ripleSizes.mapIndexed { i, size ->
+            View(this).apply {
+                background = createCircleDrawable(rippleColors[i])
+                alpha = 0f
+                layoutParams = FrameLayout.LayoutParams(size, size, Gravity.CENTER)
             }
-            val pattern = longArrayOf(0, 800, 400, 800, 400, 800, 400, 800)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, 0)
+        }
+        rippleViews.forEach { profileContainer.addView(it) }
+
+        // 프로필 원형 아이콘 (전화 아이콘)
+        val profileIcon = ImageView(this).apply {
+            val drawable = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#FEE500"))  // 카카오 노란색
+            }
+            background = drawable
+            // 전화 아이콘 이미지
+            setImageDrawable(createPhoneIconDrawable())
+            scaleType = ImageView.ScaleType.CENTER
+            layoutParams = FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER)
+        }
+        profileContainer.addView(profileIcon)
+
+        // 파동 애니메이션 시작
+        startRippleAnimation(rippleViews)
+
+        centerLayout.addView(incomingLabel)
+        centerLayout.addView(nameText)
+        centerLayout.addView(statusText)
+        centerLayout.addView(profileContainer)
+
+        // ── 하단 버튼 (거절 왼쪽 / 수락 오른쪽) ─────────────────────────
+        val btnLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity     = Gravity.CENTER
+            weightSum   = 2f
+        }
+
+        // 거절 버튼
+        val declineBtn = createCallButton(
+            iconColor  = Color.parseColor("#FF3B30"),
+            iconType   = "decline",
+            label      = "거절"
+        ) { handleDecline() }
+
+        // 수락 버튼
+        val acceptBtn = createCallButton(
+            iconColor  = Color.parseColor("#34C759"),
+            iconType   = "accept",
+            label      = "수락"
+        ) { handleAccept() }
+
+        val btnParam = LinearLayout.LayoutParams(0,
+            LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dpToPx(30)
+            marginEnd   = dpToPx(30)
+        }
+        declineBtn.layoutParams = btnParam
+        acceptBtn.layoutParams  = LinearLayout.LayoutParams(
+            btnParam.width, btnParam.height, btnParam.weight
+        ).apply {
+            marginStart = dpToPx(30)
+            marginEnd   = dpToPx(30)
+        }
+
+        btnLayout.addView(declineBtn)
+        btnLayout.addView(acceptBtn)
+
+        // ── 루트에 배치 ───────────────────────────────────────────────
+        // 중앙 콘텐츠
+        val centerParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            topMargin = dpToPx(-40)
+        }
+        root.addView(centerLayout, centerParams)
+
+        // 하단 버튼
+        val btnParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity      = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = dpToPx(60)
+        }
+        root.addView(btnLayout, btnParams)
+
+        setContentView(root)
+    }
+
+    // 파동(Ripple) 애니메이션
+    private fun startRippleAnimation(views: List<View>) {
+        views.forEachIndexed { index, view ->
+            val delay = (index * 400L)
+            val scaleX = ObjectAnimator.ofFloat(view, "scaleX", 0.5f, 1f)
+            val scaleY = ObjectAnimator.ofFloat(view, "scaleY", 0.5f, 1f)
+            val alpha  = ObjectAnimator.ofFloat(view, "alpha", 0.8f, 0f)
+            AnimatorSet().apply {
+                playTogether(scaleX, scaleY, alpha)
+                duration    = 1500L
+                startDelay  = delay
+                interpolator = AccelerateDecelerateInterpolator()
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator) {
+                        view.scaleX = 0.5f
+                        view.scaleY = 0.5f
+                        view.alpha  = 0f
+                        start()  // 반복
+                    }
+                })
+                rippleAnimators.add(this)
+                start()
+            }
+        }
+    }
+
+    // 전화 아이콘 Drawable 생성
+    private fun createPhoneIconDrawable(): Drawable {
+        return object : Drawable() {
+            override fun draw(canvas: Canvas) {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#1A1A2E")
+                    style = Paint.Style.FILL
+                }
+                val b = bounds
+                val cx = b.exactCenterX()
+                val cy = b.exactCenterY()
+                val r  = b.width() * 0.28f
+
+                val path = Path().apply {
+                    // 간단한 전화기 모양
+                    moveTo(cx - r * 0.8f, cy - r * 1.2f)
+                    cubicTo(cx - r, cy - r * 1.5f, cx - r * 1.5f, cy - r, cx - r * 1.2f, cy - r * 0.5f)
+                    lineTo(cx - r * 0.6f, cy + r * 0.1f)
+                    cubicTo(cx - r * 0.3f, cy + r * 0.4f, cx, cy + r * 0.3f, cx + r * 0.3f, cy + r * 0.6f)
+                    lineTo(cx + r, cy + r * 1.2f)
+                    cubicTo(cx + r * 1.5f, cy + r * 1.5f, cx + r, cy + r * 2f, cx + r * 0.5f, cy + r * 1.8f)
+                    cubicTo(cx - r * 1.5f, cy + r * 1.2f, cx - r * 2.2f, cy - r * 0.5f, cx - r * 0.8f, cy - r * 1.2f)
+                    close()
+                }
+                canvas.drawPath(path, paint)
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(cf: ColorFilter?) {}
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun getOpacity() = PixelFormat.TRANSLUCENT
+        }
+    }
+
+    // 버튼 생성 헬퍼
+    private fun createCallButton(
+        iconColor: Int,
+        iconType: String,
+        label: String,
+        onClick: () -> Unit
+    ): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER
+            setOnClickListener { onClick() }
+
+            // 원형 버튼
+            val circle = ImageView(this@FakeCallActivity).apply {
+                background = GradientDrawable().apply {
+                    shape    = GradientDrawable.OVAL
+                    setColor(iconColor)
+                }
+                val phoneDrawable = if (iconType == "decline") {
+                    createEndCallDrawable(Color.WHITE)
+                } else {
+                    createAcceptCallDrawable(Color.WHITE)
+                }
+                setImageDrawable(phoneDrawable)
+                scaleType = ImageView.ScaleType.CENTER
+                val btnSize = dpToPx(68)
+                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            }
+
+            // 버튼 레이블
+            val labelText = TextView(this@FakeCallActivity).apply {
+                text      = label
+                textSize  = 13f
+                setTextColor(Color.parseColor("#CCCCCC"))
+                gravity   = Gravity.CENTER
+                setPadding(0, dpToPx(8), 0, 0)
+            }
+
+            addView(circle)
+            addView(labelText)
+        }
+    }
+
+    // 통화 종료(거절) 아이콘
+    private fun createEndCallDrawable(color: Int): Drawable {
+        return object : Drawable() {
+            override fun draw(canvas: Canvas) {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = color
+                    style = Paint.Style.FILL
+                }
+                val b  = bounds
+                val cx = b.exactCenterX()
+                val cy = b.exactCenterY()
+                val r  = b.width() * 0.22f
+                // 수평 전화기 (끊기 아이콘)
+                val path = Path().apply {
+                    moveTo(cx - r * 1.8f, cy + r * 0.3f)
+                    cubicTo(cx - r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy + r * 0.3f)
+                    lineTo(cx + r, cy + r * 0.3f)
+                    cubicTo(cx + r, cy - r * 0.3f, cx + r * 0.3f, cy - r * 0.6f, cx, cy - r * 0.6f)
+                    cubicTo(cx - r * 0.3f, cy - r * 0.6f, cx - r, cy - r * 0.3f, cx - r, cy + r * 0.3f)
+                    close()
+                }
+                canvas.save()
+                canvas.rotate(135f, cx, cy)
+                canvas.drawPath(path, paint)
+                canvas.restore()
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(cf: ColorFilter?) {}
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun getOpacity() = PixelFormat.TRANSLUCENT
+        }
+    }
+
+    // 통화 수락 아이콘
+    private fun createAcceptCallDrawable(color: Int): Drawable {
+        return object : Drawable() {
+            override fun draw(canvas: Canvas) {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = color
+                    style = Paint.Style.FILL
+                }
+                val b  = bounds
+                val cx = b.exactCenterX()
+                val cy = b.exactCenterY()
+                val r  = b.width() * 0.22f
+                val path = Path().apply {
+                    moveTo(cx - r * 1.8f, cy + r * 0.3f)
+                    cubicTo(cx - r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy + r * 0.3f)
+                    lineTo(cx + r, cy + r * 0.3f)
+                    cubicTo(cx + r, cy - r * 0.3f, cx + r * 0.3f, cy - r * 0.6f, cx, cy - r * 0.6f)
+                    cubicTo(cx - r * 0.3f, cy - r * 0.6f, cx - r, cy - r * 0.3f, cx - r, cy + r * 0.3f)
+                    close()
+                }
+                canvas.drawPath(path, paint)
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(cf: ColorFilter?) {}
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun getOpacity() = PixelFormat.TRANSLUCENT
+        }
+    }
+
+    private fun createCircleDrawable(color: Int): Drawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 벨소리 / 진동
+    // ─────────────────────────────────────────────────────────────────────
+    private fun startRinging() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        try {
+            val uri = RingtoneManager.getActualDefaultRingtoneUri(
+                applicationContext, RingtoneManager.TYPE_RINGTONE
+            ) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ringtone = RingtoneManager.getRingtone(applicationContext, uri)?.also { rt ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    rt.isLooping = true
+                    rt.audioAttributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setLegacyStreamType(AudioManager.STREAM_RING)
+                        .build()
+                }
+                when (am.ringerMode) {
+                    AudioManager.RINGER_MODE_NORMAL  -> rt.play()
+                    AudioManager.RINGER_MODE_VIBRATE -> Unit
+                    else -> Unit  // SILENT
+                }
+            }
+        } catch (e: Exception) { Log.e(TAG, "벨소리 오류: ${e.message}") }
+
+        if (am.ringerMode != AudioManager.RINGER_MODE_SILENT) {
+            vibrator = (getSystemService(VIBRATOR_SERVICE) as? Vibrator)?.also { v ->
+                val pattern = longArrayOf(0, 500, 500, 500, 500, 500)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createWaveform(pattern, 0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.vibrate(pattern, 0)
+                }
             }
         }
     }
@@ -195,279 +529,67 @@ class FakeCallActivity : Activity() {
     private fun stopRinging() {
         try { ringtone?.stop() } catch (_: Exception) {}
         try { vibrator?.cancel() } catch (_: Exception) {}
+        ringtone = null
+        vibrator = null
     }
 
-    // ── 수락 ───────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // 수락 / 거절
+    // ─────────────────────────────────────────────────────────────────────
     private fun handleAccept() {
+        Log.d(TAG, "수락 → alarmId=$alarmId")
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
-        dismissNotification()
-        CallForegroundService.stop(this)
-        val target = contentUrl.ifEmpty { homepageUrl }
-        if (target.isNotEmpty()) {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                })
-            } catch (_: Exception) {}
+        // 메인 앱으로 알람 데이터 전달
+        val mainIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("alarm_answered",    true)
+            putExtra("alarm_channel_name", channelName)
+            putExtra("alarm_msg_type",     msgType)
+            putExtra("alarm_msg_value",    msgValue)
+            putExtra("alarm_id",           alarmId)
+            putExtra("alarm_content_url",  contentUrl)
         }
-        finish()
+        startActivity(mainIntent)
+        finishAlarm()
     }
 
-    // ── 거절 ───────────────────────────────────────────────────────
     private fun handleDecline() {
+        Log.d(TAG, "거절 → alarmId=$alarmId")
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
-        recordAlarmStatus(alarmId, "rejected")
+        recordAlarmStatus(alarmId, "declined")
         finishAlarm()
     }
 
     private fun finishAlarm() {
-        dismissNotification()
         CallForegroundService.stop(this)
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.cancel(CallForegroundService.NOTIFICATION_ID)
         finish()
     }
 
-    private fun dismissNotification() {
-        try {
-            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-            nm.cancel(alarmId + 10000)
-        } catch (_: Exception) {}
-    }
-
-    // ── 서버 상태 기록 ─────────────────────────────────────────────
-    private fun recordAlarmStatus(alarmId: Int, status: String) {
-        if (alarmId <= 0) return
+    private fun recordAlarmStatus(id: Int, status: String) {
+        val prefs = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", "") ?: ""
+        val token   = prefs.getString("session_token", "") ?: ""
+        if (baseUrl.isEmpty() || token.isEmpty()) return
         scope.launch {
             try {
-                val prefs = applicationContext.getSharedPreferences(
-                    "FlutterSharedPreferences", Context.MODE_PRIVATE
-                )
-                val token   = prefs.getString("flutter.session_token", "") ?: ""
-                val baseUrl = (prefs.getString("flutter.base_url", "") ?: "").trimEnd('/')
-                if (token.isEmpty() || baseUrl.isEmpty()) return@launch
-
-                val json = """{"alarm_schedule_id":$alarmId,"status":"$status"}"""
-                val req = Request.Builder()
-                    .url("$baseUrl/api/alarms/status")
-                    .post(json.toRequestBody("application/json".toMediaType()))
-                    .addHeader("Authorization", "Bearer $token")
-                    .build()
-                val resp = http.newCall(req).execute()
-                Log.d(TAG, "상태 기록: $status → ${resp.code}")
-            } catch (e: Exception) {
-                Log.e(TAG, "상태 기록 실패: ${e.message}")
-            }
+                val body = """{"alarm_id":$id,"status":"$status"}"""
+                    .toRequestBody("application/json".toMediaType())
+                http.newCall(
+                    Request.Builder()
+                        .url("$baseUrl/api/alarms/status")
+                        .post(body)
+                        .addHeader("Authorization", "Bearer $token")
+                        .build()
+                ).execute().close()
+            } catch (e: Exception) { Log.e(TAG, "상태 전송 실패: ${e.message}") }
         }
     }
 
-    // ── 통화 수신 UI ────────────────────────────────────────────────
-    private fun buildUi() {
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(0xFF0D1117.toInt())
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity     = Gravity.CENTER_HORIZONTAL
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.gravity = Gravity.CENTER_VERTICAL; it.topMargin = dpToPx(40) }
-        }
-
-        // 채널명
-        val channelTv = TextView(this).apply {
-            text      = channelName
-            textSize  = 30f
-            setTextColor(0xFFFFFFFF.toInt())
-            gravity   = Gravity.CENTER
-            typeface  = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dpToPx(24), 0, dpToPx(24), 0)
-        }
-
-        // 서브 라벨
-        val subLabel = when (msgType) {
-            "youtube" -> "YouTube 알람"
-            "audio"   -> "오디오 알람"
-            "video"   -> "비디오 알람"
-            else      -> "알람"
-        }
-        val subTv = TextView(this).apply {
-            text     = subLabel
-            textSize = 16f
-            setTextColor(0xFFAAAAAA.toInt())
-            gravity  = Gravity.CENTER
-            setPadding(0, dpToPx(8), 0, dpToPx(40))
-        }
-
-        // 전화기 아이콘 + 링 애니메이션
-        val iconContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(180), dpToPx(180)).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            }
-        }
-
-        val ringSize = dpToPx(180)
-        val rings = (0..2).map { i ->
-            View(this).apply {
-                val size = ringSize - i * dpToPx(20)
-                layoutParams = FrameLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER }
-                background = createCircleDrawable(
-                    when (i) {
-                        0    -> 0x1A4CAF50.toInt()
-                        1    -> 0x334CAF50.toInt()
-                        else -> 0x4D4CAF50.toInt()
-                    }
-                )
-                alpha = 0f
-            }
-        }
-
-        val phoneBg = View(this).apply {
-            val size = dpToPx(90)
-            layoutParams = FrameLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER }
-            background = createCircleDrawable(0xFF4CAF50.toInt())
-        }
-
-        val phoneTv = TextView(this).apply {
-            text     = "📞"
-            textSize = 36f
-            gravity  = Gravity.CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.gravity = Gravity.CENTER }
-        }
-
-        rings.forEach { iconContainer.addView(it) }
-        iconContainer.addView(phoneBg)
-        iconContainer.addView(phoneTv)
-        startRingAnimation(rings)
-
-        // 버튼 영역
-        val btnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity     = Gravity.CENTER
-            setPadding(dpToPx(24), dpToPx(60), dpToPx(24), 0)
-        }
-
-        // 거절 버튼
-        val declineLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity     = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val declineCircle = FrameLayout(this).apply {
-            val size = dpToPx(72)
-            layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
-            background   = createCircleDrawable(0xFFE53935.toInt())
-            isClickable  = true
-            isFocusable  = true
-        }
-        val declineEmoji = TextView(this).apply {
-            text     = "📵"
-            textSize = 28f
-            gravity  = Gravity.CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-        val declineLabel = TextView(this).apply {
-            text     = "거절"
-            textSize = 14f
-            setTextColor(0xFFAAAAAA.toInt())
-            gravity  = Gravity.CENTER
-            setPadding(0, dpToPx(8), 0, 0)
-        }
-        declineCircle.addView(declineEmoji)
-        declineCircle.setOnClickListener { handleDecline() }
-        declineLayout.addView(declineCircle)
-        declineLayout.addView(declineLabel)
-
-        // 수락 버튼
-        val acceptLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity     = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val acceptCircle = FrameLayout(this).apply {
-            val size = dpToPx(72)
-            layoutParams = LinearLayout.LayoutParams(size, size).also { it.gravity = Gravity.CENTER_HORIZONTAL }
-            background   = createCircleDrawable(0xFF4CAF50.toInt())
-            isClickable  = true
-            isFocusable  = true
-        }
-        val acceptEmoji = TextView(this).apply {
-            text     = "📞"
-            textSize = 28f
-            gravity  = Gravity.CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-        val acceptLabel = TextView(this).apply {
-            text     = "수락"
-            textSize = 14f
-            setTextColor(0xFFAAAAAA.toInt())
-            gravity  = Gravity.CENTER
-            setPadding(0, dpToPx(8), 0, 0)
-        }
-        acceptCircle.addView(acceptEmoji)
-        acceptCircle.setOnClickListener { handleAccept() }
-        acceptLayout.addView(acceptCircle)
-        acceptLayout.addView(acceptLabel)
-
-        btnRow.addView(declineLayout)
-        btnRow.addView(acceptLayout)
-
-        content.addView(channelTv)
-        content.addView(subTv)
-        content.addView(iconContainer)
-        content.addView(btnRow)
-        root.addView(content)
-
-        setContentView(root)
-    }
-
-    private fun startRingAnimation(rings: List<View>) {
-        val animators = rings.mapIndexed { i, ring ->
-            AnimatorSet().apply {
-                val scaleX = ObjectAnimator.ofFloat(ring, "scaleX", 0.6f, 1.2f)
-                val scaleY = ObjectAnimator.ofFloat(ring, "scaleY", 0.6f, 1.2f)
-                val alpha  = ObjectAnimator.ofFloat(ring, "alpha",  0.8f, 0f)
-                playTogether(scaleX, scaleY, alpha)
-                duration     = 1500L
-                startDelay   = i * 400L
-                interpolator = AccelerateDecelerateInterpolator()
-            }
-        }
-        ringAnimator = AnimatorSet().apply { playTogether(*animators.toTypedArray()) }
-
-        val repeatHandler  = Handler(Looper.getMainLooper())
-        val repeatRunnable = object : Runnable {
-            override fun run() {
-                rings.forEach { it.alpha = 0f; it.scaleX = 0.6f; it.scaleY = 0.6f }
-                ringAnimator?.start()
-                repeatHandler.postDelayed(this, 1800L)
-            }
-        }
-        repeatHandler.post(repeatRunnable)
-    }
-
-    private fun createCircleDrawable(color: Int): android.graphics.drawable.GradientDrawable {
-        return android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(color)
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+    private fun dpToPx(dp: Int): Int =
+        (dp * resources.displayMetrics.density).toInt()
 }

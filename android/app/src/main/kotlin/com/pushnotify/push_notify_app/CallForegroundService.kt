@@ -13,20 +13,18 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
- * CallForegroundService
- *
- * 역할: WakeLock으로 화면/CPU 강제 켜기 + startForeground() 유지
- *   → AlarmReceiver / RinGoFCMService 가 nm.notify(fullScreenIntent) 발행 전 호출
- *   → 화면이 꺼진 상태에서 WakeLock이 화면을 켜야 fullScreenIntent가 제대로 표시됨
- *
- * "거절" 액션 PendingIntent 대상으로도 사용 (ACTION_STOP → stopSelf)
+ * CallForegroundService v1.0.40
+ * - WakeLock으로 화면/CPU 강제 켜기
+ * - startForeground() 유지 (필수)
+ * - 포그라운드 알림은 IMPORTANCE_MIN / PRIORITY_MIN → 헤즈업 완전 차단
+ *   (FakeCallActivity가 풀스크린으로 표시되므로 알림 자체는 숨김)
  */
 class CallForegroundService : Service() {
 
     companion object {
         private const val TAG          = "CallForegroundService"
-        const val CHANNEL_ID           = "ringo_call_channel"
-        private const val CHANNEL_NAME = "RinGo 알람"
+        const val CHANNEL_ID           = "ringo_call_fg_channel"
+        private const val CHANNEL_NAME = "RinGo 서비스"
         const val NOTIFICATION_ID      = 1001
         const val ACTION_STOP          = "ACTION_STOP_CALL"
 
@@ -79,15 +77,12 @@ class CallForegroundService : Service() {
 
         val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
         val alarmId     = intent?.getIntExtra(EXTRA_ALARM_ID, 0)    ?: 0
-
         Log.d(TAG, "서비스 시작: $channelName (alarmId=$alarmId)")
 
-        // ① WakeLock — 화면 OFF 상태에서 화면 강제 켜기
-        //    fullScreenIntent가 잠금화면에서 표시되려면 화면이 켜져 있어야 함
         acquireWakeLock()
 
-        // ② startForeground() — 5초 내 필수 호출
-        startForeground(NOTIFICATION_ID, buildKeepAliveNotif(channelName))
+        // startForeground 필수 — IMPORTANCE_MIN 채널이므로 헤즈업 없음
+        startForeground(NOTIFICATION_ID, buildSilentNotif())
 
         return START_NOT_STICKY
     }
@@ -126,11 +121,14 @@ class CallForegroundService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                // IMPORTANCE_MIN = 알림바에 아이콘만, 헤즈업 없음, 소리/진동 없음
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
-                description          = "RinGo 알람"
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-                setBypassDnd(true)
+                description          = "RinGo 백그라운드 서비스"
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                setBypassDnd(false)
                 enableVibration(false)
                 setSound(null, null)
             }
@@ -139,16 +137,17 @@ class CallForegroundService : Service() {
         }
     }
 
-    private fun buildKeepAliveNotif(channelName: String): Notification {
+    private fun buildSilentNotif(): Notification {
         return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
-            .setContentTitle("📞 $channelName")
-            .setContentText("알람 수신 중...")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentTitle("RinGo")
+            .setContentText("실행 중")
+            .setPriority(NotificationCompat.PRIORITY_MIN)   // 헤즈업 완전 차단
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setShowWhen(false)
+            .setSilent(true)
             .build()
     }
 }
