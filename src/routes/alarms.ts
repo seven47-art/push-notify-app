@@ -569,18 +569,19 @@ alarms.post('/trigger', async (c) => {
 
       totalTriggered++
       results.push({
-        alarm_id:      alarm.id,
-        channel_name:  alarm.channel_name,
-        scheduled_at:  alarm.scheduled_at,
-        msg_type:      alarm.msg_type,
-        msg_value:     alarm.msg_value,
-        content_url:   contentUrl,
-        homepage_url:  alarm.channel_homepage_url || '',
-        total_targets: recipientMap.size,
-        sent_count:    sentCount,
-        failed_count:  failedCount,
-        mode:          useTwilio ? 'twilio' : useFCM ? 'fcm' : 'app_polling',
-        recipients:    callResults
+        alarm_id:          alarm.id,
+        channel_name:      alarm.channel_name,
+        channel_public_id: alarm.channel_public_id || '',
+        scheduled_at:      alarm.scheduled_at,
+        msg_type:          alarm.msg_type,
+        msg_value:         alarm.msg_value,
+        content_url:       contentUrl,
+        homepage_url:      alarm.channel_homepage_url || '',
+        total_targets:     recipientMap.size,
+        sent_count:        sentCount,
+        failed_count:      failedCount,
+        mode:              useTwilio ? 'twilio' : useFCM ? 'fcm' : 'app_polling',
+        recipients:        callResults
       })
     }
 
@@ -596,7 +597,7 @@ alarms.post('/trigger', async (c) => {
 alarms.get('/pending', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
-      SELECT a.*, ch.name as channel_name
+      SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status = 'pending'

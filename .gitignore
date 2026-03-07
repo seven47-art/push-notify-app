@@ -18,3 +18,8 @@ key.properties
 # OS
 .DS_Store
 .github/workflows/
+
+# Node.js
+node_modules/
+dist/
+.wrangler/

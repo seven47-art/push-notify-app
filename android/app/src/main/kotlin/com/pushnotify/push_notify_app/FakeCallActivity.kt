@@ -178,10 +178,12 @@ class FakeCallActivity : Activity() {
     // ─────────────────────────────────────────────────────────────────────
     private fun loadChannelImage(publicId: String) {
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
-        val baseUrl = prefs.getString("base_url", "") ?: ""
+        val savedUrl = prefs.getString("base_url", "") ?: ""
+        // base_url이 저장되지 않은 경우 고정 서버 URL을 폴백으로 사용
+        val baseUrl = if (savedUrl.isNotEmpty()) savedUrl else "https://ringo-server.pages.dev"
 
-        // public_id 없거나 base_url 없으면 바로 링고 아이콘
-        if (publicId.isEmpty() || baseUrl.isEmpty()) {
+        // public_id 없으면 바로 링고 아이콘
+        if (publicId.isEmpty()) {
             showRingoIcon()
             return
         }
