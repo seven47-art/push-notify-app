@@ -178,18 +178,56 @@ class ContentPlayerActivity : Activity() {
                         val html = """
                             <!DOCTYPE html><html><head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <style>*{margin:0;padding:0;background:#000;} iframe{width:100%;height:100%;border:none;}</style>
-                            </head><body style="height:100vh;">
-                            <iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
-                                allow="autoplay; encrypted-media" allowfullscreen style="width:100%;height:100%;"></iframe>
+                            <style>
+                                * { margin:0; padding:0; background:#000; }
+                                body { display:flex; align-items:center; justify-content:center; height:100vh; }
+                                iframe { width:100%; height:100%; border:none; }
+                                #error-msg { display:none; color:#fff; font-size:14px; text-align:center; padding:20px; line-height:1.8; }
+                            </style>
+                            </head><body>
+                            <iframe id="yt-frame"
+                                src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
+                                allow="autoplay; encrypted-media" allowfullscreen
+                                style="width:100%;height:100%;"
+                                onerror="showError()">
+                            </iframe>
+                            <div id="error-msg">
+                                ⚠️ 이 영상은 재생할 수 없습니다.<br>임베드가 차단된 영상입니다.<br><br>
+                                채널 관리자에게 문의하거나<br>다른 영상 URL을 등록해 주세요.
+                            </div>
+                            <script>
+                                var tag = document.createElement('script');
+                                tag.src = 'https://www.youtube.com/iframe_api';
+                                document.head.appendChild(tag);
+                                var player;
+                                function onYouTubeIframeAPIReady() {
+                                    player = new YT.Player('yt-frame', {
+                                        events: { 'onError': function(e) { showError(); } }
+                                    });
+                                }
+                                function showError() {
+                                    document.getElementById('yt-frame').style.display = 'none';
+                                    document.getElementById('error-msg').style.display = 'block';
+                                }
+                            </script>
                             </body></html>
                         """.trimIndent()
                         loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
                     } else {
-                        val fallbackUrl = if (msgValue.startsWith("http")) msgValue
-                                         else if (contentUrl.startsWith("http")) contentUrl
-                                         else "https://m.youtube.com"
-                        loadUrl(fallbackUrl)
+                        // videoId 추출 실패 시 안내 메시지 표시 (전체 유튜브 페이지 로딩 제거)
+                        val errorHtml = """
+                            <!DOCTYPE html><html><head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <style>* { margin:0; padding:0; background:#000; } body { display:flex; align-items:center; justify-content:center; height:100vh; }</style>
+                            </head><body>
+                            <div style="color:#fff; font-size:14px; text-align:center; padding:20px; line-height:1.8;">
+                                ⚠️ 영상 URL을 확인할 수 없습니다.<br><br>
+                                올바른 YouTube URL을 등록해 주세요.<br>
+                                (예: youtu.be/xxxxx 또는 youtube.com/watch?v=xxxxx)
+                            </div>
+                            </body></html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://www.youtube.com", errorHtml, "text/html", "UTF-8", null)
                     }
                 }
                 root.addView(webView)
