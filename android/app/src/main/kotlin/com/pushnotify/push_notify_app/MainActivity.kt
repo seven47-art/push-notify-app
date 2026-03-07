@@ -15,6 +15,13 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+/**
+ * MainActivity v1.0.41
+ * - requestEssentialPermissions() 제거
+ *   → 권한 요청은 Flutter permission_screen.dart 에서 순서대로 처리
+ *   (알림 → 다른앱위에표시 → 전체화면알림 → 정확한알람 → 배터리최적화)
+ * - CHANNEL_PERMISSIONS: canDrawOverlays, openOverlaySettings 핸들러 유지
+ */
 class MainActivity : FlutterActivity() {
 
     private val CHANNEL_ACCOUNTS     = "com.pushnotify/accounts"
@@ -93,12 +100,12 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // 권한 채널
+        // 권한 채널 — Flutter에서 호출, Kotlin에서 시스템 설정 열기
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_PERMISSIONS)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
 
-                    // ── 알림 권한 ──────────────────────────────────────
+                    // ── 전체화면 알림 권한 (Android 14+) ────────────────
                     "canUseFullScreenIntent" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -121,7 +128,7 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
-                    // ── 다른 앱 위에 표시 (SYSTEM_ALERT_WINDOW) ───────
+                    // ── 다른 앱 위에 표시 (SYSTEM_ALERT_WINDOW) ─────────
                     "canDrawOverlays" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                             result.success(Settings.canDrawOverlays(this))
@@ -139,7 +146,7 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) { result.success(false) }
                     }
 
-                    // ── 배터리 최적화 무시 ─────────────────────────────
+                    // ── 배터리 최적화 무시 ───────────────────────────────
                     "isIgnoringBatteryOptimizations" -> {
                         val pm = getSystemService(POWER_SERVICE) as PowerManager
                         result.success(pm.isIgnoringBatteryOptimizations(packageName))
@@ -162,45 +169,14 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAlarmIntent(intent)
-        requestEssentialPermissions()
+        // 권한 요청은 Flutter permission_screen.dart 에서 처리
+        // requestEssentialPermissions() 제거 → 중복 팝업 없음
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAlarmIntent(intent)
-    }
-
-    // 앱 최초 실행 시 필수 권한 3가지 순서대로 요청
-    private fun requestEssentialPermissions() {
-        // 1) 다른 앱 위에 표시
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Log.d("MainActivity", "권한 요청: SYSTEM_ALERT_WINDOW")
-            try {
-                startActivity(Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
-                ))
-            } catch (e: Exception) {
-                Log.e("MainActivity", "오버레이 설정 열기 실패: ${e.message}")
-            }
-            return
-        }
-
-        // 2) 배터리 최적화 무시
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            Log.d("MainActivity", "권한 요청: 배터리 최적화 무시")
-            try {
-                startActivity(Intent(
-                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:$packageName")
-                ))
-            } catch (e: Exception) {
-                Log.e("MainActivity", "배터리 설정 열기 실패: ${e.message}")
-            }
-        }
-        // 3) 알림 권한은 Flutter 앱 레이어에서 permission_handler 패키지로 처리
     }
 
     private fun handleAlarmIntent(intent: Intent?) {

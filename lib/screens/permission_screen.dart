@@ -1,13 +1,11 @@
-// lib/screens/permission_screen.dart  v1
-// 최초 설치 후 로그인 완료 → 필수 권한 안내 및 승인 절차
-// 모든 권한 완료 시 메인 화면으로 이동
+// lib/screens/permission_screen.dart  v1.0.41
+// 권한 요청 순서: 알림 → 다른앱위에표시 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:android_intent_plus/android_intent.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -18,8 +16,10 @@ class PermissionScreen extends StatefulWidget {
 class _PermissionScreenState extends State<PermissionScreen>
     with TickerProviderStateMixin {
 
-  // ── 권한 항목 정의 ────────────────────────────────
-  // [중요도순] 알림 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
+  static const _platform = MethodChannel('com.pushnotify/permissions');
+
+  // ── 권한 항목 정의 ────────────────────────────────────────────────────
+  // [순서] 알림 → 다른앱위에표시 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
   final List<_PermItem> _items = [
     _PermItem(
       permission:  Permission.notification,
@@ -31,12 +31,22 @@ class _PermissionScreenState extends State<PermissionScreen>
       required:    true,
     ),
     _PermItem(
-      permission:  Permission.notification, // placeholder (isFullScreenIntent=true 로 처리)
+      permission:  Permission.notification, // placeholder (isOverlay=true로 처리)
+      icon:        Icons.picture_in_picture_alt_rounded,
+      color:       const Color(0xFFF97316),
+      title:       '다른 앱 위에 표시',
+      subtitle:    '화면이 켜진 상태에서도 알람을 표시합니다',
+      description: '이 권한이 없으면 다른 앱 사용 중 알람 화면이\n나타나지 않을 수 있습니다.\n설정에서 "허용"을 켜주세요.',
+      required:    true,
+      isOverlay:   true,
+    ),
+    _PermItem(
+      permission:  Permission.notification, // placeholder (isFullScreenIntent=true로 처리)
       icon:        Icons.fullscreen_rounded,
       color:       const Color(0xFFEF4444),
       title:       '전체 화면 알림 권한',
       subtitle:    '잠금화면 위에 알람을 표시합니다',
-      description: '이 권한이 없으면 화면이 꺼진 상태에서 알람을 받을 수 없습니다.\n설정에서 "권한 허용"을 켜주세요.',
+      description: '이 권한이 없으면 화면이 꺼진 상태에서\n알람을 받을 수 없습니다.\n설정에서 "권한 허용"을 켜주세요.',
       required:    true,
       isFullScreenIntent: true,
     ),
@@ -55,7 +65,7 @@ class _PermissionScreenState extends State<PermissionScreen>
       color:       const Color(0xFFF59E0B),
       title:       '배터리 최적화 제외',
       subtitle:    '앱이 꺼져 있어도 알람을 받습니다',
-      description: '배터리 절약 모드에서 앱이 강제 종료되면 알람을 못 받습니다.\n이 앱을 배터리 최적화에서 제외해 주세요.',
+      description: '배터리 절약 모드에서 앱이 강제 종료되면\n알람을 못 받습니다.\n이 앱을 배터리 최적화에서 제외해 주세요.',
       required:    true,
     ),
     _PermItem(
@@ -78,7 +88,7 @@ class _PermissionScreenState extends State<PermissionScreen>
     ),
   ];
 
-  int _currentStep = 0;        // 현재 진행 중인 권한 인덱스
+  int _currentStep = 0;
   bool _isRequesting = false;
   late final AnimationController _pulseCtrl;
   late final Animation<double>   _pulseAnim;
@@ -114,11 +124,14 @@ class _PermissionScreenState extends State<PermissionScreen>
     super.dispose();
   }
 
-  // 이미 허용된 권한은 건너뛰기
+  // 이미 허용된 권한 건너뛰기
   Future<void> _checkAlreadyGranted() async {
     for (int i = 0; i < _items.length; i++) {
+      if (_items[i].isOverlay) {
+        _items[i].granted = await _checkOverlayGranted();
+        continue;
+      }
       if (_items[i].isFullScreenIntent) {
-        // 전체화면 알림 권한은 Android 채널로 확인
         _items[i].granted = await _checkFullScreenIntentGranted();
         continue;
       }
@@ -127,25 +140,39 @@ class _PermissionScreenState extends State<PermissionScreen>
         _items[i].granted = true;
       }
     }
-    // 현재 단계부터 시작 (이미 허용된 것 건너뜀)
     final first = _items.indexWhere((e) => !e.granted);
     if (first == -1) {
-      // 모든 권한 이미 허용 → 바로 완료
       await _finishAndGoMain();
       return;
     }
     if (mounted) setState(() => _currentStep = first);
   }
 
-  // ── 전체화면 알림 권한 확인 (Android 14+) ─────────
-  static const _platform = MethodChannel('com.pushnotify/permissions');
+  // ── 다른 앱 위에 표시 권한 확인 ──────────────────────────────────────
+  Future<bool> _checkOverlayGranted() async {
+    try {
+      final result = await _platform.invokeMethod<bool>('canDrawOverlays');
+      return result ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
 
+  Future<void> _openOverlaySettings() async {
+    try {
+      await _platform.invokeMethod('openOverlaySettings');
+    } catch (_) {
+      await openAppSettings();
+    }
+  }
+
+  // ── 전체화면 알림 권한 확인 (Android 14+) ─────────────────────────────
   Future<bool> _checkFullScreenIntentGranted() async {
     try {
       final result = await _platform.invokeMethod<bool>('canUseFullScreenIntent');
-      return result ?? true; // Android 13 이하는 항상 허용
+      return result ?? true;
     } catch (_) {
-      return true; // 채널 없으면 허용으로 간주
+      return true;
     }
   }
 
@@ -157,7 +184,7 @@ class _PermissionScreenState extends State<PermissionScreen>
     }
   }
 
-  // ── 현재 권한 요청 ──────────────────────────────
+  // ── 현재 권한 요청 ────────────────────────────────────────────────────
   Future<void> _requestCurrent() async {
     if (_isRequesting) return;
     setState(() => _isRequesting = true);
@@ -165,9 +192,18 @@ class _PermissionScreenState extends State<PermissionScreen>
     final item = _items[_currentStep];
 
     try {
-      PermissionStatus status;
+      // 다른 앱 위에 표시
+      if (item.isOverlay) {
+        await _openOverlaySettings();
+        await Future.delayed(const Duration(seconds: 2));
+        item.granted = await _checkOverlayGranted();
+        item.denied  = !item.granted;
+        if (mounted) setState(() => _isRequesting = false);
+        await _moveToNext();
+        return;
+      }
 
-      // 전체화면 알림 권한 (Android 14+ 전용)
+      // 전체화면 알림 권한
       if (item.isFullScreenIntent) {
         await _openFullScreenIntentSettings();
         await Future.delayed(const Duration(seconds: 2));
@@ -178,13 +214,13 @@ class _PermissionScreenState extends State<PermissionScreen>
         return;
       }
 
-      // 배터리 최적화 제외는 별도 처리 (시스템 설정 화면 이동)
+      PermissionStatus status;
+
+      // 배터리 최적화 제외
       if (item.permission == Permission.ignoreBatteryOptimizations) {
         status = await Permission.ignoreBatteryOptimizations.request();
         if (!status.isGranted) {
-          // 시스템 설정으로 직접 안내
           await openAppSettings();
-          // 설정 복귀 후 재확인
           await Future.delayed(const Duration(seconds: 2));
           status = await Permission.ignoreBatteryOptimizations.status;
         }
@@ -198,14 +234,13 @@ class _PermissionScreenState extends State<PermissionScreen>
       } else {
         status = await item.permission.request();
         if (status.isPermanentlyDenied) {
-          // 영구 거부 → 설정 화면 안내
           if (mounted) await _showPermanentlyDeniedDialog(item);
           status = await item.permission.status;
         }
       }
 
-      item.granted  = status.isGranted || status.isLimited;
-      item.denied   = status.isDenied || status.isPermanentlyDenied;
+      item.granted = status.isGranted || status.isLimited;
+      item.denied  = status.isDenied || status.isPermanentlyDenied;
     } catch (e) {
       item.denied = true;
     }
@@ -214,15 +249,12 @@ class _PermissionScreenState extends State<PermissionScreen>
     await _moveToNext();
   }
 
-  // ── 다음 권한으로 이동 ────────────────────────────
   Future<void> _moveToNext() async {
     final nextIdx = _items.indexWhere((e) => !e.granted, _currentStep + 1);
     if (nextIdx == -1) {
-      // 남은 권한 없음 → 완료
       await _finishAndGoMain();
       return;
     }
-    // 슬라이드 애니메이션
     _slideCtrl.reset();
     if (mounted) {
       setState(() => _currentStep = nextIdx);
@@ -230,15 +262,12 @@ class _PermissionScreenState extends State<PermissionScreen>
     }
   }
 
-  // ── 건너뛰기 (선택 권한만 가능) ───────────────────
   Future<void> _skipCurrent() async {
     _items[_currentStep].skipped = true;
     await _moveToNext();
   }
 
-  // ── 완료 처리 ───────────────────────────────────
   Future<void> _finishAndGoMain() async {
-    // 권한 설정 완료 플래그 저장
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('permissions_setup_done', true);
     if (mounted) {
@@ -246,7 +275,6 @@ class _PermissionScreenState extends State<PermissionScreen>
     }
   }
 
-  // ── 영구 거부 다이얼로그 ────────────────────────
   Future<void> _showPermanentlyDeniedDialog(_PermItem item) async {
     await showDialog<void>(
       context: context,
@@ -261,9 +289,9 @@ class _PermissionScreenState extends State<PermissionScreen>
               style: const TextStyle(color: Colors.white, fontSize: 16,
                   fontWeight: FontWeight.w700)),
         ]),
-        content: Text(
+        content: const Text(
           '권한이 거부되었습니다.\n설정 앱에서 직접 허용해 주세요.',
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
+          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
         ),
         actions: [
           TextButton(
@@ -289,30 +317,25 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  // ── UI ──────────────────────────────────────────
+  // ── UI ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final item        = _items[_currentStep];
-    final totalSteps  = _items.length;
-    final doneCount   = _items.where((e) => e.granted).length;
+    final item       = _items[_currentStep];
+    final totalSteps = _items.length;
+    final doneCount  = _items.where((e) => e.granted).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: SafeArea(
         child: Column(
           children: [
-            // ── 상단 진행률 ──
             _buildHeader(doneCount, totalSteps),
-
-            // ── 중앙 권한 카드 ──
             Expanded(
               child: SlideTransition(
                 position: _slideAnim,
                 child: _buildPermCard(item),
               ),
             ),
-
-            // ── 하단 버튼 ──
             _buildButtons(item),
           ],
         ),
@@ -320,7 +343,6 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  // ── 상단 헤더 (단계 표시) ──
   Widget _buildHeader(int done, int total) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
@@ -346,7 +368,6 @@ class _PermissionScreenState extends State<PermissionScreen>
             ],
           ),
           const SizedBox(height: 10),
-          // 진행 바
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -366,7 +387,6 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  // ── 권한 카드 ──
   Widget _buildPermCard(_PermItem item) {
     return Center(
       child: Padding(
@@ -374,7 +394,6 @@ class _PermissionScreenState extends State<PermissionScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 아이콘
             ScaleTransition(
               scale: _pulseAnim,
               child: Container(
@@ -395,8 +414,6 @@ class _PermissionScreenState extends State<PermissionScreen>
               ),
             ),
             const SizedBox(height: 28),
-
-            // 필수/선택 뱃지
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
@@ -421,22 +438,16 @@ class _PermissionScreenState extends State<PermissionScreen>
               ),
             ),
             const SizedBox(height: 14),
-
-            // 제목
             Text(item.title,
                 style: const TextStyle(color: Colors.white, fontSize: 24,
                     fontWeight: FontWeight.w800),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
-
-            // 부제목
             Text(item.subtitle,
                 style: const TextStyle(color: Color(0xFF94A3B8),
                     fontSize: 14, height: 1.5),
                 textAlign: TextAlign.center),
             const SizedBox(height: 20),
-
-            // 설명 카드
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -460,8 +471,6 @@ class _PermissionScreenState extends State<PermissionScreen>
                 ],
               ),
             ),
-
-            // 거부 상태 표시
             if (item.denied) ...[
               const SizedBox(height: 14),
               Container(
@@ -490,13 +499,11 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  // ── 하단 버튼 영역 ──
   Widget _buildButtons(_PermItem item) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       child: Column(
         children: [
-          // 허용 버튼
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -530,10 +537,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                     ),
             ),
           ),
-
           const SizedBox(height: 10),
-
-          // 건너뛰기 (선택 권한) / 나중에 (필수 권한)
           SizedBox(
             width: double.infinity,
             height: 46,
@@ -558,7 +562,7 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 }
 
-// ── 권한 항목 데이터 클래스 ──────────────────────────
+// ── 권한 항목 데이터 클래스 ─────────────────────────────────────────────
 class _PermItem {
   final Permission permission;
   final IconData   icon;
@@ -567,7 +571,8 @@ class _PermItem {
   final String     subtitle;
   final String     description;
   final bool       required;
-  final bool       isFullScreenIntent; // Android 14+ 전체화면 알림 권한
+  final bool       isFullScreenIntent;
+  final bool       isOverlay;        // 다른 앱 위에 표시 권한
   bool granted = false;
   bool denied  = false;
   bool skipped = false;
@@ -581,5 +586,6 @@ class _PermItem {
     required this.description,
     required this.required,
     this.isFullScreenIntent = false,
+    this.isOverlay          = false,
   });
 }
