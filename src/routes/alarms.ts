@@ -123,7 +123,7 @@ alarms.post('/', async (c) => {
     }
 
     // 채널 존재 확인 (public_id 포함)
-    const channel = await c.env.DB.prepare('SELECT id, name, public_id FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
+    const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
 
     // 구독자 수 조회
