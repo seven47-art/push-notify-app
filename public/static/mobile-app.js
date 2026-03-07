@@ -1424,11 +1424,18 @@ const App = {
   },
   pickImageFrom(source) {
     this.closeModal('modal-img-src')
-    // 모달이 완전히 닫힌 후 파일 선택 창을 열어야
-    // 갤러리 창이 즉시 닫히는 문제(이벤트 버블링/포커스 충돌)를 방지
-    setTimeout(() => {
-      document.getElementById(source === 'camera' ? 'camera-input' : 'file-input').click()
-    }, 300)
+    // Flutter 앱 환경: FlutterBridge로 네이티브 이미지 피커 호출
+    // (Android WebView file input.click()은 보안 정책으로 동작 불안정)
+    if (window.FlutterBridge) {
+      setTimeout(() => {
+        FlutterBridge.postMessage(JSON.stringify({ action: 'pick_image', source: source }))
+      }, 200)
+    } else {
+      // 웹 브라우저 fallback: file input 사용
+      setTimeout(() => {
+        document.getElementById(source === 'camera' ? 'camera-input' : 'file-input').click()
+      }, 300)
+    }
   },
   onFileSelected(input) {
     const file = input.files?.[0]; if (!file) return
@@ -1501,6 +1508,27 @@ window._flutterFileCancelled = function(data) {
 
 window._flutterFileError = function(data) {
   toast('파일 선택 오류: ' + (data?.error || '알 수 없는 오류'), 3000)
+}
+
+// ── Flutter 이미지 피커 콜백 (채널 대표이미지) ──────────────
+window._flutterImageCallback = function(data) {
+  // Flutter ImagePicker가 base64로 이미지를 전달
+  if (!data?.base64) return
+  selectedImg = data.base64
+  const thumbId = imgPickerMode === 'edit' ? 'edit-img-thumb' : 'create-img-thumb'
+  const thumb = document.getElementById(thumbId)
+  if (thumb) {
+    thumb.innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
+  }
+  toast('✅ 이미지 선택 완료', 2000)
+}
+
+window._flutterImageCancelled = function() {
+  // 취소 시 아무것도 안 함
+}
+
+window._flutterImageError = function(data) {
+  toast('이미지 선택 오류: ' + (data?.error || '알 수 없는 오류'), 3000)
 }
 
 // ─────────────────────────────────────────────────────

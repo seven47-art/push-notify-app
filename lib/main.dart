@@ -10,6 +10,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -344,6 +345,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
+      // v1.0.49: WebView HTTP 캐시 강제 초기화 (새 배포 즉시 반영)
+      // localStorage는 유지 (로그인 세션 보존)
+      ..clearCache()
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {
@@ -372,7 +376,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           },
         ),
       )
-      ..loadRequest(Uri.parse(_appUrl));
+      ..loadRequest(Uri.parse('$_appUrl?_t=${DateTime.now().millisecondsSinceEpoch}'));
   }
 
   // ── 앱 포그라운드/백그라운드 감지 ──
@@ -517,6 +521,11 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         case 'pick_video_file':
           await _pickVideoFile();
           break;
+        case 'pick_image':
+          // v1.0.50: 채널 대표이미지 선택 - Flutter ImagePicker로 처리 (WebView file input 우회)
+          final imgSource = data['source'] as String? ?? 'gallery';
+          await _pickChannelImage(imgSource);
+          break;
         case 'show_fake_call':
           // v1.0.43: FlutterBridge에서 show_fake_call 요청도 Kotlin으로 전달 안 함
           // 웹에서 직접 알람을 띄우는 경우는 없어야 하므로 로그만 남김
@@ -628,6 +637,32 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       }
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
+    }
+  }
+
+  // v1.0.50: 채널 대표이미지 선택 - Flutter ImagePicker 사용 (WebView file input 우회)
+  // base64로 인코딩해서 웹뷰로 전달
+  Future<void> _pickChannelImage(String source) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 300,
+        maxHeight: 300,
+        imageQuality: 70,
+      );
+      if (image == null) {
+        _sendToWeb('window._flutterImageCancelled', {});
+        return;
+      }
+      final bytes = await image.readAsBytes();
+      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      _sendToWeb('window._flutterImageCallback', {
+        'base64': base64Str,
+        'name': image.name,
+      });
+    } catch (e) {
+      _sendToWeb('window._flutterImageError', {'error': e.toString()});
     }
   }
 
