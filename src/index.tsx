@@ -27,6 +27,14 @@ app.use('/api/*', cors({
 
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// mobile-app.js는 캐시 없이 항상 최신 버전 서빙 (WebView 캐시 무력화)
+app.use('/static/mobile-app.js', async (c, next) => {
+  await next()
+  c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.res.headers.set('Pragma', 'no-cache')
+  c.res.headers.set('Expires', '0')
+})
+
 // API 라우터
 app.route('/api/channels', channels)
 app.route('/api/contents', contents)

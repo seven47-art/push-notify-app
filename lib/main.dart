@@ -345,9 +345,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
-      // v1.0.49: WebView HTTP 캐시 강제 초기화 (새 배포 즉시 반영)
-      // localStorage는 유지 (로그인 세션 보존)
-      ..clearCache()
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {
@@ -376,7 +373,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           },
         ),
       )
-      ..loadRequest(Uri.parse('$_appUrl?_t=${DateTime.now().millisecondsSinceEpoch}'));
+      ..loadRequest(Uri.parse(_appUrl));
   }
 
   // ── 앱 포그라운드/백그라운드 감지 ──
