@@ -62,12 +62,23 @@ class AlarmPollingService : Service() {
             context.stopService(Intent(context, AlarmPollingService::class.java))
         }
 
-        // v1.0.38: WakeLock 획득 후 FakeCallActivity 풀스크린 직접 실행
+        // v1.0.42: triggerAlarm 자체에서 원자적 중복 방지
+        // FCM / AlarmManager / Polling / AlarmScheduler 어느 경로로 오더라도
+        // alarmId 기준으로 단 한 번만 실행되도록 synchronized 블록 안에서 check-then-act
         fun triggerAlarm(
             context: Context,
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = ""
         ) {
+            if (alarmId > 0) {
+                synchronized(fcmLock) {
+                    if (isFcmHandled(context, alarmId)) {
+                        Log.d(TAG, "triggerAlarm: alarm $alarmId already triggered – skip")
+                        return
+                    }
+                    markFcmHandled(context, alarmId)
+                }
+            }
             Log.d(TAG, "triggerAlarm: $channelName (id=$alarmId)")
             CallForegroundService.start(
                 context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl

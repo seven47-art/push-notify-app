@@ -58,17 +58,10 @@ class AlarmReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "AlarmManager 트리거: $channelName (id=$alarmId)")
 
-        // 중복 방지
-        if (AlarmPollingService.isFcmHandled(context, alarmId)) {
-            Log.d(TAG, "alarm $alarmId → 이미 처리됨, 스킵")
-            return
-        }
-        AlarmPollingService.markFcmHandled(context, alarmId)
-
         // ★ AlarmManager 예약 취소 — 실행 후 재부팅/재시작 시 재발동 방지
         AlarmScheduler.cancel(context, alarmId)
 
-        // [v1.0.37] FakeCallActivity 직접 실행 (WakeLock + 풀스크린 통화 수신 화면)
+        // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         AlarmPollingService.triggerAlarm(
             context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
         )

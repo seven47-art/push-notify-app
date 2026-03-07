@@ -45,7 +45,8 @@ object AlarmScheduler {
         val nowMs = System.currentTimeMillis()
         if (scheduledMs <= nowMs) {
             Log.w(TAG, "예약 시간이 이미 지남: alarmId=$alarmId, scheduledMs=$scheduledMs, now=$nowMs")
-            // [v1.0.37] 이미 지난 알람은 즉시 풀스크린으로 실행
+            // v1.0.42: triggerAlarm() 내부에서 원자적 중복 방지를 처리하므로
+            // AlarmScheduler → 즉시 실행 경로도 안전하게 triggerAlarm() 위임
             AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
             return
         }

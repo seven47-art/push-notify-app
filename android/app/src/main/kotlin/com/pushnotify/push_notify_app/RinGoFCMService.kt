@@ -5,12 +5,15 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
 /**
- * RinGoFCMService  v1.0.38
+ * RinGoFCMService  v1.0.42
  *
  * FCM 메시지 수신 처리:
  *  - alarm_schedule: 로컬 AlarmManager로 예약
  *  - alarm_cancel: AlarmManager 취소
  *  - alarm: 즉시 triggerAlarm() 호출 → FakeCallActivity 풀스크린 실행
+ *
+ * v1.0.42: 중복 방지 로직을 triggerAlarm() 내부로 이동
+ *          (FCM/AlarmManager/Polling/AlarmScheduler 모든 경로 단일 처리)
  */
 class RinGoFCMService : FirebaseMessagingService() {
 
@@ -65,14 +68,7 @@ class RinGoFCMService : FirebaseMessagingService() {
         val contentUrl  = data["content_url"]  ?: ""
         val homepageUrl = data["homepage_url"] ?: ""
 
-        if (alarmId > 0 && AlarmPollingService.isFcmHandled(this, alarmId)) {
-            Log.d(TAG, "FCM alarm $alarmId → 이미 처리됨, 스킵")
-            return
-        }
-        if (alarmId > 0) {
-            AlarmPollingService.markFcmHandled(this, alarmId)
-        }
-
+        // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         Log.d(TAG, "FCM 즉시 알람: $channelName (id=$alarmId)")
         AlarmPollingService.triggerAlarm(
             this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
