@@ -213,6 +213,7 @@ alarms.post('/', async (c) => {
 
 // =============================================
 // GET /api/alarms?channel_id=X&user_id=Y  - 알람 목록 조회
+// 조회 시 이미 지난 pending/triggered 알람은 자동 삭제 후 반환
 // =============================================
 alarms.get('/', async (c) => {
   try {
@@ -232,6 +233,31 @@ alarms.get('/', async (c) => {
       ORDER BY a.scheduled_at ASC
     `)
     const { results } = params.length ? await stmt.bind(...params).all() : await stmt.all()
+
+    // ── 지난 알람 자동 삭제 ──────────────────────────────────────────
+    // scheduled_at이 현재 시각보다 과거이고, status가 pending/triggered인 알람은
+    // 이미 울렸거나 울려야 했지만 남아있는 것 → 자동 삭제 처리
+    const now = new Date()
+    const expiredAlarms = (results as any[]).filter(a => {
+      const scheduledAt = new Date(a.scheduled_at)
+      return scheduledAt < now && (a.status === 'pending' || a.status === 'triggered')
+    })
+
+    if (expiredAlarms.length > 0) {
+      // 지난 알람 일괄 삭제 (alarm_logs 먼저 삭제 후 alarm_schedules 삭제)
+      for (const alarm of expiredAlarms) {
+        try {
+          await c.env.DB.prepare('DELETE FROM alarm_logs WHERE alarm_id = ?').bind(alarm.id).run()
+          await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
+        } catch (_) { /* 삭제 실패 무시 */ }
+      }
+      // 삭제 후 남은 알람만 반환
+      const expiredIds = new Set(expiredAlarms.map((a: any) => a.id))
+      const activeResults = (results as any[]).filter(a => !expiredIds.has(a.id))
+      return c.json({ success: true, data: activeResults })
+    }
+    // ────────────────────────────────────────────────────────────────
+
     return c.json({ success: true, data: results })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
@@ -529,6 +555,15 @@ alarms.post('/trigger', async (c) => {
           'UPDATE alarm_schedules SET sent_count = ?, total_targets = ? WHERE id = ?'
         ).bind(realSentCount, recipientMap.size, alarm.id).run()
       }
+
+      // ── 발송 완료된 알람 자동 삭제 ──────────────────────────────────
+      // triggered 상태가 되고 모든 수신자에게 발송 완료된 알람은 DB에서 정리
+      // (alarm_logs는 수신 이력으로 보존, alarm_schedules만 삭제)
+      try {
+        await c.env.DB.prepare('DELETE FROM alarm_logs WHERE alarm_id = ?').bind(alarm.id).run()
+        await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
+      } catch (_) { /* 삭제 실패 무시 — 다음 조회 시 GET에서 처리됨 */ }
+      // ────────────────────────────────────────────────────────────────
 
       totalTriggered++
       results.push({

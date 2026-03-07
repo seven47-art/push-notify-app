@@ -864,7 +864,18 @@ const App = {
     if (!section || !body) return
     try {
       const res  = await API.get('/alarms?channel_id=' + chId)
-      const list = (res.data?.data || []).filter(a => a.status === 'pending')
+      // 서버에서 이미 지난 알람을 자동 삭제해서 반환하지만,
+      // 혹시 남아있는 경우를 대비해 프론트에서도 과거 알람 필터링
+      const now  = new Date()
+      const list = (res.data?.data || []).filter(a => {
+        if (a.status !== 'pending' && a.status !== 'triggered') return false
+        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget)
+        if (new Date(a.scheduled_at) < now) {
+          API.delete('/alarms/' + a.id).catch(() => {})
+          return false
+        }
+        return true
+      })
 
       // ⚠️ 채널당 알람 1개 제한
       if (addArea) {
