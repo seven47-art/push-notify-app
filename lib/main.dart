@@ -79,21 +79,9 @@ Future<void> _initLocalNotifications() async {
   await _notificationsPlugin.initialize(
     initSettings,
     onDidReceiveNotificationResponse: (NotificationResponse res) {
-      // 알림 탭 시 앱 포그라운드로 가져옴
-      debugPrint('[Notification] tapped: ${res.payload}');
-      if (res.payload != null) {
-        try {
-          final data = jsonDecode(res.payload!) as Map<String, dynamic>;
-          _pendingAlarmData = data;
-          // 앱이 열려있으면 즉시 가상통화 표시
-          final ctx = navigatorKey.currentContext;
-          if (ctx != null) {
-            _showFakeCallFromData(ctx, data);
-          }
-        } catch (e) {
-          debugPrint('[Notification] payload parse error: $e');
-        }
-      }
+      // v1.0.43: 로컬 알림 탭 핸들러 - FakeCallScreen 표시 제거
+      // 알람은 Kotlin FakeCallActivity에서 이미 처리됨 → Flutter에서 추가 표시 불필요
+      debugPrint('[Notification] tapped (v1.0.43: 추가 처리 없음): ${res.payload}');
     },
   );
 
@@ -121,32 +109,15 @@ Future<void> _initLocalNotifications() async {
 }
 
 // ─────────────────────────────────────────────────
-// 가상통화 화면 표시 (전역, 앱 포그라운드용)
-// 잠금화면/백그라운드 알람은 Kotlin FakeCallActivity에서 처리
 // ─────────────────────────────────────────────────
+// [v1.0.43 DEPRECATED] _showFakeCallFromData
+// 모든 알람 표시는 Kotlin FakeCallActivity에서 처리
+// 이 함수는 더 이상 호출되지 않음 (컴파일 오류 방지용으로 유지)
+// ─────────────────────────────────────────────────
+// ignore: unused_element
 void _showFakeCallFromData(BuildContext context, Map<String, dynamic> data) {
-  Navigator.of(context).push(
-    PageRouteBuilder(
-      pageBuilder: (_, __, ___) => FakeCallScreen(
-        channelName: data['channel_name'] as String? ?? '알람',
-        msgType:     data['msg_type']     as String? ?? 'youtube',
-        msgValue:    data['msg_value']    as String? ?? '',
-        alarmId:     (data['alarm_id']   as int?) ?? 0,
-        contentUrl:  data['content_url'] as String? ?? '',
-      ),
-      transitionDuration: const Duration(milliseconds: 300),
-      transitionsBuilder: (_, anim, __, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-          child: child,
-        );
-      },
-      fullscreenDialog: true,
-    ),
-  );
+  // v1.0.43: 호출 금지 - Kotlin FakeCallActivity가 단독 처리
+  debugPrint('[DEPRECATED] _showFakeCallFromData 호출됨 (무시)');
 }
 
 // ─────────────────────────────────────────────────
@@ -313,23 +284,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initWebView();
-    _startAlarmPolling();          // 포그라운드 폴링 (앱 열려있을 때)
+    _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
     _initFCM();                     // FCM 초기화 + 토큰 서버 등록
-
-    // 앱 시작 시 대기 중인 알람 데이터 확인 (FakeCallActivity → Flutter)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pendingAlarmData != null) {
-        final data = _pendingAlarmData!;
-        _pendingAlarmData = null;
-        _showFakeCall(
-          channelName: data['channel_name'] as String? ?? '알람',
-          msgType:     data['msg_type']     as String? ?? 'youtube',
-          msgValue:    data['msg_value']    as String? ?? '',
-          alarmId:     (data['alarm_id']   as int?) ?? 0,
-          contentUrl:  data['content_url'] as String? ?? '',
-        );
-      }
-    });
+    // v1.0.43: _pendingAlarmData 처리 제거 - Kotlin FakeCallActivity가 단독 처리
   }
 
   @override
@@ -422,20 +379,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 포그라운드로 복귀 시 즉시 폴링
-      _pollAlarms();
-      // 대기 중인 알람 데이터 처리
-      if (_pendingAlarmData != null) {
-        final data = _pendingAlarmData!;
-        _pendingAlarmData = null;
-        _showFakeCall(
-          channelName: data['channel_name'] as String? ?? '알람',
-          msgType:     data['msg_type']     as String? ?? 'youtube',
-          msgValue:    data['msg_value']    as String? ?? '',
-          alarmId:     (data['alarm_id']   as int?) ?? 0,
-          contentUrl:  data['content_url'] as String? ?? '',
-        );
-      }
+      // v1.0.43: Flutter 폴링 제거 - Kotlin AlarmPollingService가 처리
+      debugPrint('[Lifecycle] 포그라운드 복귀 (Flutter 폴링 없음)');
     }
   }
 
@@ -464,56 +409,27 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         _registerFcmToken(newToken);
       });
 
-      // 앱이 포그라운드일 때 FCM 메시지 수신
+      // v1.0.43: 포그라운드 FCM 알람은 Kotlin RinGoFCMService가 단독 처리
+      // Flutter onMessage에서 FakeCallScreen을 띄우면 FakeCallActivity(새 UI)와 이중으로 뜨는 문제 발생
+      // → Flutter에서는 로그만 남기고 알람 표시는 Kotlin에 완전 위임
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('[FCM] 포그라운드 메시지: ${message.data}');
-        final data = message.data;
-        if (data['type'] == 'alarm' && mounted) {
-          // 포그라운드: Kotlin에서 발송한 Notification을 즉시 취소
-          // (Flutter에서 직접 FakeCall 다이얼로그로 처리하므로 중복 방지)
-          _notificationsPlugin.cancel(9999);
-
-          _showFakeCall(
-            channelName: data['channel_name'] ?? '알람',
-            msgType:     data['msg_type']     ?? 'youtube',
-            msgValue:    data['msg_value']    ?? '',
-            alarmId:     int.tryParse(data['alarm_id'] ?? '0') ?? 0,
-            contentUrl:  data['content_url'] ?? '',
-          );
-        }
+        debugPrint('[FCM] 포그라운드 메시지 수신 (Kotlin에서 처리): ${message.data}');
+        // 알람 처리는 Kotlin RinGoFCMService → AlarmPollingService.triggerAlarm → FakeCallActivity
+        // 여기서 _showFakeCall() 호출하면 Flutter FakeCallScreen(구 UI)이 이중으로 뜸 → 절대 호출 금지
       });
 
-      // 앱이 백그라운드에서 알림 탭으로 재개될 때
+      // v1.0.43: 알림 탭 재개 시에도 Kotlin FakeCallActivity가 이미 처리했으므로 Flutter에서 추가 표시 불필요
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('[FCM] 알림 탭으로 앱 재개: ${message.data}');
-        final data = message.data;
-        if (data['type'] == 'alarm' && mounted) {
-          _showFakeCall(
-            channelName: data['channel_name'] ?? '알람',
-            msgType:     data['msg_type']     ?? 'youtube',
-            msgValue:    data['msg_value']    ?? '',
-            alarmId:     int.tryParse(data['alarm_id'] ?? '0') ?? 0,
-            contentUrl:  data['content_url'] ?? '',
-          );
-        }
+        debugPrint('[FCM] 알림 탭으로 앱 재개 (처리 불필요): ${message.data}');
+        // Kotlin FakeCallActivity에서 이미 표시됨 → 추가 처리 없음
       });
 
-      // FakeCallActivity 수락 후 Flutter로 전달되는 채널 수신
+      // v1.0.43: FakeCallActivity 수락 후 ContentPlayerActivity로 이동은 Kotlin에서 처리
+      // Flutter _showFakeCall()은 더 이상 사용하지 않음
       const alarmDataCh = MethodChannel('com.pushnotify/alarm_data');
       alarmDataCh.setMethodCallHandler((call) async {
-        if (call.method == 'onAlarmAnswered') {
-          final data = Map<String, dynamic>.from(call.arguments as Map);
-          debugPrint('[AlarmData] 수락 데이터 수신: $data');
-          if (mounted) {
-            _showFakeCall(
-              channelName: data['channel_name'] as String? ?? '알람',
-              msgType:     data['msg_type']     as String? ?? 'youtube',
-              msgValue:    data['msg_value']    as String? ?? '',
-              alarmId:     (data['alarm_id']   as int?) ?? 0,
-              contentUrl:  data['content_url'] as String? ?? '',
-            );
-          }
-        }
+        debugPrint('[AlarmData] 수신 (v1.0.43 이후 미사용): ${call.method}');
+        // FakeCallActivity 수락 → ContentPlayerActivity 전환은 Kotlin에서 직접 처리
       });
 
     } catch (e) {
@@ -549,60 +465,25 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
-  // ── 앱 포그라운드 폴링 (1분 주기) — 백그라운드/잠금화면은 Kotlin AlarmPollingService가 처리 ──
+  // ── 앱 포그라운드 폴링 비활성화 (v1.0.43)
+  // Kotlin AlarmPollingService가 1분 주기로 동일한 /api/alarms/trigger를 호출함
+  // Flutter에서도 호출하면 두 경로가 동시에 알람을 트리거 → 이중 알람 발생
+  // → Flutter 폴링 완전 제거, Kotlin 단독 처리
   void _startAlarmPolling() {
-    Future.delayed(const Duration(seconds: 10), () {
-      if (mounted) _pollAlarms();
-    });
-    _alarmPollTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) _pollAlarms();
-    });
+    debugPrint('[AlarmPoll] Flutter 폴링 비활성화 (Kotlin AlarmPollingService가 처리)');
+    // 폴링 타이머 시작하지 않음
   }
 
-  // ── 포그라운드 알람 폴링 (앱이 열려있을 때만 FakeCallScreen 표시) ──
+  // ── 포그라운드 알람 폴링 (비활성화됨 - v1.0.43) ──
   Future<void> _pollAlarms() async {
-    if (_isFakeCallShowing) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isEmpty) return;
-
-      final res = await http.post(
-        Uri.parse('$_baseUrl/api/alarms/trigger'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      if (res.statusCode != 200) return;
-
-      final data    = jsonDecode(res.body) as Map<String, dynamic>;
-      final results = data['results'] as List<dynamic>? ?? [];
-      if ((data['triggered'] as int? ?? 0) <= 0 || results.isEmpty) return;
-
-      final alarm       = results[0] as Map<String, dynamic>;
-      final channelName = alarm['channel_name'] as String? ?? '알람';
-      final msgType     = alarm['msg_type']     as String? ?? 'youtube';
-      final msgValue    = alarm['msg_value']    as String? ?? '';
-      final alarmId     = alarm['alarm_id']     as int?    ?? 0;
-      final contentUrl  = alarm['content_url']  as String? ?? '';
-
-      if (mounted) {
-        _showFakeCall(
-          channelName: channelName,
-          msgType:     msgType,
-          msgValue:    msgValue,
-          alarmId:     alarmId,
-          contentUrl:  contentUrl,
-        );
-      }
-    } catch (e) {
-      debugPrint('[AlarmPoll] 오류: $e');
-    }
+    // v1.0.43: Flutter 폴링 비활성화 - Kotlin AlarmPollingService 단독 처리
+    debugPrint('[AlarmPoll] Flutter 폴링 호출 무시 (Kotlin에서 처리)');
   }
 
-  // ── 가상통화 화면 표시 ──
+  // ── [v1.0.43 DEPRECATED] 가상통화 화면 표시 ──
+  // 모든 알람 표시는 Kotlin FakeCallActivity에서 처리
+  // 이 함수는 더 이상 호출되지 않음 (컴파일 오류 방지용으로 유지)
+  // ignore: unused_element
   void _showFakeCall({
     required String channelName,
     required String msgType,
@@ -610,48 +491,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     required int    alarmId,
     String contentUrl = '',
   }) {
-    // 이미 표시 중이거나 같은 alarm_id를 이미 처리했으면 무시 (중복 방지)
-    if (_isFakeCallShowing) return;
-    if (alarmId > 0 && _handledAlarmIds.contains(alarmId)) {
-      debugPrint('[AlarmGuard] alarm_id=$alarmId 이미 처리됨 → 중복 무시');
-      return;
-    }
-    // 처리된 alarm_id 기록 (최대 50개 유지)
-    if (alarmId > 0) {
-      _handledAlarmIds.add(alarmId);
-      if (_handledAlarmIds.length > 50) {
-        _handledAlarmIds.remove(_handledAlarmIds.first);
-      }
-    }
-    setState(() => _isFakeCallShowing = true);
-
-    // 진동 (알람 패턴)
-    HapticFeedback.heavyImpact();
-
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => FakeCallScreen(
-          channelName: channelName,
-          msgType:     msgType,
-          msgValue:    msgValue,
-          alarmId:     alarmId,
-          contentUrl:  contentUrl,
-        ),
-        transitionDuration: const Duration(milliseconds: 300),
-        transitionsBuilder: (_, anim, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-            child: child,
-          );
-        },
-        fullscreenDialog: true,
-      ),
-    ).then((_) {
-      setState(() => _isFakeCallShowing = false);
-    });
+    // v1.0.43: 호출 금지 - Kotlin FakeCallActivity가 단독 처리
+    debugPrint('[DEPRECATED] _showFakeCall 호출됨 (무시): $channelName (id=$alarmId)');
   }
 
   // ── FlutterBridge 메시지 처리 ──────────────────────
@@ -677,13 +518,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           await _pickVideoFile();
           break;
         case 'show_fake_call':
-          _showFakeCall(
-            channelName: data['channel_name'] as String? ?? '알람',
-            msgType:     data['msg_type']     as String? ?? 'youtube',
-            msgValue:    data['msg_value']    as String? ?? '',
-            alarmId:     (data['alarm_id']   as int?) ?? 0,
-            contentUrl:  data['content_url'] as String? ?? '',
-          );
+          // v1.0.43: FlutterBridge에서 show_fake_call 요청도 Kotlin으로 전달 안 함
+          // 웹에서 직접 알람을 띄우는 경우는 없어야 하므로 로그만 남김
+          debugPrint('[FlutterBridge] show_fake_call 무시 (Kotlin FakeCallActivity가 처리)');
           break;
         case 'launch_youtube':
           final url = data['url'] as String? ?? '';
