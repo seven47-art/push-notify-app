@@ -28,17 +28,13 @@ import java.net.URL
  *
  * 알람 수락 후 콘텐츠 재생 화면
  *
- * ┌────────────────────────────┐
- * │  상단: 채널 이미지(원형) + 채널명   │
- * ├────────────────────────────┤
- * │  메시지 소스 재생 영역           │
- * │  - youtube  → YouTube 웹 버전 (WebView)
- * │  - audio    → MediaPlayer (mp3) + 채널 이미지
- * │  - video    → VideoView (mp4)
- * │  - file     → 확장자 감지 후 audio/video 분기
- * ├────────────────────────────┤
- * │  🌐 홈페이지 버튼 (있을 때만)     │
- * ├────────────────────────────┤
+ * ┌────────────────────────────┐  ← 화면 상단 50%
+ * │  콘텐츠 실행 영역              │
+ * │  (YouTube / Audio / Video) │
+ * ├────────────────────────────┤  ← 화면 하단 50%
+ * │  [채널 대표이미지 - 사각형]      │
+ * │  채널명                      │
+ * │  🌐 홈페이지 버튼 (있을 때만)   │
  * │  🔴 종료 버튼                 │
  * └────────────────────────────┘
  */
@@ -118,7 +114,7 @@ class ContentPlayerActivity : Activity() {
         channelPublicId: String
     ): View {
 
-        // 루트 컨테이너
+        // ── 루트: 세로 LinearLayout (상단 50% 재생 + 하단 50% 채널 정보) ──
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.BLACK)
@@ -128,55 +124,10 @@ class ContentPlayerActivity : Activity() {
             )
         }
 
-        // ── 상단 채널 바 (이미지 원형 + 채널명) ──────────────────────
-        val topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.parseColor("#1A1035"))
-            setPadding(dp(14), dp(10), dp(16), dp(10))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        // 채널 이미지 (원형 ImageView)
-        val channelIconSize = dp(40)
-        val channelIcon = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(channelIconSize, channelIconSize).also {
-                it.marginEnd = dp(10)
-            }
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            // 기본: 회색 원 배경
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#3D2F6E"))
-            }
-            // 기본 아이콘 (로딩 전)
-            setImageResource(R.drawable.ringo_icon)
-        }
-        topBar.addView(channelIcon)
-
-        // 채널명 텍스트
-        topBar.addView(TextView(this).apply {
-            text = channelName
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        })
-        root.addView(topBar)
-
-        // ── 채널 이미지 비동기 로드 ────────────────────────────────
-        if (channelPublicId.isNotEmpty()) {
-            loadChannelImageIntoView(channelPublicId, channelIcon)
-        }
-
-        // ── 재생 영역 (타입에 따라 분기) ─────────────────────────
+        // ════════════════════════════════════════════════
+        // 상단 50% : 콘텐츠 재생 영역
+        // ════════════════════════════════════════════════
+        // weight=1f 로 상/하 동일 비중 분할
         val playerParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         )
@@ -193,7 +144,7 @@ class ContentPlayerActivity : Activity() {
 
         when (effectiveType) {
 
-            // ── YouTube IFrame Embed ───────────────────────────────────
+            // ── YouTube IFrame Embed ──────────────────────────────
             "youtube" -> {
                 val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
@@ -227,10 +178,10 @@ class ContentPlayerActivity : Activity() {
                         val html = """
                             <!DOCTYPE html><html><head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <style>*{margin:0;padding:0;background:#000;} iframe{width:100%;height:100vh;border:none;}</style>
-                            </head><body>
+                            <style>*{margin:0;padding:0;background:#000;} iframe{width:100%;height:100%;border:none;}</style>
+                            </head><body style="height:100vh;">
                             <iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
-                                allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                                allow="autoplay; encrypted-media" allowfullscreen style="width:100%;height:100%;"></iframe>
                             </body></html>
                         """.trimIndent()
                         loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
@@ -244,63 +195,26 @@ class ContentPlayerActivity : Activity() {
                 root.addView(webView)
             }
 
-            // ── 오디오 (MediaPlayer) + 채널 대표이미지 ──────────────
+            // ── 오디오 (MediaPlayer) ──────────────────────────────
             "audio" -> {
                 val audioUrl = contentUrl.ifEmpty { msgValue }
                 val audioContainer = FrameLayout(this).apply {
                     layoutParams = playerParams
                     setBackgroundColor(Color.parseColor("#0F0C29"))
                 }
-
-                val audioLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-
-                // 채널 대표이미지 (오디오 재생화면 중앙) - 큰 원형
-                val audioIconSize = dp(120)
-                val audioChannelIcon = ImageView(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(audioIconSize, audioIconSize).also {
-                        it.gravity = Gravity.CENTER_HORIZONTAL
-                    }
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(Color.parseColor("#3D2F6E"))
-                    }
-                    setImageResource(R.drawable.ringo_icon)
-                }
-                audioLayout.addView(audioChannelIcon)
-                audioLayout.addView(View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(1, dp(20))
-                })
-
-                // 채널 이미지 비동기 로드 (오디오 화면용)
-                if (channelPublicId.isNotEmpty()) {
-                    loadChannelImageIntoView(channelPublicId, audioChannelIcon)
-                }
-
-                // 상태 텍스트
                 val statusText = TextView(this).apply {
                     text = "오디오 로딩 중..."
                     textSize = 15f
                     setTextColor(Color.parseColor("#94A3B8"))
                     gravity = Gravity.CENTER
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER
                     )
                 }
-                audioLayout.addView(statusText)
-                audioLayout.addView(View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(1, dp(24))
-                })
+                audioContainer.addView(statusText)
 
-                // 재생/일시정지 버튼
                 val playBtn = TextView(this).apply {
                     text = "⏸ 일시정지"
                     textSize = 16f
@@ -311,16 +225,15 @@ class ContentPlayerActivity : Activity() {
                         cornerRadius = dp(30).toFloat()
                         setColor(Color.parseColor("#6D28D9"))
                     }
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.gravity = Gravity.CENTER_HORIZONTAL }
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER or Gravity.BOTTOM
+                    ).also { it.bottomMargin = dp(24) }
                 }
-                audioLayout.addView(playBtn)
-                audioContainer.addView(audioLayout)
+                audioContainer.addView(playBtn)
                 root.addView(audioContainer)
 
-                // MediaPlayer 초기화
                 try {
                     mediaPlayer = MediaPlayer().apply {
                         setAudioAttributes(
@@ -347,13 +260,9 @@ class ContentPlayerActivity : Activity() {
                     playBtn.setOnClickListener {
                         mediaPlayer?.let { mp ->
                             if (mp.isPlaying) {
-                                mp.pause()
-                                playBtn.text = "▶ 재생"
-                                statusText.text = "일시정지"
+                                mp.pause(); playBtn.text = "▶ 재생"; statusText.text = "일시정지"
                             } else {
-                                mp.start()
-                                playBtn.text = "⏸ 일시정지"
-                                statusText.text = "오디오 재생 중"
+                                mp.start(); playBtn.text = "⏸ 일시정지"; statusText.text = "오디오 재생 중"
                             }
                         }
                     }
@@ -370,32 +279,23 @@ class ContentPlayerActivity : Activity() {
                     layoutParams = playerParams
                     setBackgroundColor(Color.BLACK)
                 }
-
                 videoView = VideoView(this).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         Gravity.CENTER
                     )
-                    val mc = MediaController(context).apply {
-                        setAnchorView(this@apply)
-                    }
+                    val mc = MediaController(context).apply { setAnchorView(this@apply) }
                     setMediaController(mc)
                     setVideoURI(Uri.parse(videoUrl))
-                    setOnPreparedListener { mp ->
-                        mp.start()
-                        mc.show(3000)
-                    }
-                    setOnErrorListener { _, _, _ ->
-                        Log.e(TAG, "VideoView 재생 오류")
-                        false
-                    }
+                    setOnPreparedListener { mp -> mp.start(); mc.show(3000) }
+                    setOnErrorListener { _, _, _ -> Log.e(TAG, "VideoView 재생 오류"); false }
                 }
                 videoContainer.addView(videoView)
                 root.addView(videoContainer)
             }
 
-            // ── 기타 파일 (지원 불가 안내) ─────────────────────────
+            // ── 기타 파일 (지원 불가 안내) ────────────────────────
             else -> {
                 val msgView = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
@@ -426,27 +326,72 @@ class ContentPlayerActivity : Activity() {
             }
         }
 
-        // ── 하단 영역 (홈페이지 버튼 + 종료 버튼) ─────────────────
-        val bottomArea = LinearLayout(this).apply {
+        // ════════════════════════════════════════════════
+        // 하단 50% : 채널 정보 영역
+        // ════════════════════════════════════════════════
+        val infoPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_HORIZONTAL
             setBackgroundColor(Color.parseColor("#0D0D1A"))
-            setPadding(dp(20), dp(16), dp(20), dp(24))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+            setPadding(dp(20), dp(16), dp(20), dp(20))
+        }
+
+        // ── 채널 대표이미지 (사각형 썸네일, 둥근 모서리) ──────────────
+        val thumbSize = dp(100)
+        val channelThumb = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+            }
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(Color.parseColor("#3D2F6E"))
+            }
+            // clipToOutline: 배경 둥근 모서리가 이미지에도 적용되도록
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            setImageResource(R.drawable.ringo_icon)
+        }
+        infoPanel.addView(channelThumb)
+
+        // 채널 이미지 비동기 로드
+        if (channelPublicId.isNotEmpty()) {
+            loadChannelImageIntoView(channelPublicId, channelThumb, rounded = true)
+        }
+
+        // ── 채널명 ────────────────────────────────────────────────
+        infoPanel.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, dp(12))
+        })
+        infoPanel.addView(TextView(this).apply {
+            text = channelName
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-        }
+        })
 
-        // 홈페이지 URL 버튼 (있을 때만)
+        // ── Spacer ────────────────────────────────────────────────
+        infoPanel.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, 0, 1f)
+        })
+
+        // ── 홈페이지 버튼 (있을 때만) ─────────────────────────────
         if (homepageUrl.isNotEmpty()) {
             val hpUrl = if (homepageUrl.startsWith("http")) homepageUrl else "https://$homepageUrl"
-            bottomArea.addView(TextView(this).apply {
+            infoPanel.addView(TextView(this).apply {
                 text = "🌐  $homepageUrl"
                 textSize = 14f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
-                setPadding(dp(20), dp(14), dp(20), dp(14))
+                setPadding(dp(20), dp(12), dp(20), dp(12))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(10).toFloat()
                     setColor(Color.parseColor("#2563EB"))
@@ -465,15 +410,15 @@ class ContentPlayerActivity : Activity() {
                     }
                 }
             })
-            bottomArea.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(1, dp(14))
+            infoPanel.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(1, dp(12))
             })
         }
 
-        // 종료 버튼
+        // ── 종료 버튼 ─────────────────────────────────────────────
         val closeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -487,16 +432,17 @@ class ContentPlayerActivity : Activity() {
                 setColor(Color.parseColor("#EF4444"))
             }
             val size = dp(60)
-            layoutParams = LinearLayout.LayoutParams(size, size)
+            layoutParams = LinearLayout.LayoutParams(size, size).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+            }
             setPadding(dp(13), dp(13), dp(13), dp(13))
             setOnClickListener { closePlayer() }
         }
         closeRow.addView(closeCircle)
-        bottomArea.addView(closeRow)
-        bottomArea.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, dp(6))
+        closeRow.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, dp(4))
         })
-        bottomArea.addView(TextView(this).apply {
+        closeRow.addView(TextView(this).apply {
             text = "종료"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
@@ -506,13 +452,18 @@ class ContentPlayerActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         })
-        root.addView(bottomArea)
+        infoPanel.addView(closeRow)
 
+        root.addView(infoPanel)
         return root
     }
 
-    // ── 채널 이미지 API 로드 (FakeCallActivity와 동일 로직) ──────────
-    private fun loadChannelImageIntoView(publicId: String, imageView: ImageView) {
+    // ── 채널 이미지 API 로드 ──────────────────────────────────────
+    private fun loadChannelImageIntoView(
+        publicId: String,
+        imageView: ImageView,
+        rounded: Boolean = false
+    ) {
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
         val baseUrl = prefs.getString("base_url", "")
             ?.takeIf { it.isNotEmpty() }
@@ -528,7 +479,7 @@ class ContentPlayerActivity : Activity() {
                     val response = conn.inputStream.bufferedReader().readText()
                     conn.disconnect()
 
-                    val jsonObj = org.json.JSONObject(response)
+                    val jsonObj  = org.json.JSONObject(response)
                     if (!jsonObj.optBoolean("success", false)) return@withContext null
                     val imageUrl = jsonObj.optJSONObject("data")?.optString("image_url") ?: ""
                     if (imageUrl.isEmpty()) return@withContext null
@@ -545,17 +496,19 @@ class ContentPlayerActivity : Activity() {
                         imgConn.disconnect()
                         bmp
                     }
-                    raw?.let { toCircleBitmap(it) }
+                    // rounded=true 이면 원형, false면 원본 비트맵 그대로 (사각형은 clipToOutline으로 처리)
+                    if (rounded) raw?.let { toCircleBitmap(it) } else raw
                 }
 
                 if (bitmap != null) {
-                    imageView.background = null
+                    imageView.background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(Color.BLACK)
+                    }
                     imageView.setImageBitmap(bitmap)
                 }
-                // bitmap == null 이면 기본 ringo_icon 유지
             } catch (e: Exception) {
                 Log.e(TAG, "채널 이미지 로드 실패: ${e.message}")
-                // 기본 ringo_icon 유지
             }
         }
     }
@@ -580,16 +533,9 @@ class ContentPlayerActivity : Activity() {
     }
 
     private fun closePlayer() {
-        webView?.apply {
-            stopLoading()
-            loadUrl("about:blank")
-            destroy()
-        }
+        webView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         webView = null
-        mediaPlayer?.apply {
-            if (isPlaying) stop()
-            release()
-        }
+        mediaPlayer?.apply { if (isPlaying) stop(); release() }
         mediaPlayer = null
         videoView?.stopPlayback()
         videoView = null
@@ -597,14 +543,8 @@ class ContentPlayerActivity : Activity() {
         finish()
     }
 
-    override fun onDestroy() {
-        closePlayer()
-        super.onDestroy()
-    }
-
-    override fun onBackPressed() {
-        closePlayer()
-    }
+    override fun onDestroy() { closePlayer(); super.onDestroy() }
+    override fun onBackPressed() { closePlayer() }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
 }
