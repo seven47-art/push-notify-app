@@ -181,7 +181,7 @@ alarms.post('/', async (c) => {
         msg_type:       msg_type,
         msg_value:      safeValue,
         content_url:    contentUrl,
-        homepage_url:   '',
+        homepage_url:   (channel as any).homepage_url || '',
         scheduled_time: String(scheduledMs),    // 앱이 AlarmManager에 넘길 Unix ms
         notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
       }
