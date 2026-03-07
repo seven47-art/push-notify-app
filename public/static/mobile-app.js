@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v16
+// public/static/mobile-app.js  v17
 // PushNotify 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -219,10 +219,13 @@ function avatar(name, imgUrl, size = 44) {
   if (imgUrl) {
     return `<div style="${s}background:${c}22;">
       <img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;"
-        onerror="this.parentNode.innerHTML='<span style=font-size:${size*.38}px;font-weight:700;color:${c};>${init}</span>'">
+        onerror="this.parentNode.innerHTML='<img src=\\/static\\/ringo-icon.png style=width:100%;height:100%;object-fit:cover;>'">
     </div>`
   }
-  return `<div style="${s}background:${c}22;color:${c};font-size:${size*.38}px;font-weight:700;">${init}</div>`
+  // 이미지 없을 때 RinGo 아이콘 기본 표시
+  return `<div style="${s}background:transparent;">
+    <img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">
+  </div>`
 }
 
 // ─────────────────────────────────────────────
@@ -726,7 +729,7 @@ const App = {
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
     document.getElementById('create-img-thumb').innerHTML =
-      '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
+      '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
     this.openModal('modal-create')
     setTimeout(() => document.getElementById('create-name').focus(), 300)
   },
@@ -781,7 +784,7 @@ const App = {
     const thumb = document.getElementById('edit-img-thumb')
     thumb.innerHTML = ch.image_url
       ? `<img src="${ch.image_url}" style="width:100%;height:100%;object-fit:cover;">`
-      : '<i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>'
+      : '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
     this.openModal('modal-edit')
   },
 
@@ -1276,7 +1279,7 @@ const App = {
       // 아바타 HTML
       const avHtml = ch.image_url
         ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;">'
-        : '<span style="font-size:26px;font-weight:700;color:' + color + ';">' + init + '</span>'
+        : '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
 
       // 액션 버튼
       let btns = '<button class="ch-detail-btn-share" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-share-alt"></i> 공유</button>'

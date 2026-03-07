@@ -37,6 +37,7 @@ channels.get('/', async (c) => {
     const query = `
       SELECT
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
+        ch.homepage_url, ch.public_id,
         COUNT(DISTINCT s.id)  as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
         COUNT(DISTINCT il.id) as invite_link_count,
