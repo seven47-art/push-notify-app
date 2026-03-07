@@ -14,6 +14,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.*
 import android.provider.Settings
+import android.util.Base64
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -24,44 +25,48 @@ import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity v1.0.40
+ * FakeCallActivity v1.0.55
  * - 카카오톡 전화 스타일 UI
  * - 상단: 발신자 이름 + "RinGo 알람" 부제목
- * - 중앙: 프로필 원형 아이콘 + 파동 링 애니메이션
+ * - 중앙: 채널 대표 이미지 원형 아이콘 (없으면 링고 기본 아이콘) + 파동 링 애니메이션
  * - 하단: 거절(빨강 왼쪽) / 수락(초록 오른쪽) 버튼
  */
 class FakeCallActivity : Activity() {
 
     companion object {
         private const val TAG = "FakeCallActivity"
-        const val EXTRA_CHANNEL_NAME = "channel_name"
-        const val EXTRA_MSG_TYPE     = "msg_type"
-        const val EXTRA_MSG_VALUE    = "msg_value"
-        const val EXTRA_ALARM_ID     = "alarm_id"
-        const val EXTRA_CONTENT_URL  = "content_url"
-        const val EXTRA_HOMEPAGE_URL = "homepage_url"
-        const val EXTRA_AUTO_ACCEPT  = "auto_accept"
+        const val EXTRA_CHANNEL_NAME      = "channel_name"
+        const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
+        const val EXTRA_MSG_TYPE          = "msg_type"
+        const val EXTRA_MSG_VALUE         = "msg_value"
+        const val EXTRA_ALARM_ID          = "alarm_id"
+        const val EXTRA_CONTENT_URL       = "content_url"
+        const val EXTRA_HOMEPAGE_URL      = "homepage_url"
+        const val EXTRA_AUTO_ACCEPT       = "auto_accept"
 
         fun start(
             context: Context,
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = "",
+            channelPublicId: String = "",
             autoAccept: Boolean = false
         ) {
             val intent = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(EXTRA_CHANNEL_NAME, channelName)
-                putExtra(EXTRA_MSG_TYPE,     msgType)
-                putExtra(EXTRA_MSG_VALUE,    msgValue)
-                putExtra(EXTRA_ALARM_ID,     alarmId)
-                putExtra(EXTRA_CONTENT_URL,  contentUrl)
-                putExtra(EXTRA_HOMEPAGE_URL, homepageUrl)
-                putExtra(EXTRA_AUTO_ACCEPT,  autoAccept)
+                putExtra(EXTRA_CHANNEL_NAME,      channelName)
+                putExtra(EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
+                putExtra(EXTRA_MSG_TYPE,          msgType)
+                putExtra(EXTRA_MSG_VALUE,         msgValue)
+                putExtra(EXTRA_ALARM_ID,          alarmId)
+                putExtra(EXTRA_CONTENT_URL,       contentUrl)
+                putExtra(EXTRA_HOMEPAGE_URL,      homepageUrl)
+                putExtra(EXTRA_AUTO_ACCEPT,       autoAccept)
             }
             context.startActivity(intent)
         }
@@ -76,17 +81,21 @@ class FakeCallActivity : Activity() {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private var alarmId     = 0
-    private var channelName = ""
-    private var msgType     = ""
-    private var msgValue    = ""
-    private var contentUrl  = ""
-    private var homepageUrl = ""
-    private var autoAccept  = false
+    private var alarmId         = 0
+    private var channelName     = ""
+    private var channelPublicId = ""
+    private var msgType         = ""
+    private var msgValue        = ""
+    private var contentUrl      = ""
+    private var homepageUrl     = ""
+    private var autoAccept      = false
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
     private var rippleAnimators = mutableListOf<Animator>()
+
+    // 채널 이미지를 표시할 ImageView (API 응답 후 업데이트)
+    private var profileIcon: ImageView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,16 +135,22 @@ class FakeCallActivity : Activity() {
         }
 
         // ── 인텐트 데이터 추출 ──────────────────────────────────────────
-        alarmId     = intent.getIntExtra(EXTRA_ALARM_ID, 0)
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
-        msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
-        msgValue    = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
-        contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
-        homepageUrl = intent.getStringExtra(EXTRA_HOMEPAGE_URL) ?: ""
-        autoAccept  = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
+        alarmId         = intent.getIntExtra(EXTRA_ALARM_ID, 0)
+        channelName     = intent.getStringExtra(EXTRA_CHANNEL_NAME)      ?: "알람"
+        channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
+        msgType         = intent.getStringExtra(EXTRA_MSG_TYPE)          ?: "youtube"
+        msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
+        contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
+        homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
+        autoAccept      = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
 
         buildUi()
         startRinging()
+
+        // 채널 public_id가 있으면 비동기로 이미지 로드
+        if (channelPublicId.isNotEmpty()) {
+            loadChannelImage(channelPublicId)
+        }
 
         if (autoAccept) {
             autoDeclineHandler.postDelayed({ handleAccept() }, 300L)
@@ -158,6 +173,82 @@ class FakeCallActivity : Activity() {
         scope.cancel()
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
         super.onDestroy()
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 채널 이미지 비동기 로드 (API 호출)
+    // ─────────────────────────────────────────────────────────────────────
+    private fun loadChannelImage(publicId: String) {
+        val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", "") ?: ""
+        if (baseUrl.isEmpty()) return
+
+        scope.launch {
+            try {
+                val response = http.newCall(
+                    Request.Builder()
+                        .url("$baseUrl/api/channels/by-public-id/$publicId")
+                        .get()
+                        .build()
+                ).execute()
+
+                if (!response.isSuccessful) return@launch
+                val body = response.body?.string() ?: return@launch
+                val json = JSONObject(body)
+                val data = json.optJSONObject("data") ?: return@launch
+                val imageUrl = data.optString("image_url", "")
+
+                if (imageUrl.isNotEmpty()) {
+                    // base64 데이터 URL 파싱 (data:image/jpeg;base64,xxxx)
+                    val bitmap = if (imageUrl.startsWith("data:")) {
+                        val base64Part = imageUrl.substringAfter(",")
+                        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } else {
+                        // 일반 URL인 경우
+                        val imgResponse = http.newCall(
+                            Request.Builder().url(imageUrl).get().build()
+                        ).execute()
+                        val imgBytes = imgResponse.body?.bytes() ?: return@launch
+                        BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
+                    }
+
+                    if (bitmap != null) {
+                        // 원형으로 크롭
+                        val circularBitmap = toCircularBitmap(bitmap)
+                        withContext(Dispatchers.Main) {
+                            profileIcon?.apply {
+                                // 배경 투명으로 변경 (이미지가 원형이므로)
+                                background = GradientDrawable().apply {
+                                    shape = GradientDrawable.OVAL
+                                    setColor(Color.TRANSPARENT)
+                                }
+                                setImageBitmap(circularBitmap)
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "채널 이미지 로드 실패: ${e.message}")
+                // 실패 시 기본 아이콘 유지 (아무 처리 안 해도 됨)
+            }
+        }
+    }
+
+    // Bitmap → 원형 Bitmap 변환
+    private fun toCircularBitmap(src: Bitmap): Bitmap {
+        val size   = minOf(src.width, src.height)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint  = Paint(Paint.ANTI_ALIAS_FLAG)
+        val rect   = RectF(0f, 0f, size.toFloat(), size.toFloat())
+        canvas.drawOval(rect, paint)
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        val sx = (src.width - size) / 2f
+        val sy = (src.height - size) / 2f
+        canvas.drawBitmap(src, -sx, -sy, paint)
+        return output
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -233,14 +324,13 @@ class FakeCallActivity : Activity() {
         }
         rippleViews.forEach { profileContainer.addView(it) }
 
-        // 프로필 원형 아이콘 (전화 아이콘)
-        val profileIcon = ImageView(this).apply {
+        // 프로필 원형 아이콘 (기본: 링고 아이콘 / API 응답 후 채널 이미지로 교체)
+        profileIcon = ImageView(this).apply {
             val drawable = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FEE500"))  // 카카오 노란색
+                setColor(Color.parseColor("#FEE500"))  // 기본 카카오 노란색
             }
             background = drawable
-            // 전화 아이콘 이미지
             setImageDrawable(createPhoneIconDrawable())
             scaleType = ImageView.ScaleType.CENTER
             layoutParams = FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER)

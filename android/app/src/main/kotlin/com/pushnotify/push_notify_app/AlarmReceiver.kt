@@ -32,12 +32,13 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_ALARM  = "com.pushnotify.push_notify_app.ACTION_ALARM"
         const val ACTION_CANCEL = "com.pushnotify.push_notify_app.ACTION_CANCEL_ALARM"
 
-        const val EXTRA_ALARM_ID     = "alarm_id"
-        const val EXTRA_CHANNEL_NAME = "channel_name"
-        const val EXTRA_MSG_TYPE     = "msg_type"
-        const val EXTRA_MSG_VALUE    = "msg_value"
-        const val EXTRA_CONTENT_URL  = "content_url"
-        const val EXTRA_HOMEPAGE_URL = "homepage_url"
+        const val EXTRA_ALARM_ID          = "alarm_id"
+        const val EXTRA_CHANNEL_NAME      = "channel_name"
+        const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
+        const val EXTRA_MSG_TYPE          = "msg_type"
+        const val EXTRA_MSG_VALUE         = "msg_value"
+        const val EXTRA_CONTENT_URL       = "content_url"
+        const val EXTRA_HOMEPAGE_URL      = "homepage_url"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -49,12 +50,13 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private fun handleAlarm(context: Context, intent: Intent) {
-        val alarmId     = intent.getIntExtra(EXTRA_ALARM_ID,        0)
-        val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "알람"
-        val msgType     = intent.getStringExtra(EXTRA_MSG_TYPE)     ?: "youtube"
-        val msgValue    = intent.getStringExtra(EXTRA_MSG_VALUE)    ?: ""
-        val contentUrl  = intent.getStringExtra(EXTRA_CONTENT_URL)  ?: ""
-        val homepageUrl = intent.getStringExtra(EXTRA_HOMEPAGE_URL) ?: ""
+        val alarmId         = intent.getIntExtra(EXTRA_ALARM_ID,             0)
+        val channelName     = intent.getStringExtra(EXTRA_CHANNEL_NAME)      ?: "알람"
+        val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
+        val msgType         = intent.getStringExtra(EXTRA_MSG_TYPE)          ?: "youtube"
+        val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
+        val contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
+        val homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
 
         Log.d(TAG, "AlarmManager 트리거: $channelName (id=$alarmId)")
 
@@ -63,7 +65,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         AlarmPollingService.triggerAlarm(
-            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
         )
 
         Log.d(TAG, "알람 처리 완료: $channelName (id=$alarmId)")

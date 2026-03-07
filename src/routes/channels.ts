@@ -87,6 +87,21 @@ channels.get('/check-name', async (c) => {
   }
 })
 
+// GET /api/channels/by-public-id/:publicId  (수신화면 채널 이미지 조회용)
+channels.get('/by-public-id/:publicId', async (c) => {
+  try {
+    const publicId = c.req.param('publicId')
+    const channel = await c.env.DB.prepare(
+      'SELECT id, name, image_url, public_id FROM channels WHERE public_id = ? AND is_active = 1'
+    ).bind(publicId).first()
+
+    if (!channel) return c.json({ success: false, error: 'Channel not found' }, 404)
+    return c.json({ success: true, data: channel })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // GET /api/channels/:id
 channels.get('/:id', async (c) => {
   try {

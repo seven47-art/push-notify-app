@@ -68,7 +68,8 @@ class AlarmPollingService : Service() {
         fun triggerAlarm(
             context: Context,
             channelName: String, msgType: String, msgValue: String,
-            alarmId: Int, contentUrl: String, homepageUrl: String = ""
+            alarmId: Int, contentUrl: String, homepageUrl: String = "",
+            channelPublicId: String = ""
         ) {
             if (alarmId > 0) {
                 synchronized(fcmLock) {
@@ -84,7 +85,8 @@ class AlarmPollingService : Service() {
                 context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
             )
             FakeCallActivity.start(
-                context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+                context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
+                channelPublicId = channelPublicId
             )
         }
     }
@@ -161,17 +163,18 @@ class AlarmPollingService : Service() {
 
                 markFcmHandled(this@AlarmPollingService, alarmId)
 
-                val channelName = alarm.optString("channel_name", "알람")
-                val msgType     = alarm.optString("msg_type",     "youtube")
-                val msgValue    = alarm.optString("msg_value",    "")
-                val contentUrl  = alarm.optString("content_url",  "")
-                val homepageUrl = alarm.optString("homepage_url", "")
+                val channelName     = alarm.optString("channel_name",     "알람")
+                val channelPublicId = alarm.optString("channel_public_id", "")
+                val msgType         = alarm.optString("msg_type",          "youtube")
+                val msgValue        = alarm.optString("msg_value",         "")
+                val contentUrl      = alarm.optString("content_url",       "")
+                val homepageUrl     = alarm.optString("homepage_url",      "")
 
                 Log.d(TAG, "polling alarm: $channelName (id=$alarmId)")
 
                 triggerAlarm(
                     this@AlarmPollingService,
-                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
                 )
             }
 

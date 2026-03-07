@@ -23,14 +23,15 @@ object AlarmScheduler {
 
     /**
      * 알람 예약
-     * @param context      Context
-     * @param alarmId      알람 고유 ID (alarm_schedules.id)
-     * @param scheduledMs  알람 실행 시각 (Unix timestamp, ms)
-     * @param channelName  채널명
-     * @param msgType      메시지 타입 (youtube/audio/video)
-     * @param msgValue     메시지 값 (URL 등)
-     * @param contentUrl   콘텐츠 스트림 URL
-     * @param homepageUrl  채널 홈페이지 URL
+     * @param context          Context
+     * @param alarmId          알람 고유 ID (alarm_schedules.id)
+     * @param scheduledMs      알람 실행 시각 (Unix timestamp, ms)
+     * @param channelName      채널명
+     * @param msgType          메시지 타입 (youtube/audio/video)
+     * @param msgValue         메시지 값 (URL 등)
+     * @param contentUrl       콘텐츠 스트림 URL
+     * @param homepageUrl      채널 홈페이지 URL
+     * @param channelPublicId  채널 public_id (수신 화면 이미지 로드용)
      */
     fun schedule(
         context: Context,
@@ -40,25 +41,25 @@ object AlarmScheduler {
         msgType: String,
         msgValue: String,
         contentUrl: String,
-        homepageUrl: String = ""
+        homepageUrl: String = "",
+        channelPublicId: String = ""
     ) {
         val nowMs = System.currentTimeMillis()
         if (scheduledMs <= nowMs) {
             Log.w(TAG, "예약 시간이 이미 지남: alarmId=$alarmId, scheduledMs=$scheduledMs, now=$nowMs")
-            // v1.0.42: triggerAlarm() 내부에서 원자적 중복 방지를 처리하므로
-            // AlarmScheduler → 즉시 실행 경로도 안전하게 triggerAlarm() 위임
-            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl)
+            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId)
             return
         }
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_ALARM
-            putExtra(AlarmReceiver.EXTRA_ALARM_ID,     alarmId)
-            putExtra(AlarmReceiver.EXTRA_CHANNEL_NAME, channelName)
-            putExtra(AlarmReceiver.EXTRA_MSG_TYPE,     msgType)
-            putExtra(AlarmReceiver.EXTRA_MSG_VALUE,    msgValue)
-            putExtra(AlarmReceiver.EXTRA_CONTENT_URL,  contentUrl)
-            putExtra(AlarmReceiver.EXTRA_HOMEPAGE_URL, homepageUrl)
+            putExtra(AlarmReceiver.EXTRA_ALARM_ID,          alarmId)
+            putExtra(AlarmReceiver.EXTRA_CHANNEL_NAME,      channelName)
+            putExtra(AlarmReceiver.EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
+            putExtra(AlarmReceiver.EXTRA_MSG_TYPE,          msgType)
+            putExtra(AlarmReceiver.EXTRA_MSG_VALUE,         msgValue)
+            putExtra(AlarmReceiver.EXTRA_CONTENT_URL,       contentUrl)
+            putExtra(AlarmReceiver.EXTRA_HOMEPAGE_URL,      homepageUrl)
         }
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

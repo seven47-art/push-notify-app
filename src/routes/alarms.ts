@@ -122,8 +122,8 @@ alarms.post('/', async (c) => {
       return c.json({ success: false, error: '메시지 소스 값이 너무 큽니다. 파일명 또는 URL만 저장 가능합니다.' }, 400)
     }
 
-    // 채널 존재 확인
-    const channel = await c.env.DB.prepare('SELECT id, name FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
+    // 채널 존재 확인 (public_id 포함)
+    const channel = await c.env.DB.prepare('SELECT id, name, public_id FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
 
     // 구독자 수 조회
@@ -177,6 +177,7 @@ alarms.post('/', async (c) => {
         type:           'alarm_schedule',       // 앱이 AlarmManager 예약하는 신호
         alarm_id:       String(alarmId),
         channel_name:   (channel as any).name,
+        channel_public_id: (channel as any).public_id || '',
         msg_type:       msg_type,
         msg_value:      safeValue,
         content_url:    contentUrl,
@@ -355,7 +356,7 @@ alarms.post('/trigger', async (c) => {
     // (triggered 포함 이유: FCM 발송은 완료됐어도 폴링 사용자가 아직 못 받을 수 있음)
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
-             ch.homepage_url as channel_homepage_url
+             ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status IN ('pending', 'triggered')
@@ -479,6 +480,7 @@ alarms.post('/trigger', async (c) => {
             {
               type:         'alarm',
               channel_name: alarm.channel_name || '알람',
+              channel_public_id: alarm.channel_public_id || '',
               msg_type:     alarm.msg_type     || 'youtube',
               msg_value:    alarm.msg_value    || '',
               alarm_id:     String(alarm.id),

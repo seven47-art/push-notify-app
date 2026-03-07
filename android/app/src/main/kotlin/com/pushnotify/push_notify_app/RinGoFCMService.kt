@@ -39,18 +39,19 @@ class RinGoFCMService : FirebaseMessagingService() {
     }
 
     private fun handleSchedule(data: Map<String, String>) {
-        val alarmId      = data["alarm_id"]?.toIntOrNull()    ?: return
-        val scheduledMs  = data["scheduled_time"]?.toLongOrNull() ?: return
-        val channelName  = data["channel_name"] ?: "알람"
-        val msgType      = data["msg_type"]     ?: "youtube"
-        val msgValue     = data["msg_value"]    ?: ""
-        val contentUrl   = data["content_url"]  ?: ""
-        val homepageUrl  = data["homepage_url"] ?: ""
+        val alarmId         = data["alarm_id"]?.toIntOrNull()    ?: return
+        val scheduledMs     = data["scheduled_time"]?.toLongOrNull() ?: return
+        val channelName     = data["channel_name"]     ?: "알람"
+        val channelPublicId = data["channel_public_id"] ?: ""
+        val msgType         = data["msg_type"]          ?: "youtube"
+        val msgValue        = data["msg_value"]         ?: ""
+        val contentUrl      = data["content_url"]       ?: ""
+        val homepageUrl     = data["homepage_url"]      ?: ""
 
         Log.d(TAG, "알람 예약: $channelName (id=$alarmId) at $scheduledMs")
         AlarmScheduler.schedule(
             this, alarmId, scheduledMs,
-            channelName, msgType, msgValue, contentUrl, homepageUrl
+            channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId
         )
     }
 
@@ -61,17 +62,18 @@ class RinGoFCMService : FirebaseMessagingService() {
     }
 
     private fun handleAlarmNow(data: Map<String, String>) {
-        val alarmId     = data["alarm_id"]?.toIntOrNull() ?: 0
-        val channelName = data["channel_name"] ?: "알람"
-        val msgType     = data["msg_type"]     ?: "youtube"
-        val msgValue    = data["msg_value"]    ?: ""
-        val contentUrl  = data["content_url"]  ?: ""
-        val homepageUrl = data["homepage_url"] ?: ""
+        val alarmId         = data["alarm_id"]?.toIntOrNull()  ?: 0
+        val channelName     = data["channel_name"]     ?: "알람"
+        val channelPublicId = data["channel_public_id"] ?: ""
+        val msgType         = data["msg_type"]          ?: "youtube"
+        val msgValue        = data["msg_value"]         ?: ""
+        val contentUrl      = data["content_url"]       ?: ""
+        val homepageUrl     = data["homepage_url"]      ?: ""
 
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         Log.d(TAG, "FCM 즉시 알람: $channelName (id=$alarmId)")
         AlarmPollingService.triggerAlarm(
-            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
         )
     }
 }
