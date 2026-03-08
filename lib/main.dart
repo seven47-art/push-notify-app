@@ -314,11 +314,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     final userId      = prefs.getString('user_id')      ?? '';
     final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
     final displayName = prefs.getString('display_name') ?? '';
+    final fcmToken    = prefs.getString('fcm_token')    ?? '';  // Android FCM 토큰
 
     final t = token.replaceAll("'", "\\'");
     final u = userId.replaceAll("'", "\\'");
     final e = email.replaceAll("'", "\\'");
     final d = displayName.replaceAll("'", "\\'");
+    final f = fcmToken.replaceAll("'", "\\'");  // FCM 토큰 이스케이프
 
     // JS 함수 존재 여부와 무관하게 localStorage에 직접 주입 후
     // flutterSetSession이 있으면 호출, 없으면 Auth/App 직접 제어
@@ -328,6 +330,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   localStorage.setItem('user_id', '$u');
   localStorage.setItem('email', '$e');
   localStorage.setItem('display_name', '$d');
+  if ('$f' !== '') {
+    localStorage.setItem('flutter_fcm_token', '$f');
+  }
   if (typeof window.flutterSetSession === 'function') {
     window.flutterSetSession('$t', '$u', '$e', '$d');
   } else {

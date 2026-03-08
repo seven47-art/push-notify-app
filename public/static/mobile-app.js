@@ -29,10 +29,16 @@ const Store = {
   getEmail()   { return this.get('email') || '' },
   getDisplayName() { return this.get('display_name') || '' },
   getFcmToken() {
+    // Flutter 앱 환경이면 주입된 Android FCM 토큰 우선 사용
+    const flutterToken = this.get('flutter_fcm_token')
+    if (flutterToken) return flutterToken
     let t = this.get('fcm_token')
     if (!t) { t = 'fcm_' + Date.now() + '_web'; this.set('fcm_token', t) }
     return t
   },
+  // Flutter 앱 환경 여부 (flutter_fcm_token이 주입된 경우)
+  isFlutterApp() { return !!this.get('flutter_fcm_token') },
+  getPlatform()  { return this.isFlutterApp() ? 'android' : 'web' },
   getNotifs()      { try { return JSON.parse(this.get('notifications') || '[]') } catch { return [] } },
   addNotif(n)      {
     const list = this.getNotifs()
@@ -1282,7 +1288,7 @@ const App = {
         invite_token: token,
         user_id:   uid,
         fcm_token: Store.getFcmToken(),
-        platform:  'web'
+        platform:  Store.getPlatform()
       })
       if (res.data?.success) {
         toast('채널에 참여했습니다!')
@@ -1455,7 +1461,7 @@ const App = {
         invite_token: token,
         user_id:   Store.getUserId(),
         fcm_token: Store.getFcmToken(),
-        platform:  'web'
+        platform:  Store.getPlatform()
       })
       if (join.data?.success) {
         toast(name + ' 채널에 참여했습니다! 🎉')
