@@ -163,6 +163,7 @@ class ContentPlayerActivity : Activity() {
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {}
                         override fun onHideCustomView() {}
                     }
+                    var embedFailed = false
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val url = request?.url?.toString() ?: return false
@@ -174,6 +175,18 @@ class ContentPlayerActivity : Activity() {
                             }
                         }
                     }
+                    // Android JavaScript Interface: embed 오류 시 m.youtube.com 으로 자동 전환
+                    addJavascriptInterface(object : Any() {
+                        @android.webkit.JavascriptInterface
+                        fun onEmbedError() {
+                            if (!embedFailed) {
+                                embedFailed = true
+                                runOnUiThread {
+                                    loadUrl("https://m.youtube.com/watch?v=$videoId")
+                                }
+                            }
+                        }
+                    }, "AndroidBridge")
                     if (videoId.isNotEmpty()) {
                         val html = """
                             <!DOCTYPE html><html><head>
@@ -182,19 +195,13 @@ class ContentPlayerActivity : Activity() {
                                 * { margin:0; padding:0; background:#000; }
                                 body { display:flex; align-items:center; justify-content:center; height:100vh; }
                                 iframe { width:100%; height:100%; border:none; }
-                                #error-msg { display:none; color:#fff; font-size:14px; text-align:center; padding:20px; line-height:1.8; }
                             </style>
                             </head><body>
                             <iframe id="yt-frame"
                                 src="https://www.youtube.com/embed/$videoId?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1"
                                 allow="autoplay; encrypted-media; accelerometer; gyroscope; picture-in-picture" allowfullscreen
-                                style="width:100%;height:100%;"
-                                onerror="showError()">
+                                style="width:100%;height:100%;">
                             </iframe>
-                            <div id="error-msg">
-                                ⚠️ 이 영상은 재생할 수 없습니다.<br>임베드가 차단된 영상입니다.<br><br>
-                                채널 관리자에게 문의하거나<br>다른 영상 URL을 등록해 주세요.
-                            </div>
                             <script>
                                 var tag = document.createElement('script');
                                 tag.src = 'https://www.youtube.com/iframe_api';
@@ -202,12 +209,15 @@ class ContentPlayerActivity : Activity() {
                                 var player;
                                 function onYouTubeIframeAPIReady() {
                                     player = new YT.Player('yt-frame', {
-                                        events: { 'onError': function(e) { showError(); } }
+                                        events: {
+                                            'onError': function(e) {
+                                                // 101, 150: embed 차단 오류 → m.youtube.com 으로 자동 전환
+                                                if (e.data === 101 || e.data === 150) {
+                                                    AndroidBridge.onEmbedError();
+                                                }
+                                            }
+                                        }
                                     });
-                                }
-                                function showError() {
-                                    document.getElementById('yt-frame').style.display = 'none';
-                                    document.getElementById('error-msg').style.display = 'block';
                                 }
                             </script>
                             </body></html>
