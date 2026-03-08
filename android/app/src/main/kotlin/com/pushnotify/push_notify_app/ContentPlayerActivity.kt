@@ -144,7 +144,7 @@ class ContentPlayerActivity : Activity() {
 
         when (effectiveType) {
 
-            // ── YouTube IFrame Embed ──────────────────────────────
+            // ── YouTube m.youtube.com 직접 로드 ──────────────────────────────
             "youtube" -> {
                 val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
@@ -163,7 +163,6 @@ class ContentPlayerActivity : Activity() {
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {}
                         override fun onHideCustomView() {}
                     }
-                    var embedFailed = false
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val url = request?.url?.toString() ?: return false
@@ -175,56 +174,10 @@ class ContentPlayerActivity : Activity() {
                             }
                         }
                     }
-                    // Android JavaScript Interface: embed 오류 시 m.youtube.com 으로 자동 전환
-                    addJavascriptInterface(object : Any() {
-                        @android.webkit.JavascriptInterface
-                        fun onEmbedError() {
-                            if (!embedFailed) {
-                                embedFailed = true
-                                runOnUiThread {
-                                    loadUrl("https://m.youtube.com/watch?v=$videoId")
-                                }
-                            }
-                        }
-                    }, "AndroidBridge")
                     if (videoId.isNotEmpty()) {
-                        val html = """
-                            <!DOCTYPE html><html><head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <style>
-                                * { margin:0; padding:0; background:#000; }
-                                body { display:flex; align-items:center; justify-content:center; height:100vh; }
-                                iframe { width:100%; height:100%; border:none; }
-                            </style>
-                            </head><body>
-                            <iframe id="yt-frame"
-                                src="https://www.youtube.com/embed/$videoId?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1"
-                                allow="autoplay; encrypted-media; accelerometer; gyroscope; picture-in-picture" allowfullscreen
-                                style="width:100%;height:100%;">
-                            </iframe>
-                            <script>
-                                var tag = document.createElement('script');
-                                tag.src = 'https://www.youtube.com/iframe_api';
-                                document.head.appendChild(tag);
-                                var player;
-                                function onYouTubeIframeAPIReady() {
-                                    player = new YT.Player('yt-frame', {
-                                        events: {
-                                            'onError': function(e) {
-                                                // 101, 150: embed 차단 오류 → m.youtube.com 으로 자동 전환
-                                                if (e.data === 101 || e.data === 150) {
-                                                    AndroidBridge.onEmbedError();
-                                                }
-                                            }
-                                        }
-                                    });
-                                }
-                            </script>
-                            </body></html>
-                        """.trimIndent()
-                        loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                        loadUrl("https://m.youtube.com/watch?v=$videoId")
                     } else {
-                        // videoId 추출 실패 시 안내 메시지 표시 (전체 유튜브 페이지 로딩 제거)
+                        // videoId 추출 실패 시 안내 메시지 표시
                         val errorHtml = """
                             <!DOCTYPE html><html><head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
