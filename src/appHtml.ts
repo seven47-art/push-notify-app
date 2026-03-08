@@ -202,8 +202,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 }
 .auth-logo-icon {
   width:80px; height:80px; border-radius:22px;
-  background:linear-gradient(135deg,#FF6B6B,#FF8E53);
-  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
   box-shadow:0 8px 32px rgba(255,107,107,0.35);
 }
 .auth-app-title { font-size:26px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
@@ -343,7 +342,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <!-- 로고 -->
   <div class="auth-logo-wrap">
     <div class="auth-logo-icon">
-      <i class="fas fa-clock" style="color:#fff;font-size:34px;"></i>
+      <img src="/static/ringo-icon.png" style="width:80px;height:80px;border-radius:22px;object-fit:cover;display:block;">
     </div>
     <div class="auth-app-title">RinGo</div>
     <div class="auth-app-sub">채널 알림 구독 서비스</div>
@@ -400,7 +399,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 앱바 ══ -->
 <div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
-    <div class="appbar-icon"><i class="fas fa-bell" style="color:#fff;font-size:16px;"></i></div>
+    <div class="appbar-icon"><img src="/static/ringo-icon.png" style="width:28px;height:28px;border-radius:8px;object-fit:cover;"></div>
     <span class="appbar-title">RinGo</span>
   </div>
   <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
@@ -588,7 +587,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <div class="drawer-overlay" id="drawer-overlay" onclick="App.closeDrawer()"></div>
 <div class="drawer" id="drawer">
   <div class="drawer-header">
-    <div class="drawer-logo"><i class="fas fa-bell" style="color:#fff;font-size:18px;"></i></div>
+    <div class="drawer-logo"><img src="/static/ringo-icon.png" style="width:36px;height:36px;border-radius:10px;object-fit:cover;"></div>
     <div style="flex:1;min-width:0;">
       <div class="drawer-app-name">RinGo</div>
       <div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="drawer-user-email">로그인 중...</div>

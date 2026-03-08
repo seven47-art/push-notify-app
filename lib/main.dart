@@ -226,11 +226,6 @@ class _SplashScreenState extends State<SplashScreen> {
             Container(
               width: 90, height: 90,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -239,7 +234,10 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.notifications_active, color: Colors.white, size: 48),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset('assets/images/ringo_icon.png', width: 90, height: 90, fit: BoxFit.cover),
+              ),
             ),
             const SizedBox(height: 18),
             const Text('RinGo',
