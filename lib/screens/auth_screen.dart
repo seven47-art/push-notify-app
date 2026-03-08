@@ -129,22 +129,12 @@ class _AuthScreenState extends State<AuthScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // ── 앱 로고 ──
-                Container(
-                  width: 96, height: 96,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [BoxShadow(
-                      color: const Color(0xFF6C63FF).withOpacity(0.55),
-                      blurRadius: 32, offset: const Offset(0, 12),
-                    )],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Image.asset(
+                    'assets/images/ringo_icon.png',
+                    width: 96, height: 96, fit: BoxFit.cover,
                   ),
-                  child: const Icon(Icons.notifications_active,
-                      color: Colors.white, size: 50),
                 ),
                 const SizedBox(height: 20),
                 const Text('RinGo',
@@ -201,16 +191,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
 
                   // ── Google 계정 선택 버튼 ──
-                  if (!_showManualInput) ...[
+                  if (!_showManualInput) ..[
                     _GoogleSignInButton(onTap: _openAccountPicker),
-                    const SizedBox(height: 14),
-                    TextButton(
-                      onPressed: () =>
-                          setState(() { _showManualInput = true; _errorMsg = ''; }),
-                      child: const Text('이메일 직접 입력',
-                          style: TextStyle(
-                              color: Color(0xFF6B7280), fontSize: 13)),
-                    ),
                   ] else ...[
                     // ── 이메일 직접 입력 폼 ──
                     _ManualEmailForm(
