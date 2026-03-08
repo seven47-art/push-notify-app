@@ -92,15 +92,7 @@ class ContentPlayerActivity : Activity() {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        )
-        // 잠금화면 위에서도 키가드(잠금) 무시하고 표시
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            val keyguardManager = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
-            keyguardManager.requestDismissKeyguard(this, null)
-        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val msgType         = intent.getStringExtra(EXTRA_MSG_TYPE)          ?: "youtube"
         val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
