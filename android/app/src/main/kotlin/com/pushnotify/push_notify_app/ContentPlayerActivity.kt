@@ -81,7 +81,7 @@ class ContentPlayerActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 전체화면 + 화면 켜기
+        // 전체화면 + 화면 켜기 + 잠금화면 위에 표시 (잠금 해제 없이)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -92,7 +92,15 @@ class ContentPlayerActivity : Activity() {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
+        // 잠금화면 위에서도 키가드(잠금) 무시하고 표시
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val keyguardManager = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
+            keyguardManager.requestDismissKeyguard(this, null)
+        }
 
         val msgType         = intent.getStringExtra(EXTRA_MSG_TYPE)          ?: "youtube"
         val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
@@ -190,8 +198,9 @@ class ContentPlayerActivity : Activity() {
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val url = request?.url?.toString() ?: return false
-                            // youtube.com / youtu.be / googlevideo.com 은 WebView 내에서 처리
-                            return if (url.contains("youtube.com") || url.contains("youtu.be") || url.contains("googlevideo.com")) {
+                            // youtube.com / youtu.be / googlevideo.com / ringo-server.pages.dev 은 WebView 내에서 처리
+                            return if (url.contains("youtube.com") || url.contains("youtu.be")
+                                || url.contains("googlevideo.com") || url.contains("ringo-server.pages.dev")) {
                                 false
                             } else {
                                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
