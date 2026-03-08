@@ -471,6 +471,16 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         debugPrint('[FCM] 토큰 서버 등록 성공');
         // 로컬에도 저장
         await prefs.setString('fcm_token', fcmToken);
+        // 웹뷰에도 즉시 주입 (onPageFinished보다 늦게 완료될 수 있으므로 별도 주입)
+        final f = fcmToken.replaceAll("'", "\\'");
+        try {
+          await _controller.runJavaScript(
+            "localStorage.setItem('flutter_fcm_token', '$f');"
+          );
+          debugPrint('[FCM] 웹뷰 flutter_fcm_token 주입 완료');
+        } catch (e) {
+          debugPrint('[FCM] 웹뷰 주입 오류: $e');
+        }
       } else {
         debugPrint('[FCM] 토큰 서버 등록 실패: ${res.statusCode}');
       }
