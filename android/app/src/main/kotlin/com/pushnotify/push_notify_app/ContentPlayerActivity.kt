@@ -144,7 +144,7 @@ class ContentPlayerActivity : Activity() {
 
         when (effectiveType) {
 
-            // ── YouTube m.youtube.com 직접 로드 ──────────────────────────────
+            // ── YouTube IFrame Embed (세이투두 동일 방식) ────────────────────
             "youtube" -> {
                 val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
@@ -156,16 +156,37 @@ class ContentPlayerActivity : Activity() {
                         useWideViewPort = true
                         loadWithOverviewMode = true
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-                        cacheMode = WebSettings.LOAD_DEFAULT
+                        // 데스크탑 UA: embed가 모바일 리디렉트 없이 정상 로드되도록
+                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     webChromeClient = object : WebChromeClient() {
-                        override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {}
-                        override fun onHideCustomView() {}
+                        // 전체화면(onShowCustomView) 지원
+                        private var customView: View? = null
+                        private var customViewCallback: CustomViewCallback? = null
+
+                        override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                            customView?.let { root.removeView(it) }
+                            customView = view
+                            customViewCallback = callback
+                            root.addView(view, ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            ))
+                            webView?.visibility = View.GONE
+                        }
+
+                        override fun onHideCustomView() {
+                            customView?.let { root.removeView(it) }
+                            customView = null
+                            customViewCallback?.onCustomViewHidden()
+                            customViewCallback = null
+                            webView?.visibility = View.VISIBLE
+                        }
                     }
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val url = request?.url?.toString() ?: return false
+                            // youtube.com / youtu.be / googlevideo.com 은 WebView 내에서 처리
                             return if (url.contains("youtube.com") || url.contains("youtu.be") || url.contains("googlevideo.com")) {
                                 false
                             } else {
@@ -175,9 +196,54 @@ class ContentPlayerActivity : Activity() {
                         }
                     }
                     if (videoId.isNotEmpty()) {
-                        loadUrl("https://m.youtube.com/watch?v=$videoId")
+                        // 세이투두와 동일한 iframe 속성 사용
+                        val embedHtml = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <style>
+                                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                                    html, body {
+                                        width: 100%; height: 100%;
+                                        background: #000;
+                                        overflow: hidden;
+                                    }
+                                    .wrap {
+                                        position: relative;
+                                        width: 100%; height: 100%;
+                                    }
+                                    iframe {
+                                        position: absolute;
+                                        top: 0; left: 0;
+                                        width: 100%; height: 100%;
+                                        border: none;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="wrap">
+                                    <iframe
+                                        src="https://www.youtube.com/embed/$videoId"
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        referrerpolicy="strict-origin-when-cross-origin"
+                                        allowfullscreen>
+                                    </iframe>
+                                </div>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        loadDataWithBaseURL(
+                            "https://www.youtube.com",
+                            embedHtml,
+                            "text/html",
+                            "UTF-8",
+                            null
+                        )
                     } else {
-                        // videoId 추출 실패 시 안내 메시지 표시
+                        // videoId 추출 실패 시 안내 메시지
                         val errorHtml = """
                             <!DOCTYPE html><html><head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
