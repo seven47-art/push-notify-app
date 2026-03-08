@@ -36,9 +36,31 @@ const Store = {
     if (!t) { t = 'fcm_' + Date.now() + '_web'; this.set('fcm_token', t) }
     return t
   },
-  // Flutter 앱 환경 여부 (flutter_fcm_token이 주입된 경우)
-  isFlutterApp() { return !!this.get('flutter_fcm_token') },
+  // Flutter 앱 환경 여부 (FlutterBridge 존재 여부로 판단 - 더 신뢰성 높음)
+  isFlutterApp() { return !!window.FlutterBridge },
   getPlatform()  { return this.isFlutterApp() ? 'android' : 'web' },
+  // Flutter에 FCM 토큰 직접 요청 (비동기, 타임아웃 3초)
+  getFlutterFcmToken() {
+    return new Promise((resolve) => {
+      if (!window.FlutterBridge) { resolve({ fcm_token: this.getFcmToken(), platform: 'web' }); return }
+      const cbName = '_fcmCb_' + Date.now()
+      const timer = setTimeout(() => {
+        delete window[cbName]
+        // 타임아웃 시 localStorage의 토큰 사용
+        resolve({ fcm_token: this.getFcmToken(), platform: this.get('flutter_fcm_token') ? 'android' : 'web' })
+      }, 3000)
+      window[cbName] = (result) => {
+        clearTimeout(timer)
+        delete window[cbName]
+        if (result.fcm_token) {
+          // 받은 토큰을 localStorage에도 저장
+          localStorage.setItem('flutter_fcm_token', result.fcm_token)
+        }
+        resolve(result)
+      }
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'get_fcm_token', callback: cbName }))
+    })
+  },
   getNotifs()      { try { return JSON.parse(this.get('notifications') || '[]') } catch { return [] } },
   addNotif(n)      {
     const list = this.getNotifs()
@@ -1284,11 +1306,13 @@ const App = {
     const uid = Store.getUserId()
     if (!uid) { toast('로그인이 필요합니다'); return }
     try {
+      // Flutter에 FCM 토큰 직접 요청 (타이밍 문제 방지)
+      const fcmInfo = await Store.getFlutterFcmToken()
       const res = await API.post('/invites/join', {
         invite_token: token,
         user_id:   uid,
-        fcm_token: Store.getFcmToken(),
-        platform:  Store.getPlatform()
+        fcm_token: fcmInfo.fcm_token,
+        platform:  fcmInfo.platform
       })
       if (res.data?.success) {
         toast('채널에 참여했습니다!')
@@ -1457,11 +1481,13 @@ const App = {
       }
       if (!token) { toast('참여 링크를 만들 수 없습니다', 3000); return }
 
+      // Flutter에 FCM 토큰 직접 요청 (타이밍 문제 방지)
+      const fcmInfo = await Store.getFlutterFcmToken()
       const join = await API.post('/invites/join', {
         invite_token: token,
         user_id:   Store.getUserId(),
-        fcm_token: Store.getFcmToken(),
-        platform:  Store.getPlatform()
+        fcm_token: fcmInfo.fcm_token,
+        platform:  fcmInfo.platform
       })
       if (join.data?.success) {
         toast(name + ' 채널에 참여했습니다! 🎉')

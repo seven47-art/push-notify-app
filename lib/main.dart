@@ -621,6 +621,16 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             await launchUrl(uri, mode: LaunchMode.externalApplication);
           }
           break;
+        case 'get_fcm_token':
+          // 웹뷰에서 FCM 토큰 요청 → SharedPreferences에서 읽어서 콜백으로 전달
+          final callback = data['callback'] as String? ?? '';
+          if (callback.isNotEmpty) {
+            final prefs2 = await SharedPreferences.getInstance();
+            final token2 = prefs2.getString('fcm_token') ?? '';
+            _sendToWeb(callback, {'fcm_token': token2, 'platform': token2.isNotEmpty ? 'android' : 'web'});
+            debugPrint('[FlutterBridge] get_fcm_token → ${token2.isNotEmpty ? "토큰 전달" : "토큰 없음"}');
+          }
+          break;
         case 'logout':
           // 웹뷰에서 로그아웃 요청 → 세션 삭제 + 로그인 화면으로 이동
           final prefs = await SharedPreferences.getInstance();
