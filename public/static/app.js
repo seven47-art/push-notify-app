@@ -685,11 +685,16 @@ async function loadSubscribers() {
     if (platform) list = list.filter(s => s.platform === platform)
 
     document.getElementById('subscriberCount').textContent = `${list.length}명 구독 중`
+    selectedSubIds.clear()
+    updateSubBulkBar()
     const tbody = document.getElementById('subscribersTable')
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-slate-500 py-8">구독자가 없습니다</td></tr>'; return }
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="10" class="text-center text-slate-500 py-8">구독자가 없습니다</td></tr>'; return }
 
     tbody.innerHTML = list.map(s => `
       <tr class="table-row border-b border-slate-700/50">
+        <td class="px-4 py-3">
+          <input type="checkbox" class="sub-check w-4 h-4 accent-indigo-500 cursor-pointer" data-id="${s.id}" onchange="onSubCheck(this)">
+        </td>
         <td class="px-5 py-3">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-indigo-600/30 rounded-full flex items-center justify-center text-xs text-indigo-400 font-bold">
@@ -716,6 +721,7 @@ async function loadSubscribers() {
         </td>
         <td class="px-5 py-3 text-center">
           <button onclick="deleteSubscriber(${s.id}, '${(s.display_name || s.user_id).replace(/'/g, "\\'")}')"
+
             class="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-1 rounded transition text-sm"
             title="삭제"><i class="fas fa-trash"></i>
           </button>
@@ -734,6 +740,66 @@ async function deleteSubscriber(id, name) {
   } catch (e) {
     showToast('삭제 실패: ' + e.message, 'error')
   }
+}
+
+// ── 구독자 선택삭제 ──────────────────────────────────
+const selectedSubIds = new Set()
+
+function updateSubBulkBar() {
+  const bar = document.getElementById('subBulkDeleteBar')
+  const cnt = document.getElementById('subSelectedCount')
+  const n   = selectedSubIds.size
+  if (!bar) return
+  if (n > 0) {
+    bar.classList.remove('hidden'); bar.classList.add('flex')
+    cnt.textContent = `${n}명 선택됨`
+  } else {
+    bar.classList.add('hidden'); bar.classList.remove('flex')
+  }
+}
+
+function toggleSubCheckAll(el) {
+  document.querySelectorAll('.sub-check').forEach(cb => {
+    cb.checked = el.checked
+    const id = Number(cb.dataset.id)
+    if (el.checked) selectedSubIds.add(id)
+    else selectedSubIds.delete(id)
+  })
+  updateSubBulkBar()
+}
+
+function onSubCheck(cb) {
+  const id = Number(cb.dataset.id)
+  if (cb.checked) selectedSubIds.add(id)
+  else selectedSubIds.delete(id)
+  const all     = document.querySelectorAll('.sub-check')
+  const checked = document.querySelectorAll('.sub-check:checked')
+  const ca      = document.getElementById('subCheckAll')
+  if (ca) ca.checked = all.length > 0 && all.length === checked.length
+  updateSubBulkBar()
+}
+
+function clearSubSelection() {
+  selectedSubIds.clear()
+  document.querySelectorAll('.sub-check').forEach(cb => cb.checked = false)
+  const ca = document.getElementById('subCheckAll')
+  if (ca) ca.checked = false
+  updateSubBulkBar()
+}
+
+async function bulkDeleteSubscribers() {
+  if (selectedSubIds.size === 0) return
+  if (!confirm(`선택한 ${selectedSubIds.size}명의 구독자를 삭제하시겠습니까?`)) return
+  try {
+    const res = await API.post('/subscribers/bulk-delete', { ids: [...selectedSubIds] })
+    if (res.data?.success) {
+      showToast(`${res.data.deleted}명의 구독자가 삭제되었습니다`)
+      selectedSubIds.clear()
+      loadSubscribers()
+    } else {
+      showToast('삭제 실패: ' + (res.data?.error || '오류'), 'error')
+    }
+  } catch(e) { showToast('삭제 오류: ' + e.message, 'error') }
 }
 
 // =============================================
@@ -995,10 +1061,12 @@ async function loadAlarmManagement() {
       channels.map(ch => `<option value="${ch}" ${ch === prevVal ? 'selected' : ''}>${ch}</option>`).join('')
 
     renderAlarmTable()
+    selectedAlarmIds.clear()
+    updateAlarmBulkBar()
   } catch (e) {
     console.error(e)
     document.getElementById('alarmTableBody').innerHTML =
-      '<tr><td colspan="7" class="text-center py-10 text-rose-400">불러오기 실패</td></tr>'
+      '<tr><td colspan="8" class="text-center py-10 text-rose-400">불러오기 실패</td></tr>'
   }
 }
 
@@ -1039,7 +1107,6 @@ function renderAlarmTable() {
       : '-'
     const badge    = statusBadge[a.status] || `<span class="text-slate-400 text-xs">${a.status}</span>`
     const typeLabel = msgTypeLabel[a.msg_type] || a.msg_type || '-'
-    const canDelete = a.status === 'pending' || a.status === 'cancelled'
     const deleteBtn = `<button onclick="deleteAlarm(${a.id})"
       class="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-1 rounded transition text-sm"
       title="삭제">
@@ -1047,6 +1114,9 @@ function renderAlarmTable() {
     </button>`
 
     return `<tr class="border-b border-slate-700/30 hover:bg-slate-700/20 transition">
+      <td class="px-4 py-3">
+        <input type="checkbox" class="alarm-check w-4 h-4 accent-indigo-500 cursor-pointer" data-id="${a.id}" onchange="onAlarmCheck(this)">
+      </td>
       <td class="px-5 py-3 text-slate-200 font-medium">${a.channel_name || '-'}</td>
       <td class="px-5 py-3">
         <span class="inline-flex items-center gap-1.5 text-sm text-slate-300">
@@ -1075,9 +1145,67 @@ async function deleteAlarm(id) {
     if (!res.success) throw new Error(res.error || '삭제 실패')
     showToast('알람이 삭제되었습니다')
     await loadAlarmManagement()
-  } catch (e) {
-    showToast('삭제 실패: ' + e.message, 'error')
+  } catch (e) { showToast('삭제 실패: ' + e.message, 'error') }
+}
+
+// ── 알람 선택삭제 ──────────────────────────────────
+const selectedAlarmIds = new Set()
+
+function updateAlarmBulkBar() {
+  const bar = document.getElementById('alarmBulkDeleteBar')
+  const cnt = document.getElementById('alarmSelectedCount')
+  const n   = selectedAlarmIds.size
+  if (!bar) return
+  if (n > 0) {
+    bar.classList.remove('hidden'); bar.classList.add('flex')
+    cnt.textContent = `${n}개 선택됨`
+  } else {
+    bar.classList.add('hidden'); bar.classList.remove('flex')
   }
+}
+
+function toggleAlarmCheckAll(el) {
+  document.querySelectorAll('.alarm-check').forEach(cb => {
+    cb.checked = el.checked
+    const id = Number(cb.dataset.id)
+    if (el.checked) selectedAlarmIds.add(id)
+    else selectedAlarmIds.delete(id)
+  })
+  updateAlarmBulkBar()
+}
+
+function onAlarmCheck(cb) {
+  const id = Number(cb.dataset.id)
+  if (cb.checked) selectedAlarmIds.add(id)
+  else selectedAlarmIds.delete(id)
+  const all     = document.querySelectorAll('.alarm-check')
+  const checked = document.querySelectorAll('.alarm-check:checked')
+  const ca      = document.getElementById('alarmCheckAll')
+  if (ca) ca.checked = all.length > 0 && all.length === checked.length
+  updateAlarmBulkBar()
+}
+
+function clearAlarmSelection() {
+  selectedAlarmIds.clear()
+  document.querySelectorAll('.alarm-check').forEach(cb => cb.checked = false)
+  const ca = document.getElementById('alarmCheckAll')
+  if (ca) ca.checked = false
+  updateAlarmBulkBar()
+}
+
+async function bulkDeleteAlarms() {
+  if (selectedAlarmIds.size === 0) return
+  if (!confirm(`선택한 ${selectedAlarmIds.size}개의 알람을 삭제하시겠습니까?`)) return
+  try {
+    const res = await API.post('/alarms/bulk-delete', { ids: [...selectedAlarmIds] })
+    if (res.data?.success) {
+      showToast(`${res.data.deleted}개의 알람이 삭제되었습니다`)
+      selectedAlarmIds.clear()
+      loadAlarmManagement()
+    } else {
+      showToast('삭제 실패: ' + (res.data?.error || '오류'), 'error')
+    }
+  } catch(e) { showToast('삭제 오류: ' + e.message, 'error') }
 }
 
 async function loadMembers() {

@@ -554,24 +554,33 @@ app.get('/', (c) => {
 
     <!-- ===== 구독자 관리 ===== -->
     <div id="page-subscribers" class="page">
-      <div class="flex justify-between items-center mb-6">
-        <div class="flex items-center gap-3">
-          <select id="subscriberChannelFilter" class="input-field text-sm w-48" onchange="loadSubscribers()">
-            <option value="">전체 채널</option>
-          </select>
-          <select id="subscriberPlatformFilter" class="input-field text-sm w-40" onchange="loadSubscribers()">
-            <option value="">전체 플랫폼</option>
-            <option value="android">🤖 Android</option>
-            <option value="ios">🍎 iOS</option>
-            <option value="web">🌐 Web</option>
-          </select>
-        </div>
+      <!-- 검색 + 선택삭제 툴바 -->
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <select id="subscriberChannelFilter" class="input-field text-sm w-48" onchange="loadSubscribers()">
+          <option value="">전체 채널</option>
+        </select>
+        <select id="subscriberPlatformFilter" class="input-field text-sm w-40" onchange="loadSubscribers()">
+          <option value="">전체 플랫폼</option>
+          <option value="android">🤖 Android</option>
+          <option value="ios">🍎 iOS</option>
+          <option value="web">🌐 Web</option>
+        </select>
         <span class="text-slate-400 text-sm" id="subscriberCount"></span>
+        <div id="subBulkDeleteBar" class="hidden flex items-center gap-2 ml-auto">
+          <span id="subSelectedCount" class="text-slate-300 text-sm font-semibold"></span>
+          <button onclick="bulkDeleteSubscribers()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+            <i class="fas fa-trash mr-1"></i>선택 삭제
+          </button>
+          <button onclick="clearSubSelection()" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded-xl text-sm transition-colors">취소</button>
+        </div>
       </div>
       <div class="card">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="border-b border-slate-700">
+              <th class="px-4 py-3 w-8">
+                <input type="checkbox" id="subCheckAll" onchange="toggleSubCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer">
+              </th>
               <th class="text-left px-5 py-3 text-slate-400 font-medium">구독자</th>
               <th class="text-left px-5 py-3 text-slate-400 font-medium">채널</th>
               <th class="text-left px-5 py-3 text-slate-400 font-medium">가입 경로</th>
@@ -726,11 +735,18 @@ app.get('/', (c) => {
         </div>
       </div>
 
-      <!-- 필터 + 전체삭제 -->
+      <!-- 필터 + 선택삭제 툴바 -->
       <div class="card mb-4">
         <div class="card-header px-5 py-4 flex flex-wrap items-center gap-3">
           <i class="fas fa-bell text-orange-400"></i>
           <span class="text-white font-semibold">알람 목록</span>
+          <div id="alarmBulkDeleteBar" class="hidden flex items-center gap-2">
+            <span id="alarmSelectedCount" class="text-slate-300 text-sm font-semibold"></span>
+            <button onclick="bulkDeleteAlarms()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+              <i class="fas fa-trash mr-1"></i>선택 삭제
+            </button>
+            <button onclick="clearAlarmSelection()" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded-xl text-sm transition-colors">취소</button>
+          </div>
           <div class="ml-auto flex items-center gap-2 flex-wrap">
             <select id="alarmFilterStatus" onchange="filterAlarms()" class="bg-slate-700 border border-slate-600 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
               <option value="">전체 상태</option>
@@ -752,6 +768,9 @@ app.get('/', (c) => {
           <table class="w-full">
             <thead>
               <tr class="border-b border-slate-700/50">
+                <th class="px-4 py-3 w-8">
+                  <input type="checkbox" id="alarmCheckAll" onchange="toggleAlarmCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer">
+                </th>
                 <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">채널</th>
                 <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">콘텐츠 유형</th>
                 <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">예약 시간</th>
@@ -762,7 +781,7 @@ app.get('/', (c) => {
               </tr>
             </thead>
             <tbody id="alarmTableBody">
-              <tr><td colspan="7" class="text-center py-10 text-slate-500">불러오는 중...</td></tr>
+              <tr><td colspan="8" class="text-center py-10 text-slate-500">불러오는 중...</td></tr>
             </tbody>
           </table>
         </div>

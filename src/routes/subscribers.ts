@@ -118,6 +118,24 @@ subscribers.delete('/:id', async (c) => {
   }
 })
 
+// POST /api/subscribers/bulk-delete - 구독자 일괄 삭제
+subscribers.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json<{ ids: number[] }>()
+    if (!Array.isArray(ids) || ids.length === 0)
+      return c.json({ success: false, error: 'ids 배열이 필요합니다' }, 400)
+
+    let deleted = 0
+    for (const id of ids) {
+      await c.env.DB.prepare('DELETE FROM subscribers WHERE id = ?').bind(id).run()
+      deleted++
+    }
+    return c.json({ success: true, deleted })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // POST /api/subscribers/action - Flutter 앱에서 수락/거절 이벤트 기록
 subscribers.post('/action', async (c) => {
   try {

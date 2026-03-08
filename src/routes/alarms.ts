@@ -592,6 +592,27 @@ alarms.post('/trigger', async (c) => {
 })
 
 // =============================================
+// POST /api/alarms/bulk-delete  - 알람 일괄 삭제
+// =============================================
+alarms.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json<{ ids: number[] }>()
+    if (!Array.isArray(ids) || ids.length === 0)
+      return c.json({ success: false, error: 'ids 배열이 필요합니다' }, 400)
+
+    let deleted = 0
+    for (const id of ids) {
+      await c.env.DB.prepare('DELETE FROM alarm_logs WHERE alarm_id = ?').bind(id).run()
+      await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(id).run()
+      deleted++
+    }
+    return c.json({ success: true, deleted })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // GET /api/alarms/pending  - 곧 발송될 알람 목록 (폴링용)
 // =============================================
 alarms.get('/pending', async (c) => {
