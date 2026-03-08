@@ -4,7 +4,7 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>PushNotify</title>
+<title>RinGo</title>
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
 <style>
@@ -345,7 +345,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="auth-logo-icon">
       <i class="fas fa-clock" style="color:#fff;font-size:34px;"></i>
     </div>
-    <div class="auth-app-title">PushNotify</div>
+    <div class="auth-app-title">RinGo</div>
     <div class="auth-app-sub">채널 알림 구독 서비스</div>
   </div>
 
@@ -401,7 +401,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
     <div class="appbar-icon"><i class="fas fa-bell" style="color:#fff;font-size:16px;"></i></div>
-    <span class="appbar-title">PushNotify</span>
+    <span class="appbar-title">RinGo</span>
   </div>
   <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
 </div>
@@ -590,7 +590,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-header">
     <div class="drawer-logo"><i class="fas fa-bell" style="color:#fff;font-size:18px;"></i></div>
     <div style="flex:1;min-width:0;">
-      <div class="drawer-app-name">PushNotify</div>
+      <div class="drawer-app-name">RinGo</div>
       <div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="drawer-user-email">로그인 중...</div>
     </div>
   </div>
