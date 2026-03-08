@@ -151,14 +151,16 @@ class ContentPlayerActivity : Activity() {
                 webView = WebView(this).apply {
                     layoutParams = playerParams
                     settings.apply {
+                        // 세이투두 VideoPlayActivity WebView 설정과 완전 동일
                         javaScriptEnabled = true
-                        domStorageEnabled = true
+                        @Suppress("DEPRECATION")
+                        pluginState = WebSettings.PluginState.ON
+                        javaScriptCanOpenWindowsAutomatically = true
+                        setSupportMultipleWindows(true)
+                        setSupportZoom(true)
+                        builtInZoomControls = true
+                        allowFileAccess = true
                         mediaPlaybackRequiresUserGesture = false
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        // 세이투두와 동일한 UA 설정
-                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     webChromeClient = object : WebChromeClient() {
                         // 전체화면(onShowCustomView) 지원
