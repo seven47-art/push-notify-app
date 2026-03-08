@@ -196,32 +196,30 @@ class ContentPlayerActivity : Activity() {
                         }
                     }
                     if (videoId.isNotEmpty()) {
-                        // ── 세이투두 youtubehelp.html 과 동일한 IFrame API 방식 ──
-                        // loadDataWithBaseURL → base URL = www.youtube.com
-                        // YT.Player 로 생성하여 embed 차단 우회
+                        // ── 세이투두 youtubehelp.html 완전 동일 코드 ──
+                        // saytodo.io/youtubehelp.html 원본 그대로 복제
+                        // height/width 직접 지정, playerVars 없음
                         val iframeApiHtml = """
                             <!DOCTYPE html>
                             <html>
-                            <head>
-                                <meta charset="UTF-8">
-                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                             <body>
                                 <style>
-                                    * { margin: 0; padding: 0; box-sizing: border-box; }
                                     html, body {
-                                        width: 100%; height: 100%;
-                                        background: #000;
-                                        overflow: hidden;
-                                    }
-                                    #player {
-                                        width: 100%;
+                                        margin: 0;
                                         height: 100%;
+                                        overflow: hidden;
+                                        background-color: black;
+                                    }
+                                    .top {
+                                        height: 100%;
+                                        background-color: black;
+                                        margin: 0;
                                     }
                                 </style>
-                            </head>
-                            <body>
-                                <div id="player"></div>
+                                <script type="text/javascript">
+                                    var uids = '$videoId';
+                                </script>
                                 <script>
-                                    // YouTube IFrame API 로드 (세이투두 동일 방식)
                                     var tag = document.createElement('script');
                                     tag.src = "https://www.youtube.com/iframe_api";
                                     var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -230,37 +228,32 @@ class ContentPlayerActivity : Activity() {
                                     var player;
                                     function onYouTubeIframeAPIReady() {
                                         player = new YT.Player('player', {
-                                            videoId: '$videoId',
-                                            playerVars: {
-                                                autoplay: 1,
-                                                playsinline: 1,
-                                                rel: 0,
-                                                modestbranding: 1,
-                                                controls: 1,
-                                                fs: 1
-                                            },
+                                            height: '100%',
+                                            width: '100%',
+                                            videoId: uids,
                                             events: {
                                                 'onReady': onPlayerReady,
-                                                'onStateChange': onPlayerStateChange,
-                                                'onError': onPlayerError
+                                                'onStateChange': onPlayerStateChange
                                             }
                                         });
                                     }
 
-                                    // 세이투두와 동일: onReady 에서 자동재생
                                     function onPlayerReady(event) {
                                         event.target.playVideo();
                                     }
 
+                                    var done = false;
                                     function onPlayerStateChange(event) {
-                                        // 필요 시 상태 처리
+                                        if (event.data == YT.PlayerState.PLAYING && !done) {
+                                            done = true;
+                                        }
                                     }
-
-                                    function onPlayerError(event) {
-                                        // 오류 시 로그 (무시)
+                                    function stopVideo() {
+                                        player.stopVideo();
                                     }
                                 </script>
-                            </body>
+                                <div id="player" class="top"></div>
+                             </body>
                             </html>
                         """.trimIndent()
                         // base URL = https://www.youtube.com → YouTube 도메인으로 인식하여 차단 우회
