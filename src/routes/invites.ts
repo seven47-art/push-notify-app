@@ -221,8 +221,9 @@ invites.post('/join', async (c) => {
     const body = await c.req.json()
     const { invite_token, user_id, display_name, fcm_token, platform } = body
 
-    if (!invite_token || !user_id || !fcm_token || !platform) {
-      return c.json({ success: false, error: 'invite_token, user_id, fcm_token, platform are required' }, 400)
+    // fcm_token은 빈 문자열도 허용 (아래에서 users 테이블로 보완)
+    if (!invite_token || !user_id || !platform) {
+      return c.json({ success: false, error: 'invite_token, user_id, platform are required' }, 400)
     }
 
     // 토큰 검증
@@ -238,6 +239,16 @@ invites.post('/join', async (c) => {
     if (link.max_uses !== null && link.use_count >= link.max_uses) return c.json({ success: false, valid: false, reason: 'LIMIT_REACHED', message: '사용 횟수가 초과된 초대 링크입니다' }, 400)
     if (!link.channel_active) return c.json({ success: false, valid: false, reason: 'CHANNEL_INACTIVE', message: '비활성화된 채널입니다' }, 400)
 
+    // FCM 토큰 결정: 앱이 보낸 토큰이 있으면 우선 사용, 없으면 users 테이블에서 보완
+    // (새 가입자는 로그인 직후 /api/fcm/register로 users.fcm_token이 이미 저장되어 있음)
+    let effectiveFcmToken = (fcm_token || '').trim()
+    if (!effectiveFcmToken) {
+      const userRow: any = await c.env.DB.prepare(
+        'SELECT fcm_token FROM users WHERE user_id = ?'
+      ).bind(user_id).first()
+      effectiveFcmToken = userRow?.fcm_token || ''
+    }
+
     // 이미 가입한 회원인지 확인
     const existing: any = await c.env.DB.prepare(
       'SELECT id, is_active FROM subscribers WHERE channel_id = ? AND user_id = ?'
@@ -245,20 +256,26 @@ invites.post('/join', async (c) => {
 
     if (existing) {
       if (existing.is_active) {
+        // 이미 활성 멤버지만 FCM 토큰은 최신으로 갱신
+        if (effectiveFcmToken) {
+          await c.env.DB.prepare(
+            'UPDATE subscribers SET fcm_token = ?, updated_at = CURRENT_TIMESTAMP WHERE channel_id = ? AND user_id = ?'
+          ).bind(effectiveFcmToken, link.channel_id, user_id).run()
+        }
         return c.json({ success: true, already_member: true, message: '이미 채널 멤버입니다', data: { channel_id: link.channel_id, channel_name: link.channel_name } })
       } else {
-        // 비활성 → 재활성화
+        // 비활성 → 재활성화 + FCM 토큰 갱신
         await c.env.DB.prepare(`
           UPDATE subscribers SET is_active = 1, fcm_token = ?, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
           WHERE channel_id = ? AND user_id = ?
-        `).bind(fcm_token, link.channel_id, user_id).run()
+        `).bind(effectiveFcmToken, link.channel_id, user_id).run()
       }
     } else {
       // 새 구독자 등록
       await c.env.DB.prepare(`
         INSERT INTO subscribers (channel_id, user_id, display_name, fcm_token, platform, joined_via_invite_id)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(link.channel_id, user_id, display_name || null, fcm_token, platform, link.id).run()
+      `).bind(link.channel_id, user_id, display_name || null, effectiveFcmToken, platform, link.id).run()
     }
 
     // 초대 링크 사용 횟수 증가

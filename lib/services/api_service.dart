@@ -23,15 +23,11 @@ class ApiService {
     return userId;
   }
 
-  // FCM 토큰 저장 (시뮬레이션)
+  // FCM 토큰 반환 (main.dart _registerFcmToken()이 저장한 실제 Firebase 토큰 사용)
+  // 토큰이 없으면 빈 문자열 반환 → 채널 가입 시 서버가 users 테이블에서 보완
   static Future<String> getFcmToken() async {
     final prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString(_fcmTokenKey);
-    if (token == null) {
-      token = 'fcm_${DateTime.now().millisecondsSinceEpoch}_android';
-      await prefs.setString(_fcmTokenKey, token);
-    }
-    return token;
+    return prefs.getString(_fcmTokenKey) ?? '';
   }
 
   // 초대 링크 검증
