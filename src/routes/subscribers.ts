@@ -15,10 +15,12 @@ subscribers.get('/', async (c) => {
              s.is_active, s.subscribed_at, s.accepted_count, s.rejected_count,
              ch.name as channel_name, ch.description as channel_description,
              ch.image_url, ch.owner_id,
-             il.label as invite_label, il.invite_token as invite_token
+             il.label as invite_label, il.invite_token as invite_token,
+             u.email as email
       FROM subscribers s
       JOIN channels ch ON s.channel_id = ch.id
       LEFT JOIN channel_invite_links il ON s.joined_via_invite_id = il.id
+      LEFT JOIN users u ON s.user_id = u.user_id
       WHERE s.is_active = 1
     `
     const params: any[] = []

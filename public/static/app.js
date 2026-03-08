@@ -702,7 +702,7 @@ async function loadSubscribers() {
             </div>
             <div>
               <div class="text-white text-sm font-medium">${s.display_name || s.user_id}</div>
-              <div class="text-slate-500 text-xs">${s.user_id}</div>
+              <div class="text-slate-500 text-xs">${s.email || s.user_id}</div>
             </div>
           </div>
         </td>
