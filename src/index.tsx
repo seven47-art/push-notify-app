@@ -502,7 +502,22 @@ app.get('/', (c) => {
           <i class="fas fa-plus"></i> 채널 추가
         </button>
       </div>
-      <div id="channelsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      <div class="card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 text-left">
+              <th class="px-5 py-3 text-slate-400 font-medium">채널</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">구독자</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">초대링크</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">콘텐츠</th>
+              <th class="px-5 py-3 text-slate-400 font-medium">운영자</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">상태</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">관리</th>
+            </tr>
+          </thead>
+          <tbody id="channelsList"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ===== 초대 링크 관리 ===== -->

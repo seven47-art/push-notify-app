@@ -246,64 +246,53 @@ async function loadChannels() {
   try {
     const { data } = await API.get('/channels')
     const list = data.data || []
-    const container = document.getElementById('channelsList')
+    const tbody = document.getElementById('channelsList')
 
     if (!list.length) {
-      container.innerHTML = `<div class="col-span-3 text-center text-slate-500 py-12">
-        <i class="fas fa-layer-group text-4xl mb-3 block text-slate-700"></i>채널이 없습니다</div>`
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-slate-500 py-12">
+        <i class="fas fa-layer-group text-4xl mb-3 block text-slate-700"></i>채널이 없습니다</td></tr>`
       return
     }
 
-    container.innerHTML = list.map(ch => `
-      <div class="card overflow-hidden hover:border-indigo-500/50 transition-colors">
-        <div class="h-24 bg-gradient-to-br from-indigo-900/50 to-purple-900/50 relative overflow-hidden">
-          ${ch.image_url ? `<img src="${ch.image_url}" class="w-full h-full object-cover opacity-30">` : ''}
-          <div class="absolute inset-0 flex items-center justify-center">
-            <i class="fas fa-layer-group text-4xl text-indigo-400/50"></i>
-          </div>
-          <div class="absolute top-2 right-2">
-            <span class="${ch.is_active ? 'badge-active' : 'badge-inactive'} badge">${ch.is_active ? '활성' : '비활성'}</span>
-          </div>
-          <!-- 폐쇄형 표시 -->
-          <div class="absolute top-2 left-2">
-            <span class="bg-slate-900/70 text-amber-400 text-xs px-2 py-0.5 rounded-full">
-              <i class="fas fa-lock text-xs mr-1"></i>폐쇄형
-            </span>
-          </div>
-        </div>
-        <div class="p-4">
-          <h4 class="text-white font-semibold mb-1">${ch.name}</h4>
-          <p class="text-slate-400 text-xs mb-3 line-clamp-2">${ch.description || '설명 없음'}</p>
-          <div class="grid grid-cols-3 gap-2 mb-3 text-center">
-            <div class="bg-slate-900 rounded-lg p-2">
-              <div class="text-emerald-400 font-bold text-sm">${ch.subscriber_count || 0}</div>
-              <div class="text-slate-500 text-xs">구독자</div>
+    tbody.innerHTML = list.map(ch => `
+      <tr class="table-row border-b border-slate-700/50">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg overflow-hidden bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
+              ${ch.image_url
+                ? `<img src="${ch.image_url}" class="w-full h-full object-cover">`
+                : `<i class="fas fa-layer-group text-indigo-400 text-sm"></i>`}
             </div>
-            <div class="bg-slate-900 rounded-lg p-2">
-              <div class="text-amber-400 font-bold text-sm">${ch.invite_link_count || 0}</div>
-              <div class="text-slate-500 text-xs">초대링크</div>
-            </div>
-            <div class="bg-slate-900 rounded-lg p-2">
-              <div class="text-blue-400 font-bold text-sm">${ch.content_count || 0}</div>
-              <div class="text-slate-500 text-xs">콘텐츠</div>
+            <div>
+              <div class="text-white text-sm font-medium">${ch.name}</div>
+              <div class="text-slate-500 text-xs">${ch.description || '설명 없음'}</div>
             </div>
           </div>
-          <div class="flex gap-2">
+        </td>
+        <td class="px-5 py-3 text-center text-emerald-400 font-semibold">${ch.subscriber_count || 0}</td>
+        <td class="px-5 py-3 text-center text-amber-400 font-semibold">${ch.invite_link_count || 0}</td>
+        <td class="px-5 py-3 text-center text-blue-400 font-semibold">${ch.content_count || 0}</td>
+        <td class="px-5 py-3 text-slate-400 text-xs">${ch.owner_email || ch.owner_id}</td>
+        <td class="px-5 py-3 text-center">
+          <span class="${ch.is_active ? 'badge-completed' : 'badge-failed'} badge">${ch.is_active ? '활성' : '비활성'}</span>
+        </td>
+        <td class="px-5 py-3 text-center">
+          <div class="flex items-center justify-center gap-1">
             <button onclick="openInviteModalForChannel(${ch.id})"
-              class="flex-1 btn-warning text-white py-1.5 rounded-lg text-xs font-semibold">
-              <i class="fas fa-link mr-1"></i>초대링크 생성
+              class="btn-warning text-white px-2 py-1 rounded text-xs">
+              <i class="fas fa-link mr-1"></i>초대링크
             </button>
             <button onclick="openChannelModal(${ch.id})"
-              class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs">
+              class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded text-xs">
               <i class="fas fa-edit"></i>
             </button>
             <button onclick="deleteChannel(${ch.id})"
-              class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded-lg text-xs">
+              class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-2 py-1 rounded text-xs">
               <i class="fas fa-trash"></i>
             </button>
           </div>
-        </div>
-      </div>`).join('')
+        </td>
+      </tr>`).join('')
   } catch (e) { showToast('채널 로드 오류: ' + e.message, 'error') }
 }
 
