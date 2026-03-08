@@ -265,4 +265,18 @@ channels.delete('/:id', async (c) => {
   }
 })
 
+// POST /api/channels/bulk-delete
+channels.post('/bulk-delete', async (c) => {
+  try {
+    const { ids } = await c.req.json()
+    if (!Array.isArray(ids) || ids.length === 0)
+      return c.json({ success: false, error: 'ids 필수' }, 400)
+    const placeholders = ids.map(() => '?').join(',')
+    await c.env.DB.prepare(`DELETE FROM channels WHERE id IN (${placeholders})`).bind(...ids).run()
+    return c.json({ success: true, deleted: ids.length })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 export default channels

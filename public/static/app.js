@@ -256,6 +256,9 @@ async function loadChannels() {
 
     tbody.innerHTML = list.map(ch => `
       <tr class="table-row border-b border-slate-700/50">
+        <td class="px-4 py-3">
+          <input type="checkbox" class="ch-check w-4 h-4 accent-indigo-500 cursor-pointer" data-id="${ch.id}" onchange="onChCheck(this)">
+        </td>
         <td class="px-5 py-3">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg overflow-hidden bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
@@ -785,6 +788,63 @@ async function bulkDeleteSubscribers() {
       showToast(`${res.data.deleted}명의 구독자가 삭제되었습니다`)
       selectedSubIds.clear()
       loadSubscribers()
+    } else {
+      showToast('삭제 실패: ' + (res.data?.error || '오류'), 'error')
+    }
+  } catch(e) { showToast('삭제 오류: ' + e.message, 'error') }
+}
+
+// ── 채널 선택 삭제 ──────────────────────────
+const selectedChIds = new Set()
+
+function updateChBulkBar() {
+  const bar = document.getElementById('chBulkDeleteBar')
+  const cnt = document.getElementById('chSelectedCount')
+  if (!bar) return
+  const n = selectedChIds.size
+  if (n > 0) { bar.classList.remove('hidden'); bar.classList.add('flex'); cnt.textContent = `${n}개 선택됨` }
+  else        { bar.classList.add('hidden'); bar.classList.remove('flex') }
+}
+
+function toggleChCheckAll(el) {
+  document.querySelectorAll('.ch-check').forEach(cb => {
+    cb.checked = el.checked
+    const id = Number(cb.dataset.id)
+    if (el.checked) selectedChIds.add(id)
+    else selectedChIds.delete(id)
+  })
+  updateChBulkBar()
+}
+
+function onChCheck(cb) {
+  const id = Number(cb.dataset.id)
+  if (cb.checked) selectedChIds.add(id)
+  else selectedChIds.delete(id)
+  const all = document.querySelectorAll('.ch-check')
+  const checked = document.querySelectorAll('.ch-check:checked')
+  const ca = document.getElementById('chCheckAll')
+  if (ca) ca.checked = all.length > 0 && all.length === checked.length
+  updateChBulkBar()
+}
+
+function clearChSelection() {
+  selectedChIds.clear()
+  document.querySelectorAll('.ch-check').forEach(cb => cb.checked = false)
+  const ca = document.getElementById('chCheckAll')
+  if (ca) ca.checked = false
+  updateChBulkBar()
+}
+
+async function bulkDeleteChannels() {
+  if (selectedChIds.size === 0) return
+  if (!confirm(`선택한 ${selectedChIds.size}개의 채널을 삭제하시겠습니까?\n초대링크, 구독자, 콘텐츠가 모두 삭제됩니다.`)) return
+  try {
+    const res = await API.post('/channels/bulk-delete', { ids: [...selectedChIds] })
+    if (res.data?.success) {
+      showToast(`${res.data.deleted}개의 채널이 삭제되었습니다`)
+      selectedChIds.clear()
+      await loadGlobalChannels()
+      loadChannels()
     } else {
       showToast('삭제 실패: ' + (res.data?.error || '오류'), 'error')
     }

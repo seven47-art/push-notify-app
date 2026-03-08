@@ -502,10 +502,21 @@ app.get('/', (c) => {
           <i class="fas fa-plus"></i> 채널 추가
         </button>
       </div>
+      <!-- 선택 삭제 바 -->
+      <div id="chBulkDeleteBar" class="hidden items-center gap-3 mb-3 bg-rose-900/20 border border-rose-500/30 rounded-lg px-4 py-2">
+        <span id="chSelectedCount" class="text-rose-400 text-sm font-medium"></span>
+        <button onclick="bulkDeleteChannels()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded text-sm">
+          <i class="fas fa-trash mr-1"></i>선택 삭제
+        </button>
+        <button onclick="clearChSelection()" class="text-slate-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-slate-700">
+          취소
+        </button>
+      </div>
       <div class="card overflow-hidden">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-slate-700 text-left">
+              <th class="px-4 py-3"><input type="checkbox" id="chCheckAll" class="w-4 h-4 accent-indigo-500 cursor-pointer" onchange="toggleChCheckAll(this)"></th>
               <th class="px-5 py-3 text-slate-400 font-medium">채널</th>
               <th class="px-5 py-3 text-slate-400 font-medium text-center">구독자</th>
               <th class="px-5 py-3 text-slate-400 font-medium text-center">초대링크</th>
