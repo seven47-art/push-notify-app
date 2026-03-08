@@ -57,7 +57,7 @@ app.get('/download', (c) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PushNotify APK 다운로드</title>
+<title>RinGo APK 다운로드</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 min-h-screen flex items-center justify-center p-4">
@@ -67,7 +67,7 @@ app.get('/download', (c) => {
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
       </svg>
     </div>
-    <h1 class="text-2xl font-bold text-white mb-2">PushNotify</h1>
+    <h1 class="text-2xl font-bold text-white mb-2">RinGo</h1>
     <p class="text-gray-400 text-sm mb-1">폐쇄형 채널 구독 앱</p>
     <p class="text-gray-500 text-xs mb-6">Android arm64 · debug v1.0.17</p>
 
@@ -149,7 +149,7 @@ app.get('/join/:token', async (c) => {
     '<div id="screen-join" class="fade-in" style="display:none">' +
     '  <div class="text-center mb-6">' +
     '    <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-3 pulse-ring"><i class="fas fa-bell text-white text-xl"></i></div>' +
-    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">PushNotify</p>' +
+    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">RinGo</p>' +
     '  </div>' +
     '  <div class="glass rounded-3xl p-7 text-center mb-4">' +
     imgHtml +
@@ -157,23 +157,23 @@ app.get('/join/:token', async (c) => {
     '    <h1 class="text-white text-xl font-bold mb-2">' + channelName + '</h1>' +
     descHtml +
     remainHtml +
-    '    <button onclick="openInApp()" class="btn-primary w-full text-white py-4 rounded-2xl font-bold text-base mb-3"><i class="fas fa-door-open mr-2"></i>PushNotify 앱에서 참여하기</button>' +
+    '    <button onclick="openInApp()" class="btn-primary w-full text-white py-4 rounded-2xl font-bold text-base mb-3"><i class="fas fa-door-open mr-2"></i>RinGo 앱에서 참여하기</button>' +
     '    <p class="text-slate-500 text-xs">앱이 자동으로 열리지 않으면 버튼을 눌러주세요</p>' +
     '  </div>' +
     '  <div class="glass rounded-2xl p-5 text-center">' +
     '    <p class="text-slate-400 text-sm mb-3">앱이 설치되어 있지 않나요?</p>' +
-    '    <button onclick="goInstall()" class="btn-green w-full text-white py-3 rounded-xl font-semibold text-sm"><i class="fas fa-download mr-2"></i>PushNotify 앱 설치하기</button>' +
+    '    <button onclick="goInstall()" class="btn-green w-full text-white py-3 rounded-xl font-semibold text-sm"><i class="fas fa-download mr-2"></i>RinGo 앱 설치하기</button>' +
     '  </div>' +
     '</div>' +
     '<div id="screen-install" class="fade-in" style="display:none">' +
     '  <div class="text-center mb-6">' +
     '    <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-3"><i class="fas fa-bell text-white text-xl"></i></div>' +
-    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">PushNotify</p>' +
+    '    <p class="text-indigo-300 text-xs font-semibold tracking-widest uppercase">RinGo</p>' +
     '  </div>' +
     '  <div class="glass rounded-3xl p-7 text-center mb-4">' +
     '    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-900/40 flex items-center justify-center border border-amber-500/30"><i class="fas fa-mobile-alt text-amber-300 text-2xl"></i></div>' +
     '    <h1 class="text-white text-lg font-bold mb-2">' + channelName + '</h1>' +
-    '    <p class="text-slate-400 text-sm mb-5">채널에 참여하려면 <b class="text-white">PushNotify 앱</b>이 필요합니다.</p>' +
+    '    <p class="text-slate-400 text-sm mb-5">채널에 참여하려면 <b class="text-white">RinGo 앱</b>이 필요합니다.</p>' +
     '    <div class="text-left space-y-3 mb-6">' +
     '      <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">1</div><p class="text-slate-300 text-sm">아래 버튼으로 <b class="text-white">앱을 설치</b>하세요</p></div>' +
     '      <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">2</div><p class="text-slate-300 text-sm">설치 후 <b class="text-white">이 링크를 다시 열면</b> 채널 참여 화면이 나타납니다</p></div>' +
@@ -199,7 +199,7 @@ app.get('/join/:token', async (c) => {
     '<html lang="ko"><head>' +
     '<meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">' +
-    '<title>' + (isValid ? channelName + ' - 채널 초대' : '유효하지 않은 링크') + ' | PushNotify</title>' +
+    '<title>' + (isValid ? channelName + ' - 채널 초대' : '유효하지 않은 링크') + ' | RinGo</title>' +
     '<meta name="theme-color" content="#6366f1">' +
     '<script src="https://cdn.tailwindcss.com"><\/script>' +
     '<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">' +

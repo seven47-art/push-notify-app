@@ -1,5 +1,5 @@
 // public/static/mobile-app.js  v17
-// PushNotify 모바일 웹 앱
+// RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
