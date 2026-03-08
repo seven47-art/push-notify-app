@@ -191,7 +191,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
 
                   // ── Google 계정 선택 버튼 ──
-                  if (!_showManualInput) ..[
+                  if (!_showManualInput) ...[
                     _GoogleSignInButton(onTap: _openAccountPicker),
                   ] else ...[
                     // ── 이메일 직접 입력 폼 ──
