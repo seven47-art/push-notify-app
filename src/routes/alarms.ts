@@ -169,7 +169,9 @@ alarms.post('/', async (c) => {
 
       const fcmTargets = new Map<string, string>()
       for (const s of subs) {
-        if (s.fcm_token) fcmTargets.set(s.user_id, s.fcm_token)
+        // COALESCE 결과값(fcm_token)을 직접 사용 — s.fcm_token(NULL)이 아닌 쿼리 결과값으로 체크
+        const token = s.fcm_token  // COALESCE(s.fcm_token, u.fcm_token) 결과
+        if (token) fcmTargets.set(s.user_id, token)
       }
 
       // 각 기기에 예약 신호 전송 (비동기, 결과 무시 — 실패해도 폴링 폴백 동작)
