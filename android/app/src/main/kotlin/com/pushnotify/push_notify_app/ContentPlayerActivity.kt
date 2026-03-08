@@ -200,74 +200,13 @@ class ContentPlayerActivity : Activity() {
                         }
                     }
                     if (videoId.isNotEmpty()) {
-                        // ── 세이투두 youtubehelp.html 완전 동일 코드 ──
-                        // saytodo.io/youtubehelp.html 원본 그대로 복제
-                        // height/width 직접 지정, playerVars 없음
-                        val iframeApiHtml = """
-                            <!DOCTYPE html>
-                            <html>
-                             <body>
-                                <style>
-                                    html, body {
-                                        margin: 0;
-                                        height: 100%;
-                                        overflow: hidden;
-                                        background-color: black;
-                                    }
-                                    .top {
-                                        height: 100%;
-                                        background-color: black;
-                                        margin: 0;
-                                    }
-                                </style>
-                                <script type="text/javascript">
-                                    var uids = '$videoId';
-                                </script>
-                                <script>
-                                    var tag = document.createElement('script');
-                                    tag.src = "https://www.youtube.com/iframe_api";
-                                    var firstScriptTag = document.getElementsByTagName('script')[0];
-                                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-                                    var player;
-                                    function onYouTubeIframeAPIReady() {
-                                        player = new YT.Player('player', {
-                                            height: '100%',
-                                            width: '100%',
-                                            videoId: uids,
-                                            events: {
-                                                'onReady': onPlayerReady,
-                                                'onStateChange': onPlayerStateChange
-                                            }
-                                        });
-                                    }
-
-                                    function onPlayerReady(event) {
-                                        event.target.playVideo();
-                                    }
-
-                                    var done = false;
-                                    function onPlayerStateChange(event) {
-                                        if (event.data == YT.PlayerState.PLAYING && !done) {
-                                            done = true;
-                                        }
-                                    }
-                                    function stopVideo() {
-                                        player.stopVideo();
-                                    }
-                                </script>
-                                <div id="player" class="top"></div>
-                             </body>
-                            </html>
-                        """.trimIndent()
-                        // base URL = https://www.youtube.com → YouTube 도메인으로 인식하여 차단 우회
-                        loadDataWithBaseURL(
-                            "https://www.youtube.com",
-                            iframeApiHtml,
-                            "text/html",
-                            "UTF-8",
-                            null
-                        )
+                        // 세이투두와 동일한 loadUrl 방식
+                        // saytodo.io/youtubehelp.html?id=VIDEO_ID → ringo-server.pages.dev/static/youtubehelp.html?id=VIDEO_ID
+                        val prefs = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
+                        val baseUrl = prefs.getString("base_url", "")
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: "https://ringo-server.pages.dev"
+                        loadUrl("$baseUrl/static/youtubehelp.html?id=$videoId")
                     } else {
                         // videoId 추출 실패 시 안내 메시지
                         val errorHtml = """
