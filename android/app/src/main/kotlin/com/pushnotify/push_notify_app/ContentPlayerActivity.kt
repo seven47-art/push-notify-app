@@ -144,7 +144,7 @@ class ContentPlayerActivity : Activity() {
 
         when (effectiveType) {
 
-            // ── YouTube IFrame Embed (세이투두 동일 방식) ────────────────────
+            // ── YouTube IFrame API 방식 (세이투두 youtubehelp.html 동일 로직) ──
             "youtube" -> {
                 val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
@@ -156,7 +156,7 @@ class ContentPlayerActivity : Activity() {
                         useWideViewPort = true
                         loadWithOverviewMode = true
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        // 데스크탑 UA: embed가 모바일 리디렉트 없이 정상 로드되도록
+                        // 세이투두와 동일한 UA 설정
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     webChromeClient = object : WebChromeClient() {
@@ -196,13 +196,15 @@ class ContentPlayerActivity : Activity() {
                         }
                     }
                     if (videoId.isNotEmpty()) {
-                        // 세이투두와 동일한 iframe 속성 사용
-                        val embedHtml = """
+                        // ── 세이투두 youtubehelp.html 과 동일한 IFrame API 방식 ──
+                        // loadDataWithBaseURL → base URL = www.youtube.com
+                        // YT.Player 로 생성하여 embed 차단 우회
+                        val iframeApiHtml = """
                             <!DOCTYPE html>
                             <html>
                             <head>
                                 <meta charset="UTF-8">
-                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                                 <style>
                                     * { margin: 0; padding: 0; box-sizing: border-box; }
                                     html, body {
@@ -210,34 +212,61 @@ class ContentPlayerActivity : Activity() {
                                         background: #000;
                                         overflow: hidden;
                                     }
-                                    .wrap {
-                                        position: relative;
-                                        width: 100%; height: 100%;
-                                    }
-                                    iframe {
-                                        position: absolute;
-                                        top: 0; left: 0;
-                                        width: 100%; height: 100%;
-                                        border: none;
+                                    #player {
+                                        width: 100%;
+                                        height: 100%;
                                     }
                                 </style>
                             </head>
                             <body>
-                                <div class="wrap">
-                                    <iframe
-                                        src="https://www.youtube.com/embed/$videoId"
-                                        frameborder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        referrerpolicy="strict-origin-when-cross-origin"
-                                        allowfullscreen>
-                                    </iframe>
-                                </div>
+                                <div id="player"></div>
+                                <script>
+                                    // YouTube IFrame API 로드 (세이투두 동일 방식)
+                                    var tag = document.createElement('script');
+                                    tag.src = "https://www.youtube.com/iframe_api";
+                                    var firstScriptTag = document.getElementsByTagName('script')[0];
+                                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+                                    var player;
+                                    function onYouTubeIframeAPIReady() {
+                                        player = new YT.Player('player', {
+                                            videoId: '$videoId',
+                                            playerVars: {
+                                                autoplay: 1,
+                                                playsinline: 1,
+                                                rel: 0,
+                                                modestbranding: 1,
+                                                controls: 1,
+                                                fs: 1
+                                            },
+                                            events: {
+                                                'onReady': onPlayerReady,
+                                                'onStateChange': onPlayerStateChange,
+                                                'onError': onPlayerError
+                                            }
+                                        });
+                                    }
+
+                                    // 세이투두와 동일: onReady 에서 자동재생
+                                    function onPlayerReady(event) {
+                                        event.target.playVideo();
+                                    }
+
+                                    function onPlayerStateChange(event) {
+                                        // 필요 시 상태 처리
+                                    }
+
+                                    function onPlayerError(event) {
+                                        // 오류 시 로그 (무시)
+                                    }
+                                </script>
                             </body>
                             </html>
                         """.trimIndent()
+                        // base URL = https://www.youtube.com → YouTube 도메인으로 인식하여 차단 우회
                         loadDataWithBaseURL(
                             "https://www.youtube.com",
-                            embedHtml,
+                            iframeApiHtml,
                             "text/html",
                             "UTF-8",
                             null
