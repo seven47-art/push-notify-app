@@ -613,19 +613,46 @@ alarms.post('/bulk-delete', async (c) => {
 })
 
 // =============================================
-// GET /api/alarms/pending  - 곧 발송될 알람 목록 (폴링용)
+// GET /api/alarms/pending  - 곧 발송될 알람 목록 (앱 시작 시 AlarmManager 재예약용)
+// user_id 파라미터로 본인이 가입한 채널의 알람만 반환
 // =============================================
 alarms.get('/pending', async (c) => {
   try {
-    const { results } = await c.env.DB.prepare(`
-      SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id,
-             ch.homepage_url as channel_homepage_url
-      FROM alarm_schedules a
-      JOIN channels ch ON a.channel_id = ch.id
-      WHERE a.status = 'pending'
-      ORDER BY a.scheduled_at ASC
-      LIMIT 50
-    `).all() as { results: any[] }
+    const userId = c.req.query('user_id')
+
+    let query: string
+    let params: any[]
+
+    if (userId) {
+      // 내가 가입한 채널의 pending 알람만 반환
+      query = `
+        SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id,
+               ch.homepage_url as channel_homepage_url
+        FROM alarm_schedules a
+        JOIN channels ch ON a.channel_id = ch.id
+        JOIN subscribers s ON s.channel_id = a.channel_id
+        WHERE a.status = 'pending'
+          AND a.scheduled_at > datetime('now')
+          AND s.user_id = ? AND s.is_active = 1
+        ORDER BY a.scheduled_at ASC
+        LIMIT 50
+      `
+      params = [userId]
+    } else {
+      // user_id 없으면 전체 반환 (관리자용)
+      query = `
+        SELECT a.*, ch.name as channel_name, ch.public_id as channel_public_id,
+               ch.homepage_url as channel_homepage_url
+        FROM alarm_schedules a
+        JOIN channels ch ON a.channel_id = ch.id
+        WHERE a.status = 'pending'
+        ORDER BY a.scheduled_at ASC
+        LIMIT 50
+      `
+      params = []
+    }
+
+    const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
     return c.json({ success: true, data: results })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

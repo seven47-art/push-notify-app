@@ -294,6 +294,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _initWebView();
     _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
     _initFCM();                     // FCM 초기화 + 토큰 서버 등록
+    _schedulePendingAlarms();       // v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약
     // v1.0.43: _pendingAlarmData 처리 제거 - Kotlin FakeCallActivity가 단독 처리
   }
 
@@ -480,6 +481,66 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   void _startAlarmPolling() {
     debugPrint('[AlarmPoll] Flutter 폴링 비활성화 (Kotlin AlarmPollingService가 처리)');
     // 폴링 타이머 시작하지 않음
+  }
+
+  // ── v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약 ──
+  // FCM alarm_schedule 신호를 못 받은 경우(신규 설치, 재설치 등)에도
+  // 앱 시작 시 서버에서 내 채널의 pending 알람을 조회해 AlarmManager에 예약
+  Future<void> _schedulePendingAlarms() async {
+    try {
+      // 세션 토큰 + user_id 확인
+      final prefs = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+      if (sessionToken.isEmpty || userId.isEmpty) {
+        debugPrint('[PendingAlarm] 세션 없음 - 건너뜀');
+        return;
+      }
+
+      // 서버에서 내 채널의 pending 알람 조회
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/alarms/pending?user_id=$userId'),
+        headers: {'Authorization': 'Bearer $sessionToken'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) return;
+
+      final body = jsonDecode(res.body);
+      final alarms = body['data'] as List<dynamic>?;
+      if (alarms == null || alarms.isEmpty) {
+        debugPrint('[PendingAlarm] 예약할 알람 없음');
+        return;
+      }
+
+      // 각 알람을 Kotlin AlarmScheduler에 예약
+      const platform = MethodChannel('com.pushnotify.push_notify_app/alarm');
+      int scheduled = 0;
+      for (final alarm in alarms) {
+        final scheduledAt = alarm['scheduled_at'] as String?;
+        if (scheduledAt == null) continue;
+        final scheduledMs = DateTime.tryParse(scheduledAt)?.toUtc().millisecondsSinceEpoch;
+        if (scheduledMs == null) continue;
+
+        try {
+          await platform.invokeMethod('scheduleAlarm', {
+            'alarm_id':          alarm['id'] ?? 0,
+            'scheduled_ms':      scheduledMs,
+            'channel_name':      alarm['channel_name'] ?? '',
+            'channel_public_id': alarm['channel_public_id'] ?? '',
+            'msg_type':          alarm['msg_type'] ?? 'youtube',
+            'msg_value':         alarm['msg_value'] ?? '',
+            'content_url':       alarm['msg_value'] ?? '',
+            'homepage_url':      alarm['channel_homepage_url'] ?? '',
+          });
+          scheduled++;
+        } catch (e) {
+          debugPrint('[PendingAlarm] scheduleAlarm error: $e');
+        }
+      }
+      debugPrint('[PendingAlarm] $scheduled개 알람 AlarmManager 예약 완료');
+    } catch (e) {
+      debugPrint('[PendingAlarm] 오류: $e');
+    }
   }
 
   // ── 포그라운드 알람 폴링 (비활성화됨 - v1.0.43) ──

@@ -1,5 +1,6 @@
 // lib/screens/join_channel_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 
 class JoinChannelScreen extends StatefulWidget {
@@ -57,10 +58,46 @@ class _JoinChannelScreenState extends State<JoinChannelScreen> {
         _isJoining = false;
         if (result['success'] == true) {
           _joined = true;
+          // 가입 응답에서 pending 알람 꺼내서 AlarmManager 즉시 예약
+          _scheduleAlarmsFromResponse(result);
         } else {
           _errorMessage = result['error'] ?? '채널 참여에 실패했습니다';
         }
       });
+    }
+  }
+
+  // 서버 응답의 pending_alarms를 Kotlin AlarmScheduler에 예약
+  void _scheduleAlarmsFromResponse(Map<String, dynamic> result) {
+    try {
+      final data = result['data'];
+      if (data == null) return;
+      final pendingAlarms = data['pending_alarms'] as List<dynamic>?;
+      if (pendingAlarms == null || pendingAlarms.isEmpty) return;
+
+      const platform = MethodChannel('com.pushnotify.push_notify_app/alarm');
+      for (final alarm in pendingAlarms) {
+        final scheduledAt = alarm['scheduled_at'] as String?;
+        if (scheduledAt == null) continue;
+        final scheduledMs = DateTime.tryParse(scheduledAt)?.toUtc().millisecondsSinceEpoch;
+        if (scheduledMs == null) continue;
+
+        platform.invokeMethod('scheduleAlarm', {
+          'alarm_id':           alarm['id'] ?? 0,
+          'scheduled_ms':       scheduledMs,
+          'channel_name':       alarm['channel_name'] ?? '',
+          'channel_public_id':  alarm['channel_public_id'] ?? '',
+          'msg_type':           alarm['msg_type'] ?? 'youtube',
+          'msg_value':          alarm['msg_value'] ?? '',
+          'content_url':        alarm['msg_value'] ?? '',
+          'homepage_url':       alarm['channel_homepage_url'] ?? '',
+        }).catchError((e) {
+          debugPrint('[JoinChannel] scheduleAlarm error: $e');
+        });
+      }
+      debugPrint('[JoinChannel] ${pendingAlarms.length}개 알람 AlarmManager 예약 완료');
+    } catch (e) {
+      debugPrint('[JoinChannel] _scheduleAlarmsFromResponse error: $e');
     }
   }
 

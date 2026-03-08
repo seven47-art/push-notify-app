@@ -262,7 +262,18 @@ invites.post('/join', async (c) => {
             'UPDATE subscribers SET fcm_token = ?, updated_at = CURRENT_TIMESTAMP WHERE channel_id = ? AND user_id = ?'
           ).bind(effectiveFcmToken, link.channel_id, user_id).run()
         }
-        return c.json({ success: true, already_member: true, message: '이미 채널 멤버입니다', data: { channel_id: link.channel_id, channel_name: link.channel_name } })
+        // 이미 멤버여도 pending 알람 반환 (재설치 후 AlarmManager 재예약용)
+        const { results: pendingAlarms } = await c.env.DB.prepare(`
+          SELECT a.id, a.channel_id, ch.name as channel_name, ch.public_id as channel_public_id,
+                 ch.homepage_url as channel_homepage_url,
+                 a.scheduled_at, a.msg_type, a.msg_value, a.status
+          FROM alarm_schedules a
+          JOIN channels ch ON a.channel_id = ch.id
+          WHERE a.channel_id = ? AND a.status = 'pending'
+            AND a.scheduled_at > datetime('now')
+          ORDER BY a.scheduled_at ASC
+        `).bind(link.channel_id).all() as { results: any[] }
+        return c.json({ success: true, already_member: true, message: '이미 채널 멤버입니다', data: { channel_id: link.channel_id, channel_name: link.channel_name, pending_alarms: pendingAlarms } })
       } else {
         // 비활성 → 재활성화 + FCM 토큰 갱신
         await c.env.DB.prepare(`
@@ -283,13 +294,26 @@ invites.post('/join', async (c) => {
       UPDATE channel_invite_links SET use_count = use_count + 1 WHERE id = ?
     `).bind(link.id).run()
 
+    // 가입한 채널의 pending 알람 목록 조회 (AlarmManager 즉시 예약용)
+    const { results: pendingAlarms } = await c.env.DB.prepare(`
+      SELECT a.id, a.channel_id, ch.name as channel_name, ch.public_id as channel_public_id,
+             ch.homepage_url as channel_homepage_url,
+             a.scheduled_at, a.msg_type, a.msg_value, a.status
+      FROM alarm_schedules a
+      JOIN channels ch ON a.channel_id = ch.id
+      WHERE a.channel_id = ? AND a.status = 'pending'
+        AND a.scheduled_at > datetime('now')
+      ORDER BY a.scheduled_at ASC
+    `).bind(link.channel_id).all() as { results: any[] }
+
     return c.json({
       success: true,
       already_member: false,
       message: `${link.channel_name} 채널에 참여했습니다! 🎉`,
       data: {
         channel_id: link.channel_id,
-        channel_name: link.channel_name
+        channel_name: link.channel_name,
+        pending_alarms: pendingAlarms  // 앱이 AlarmManager에 즉시 예약할 알람 목록
       }
     }, 201)
   } catch (e: any) {

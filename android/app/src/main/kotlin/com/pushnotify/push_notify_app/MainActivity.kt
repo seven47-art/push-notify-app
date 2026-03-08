@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_ALARM        = "com.pushnotify/alarm_data"
     private val CHANNEL_PERMISSIONS  = "com.pushnotify/permissions"
     private val CHANNEL_AUDIO        = "com.pushnotify.push_notify_app/audio_recorder"
+    private val CHANNEL_SCHEDULE     = "com.pushnotify.push_notify_app/alarm"  // v1.0.76: Flutter → Kotlin AlarmManager 예약
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
@@ -44,6 +45,33 @@ class MainActivity : FlutterActivity() {
 
         alarmChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ALARM)
 
+        // v1.0.76: Flutter → Kotlin AlarmManager 예약 채널
+        // Flutter가 서버에서 조회한 pending 알람을 Kotlin AlarmScheduler에 등록
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_SCHEDULE)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "scheduleAlarm" -> {
+                        try {
+                            val alarmId        = call.argument<Int>("alarm_id")      ?: 0
+                            val scheduledMs    = call.argument<Long>("scheduled_ms") ?: 0L
+                            val channelName    = call.argument<String>("channel_name")     ?: ""
+                            val channelPubId   = call.argument<String>("channel_public_id") ?: ""
+                            val msgType        = call.argument<String>("msg_type")    ?: "youtube"
+                            val msgValue       = call.argument<String>("msg_value")   ?: ""
+                            val contentUrl     = call.argument<String>("content_url") ?: ""
+                            val homepageUrl    = call.argument<String>("homepage_url") ?: ""
+                            AlarmScheduler.schedule(
+                                applicationContext, alarmId, scheduledMs,
+                                channelName, msgType, msgValue, contentUrl, homepageUrl, channelPubId
+                            )
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("SCHEDULE_ERROR", e.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         // 계정 선택 채널
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ACCOUNTS)
             .setMethodCallHandler { call, result ->
