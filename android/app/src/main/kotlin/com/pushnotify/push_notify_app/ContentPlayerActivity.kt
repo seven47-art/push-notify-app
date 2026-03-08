@@ -28,11 +28,11 @@ import java.net.URL
  *
  * 알람 수락 후 콘텐츠 재생 화면
  *
- * ┌────────────────────────────┐  ← 화면 상단 50%
+ * ┌────────────────────────────┐  ← 화면 너비 기준 16:9 비율 자동 계산
  * │  콘텐츠 실행 영역              │
  * │  (YouTube / Audio / Video) │
- * ├────────────────────────────┤  ← 화면 하단 50%
- * │  [채널 대표이미지 - 사각형]      │
+ * ├────────────────────────────┤  ← 나머지 공간 자동 채움
+ * │  [채널 대표이미지 - 원형]       │
  * │  채널명                      │
  * │  🌐 홈페이지 버튼 (있을 때만)   │
  * │  🔴 종료 버튼                 │
@@ -114,7 +114,7 @@ class ContentPlayerActivity : Activity() {
         channelPublicId: String
     ): View {
 
-        // ── 루트: 세로 LinearLayout (상단 50% 재생 + 하단 50% 채널 정보) ──
+        // ── 루트: 세로 LinearLayout ──
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.BLACK)
@@ -125,11 +125,12 @@ class ContentPlayerActivity : Activity() {
         }
 
         // ════════════════════════════════════════════════
-        // 상단 50% : 콘텐츠 재생 영역
+        // 상단: 콘텐츠 재생 영역 — 화면 너비 기준 16:9 높이 고정
         // ════════════════════════════════════════════════
-        // weight=1f 로 상/하 동일 비중 분할
+        val screenWidth = resources.displayMetrics.widthPixels
+        val playerHeight = screenWidth * 9 / 16          // 16:9 비율
         val playerParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+            LinearLayout.LayoutParams.MATCH_PARENT, playerHeight
         )
 
         // file 타입: 확장자로 실제 타입 판별
@@ -168,6 +169,7 @@ class ContentPlayerActivity : Activity() {
                             customView?.let { root.removeView(it) }
                             customView = view
                             customViewCallback = callback
+                            // 전체화면: root 전체를 덮음
                             root.addView(view, ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -416,7 +418,7 @@ class ContentPlayerActivity : Activity() {
         }
 
         // ════════════════════════════════════════════════
-        // 하단 50% : 채널 정보 영역
+        // 하단: 채널 정보 영역 — 나머지 공간 자동 채움 (weight=1f)
         // ════════════════════════════════════════════════
         val infoPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
