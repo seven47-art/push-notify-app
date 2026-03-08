@@ -21,7 +21,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 /* ── 앱바 ── */
 .appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:var(--primary); flex-shrink:0; }
 .appbar-left { display:flex; align-items:center; gap:10px; }
-.appbar-icon { background:rgba(255,255,255,0.2); border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
+.appbar-icon { border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .appbar-title { font-size:20px; font-weight:700; color:#fff; }
 .appbar-menu { background:none; border:none; color:#fff; font-size:22px; cursor:pointer; padding:6px; }
 
@@ -399,7 +399,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 앱바 ══ -->
 <div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
-    <div class="appbar-icon"><img src="/static/ringo-icon.png" style="width:28px;height:28px;border-radius:8px;object-fit:cover;"></div>
+    <div class="appbar-icon"><img src="/static/ringo-icon.png" style="width:32px;height:32px;border-radius:8px;object-fit:cover;display:block;"></div>
     <span class="appbar-title">RinGo</span>
   </div>
   <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
