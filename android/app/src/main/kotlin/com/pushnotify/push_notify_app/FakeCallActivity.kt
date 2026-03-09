@@ -331,14 +331,14 @@ class FakeCallActivity : Activity() {
 
         // 프로필 아이콘 컨테이너 (파동 + 원형 아이콘)
         val profileContainer = FrameLayout(this).apply {
-            val size = dpToPx(180)
+            val size = dpToPx(220)
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 bottomMargin = dpToPx(50)
             }
         }
 
-        val iconSize = dpToPx(100)
+        val iconSize = dpToPx(130)
 
         // 파동 원 3개
         val rippleColors = listOf(
@@ -346,7 +346,7 @@ class FakeCallActivity : Activity() {
             Color.parseColor("#2D2D4E"),
             Color.parseColor("#232340")
         )
-        val ripleSizes = listOf(dpToPx(170), dpToPx(145), dpToPx(120))
+        val ripleSizes = listOf(dpToPx(210), dpToPx(180), dpToPx(150))
         val rippleViews = ripleSizes.mapIndexed { i, size ->
             View(this).apply {
                 background = createCircleDrawable(rippleColors[i])
