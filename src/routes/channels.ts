@@ -37,7 +37,7 @@ channels.get('/', async (c) => {
     const query = `
       SELECT
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
-        ch.homepage_url, ch.public_id,
+        ch.homepage_url, ch.public_id, ch.is_popular,
         u.email as owner_email,
         COUNT(DISTINCT s.id)  as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
@@ -109,7 +109,7 @@ channels.patch('/:id/popular', async (c) => {
   try {
     const id   = c.req.param('id')
     const body = await c.req.json()
-    const isPopular = body.is_popular ? 1 : 0
+    const isPopular = Number(body.is_popular) === 1 ? 1 : 0
 
     await c.env.DB.prepare(
       'UPDATE channels SET is_popular = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
