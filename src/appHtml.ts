@@ -403,7 +403,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="appbar-left">
     <img src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;">
   </div>
-  <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
+  <button class="appbar-menu" onclick="App.openDrawer()" style="position:relative;">
+    <i class="fas fa-bars"></i>
+    <span id="appbar-notice-badge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:#EF4444;border-radius:50%;pointer-events:none;"></span>
+  </button>
 </div>
 
 <!-- ══ 화면 영역 ══ -->
@@ -641,9 +644,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
   </div>
   <div class="drawer-menu-label">메뉴</div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('notices')" style="position:relative;">
-    <i class="fas fa-bullhorn"></i> 공지사항
-    <span id="notice-badge" style="display:none;position:absolute;top:10px;left:26px;width:8px;height:8px;background:#EF4444;border-radius:50%;"></span>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('notices')" style="display:flex;align-items:center;gap:12px;">
+    <i class="fas fa-bullhorn" style="width:20px;text-align:center;color:var(--text3);font-size:15px;"></i>
+    <span style="display:flex;align-items:center;gap:4px;">공지사항<span id="notice-badge" style="display:none;width:8px;height:8px;background:#EF4444;border-radius:50%;flex-shrink:0;"></span></span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('owned-all')">
     <i class="fas fa-satellite-dish"></i> 나의 운영 채널
