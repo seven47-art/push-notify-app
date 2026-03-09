@@ -62,6 +62,65 @@ channels.get('/', async (c) => {
   }
 })
 
+// GET /api/channels/popular  — 인기채널 목록 (is_popular=1)
+channels.get('/popular', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT
+        ch.id, ch.name, ch.description, ch.image_url, ch.owner_id,
+        ch.homepage_url, ch.public_id, ch.is_popular, ch.created_at,
+        COUNT(DISTINCT s.id) as subscriber_count
+      FROM channels ch
+      LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
+      WHERE ch.is_active = 1 AND ch.is_popular = 1
+      GROUP BY ch.id
+      ORDER BY ch.created_at DESC
+    `).all()
+    return c.json({ success: true, data: results })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// GET /api/channels/best  — 베스트채널 (구독자 많은 순 5개, 동수 시 created_at ASC)
+channels.get('/best', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT
+        ch.id, ch.name, ch.description, ch.image_url, ch.owner_id,
+        ch.homepage_url, ch.public_id, ch.is_popular, ch.created_at,
+        COUNT(DISTINCT s.id) as subscriber_count
+      FROM channels ch
+      LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
+      WHERE ch.is_active = 1
+        AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = ch.owner_id)
+      GROUP BY ch.id
+      ORDER BY subscriber_count DESC, ch.created_at ASC
+      LIMIT 5
+    `).all()
+    return c.json({ success: true, data: results })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// PATCH /api/channels/:id/popular  — 인기채널 지정/해제
+channels.patch('/:id/popular', async (c) => {
+  try {
+    const id   = c.req.param('id')
+    const body = await c.req.json()
+    const isPopular = body.is_popular ? 1 : 0
+
+    await c.env.DB.prepare(
+      'UPDATE channels SET is_popular = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(isPopular, id).run()
+
+    return c.json({ success: true, is_popular: isPopular })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // GET /api/channels/check-name?name=XXX&exclude_id=YYY  (채널명 중복 체크)
 channels.get('/check-name', async (c) => {
   try {

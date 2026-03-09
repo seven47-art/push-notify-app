@@ -85,6 +85,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-all-tile .info { flex:1; min-width:0; }
 .ch-all-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ch-all-tile .ch-sub  { font-size:11px; color:var(--text3); margin-top:2px; }
+.ch-section-title { font-size:13px; font-weight:700; color:var(--text2); padding:10px 16px 4px; letter-spacing:0.3px; }
 
 /* ── 빈 상태 ── */
 .empty-box { margin:12px 14px; padding:20px; background:var(--bg2); border-radius:12px; text-align:center; color:var(--text3); font-size:13px; line-height:1.6; }
@@ -453,7 +454,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <i class="fas fa-times"></i>
       </button>
     </div>
-    <div id="channel-list-all"></div>
+    <!-- 검색 결과 (검색 중일 때만 표시) -->
+    <div id="channel-list-search" style="display:none;"></div>
+    <!-- 인기 채널 섹션 -->
+    <div id="channel-section-popular">
+      <div class="ch-section-title"><i class="fas fa-star" style="color:#F59E0B;margin-right:6px;"></i>인기 채널</div>
+      <div id="channel-list-popular"></div>
+    </div>
+    <!-- 베스트 채널 섹션 -->
+    <div id="channel-section-best">
+      <div class="ch-section-title" style="margin-top:8px;"><i class="fas fa-trophy" style="color:#10B981;margin-right:6px;"></i>베스트 채널</div>
+      <div id="channel-list-best"></div>
+    </div>
     <div style="height:12px;"></div>
   </div>
 

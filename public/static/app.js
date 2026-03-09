@@ -249,7 +249,7 @@ async function loadChannels() {
     const tbody = document.getElementById('channelsList')
 
     if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-slate-500 py-12">
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-500 py-12">
         <i class="fas fa-layer-group text-4xl mb-3 block text-slate-700"></i>채널이 없습니다</td></tr>`
       return
     }
@@ -280,7 +280,11 @@ async function loadChannels() {
           <span class="${ch.is_active ? 'badge-completed' : 'badge-failed'} badge">${ch.is_active ? '활성' : '비활성'}</span>
         </td>
         <td class="px-5 py-3 text-center">
-          <div class="flex items-center justify-center gap-1">
+          <div class="flex items-center justify-center gap-2 flex-wrap">
+            <button onclick="togglePopularChannel(${ch.id}, ${ch.is_popular ? 1 : 0})" title="인기채널 지정/해제"
+              class="${ch.is_popular ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-slate-700 hover:bg-yellow-600 text-slate-300 hover:text-white'} px-2 py-1 rounded text-xs font-semibold transition-colors">
+              <i class="fas fa-star mr-1"></i>${ch.is_popular ? '인기' : '지정'}
+            </button>
             <button onclick="openInviteModalForChannel(${ch.id})"
               class="btn-warning text-white px-2 py-1 rounded text-xs">
               <i class="fas fa-link mr-1"></i>초대링크
@@ -297,6 +301,16 @@ async function loadChannels() {
         </td>
       </tr>`).join('')
   } catch (e) { showToast('채널 로드 오류: ' + e.message, 'error') }
+}
+
+// 인기채널 지정/해제 토글
+async function togglePopularChannel(id, current) {
+  try {
+    const newVal = current ? 0 : 1
+    await API.patch(`/channels/${id}/popular`, { is_popular: newVal })
+    showToast(newVal ? '⭐ 인기채널로 지정되었습니다' : '인기채널 지정이 해제되었습니다')
+    loadChannels()
+  } catch (e) { showToast('오류: ' + e.message, 'error') }
 }
 
 async function openChannelModal(id) {

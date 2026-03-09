@@ -523,7 +523,7 @@ app.get('/', (c) => {
               <th class="px-5 py-3 text-slate-400 font-medium text-center">콘텐츠</th>
               <th class="px-5 py-3 text-slate-400 font-medium">운영자</th>
               <th class="px-5 py-3 text-slate-400 font-medium text-center">상태</th>
-              <th class="px-5 py-3 text-slate-400 font-medium text-center">관리</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">관리 (⭐인기채널 지정 포함)</th>
             </tr>
           </thead>
           <tbody id="channelsList"></tbody>
