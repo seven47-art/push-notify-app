@@ -19,7 +19,7 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
 body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto Sans KR',sans-serif; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
 
 /* ── 앱바 ── */
-.appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:var(--primary); flex-shrink:0; }
+.appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:#000000; flex-shrink:0; }
 .appbar-left { display:flex; align-items:center; gap:10px; }
 .appbar-icon { border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .appbar-title { font-size:20px; font-weight:700; color:#fff; }
@@ -401,8 +401,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 앱바 ══ -->
 <div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
-    <div class="appbar-icon"><img src="/static/ringo-icon.png" style="width:38px;height:38px;border-radius:10px;object-fit:cover;display:block;"></div>
-    <span class="appbar-title">RinGo</span>
+    <img src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;">
   </div>
   <button class="appbar-menu" onclick="App.openDrawer()"><i class="fas fa-bars"></i></button>
 </div>
