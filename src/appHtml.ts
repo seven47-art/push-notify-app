@@ -625,7 +625,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <button class="nav-btn" id="nav-send" onclick="App.goto('send')">
     <i class="fas fa-paper-plane"></i><span>발신함</span>
   </button>
-  <button class="nav-btn" id="nav-settings" onclick="App.goto('settings')">
+  <button class="nav-btn" id="nav-settings" onclick="App.goto('settings')" style="display:none;">
     <i class="fas fa-cog"></i><span>설정</span>
   </button>
 </div>
