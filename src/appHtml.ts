@@ -641,8 +641,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
   </div>
   <div class="drawer-menu-label">메뉴</div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('notices')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('notices')" style="position:relative;">
     <i class="fas fa-bullhorn"></i> 공지사항
+    <span id="notice-badge" style="display:none;position:absolute;top:10px;left:26px;width:8px;height:8px;background:#EF4444;border-radius:50%;"></span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('owned-all')">
     <i class="fas fa-satellite-dish"></i> 나의 운영 채널

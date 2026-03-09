@@ -326,6 +326,23 @@ const App = {
   openDrawer()  {
     document.getElementById('drawer-overlay').classList.add('open')
     document.getElementById('drawer').classList.add('open')
+    this.checkNoticesBadge()
+  },
+
+  // ── 공지사항 미확인 뱃지 ──────────────────────────────
+  async checkNoticesBadge() {
+    try {
+      const res = await API.get('/notices')
+      const list = res.data?.data || []
+      if (!list.length) { this._setNoticeBadge(false); return }
+      const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
+      const hasUnread = list.some(n => !seen.includes(n.id))
+      this._setNoticeBadge(hasUnread)
+    } catch(e) { this._setNoticeBadge(false) }
+  },
+  _setNoticeBadge(show) {
+    const badge = document.getElementById('notice-badge')
+    if (badge) badge.style.display = show ? 'block' : 'none'
   },
   closeDrawer() {
     document.getElementById('drawer-overlay').classList.remove('open')
@@ -426,24 +443,28 @@ const App = {
         el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
         return
       }
-      el.innerHTML = list.map(n => `
+      const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
+      el.innerHTML = list.map(n => {
+        const isUnread = !seen.includes(n.id)
+        return `
         <div class="channel-tile" style="flex-direction:column;align-items:flex-start;padding:14px 16px;cursor:pointer;"
-          onclick="App._toggleNotice(this)">
+          onclick="App._toggleNotice(this, ${n.id})">
           <div style="display:flex;align-items:center;width:100%;gap:8px;">
             <i class="fas fa-bullhorn" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
             <span style="font-size:14px;font-weight:600;color:var(--text);flex:1;">${n.title.replace(/</g,'&lt;')}</span>
+            ${isUnread ? '<span style="width:8px;height:8px;background:#EF4444;border-radius:50%;flex-shrink:0;display:inline-block;"></span>' : ''}
             <span style="font-size:11px;color:var(--text3);">${n.created_at?.slice(0,10) || ''}</span>
             <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text3);transition:transform 0.2s;"></i>
           </div>
           <div class="notice-content" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap;width:100%;">${n.content.replace(/</g,'&lt;')}</div>
         </div>
-      `).join('')
+      `}).join('')
     } catch (e) {
       el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
     }
   },
 
-  _toggleNotice(el) {
+  _toggleNotice(el, noticeId) {
     const content = el.querySelector('.notice-content')
     const icon = el.querySelector('.fa-chevron-down, .fa-chevron-up')
     if (!content) return
@@ -452,6 +473,19 @@ const App = {
     if (icon) {
       icon.classList.toggle('fa-chevron-down', isOpen)
       icon.classList.toggle('fa-chevron-up', !isOpen)
+    }
+    // 열람 시 확인 처리
+    if (!isOpen && noticeId) {
+      const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
+      if (!seen.includes(noticeId)) {
+        seen.push(noticeId)
+        localStorage.setItem('seen_notices', JSON.stringify(seen))
+        // 빨간점 제거
+        const dot = el.querySelector('span[style*="#EF4444"]')
+        if (dot) dot.remove()
+        // 드로어 뱃지 갱신
+        this.checkNoticesBadge()
+      }
     }
   },
 
