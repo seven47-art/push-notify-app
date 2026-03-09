@@ -443,7 +443,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-owned-all">
     <div class="section-header" style="margin-top:8px;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
-      <span class="section-title">나의 운영채널</span>
+      <span class="section-title" style="flex:1;">나의 운영채널</span>
       <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
     </div>
     <div id="owned-all-list"></div>
@@ -454,7 +454,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-joined-all">
     <div class="section-header" style="margin-top:8px;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
-      <span class="section-title">나의 가입채널</span>
+      <span class="section-title" style="flex:1;">나의 가입채널</span>
     </div>
     <div id="joined-all-list"></div>
     <div style="height:12px;"></div>
