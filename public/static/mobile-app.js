@@ -343,6 +343,8 @@ const App = {
   _setNoticeBadge(show) {
     const badge = document.getElementById('notice-badge')
     if (badge) badge.style.display = show ? 'block' : 'none'
+    const appbarBadge = document.getElementById('appbar-notice-badge')
+    if (appbarBadge) appbarBadge.style.display = show ? 'block' : 'none'
   },
   closeDrawer() {
     document.getElementById('drawer-overlay').classList.remove('open')
@@ -351,6 +353,8 @@ const App = {
 
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
+    // 앱 로드 시 공지 뱃지 체크
+    this.checkNoticesBadge()
     const uid = Store.getUserId()
     if (!uid) {
       document.getElementById('owned-list').innerHTML  = '<div class="empty-box">로그인이 필요합니다.</div>'
