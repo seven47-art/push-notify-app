@@ -464,15 +464,16 @@ const App = {
     if (bestEl)    bestEl.innerHTML    = spinner
 
     try {
-      const [popRes, bestRes] = await Promise.all([
+      const [popRes, bestRes, allRes] = await Promise.all([
         API.get('/channels/popular'),
-        API.get('/channels/best')
+        API.get('/channels/best'),
+        API.get('/channels')
       ])
       const popList  = popRes.data?.data  || []
       const bestList = bestRes.data?.data || []
 
-      // 전역 캐시 (검색용 — 인기+베스트 합산)
-      window._allChannelList = [...new Map([...popList, ...bestList].map(c => [c.id, c])).values()]
+      // 전역 캐시 (검색용 — 전체 채널)
+      window._allChannelList = allRes.data?.data || []
 
       if (popularEl) {
         popularEl.innerHTML = popList.length
