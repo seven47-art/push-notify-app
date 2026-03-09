@@ -1,7 +1,9 @@
-// lib/screens/permission_screen.dart  v1.0.41
-// 권한 요청 순서: 알림 → 다른앱위에표시 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
+// lib/screens/permission_screen.dart  v2.0
+// 권한 요청 3단계로 간소화
+// [1단계] 시스템 팝업 일괄 요청: 알림 + 정확한알람 + 배터리최적화 + 마이크 + 카메라
+// [2단계] 다른 앱 위에 표시 → 설정앱 이동
+// [3단계] 전체화면 알림 → 설정앱 이동
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -18,82 +20,43 @@ class _PermissionScreenState extends State<PermissionScreen>
 
   static const _platform = MethodChannel('com.pushnotify/permissions');
 
-  // ── 권한 항목 정의 ────────────────────────────────────────────────────
-  // [순서] 알림 → 다른앱위에표시 → 전체화면알림 → 정확한알람 → 배터리최적화 → 마이크 → 카메라
-  final List<_PermItem> _items = [
-    _PermItem(
-      permission:  Permission.notification,
-      icon:        Icons.notifications_active_rounded,
-      color:       const Color(0xFF6C63FF),
-      title:       '알림 권한',
-      subtitle:    '알람이 도착하면 즉시 알려드립니다',
-      description: '이 앱의 핵심 기능입니다.\n승인하지 않으면 알람을 받을 수 없습니다.',
-      required:    true,
-    ),
-    _PermItem(
-      permission:  Permission.notification, // placeholder (isOverlay=true로 처리)
-      icon:        Icons.picture_in_picture_alt_rounded,
-      color:       const Color(0xFFF97316),
-      title:       '다른 앱 위에 표시',
-      subtitle:    '화면이 켜진 상태에서도 알람을 표시합니다',
-      description: '이 권한이 없으면 다른 앱 사용 중 알람 화면이\n나타나지 않을 수 있습니다.\n설정에서 "허용"을 켜주세요.',
-      required:    true,
-      isOverlay:   true,
-    ),
-    _PermItem(
-      permission:  Permission.notification, // placeholder (isFullScreenIntent=true로 처리)
-      icon:        Icons.fullscreen_rounded,
-      color:       const Color(0xFFEF4444),
-      title:       '전체 화면 알림 권한',
-      subtitle:    '잠금화면 위에 알람을 표시합니다',
-      description: '이 권한이 없으면 화면이 꺼진 상태에서\n알람을 받을 수 없습니다.\n설정에서 "권한 허용"을 켜주세요.',
-      required:    true,
-      isFullScreenIntent: true,
-    ),
-    _PermItem(
-      permission:  Permission.scheduleExactAlarm,
-      icon:        Icons.alarm_on_rounded,
-      color:       const Color(0xFF10B981),
-      title:       '정확한 알람 권한',
-      subtitle:    '설정된 시간에 정확하게 알람을 울립니다',
-      description: '지정된 시간에 정확히 알람을 실행하기 위해 필요합니다.',
-      required:    true,
-    ),
-    _PermItem(
-      permission:  Permission.ignoreBatteryOptimizations,
-      icon:        Icons.battery_charging_full_rounded,
-      color:       const Color(0xFFF59E0B),
-      title:       '배터리 최적화 제외',
-      subtitle:    '앱이 꺼져 있어도 알람을 받습니다',
-      description: '배터리 절약 모드에서 앱이 강제 종료되면\n알람을 못 받습니다.\n이 앱을 배터리 최적화에서 제외해 주세요.',
-      required:    true,
-    ),
-    _PermItem(
-      permission:  Permission.microphone,
-      icon:        Icons.mic_rounded,
-      color:       const Color(0xFF3B82F6),
-      title:       '마이크 권한',
-      subtitle:    '오디오 메시지 녹음 시 사용됩니다',
-      description: '채널에 오디오 메시지를 전송할 때만 사용됩니다.',
-      required:    false,
-    ),
-    _PermItem(
-      permission:  Permission.camera,
-      icon:        Icons.videocam_rounded,
-      color:       const Color(0xFFEC4899),
-      title:       '카메라 권한',
-      subtitle:    '영상 메시지 녹화 시 사용됩니다',
-      description: '채널에 비디오 메시지를 전송할 때만 사용됩니다.',
-      required:    false,
-    ),
-  ];
+  // 3단계 정의
+  static const int _stepBulk    = 0; // 시스템 팝업 일괄
+  static const int _stepOverlay = 1; // 다른 앱 위에 표시
+  static const int _stepFsi     = 2; // 전체화면 알림
 
-  int _currentStep = 0;
+  int  _currentStep  = 0;
   bool _isRequesting = false;
+
   late final AnimationController _pulseCtrl;
   late final Animation<double>   _pulseAnim;
   late final AnimationController _slideCtrl;
   late final Animation<Offset>   _slideAnim;
+
+  // 각 단계 UI 정보
+  final _stepInfo = const [
+    _StepInfo(
+      icon:        Icons.security_rounded,
+      color:       Color(0xFF6C63FF),
+      title:       '앱 권한 허용',
+      subtitle:    '링고 앱 이용에 필요한 권한을 한 번에 허용합니다',
+      description: '알림, 정확한 알람, 배터리 최적화 제외,\n마이크, 카메라 권한을 요청합니다.\n팝업이 나타나면 모두 "허용"을 눌러주세요.',
+    ),
+    _StepInfo(
+      icon:        Icons.picture_in_picture_alt_rounded,
+      color:       Color(0xFFF97316),
+      title:       '다른 앱 위에 표시',
+      subtitle:    '화면이 켜진 상태에서도 알람을 표시합니다',
+      description: '설정 화면으로 이동합니다.\n"링고(RinGo)" 항목을 찾아 허용으로 켜주세요.',
+    ),
+    _StepInfo(
+      icon:        Icons.fullscreen_rounded,
+      color:       Color(0xFFEF4444),
+      title:       '전체화면 알림 권한',
+      subtitle:    '잠금화면 위에 알람을 표시합니다',
+      description: '설정 화면으로 이동합니다.\n"링고(RinGo)" 항목을 찾아 허용으로 켜주세요.',
+    ),
+  ];
 
   @override
   void initState() {
@@ -111,7 +74,7 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
     _slideAnim = Tween<Offset>(
       begin: const Offset(1, 0),
-      end: Offset.zero,
+      end:   Offset.zero,
     ).animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOut));
     _slideCtrl.forward();
     _checkAlreadyGranted();
@@ -124,226 +87,153 @@ class _PermissionScreenState extends State<PermissionScreen>
     super.dispose();
   }
 
-  // 이미 허용된 권한 건너뛰기
+  // ── 이미 허용된 단계 건너뛰기 ─────────────────────────────────────────
   Future<void> _checkAlreadyGranted() async {
-    for (int i = 0; i < _items.length; i++) {
-      if (_items[i].isOverlay) {
-        _items[i].granted = await _checkOverlayGranted();
-        continue;
-      }
-      if (_items[i].isFullScreenIntent) {
-        _items[i].granted = await _checkFullScreenIntentGranted();
-        continue;
-      }
-      final status = await _items[i].permission.status;
-      if (status.isGranted || status.isLimited) {
-        _items[i].granted = true;
-      }
-    }
-    final first = _items.indexWhere((e) => !e.granted);
-    if (first == -1) {
-      await _finishAndGoMain();
+    int startStep = _stepBulk;
+
+    // 1단계 — 시스템 팝업 권한 모두 허용됐는지 확인
+    final bulkDone = await _isBulkGranted();
+
+    // 2단계 — 오버레이 권한
+    final overlayDone = await _checkOverlayGranted();
+
+    // 3단계 — 전체화면 인텐트
+    final fsiDone = await _checkFsiGranted();
+
+    if (bulkDone && overlayDone && fsiDone) {
+      await _finish();
       return;
     }
-    if (mounted) setState(() => _currentStep = first);
+
+    if (bulkDone)    startStep = _stepOverlay;
+    if (bulkDone && overlayDone) startStep = _stepFsi;
+
+    if (mounted) setState(() => _currentStep = startStep);
   }
 
-  // ── 다른 앱 위에 표시 권한 확인 ──────────────────────────────────────
+  Future<bool> _isBulkGranted() async {
+    final statuses = await [
+      Permission.notification,
+      Permission.scheduleExactAlarm,
+      Permission.ignoreBatteryOptimizations,
+      Permission.microphone,
+      Permission.camera,
+    ].request(); // request() 는 이미 허용된 건 팝업 없이 통과
+    return statuses.values.every(
+      (s) => s.isGranted || s.isLimited,
+    );
+  }
+
   Future<bool> _checkOverlayGranted() async {
     try {
-      final result = await _platform.invokeMethod<bool>('canDrawOverlays');
-      return result ?? true;
-    } catch (_) {
-      return true;
-    }
+      return await _platform.invokeMethod<bool>('canDrawOverlays') ?? true;
+    } catch (_) { return true; }
   }
 
-  Future<void> _openOverlaySettings() async {
+  Future<bool> _checkFsiGranted() async {
+    try {
+      return await _platform.invokeMethod<bool>('canUseFullScreenIntent') ?? true;
+    } catch (_) { return true; }
+  }
+
+  // ── 현재 단계 실행 ────────────────────────────────────────────────────
+  Future<void> _requestCurrent() async {
+    if (_isRequesting) return;
+    setState(() => _isRequesting = true);
+
+    switch (_currentStep) {
+      case _stepBulk:
+        await _doBulkRequest();
+      case _stepOverlay:
+        await _doOverlayRequest();
+      case _stepFsi:
+        await _doFsiRequest();
+    }
+
+    if (mounted) setState(() => _isRequesting = false);
+  }
+
+  // 1단계: 시스템 팝업 일괄 요청
+  Future<void> _doBulkRequest() async {
+    await [
+      Permission.notification,
+      Permission.scheduleExactAlarm,
+      Permission.ignoreBatteryOptimizations,
+      Permission.microphone,
+      Permission.camera,
+    ].request();
+    await _moveToNext(_stepOverlay);
+  }
+
+  // 2단계: 다른 앱 위에 표시
+  Future<void> _doOverlayRequest() async {
     try {
       await _platform.invokeMethod('openOverlaySettings');
     } catch (_) {
       await openAppSettings();
     }
+    await Future.delayed(const Duration(seconds: 2));
+    await _moveToNext(_stepFsi);
   }
 
-  // ── 전체화면 알림 권한 확인 (Android 14+) ─────────────────────────────
-  Future<bool> _checkFullScreenIntentGranted() async {
-    try {
-      final result = await _platform.invokeMethod<bool>('canUseFullScreenIntent');
-      return result ?? true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  Future<void> _openFullScreenIntentSettings() async {
+  // 3단계: 전체화면 알림
+  Future<void> _doFsiRequest() async {
     try {
       await _platform.invokeMethod('openFullScreenIntentSettings');
     } catch (_) {
       await openAppSettings();
     }
+    await Future.delayed(const Duration(seconds: 2));
+    await _finish();
   }
 
-  // ── 현재 권한 요청 ────────────────────────────────────────────────────
-  Future<void> _requestCurrent() async {
-    if (_isRequesting) return;
-    setState(() => _isRequesting = true);
-
-    final item = _items[_currentStep];
-
-    try {
-      // 다른 앱 위에 표시
-      if (item.isOverlay) {
-        await _openOverlaySettings();
-        await Future.delayed(const Duration(seconds: 2));
-        item.granted = await _checkOverlayGranted();
-        item.denied  = !item.granted;
-        if (mounted) setState(() => _isRequesting = false);
-        await _moveToNext();
-        return;
-      }
-
-      // 전체화면 알림 권한
-      if (item.isFullScreenIntent) {
-        await _openFullScreenIntentSettings();
-        await Future.delayed(const Duration(seconds: 2));
-        item.granted = await _checkFullScreenIntentGranted();
-        item.denied  = !item.granted;
-        if (mounted) setState(() => _isRequesting = false);
-        await _moveToNext();
-        return;
-      }
-
-      PermissionStatus status;
-
-      // 배터리 최적화 제외
-      if (item.permission == Permission.ignoreBatteryOptimizations) {
-        status = await Permission.ignoreBatteryOptimizations.request();
-        if (!status.isGranted) {
-          await openAppSettings();
-          await Future.delayed(const Duration(seconds: 2));
-          status = await Permission.ignoreBatteryOptimizations.status;
-        }
-      } else if (item.permission == Permission.scheduleExactAlarm) {
-        status = await Permission.scheduleExactAlarm.request();
-        if (status.isPermanentlyDenied) {
-          await openAppSettings();
-          await Future.delayed(const Duration(seconds: 2));
-          status = await Permission.scheduleExactAlarm.status;
-        }
-      } else {
-        status = await item.permission.request();
-        if (status.isPermanentlyDenied) {
-          if (mounted) await _showPermanentlyDeniedDialog(item);
-          status = await item.permission.status;
-        }
-      }
-
-      item.granted = status.isGranted || status.isLimited;
-      item.denied  = status.isDenied || status.isPermanentlyDenied;
-    } catch (e) {
-      item.denied = true;
-    }
-
-    if (mounted) setState(() => _isRequesting = false);
-    await _moveToNext();
-  }
-
-  Future<void> _moveToNext() async {
-    final nextIdx = _items.indexWhere((e) => !e.granted, _currentStep + 1);
-    if (nextIdx == -1) {
-      await _finishAndGoMain();
-      return;
-    }
+  Future<void> _moveToNext(int next) async {
     _slideCtrl.reset();
     if (mounted) {
-      setState(() => _currentStep = nextIdx);
+      setState(() => _currentStep = next);
       _slideCtrl.forward();
     }
   }
 
   Future<void> _skipCurrent() async {
-    _items[_currentStep].skipped = true;
-    await _moveToNext();
-  }
-
-  Future<void> _finishAndGoMain() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('permissions_setup_done', true);
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+    if (_currentStep < _stepFsi) {
+      await _moveToNext(_currentStep + 1);
+    } else {
+      await _finish();
     }
   }
 
-  Future<void> _showPermanentlyDeniedDialog(_PermItem item) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B4B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(item.icon, color: item.color, size: 22),
-          const SizedBox(width: 8),
-          Text(item.title,
-              style: const TextStyle(color: Colors.white, fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-        ]),
-        content: const Text(
-          '권한이 거부되었습니다.\n설정 앱에서 직접 허용해 주세요.',
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('나중에',
-                style: TextStyle(color: Color(0xFF6B7280))),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await openAppSettings();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('설정 열기',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _finish() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('permissions_setup_done', true);
+    if (mounted) Navigator.of(context).pushReplacementNamed('/main');
   }
 
-  // ── UI ──────────────────────────────────────────────────────────────────
+  // ── UI ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final item       = _items[_currentStep];
-    final totalSteps = _items.length;
-    final doneCount  = _items.where((e) => e.granted).length;
+    final info = _stepInfo[_currentStep];
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(doneCount, totalSteps),
+            _buildHeader(),
             Expanded(
               child: SlideTransition(
                 position: _slideAnim,
-                child: _buildPermCard(item),
+                child: _buildCard(info),
               ),
             ),
-            _buildButtons(item),
+            _buildButtons(info),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(int done, int total) {
+  Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       child: Column(
@@ -361,7 +251,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                   color: const Color(0xFF6C63FF).withOpacity(0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text('$done / $total',
+                child: Text('${_currentStep + 1} / 3',
                     style: const TextStyle(color: Color(0xFF6C63FF),
                         fontSize: 13, fontWeight: FontWeight.w700)),
               ),
@@ -371,23 +261,21 @@ class _PermissionScreenState extends State<PermissionScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: total > 0 ? (_currentStep + 1) / total : 1.0,
+              value: (_currentStep + 1) / 3,
               minHeight: 5,
               backgroundColor: const Color(0xFF1E1B4B),
               valueColor: const AlwaysStoppedAnimation(Color(0xFF6C63FF)),
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            '${_currentStep + 1}단계 / $total단계',
-            style: const TextStyle(color: Color(0xFF4B5563), fontSize: 12),
-          ),
+          Text('${_currentStep + 1}단계 / 3단계',
+              style: const TextStyle(color: Color(0xFF4B5563), fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _buildPermCard(_PermItem item) {
+  Widget _buildCard(_StepInfo info) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -401,49 +289,24 @@ class _PermissionScreenState extends State<PermissionScreen>
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     colors: [
-                      item.color.withOpacity(0.35),
-                      item.color.withOpacity(0.06),
+                      info.color.withOpacity(0.35),
+                      info.color.withOpacity(0.06),
                     ],
                     radius: 0.8,
                   ),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                      color: item.color.withOpacity(0.5), width: 2),
+                  border: Border.all(color: info.color.withOpacity(0.5), width: 2),
                 ),
-                child: Icon(item.icon, color: item.color, size: 52),
+                child: Icon(info.icon, color: info.color, size: 52),
               ),
             ),
             const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: item.required
-                    ? const Color(0xFFEF4444).withOpacity(0.15)
-                    : const Color(0xFF6B7280).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: item.required
-                      ? const Color(0xFFEF4444).withOpacity(0.4)
-                      : const Color(0xFF6B7280).withOpacity(0.4),
-                ),
-              ),
-              child: Text(
-                item.required ? '필수 권한' : '선택 권한',
-                style: TextStyle(
-                  color: item.required
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFF9CA3AF),
-                  fontSize: 11, fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(item.title,
+            Text(info.title,
                 style: const TextStyle(color: Colors.white, fontSize: 24,
                     fontWeight: FontWeight.w800),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            Text(item.subtitle,
+            Text(info.subtitle,
                 style: const TextStyle(color: Color(0xFF94A3B8),
                     fontSize: 14, height: 1.5),
                 textAlign: TextAlign.center),
@@ -452,45 +315,39 @@ class _PermissionScreenState extends State<PermissionScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: item.color.withOpacity(0.07),
+                color: info.color.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: item.color.withOpacity(0.2)),
+                border: Border.all(color: info.color.withOpacity(0.2)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.info_outline_rounded,
-                      color: item.color.withOpacity(0.8), size: 18),
+                      color: info.color.withOpacity(0.8), size: 18),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(item.description,
+                    child: Text(info.description,
                         style: TextStyle(
-                            color: item.color.withOpacity(0.9),
+                            color: info.color.withOpacity(0.9),
                             fontSize: 13, height: 1.6)),
                   ),
                 ],
               ),
             ),
-            if (item.denied) ...[
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: const Color(0xFFEF4444).withOpacity(0.25)),
-                ),
-                child: const Row(children: [
-                  Icon(Icons.warning_amber_rounded,
-                      color: Color(0xFFEF4444), size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text('권한이 거부됐습니다. 아래 버튼으로 다시 요청하거나 설정에서 직접 허용해 주세요.',
-                        style: TextStyle(color: Color(0xFFEF4444),
-                            fontSize: 12, height: 1.5)),
-                  ),
-                ]),
+
+            // 1단계 — 요청할 권한 목록 뱃지
+            if (_currentStep == _stepBulk) ...[
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: const [
+                  _Badge(Icons.notifications_active_rounded, '알림'),
+                  _Badge(Icons.alarm_on_rounded,             '정확한 알람'),
+                  _Badge(Icons.battery_charging_full_rounded,'배터리 최적화 제외'),
+                  _Badge(Icons.mic_rounded,                  '마이크'),
+                  _Badge(Icons.videocam_rounded,             '카메라'),
+                ],
               ),
             ],
           ],
@@ -499,7 +356,8 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  Widget _buildButtons(_PermItem item) {
+  Widget _buildButtons(_StepInfo info) {
+    final isLast = _currentStep == _stepFsi;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       child: Column(
@@ -510,8 +368,8 @@ class _PermissionScreenState extends State<PermissionScreen>
             child: ElevatedButton(
               onPressed: _isRequesting ? null : _requestCurrent,
               style: ElevatedButton.styleFrom(
-                backgroundColor: item.color,
-                disabledBackgroundColor: item.color.withOpacity(0.4),
+                backgroundColor: info.color,
+                disabledBackgroundColor: info.color.withOpacity(0.4),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
@@ -529,9 +387,11 @@ class _PermissionScreenState extends State<PermissionScreen>
                         const Icon(Icons.check_circle_outline_rounded, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          item.denied ? '다시 요청하기' : '허용하기',
-                          style: const TextStyle(fontSize: 16,
-                              fontWeight: FontWeight.w700),
+                          _currentStep == _stepBulk ? '권한 허용하기'
+                              : isLast ? '허용하고 시작하기'
+                              : '설정으로 이동',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -544,14 +404,12 @@ class _PermissionScreenState extends State<PermissionScreen>
             child: TextButton(
               onPressed: _isRequesting ? null : _skipCurrent,
               style: TextButton.styleFrom(
-                foregroundColor: item.required
-                    ? const Color(0xFF6B7280)
-                    : const Color(0xFF9CA3AF),
+                foregroundColor: const Color(0xFF6B7280),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(
-                item.required ? '나중에 설정하기' : '건너뛰기',
+                isLast ? '건너뛰고 시작하기' : '나중에 설정하기',
                 style: const TextStyle(fontSize: 14),
               ),
             ),
@@ -562,30 +420,49 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 }
 
-// ── 권한 항목 데이터 클래스 ─────────────────────────────────────────────
-class _PermItem {
-  final Permission permission;
-  final IconData   icon;
-  final Color      color;
-  final String     title;
-  final String     subtitle;
-  final String     description;
-  final bool       required;
-  final bool       isFullScreenIntent;
-  final bool       isOverlay;        // 다른 앱 위에 표시 권한
-  bool granted = false;
-  bool denied  = false;
-  bool skipped = false;
-
-  _PermItem({
-    required this.permission,
+// ── 단계 정보 데이터 클래스 ──────────────────────────────────────────────
+class _StepInfo {
+  final IconData icon;
+  final Color    color;
+  final String   title;
+  final String   subtitle;
+  final String   description;
+  const _StepInfo({
     required this.icon,
     required this.color,
     required this.title,
     required this.subtitle,
     required this.description,
-    required this.required,
-    this.isFullScreenIntent = false,
-    this.isOverlay          = false,
   });
+}
+
+// ── 권한 뱃지 위젯 ────────────────────────────────────────────────────────
+class _Badge extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  const _Badge(this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6C63FF).withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: const Color(0xFF6C63FF), size: 14),
+          const SizedBox(width: 5),
+          Text(label,
+              style: const TextStyle(
+                  color: Color(0xFF6C63FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
 }
