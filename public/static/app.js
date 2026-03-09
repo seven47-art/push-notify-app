@@ -281,9 +281,9 @@ async function loadChannels() {
         </td>
         <td class="px-5 py-3 text-center">
           <div class="flex items-center justify-center gap-2 flex-wrap">
-            <button onclick="togglePopularChannel(${ch.id}, ${ch.is_popular ? 1 : 0})" title="인기채널 지정/해제"
-              class="${ch.is_popular ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-slate-700 hover:bg-yellow-600 text-slate-300 hover:text-white'} px-2 py-1 rounded text-xs font-semibold transition-colors">
-              <i class="fas fa-star mr-1"></i>${ch.is_popular ? '인기' : '지정'}
+            <button onclick="togglePopularChannel(${ch.id}, ${ch.is_popular ? 1 : 0})" title="${ch.is_popular ? '인기채널 해제' : '인기채널 지정'}"
+              class="px-2 py-1 rounded text-xs font-semibold transition-colors ${ch.is_popular ? 'bg-yellow-500/20 hover:bg-yellow-500/30' : 'bg-slate-700 hover:bg-slate-600'}">
+              <i class="fas fa-star" style="color:${ch.is_popular ? '#F59E0B' : '#64748B'};"></i>
             </button>
             <button onclick="openInviteModalForChannel(${ch.id})"
               class="btn-warning text-white px-2 py-1 rounded text-xs">
@@ -306,7 +306,8 @@ async function loadChannels() {
 // 인기채널 지정/해제 토글
 async function togglePopularChannel(id, current) {
   try {
-    const newVal = current ? 0 : 1
+    // current: 1이면 현재 인기채널 → 해제(0), 0이면 현재 일반 → 지정(1)
+    const newVal = current === 1 ? 0 : 1
     await API.patch(`/channels/${id}/popular`, { is_popular: newVal })
     showToast(newVal ? '⭐ 인기채널로 지정되었습니다' : '인기채널 지정이 해제되었습니다')
     loadChannels()
