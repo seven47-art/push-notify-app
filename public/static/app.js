@@ -278,6 +278,7 @@ async function loadChannels() {
         <td class="px-5 py-3 text-slate-400 text-xs">${ch.owner_email || ch.owner_id}</td>
         <td class="px-5 py-3 text-center">
           <span class="${ch.is_active ? 'badge-completed' : 'badge-failed'} badge">${ch.is_active ? '활성' : '비활성'}</span>
+          ${Number(ch.is_secret) === 1 ? '<span class="badge ml-1" style="background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3);font-size:10px;padding:1px 5px;border-radius:4px;"><i class="fas fa-lock mr-1"></i>비밀</span>' : ''}
         </td>
         <td class="px-5 py-3 text-center">
           <div class="flex items-center justify-center gap-2 flex-wrap">

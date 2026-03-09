@@ -13,6 +13,15 @@ function generatePublicId(): string {
   return id
 }
 
+// SHA-256 해시 (Cloudflare Workers Web Crypto API)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 // GET /api/channels  (owner_id, search 파라미터로 필터 가능)
 channels.get('/', async (c) => {
   try {
@@ -38,6 +47,7 @@ channels.get('/', async (c) => {
       SELECT
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
         ch.homepage_url, ch.public_id, ch.is_popular,
+        ch.is_secret,
         u.email as owner_email,
         COUNT(DISTINCT s.id)  as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
@@ -68,7 +78,7 @@ channels.get('/popular', async (c) => {
     const { results } = await c.env.DB.prepare(`
       SELECT
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id,
-        ch.homepage_url, ch.public_id, ch.is_popular, ch.created_at,
+        ch.homepage_url, ch.public_id, ch.is_popular, ch.is_secret, ch.created_at,
         COUNT(DISTINCT s.id) as subscriber_count
       FROM channels ch
       LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
@@ -88,7 +98,7 @@ channels.get('/best', async (c) => {
     const { results } = await c.env.DB.prepare(`
       SELECT
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id,
-        ch.homepage_url, ch.public_id, ch.is_popular, ch.created_at,
+        ch.homepage_url, ch.public_id, ch.is_popular, ch.is_secret, ch.created_at,
         COUNT(DISTINCT s.id) as subscriber_count
       FROM channels ch
       LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
@@ -194,7 +204,7 @@ channels.get('/:id', async (c) => {
 channels.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const { name: rawName, channel_name, description, image_url, owner_id, phone_number, homepage_url } = body
+    const { name: rawName, channel_name, description, image_url, owner_id, phone_number, homepage_url, is_secret, password } = body
 
     // Flutter는 channel_name, 웹은 name으로 전송 — 둘 다 수용
     const name = rawName || channel_name
@@ -207,6 +217,12 @@ channels.post('/', async (c) => {
     }
     if (!description || !description.trim()) {
       return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
+    }
+
+    // 비밀채널인 경우 비밀번호 필수
+    const isSecret = is_secret ? 1 : 0
+    if (isSecret && (!password || !password.trim())) {
+      return c.json({ success: false, error: '비밀채널은 비밀번호가 필수입니다' }, 400)
     }
 
     // 채널명 중복 체크 (활성 채널만, 대소문자 구분 없이)
@@ -224,11 +240,12 @@ channels.post('/', async (c) => {
     }
 
     const publicId = generatePublicId()
+    const passwordHash = (isSecret && password) ? await hashPassword(password.trim()) : null
 
     const result = await c.env.DB.prepare(`
-      INSERT INTO channels (name, description, image_url, owner_id, public_id, homepage_url)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId, homepage_url || null).run()
+      INSERT INTO channels (name, description, image_url, owner_id, public_id, homepage_url, is_secret, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId, homepage_url || null, isSecret, passwordHash).run()
 
     const newChannelId = result.meta.last_row_id as number
 
@@ -279,7 +296,7 @@ channels.put('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { name, description, image_url, is_active, homepage_url } = body
+    const { name, description, image_url, is_active, homepage_url, is_secret, password, remove_password } = body
 
     // image_url이 너무 크면 에러 반환 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
     if (image_url && image_url.length > 819200) {
@@ -296,6 +313,23 @@ channels.put('/:id', async (c) => {
       }
     }
 
+    // 비밀번호 처리
+    let passwordHash: string | null | undefined = undefined // undefined = 변경 안 함
+    let isSecretVal: number | undefined = undefined
+    if (is_secret !== undefined) {
+      isSecretVal = is_secret ? 1 : 0
+      if (isSecretVal === 1 && password && password.trim()) {
+        passwordHash = await hashPassword(password.trim())
+      } else if (isSecretVal === 0 || remove_password) {
+        passwordHash = null
+      }
+    } else if (password && password.trim()) {
+      // 비밀번호만 변경
+      passwordHash = await hashPassword(password.trim())
+    } else if (remove_password) {
+      passwordHash = null
+    }
+
     await c.env.DB.prepare(`
       UPDATE channels 
       SET name = COALESCE(?, name),
@@ -303,11 +337,49 @@ channels.put('/:id', async (c) => {
           image_url = COALESCE(?, image_url),
           homepage_url = COALESCE(?, homepage_url),
           is_active = COALESCE(?, is_active),
+          is_secret = COALESCE(?, is_secret),
+          password_hash = CASE WHEN ? IS NOT NULL OR ? = 1 THEN ? ELSE password_hash END,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(name || null, description || null, image_url || null, homepage_url || null, is_active ?? null, id).run()
+    `).bind(
+      name || null,
+      description || null,
+      image_url || null,
+      homepage_url || null,
+      is_active ?? null,
+      isSecretVal ?? null,
+      passwordHash !== undefined ? passwordHash : null,
+      passwordHash !== undefined ? 1 : 0,
+      passwordHash !== undefined ? passwordHash : null,
+      id
+    ).run()
 
     return c.json({ success: true, message: 'Channel updated' })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// POST /api/channels/:id/verify-password — 비밀채널 가입 시 비밀번호 검증
+channels.post('/:id/verify-password', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const { password } = await c.req.json()
+    if (!password) return c.json({ success: false, error: '비밀번호를 입력하세요' }, 400)
+
+    const channel = await c.env.DB.prepare(
+      'SELECT is_secret, password_hash FROM channels WHERE id = ? AND is_active = 1'
+    ).bind(id).first() as any
+
+    if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
+    if (!channel.is_secret) return c.json({ success: true, message: '공개 채널입니다' })
+    if (!channel.password_hash) return c.json({ success: false, error: '비밀번호가 설정되지 않은 채널입니다' }, 400)
+
+    const inputHash = await hashPassword(password.trim())
+    if (inputHash !== channel.password_hash) {
+      return c.json({ success: false, error: '비밀번호가 올바르지 않습니다' }, 401)
+    }
+    return c.json({ success: true, message: '비밀번호 확인 완료' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

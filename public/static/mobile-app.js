@@ -419,12 +419,13 @@ const App = {
     const id       = ch.id
     const hasAlarm = (ch.pending_alarm_count || 0) > 0
     const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         ${avatar(name, ch.image_url, 44)}
       </div>
       <div class="info" onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
-        <div class="ch-name">${name} (${cnt})</div>
+        <div class="ch-name">${name} (${cnt}) ${lockIcon}</div>
         <div class="ch-sub">${ch.description || '채널 운영자'}</div>
       </div>
       <div class="ch-actions">
@@ -465,10 +466,11 @@ const App = {
   _joinedTileHtml(ch) {
     const name = ch.channel_name || ch.name || '채널'
     const chId = ch.channel_id || ch.id
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
     return `<div class="joined-tile" onclick="App.openChannelDetail(${chId},'${name}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name}</div>
+        <div class="ch-name">${name} ${lockIcon}</div>
         <div class="ch-sub">구독 중</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
@@ -535,10 +537,11 @@ const App = {
                    : isJoined ? '<span style="color:var(--teal);font-weight:600;">구독 중</span>'
                    : '<span style="color:var(--text3);">참여 가능</span>'
     const subCnt   = ch.subscriber_count || 0
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
     return `<div class="ch-all-tile" onclick="App.openChannelDetail(${ch.id},'${name.replace(/'/g,"\'")}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name.replace(/</g,'&lt;')}</div>
+        <div class="ch-name">${name.replace(/</g,'&lt;')} ${lockIcon}</div>
         <div class="ch-sub">${subLabel} · <i class="fas fa-users" style="font-size:10px;"></i> ${subCnt}명</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
@@ -834,6 +837,9 @@ const App = {
     document.getElementById('create-phone').value    = ''
     document.getElementById('create-desc').value     = ''
     document.getElementById('create-homepage').value = ''
+    document.getElementById('create-password').value = ''
+    document.getElementById('create-is-secret').checked = false
+    document.getElementById('create-secret-wrap').style.display = 'none'
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
     document.getElementById('create-img-thumb').innerHTML =
@@ -842,11 +848,24 @@ const App = {
     setTimeout(() => document.getElementById('create-name').focus(), 300)
   },
 
+  toggleSecretCreate(checked) {
+    document.getElementById('create-secret-wrap').style.display = checked ? 'block' : 'none'
+    if (!checked) document.getElementById('create-password').value = ''
+  },
+
+  toggleSecretEdit(checked) {
+    document.getElementById('edit-secret-wrap').style.display = checked ? 'block' : 'none'
+    if (!checked) document.getElementById('edit-password').value = ''
+  },
+
   async createChannel() {
     const name = document.getElementById('create-name').value.trim()
     const desc = document.getElementById('create-desc').value.trim()
+    const isSecret = document.getElementById('create-is-secret').checked
+    const password = document.getElementById('create-password').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
+    if (isSecret && !password) { toast('비밀채널은 비밀번호를 입력하세요'); return }
 
     try {
       const res = await API.post('/channels', {
@@ -854,7 +873,9 @@ const App = {
         phone_number:  document.getElementById('create-phone').value.trim() || null,
         homepage_url:  document.getElementById('create-homepage').value.trim() || null,
         image_url:     selectedImg || null,
-        owner_id:      Store.getUserId()
+        owner_id:      Store.getUserId(),
+        is_secret:     isSecret ? 1 : 0,
+        password:      isSecret ? password : null
       })
       if (res.data?.success || res.data?.data) {
         toast('채널이 생성되었습니다!')
@@ -888,6 +909,9 @@ const App = {
     document.getElementById('edit-name').value         = ch.name || ''
     document.getElementById('edit-desc').value         = ch.description || ''
     document.getElementById('edit-homepage').value     = ch.homepage_url || ''
+    document.getElementById('edit-password').value     = ''
+    document.getElementById('edit-is-secret').checked  = !!ch.is_secret
+    document.getElementById('edit-secret-wrap').style.display = ch.is_secret ? 'block' : 'none'
 
     const thumb = document.getElementById('edit-img-thumb')
     thumb.innerHTML = ch.image_url
@@ -897,8 +921,10 @@ const App = {
   },
 
   async saveEditChannel() {
-    const id   = document.getElementById('edit-channel-id').value
-    const name = document.getElementById('edit-name').value.trim()
+    const id       = document.getElementById('edit-channel-id').value
+    const name     = document.getElementById('edit-name').value.trim()
+    const isSecret = document.getElementById('edit-is-secret').checked
+    const password = document.getElementById('edit-password').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
 
     try {
@@ -906,6 +932,9 @@ const App = {
         name,
         description:   document.getElementById('edit-desc').value.trim(),
         homepage_url:  document.getElementById('edit-homepage').value.trim(),
+        is_secret:     isSecret ? 1 : 0,
+        ...(isSecret && password ? { password } : {}),
+        ...(!isSecret ? { remove_password: true } : {}),
         ...(selectedImg ? { image_url: selectedImg } : {})
       })
       toast('채널이 수정됐습니다')
@@ -1372,6 +1401,8 @@ const App = {
   // ── 채널 참여 ──────────────────────────
   openJoinChannel() {
     document.getElementById('join-token').value = ''
+    document.getElementById('join-password').value = ''
+    document.getElementById('join-password-wrap').style.display = 'none'
     this.openModal('modal-join')
   },
 
@@ -1385,6 +1416,31 @@ const App = {
     }
     const uid = Store.getUserId()
     if (!uid) { toast('로그인이 필요합니다'); return }
+
+    // 비밀채널 여부 확인 (invites/verify)
+    try {
+      const verifyRes = await API.get('/invites/verify/' + token)
+      const channelId = verifyRes.data?.data?.channel_id
+      if (channelId) {
+        // 채널 정보로 비밀번호 여부 확인
+        const chRes = await API.get('/channels/' + channelId)
+        const ch = chRes.data?.data
+        if (ch?.is_secret) {
+          // 비밀번호 입력창 표시
+          const pwWrap = document.getElementById('join-password-wrap')
+          pwWrap.style.display = 'block'
+          const pw = document.getElementById('join-password').value.trim()
+          if (!pw) { toast('비밀번호를 입력하세요'); document.getElementById('join-password').focus(); return }
+          // 비밀번호 검증
+          try {
+            await API.post('/channels/' + channelId + '/verify-password', { password: pw })
+          } catch (e) {
+            toast(e.response?.data?.error || '비밀번호가 올바르지 않습니다', 3000); return
+          }
+        }
+      }
+    } catch {}
+
     try {
       // Flutter에 FCM 토큰 직접 요청 (타이밍 문제 방지)
       const fcmInfo = await Store.getFlutterFcmToken()
@@ -1548,6 +1604,19 @@ const App = {
   // 상세화면에서 채널 참여
   async _joinFromDetail(chId, name) {
     try {
+      // 비밀채널 확인
+      const chRes = await API.get('/channels/' + chId)
+      const ch = chRes.data?.data
+      if (ch?.is_secret) {
+        const pw = prompt('🔒 비밀번호를 입력하세요')
+        if (!pw) return
+        try {
+          await API.post('/channels/' + chId + '/verify-password', { password: pw })
+        } catch (e) {
+          toast(e.response?.data?.error || '비밀번호가 올바르지 않습니다', 3000); return
+        }
+      }
+
       // 활성 초대 토큰 조회
       const res  = await API.get('/invites?channel_id=' + chId)
       const list = res.data?.data || []
