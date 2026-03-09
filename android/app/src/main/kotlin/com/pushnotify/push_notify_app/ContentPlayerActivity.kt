@@ -412,16 +412,11 @@ class ContentPlayerActivity : Activity() {
             val hpUrl = if (homepageUrl.startsWith("http")) homepageUrl else "https://$homepageUrl"
             val iconSize = dp(44)
             val hpBtn = ImageView(this).apply {
-                setImageResource(android.R.drawable.ic_menu_compass)
-                setColorFilter(Color.WHITE)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#2563EB"))
-                }
+                setImageResource(R.drawable.homepage_icon)
+                scaleType = ImageView.ScaleType.FIT_CENTER
                 layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
                     it.marginEnd = dp(8)
                 }
-                setPadding(dp(10), dp(10), dp(10), dp(10))
                 setOnClickListener {
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(hpUrl)).apply {
