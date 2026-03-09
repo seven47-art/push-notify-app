@@ -419,7 +419,7 @@ const App = {
     const id       = ch.id
     const hasAlarm = (ch.pending_alarm_count || 0) > 0
     const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
-    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         ${avatar(name, ch.image_url, 44)}
@@ -466,7 +466,7 @@ const App = {
   _joinedTileHtml(ch) {
     const name = ch.channel_name || ch.name || '채널'
     const chId = ch.channel_id || ch.id
-    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="joined-tile" onclick="App.openChannelDetail(${chId},'${name}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
@@ -537,7 +537,7 @@ const App = {
                    : isJoined ? '<span style="color:var(--teal);font-weight:600;">구독 중</span>'
                    : '<span style="color:var(--text3);">참여 가능</span>'
     const subCnt   = ch.subscriber_count || 0
-    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:10px;color:var(--text3);margin-left:3px;"></i>' : ''
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="ch-all-tile" onclick="App.openChannelDetail(${ch.id},'${name.replace(/'/g,"\'")}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">

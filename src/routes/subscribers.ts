@@ -14,7 +14,7 @@ subscribers.get('/', async (c) => {
       SELECT s.id, s.channel_id, s.user_id, s.display_name, s.fcm_token, s.platform,
              s.is_active, s.subscribed_at, s.accepted_count, s.rejected_count,
              ch.name as channel_name, ch.description as channel_description,
-             ch.image_url, ch.owner_id,
+             ch.image_url, ch.owner_id, ch.is_secret,
              il.label as invite_label, il.invite_token as invite_token,
              u.email as email
       FROM subscribers s
