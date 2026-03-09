@@ -650,16 +650,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
-  // Pull to Refresh 핸들러
-  Future<void> _onRefresh() async {
-    try {
-      await _controller.runJavaScript('if(typeof App!=="undefined" && typeof App.loadHome==="function") App.loadHome()');
-    } catch (_) {
-      await _controller.reload();
-    }
-    await Future.delayed(const Duration(milliseconds: 800));
-  }
-
   void _sendToWeb(String callbackFn, Map<String, dynamic> result) {
     final json = jsonEncode(result);
     _controller.runJavaScript('if(typeof $callbackFn==="function")$callbackFn($json)');
@@ -917,21 +907,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             children: [
               _hasError
                 ? _buildErrorView()
-                : RefreshIndicator(
-                    onRefresh: _onRefresh,
-                    color: const Color(0xFF6C63FF),
-                    backgroundColor: const Color(0xFF1E1B4B),
-                    displacement: 40,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: MediaQuery.of(context).size.height -
-                            MediaQuery.of(context).padding.top -
-                            MediaQuery.of(context).padding.bottom,
-                        child: WebViewWidget(controller: _controller),
-                      ),
-                    ),
-                  ),
+                : WebViewWidget(controller: _controller),
               if (_loading)
                 Positioned(
                   top: 0, left: 0, right: 0,
