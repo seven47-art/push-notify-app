@@ -40,6 +40,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .section-header { display:flex; align-items:center; justify-content:space-between; padding:16px 16px 8px; }
 .section-title { font-size:16px; font-weight:700; }
 .section-btn { background:var(--bg3); border:1px solid rgba(108,99,255,0.4); color:var(--primary); font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+.back-btn { background:none; border:none; color:var(--text2); font-size:18px; cursor:pointer; padding:4px 8px 4px 0; display:flex; align-items:center; }
 
 /* ── 채널 타일 (운영) ── */
 .channel-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); }
@@ -439,6 +440,28 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div style="height:12px;"></div>
   </div>
 
+  <!-- 나의 운영채널 전체 페이지 -->
+  <div class="screen" id="screen-owned-all">
+    <div class="section-header" style="margin-top:8px;">
+      <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
+      <span class="section-title">나의 운영채널</span>
+      <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
+    </div>
+    <div id="owned-all-list"></div>
+    <div style="height:12px;"></div>
+  </div>
+
+  <!-- 나의 가입채널 전체 페이지 -->
+  <div class="screen" id="screen-joined-all">
+    <div class="section-header" style="margin-top:8px;">
+      <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
+      <span class="section-title">나의 가입채널</span>
+      <button class="section-btn" onclick="App.openJoinChannel()"><i class="fas fa-plus"></i> 채널 참여</button>
+    </div>
+    <div id="joined-all-list"></div>
+    <div style="height:12px;"></div>
+  </div>
+
   <!-- 채널 탭 -->
   <div class="screen" id="screen-channel">
     <div class="section-header">
@@ -606,13 +629,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
   </div>
   <div class="drawer-menu-label">메뉴</div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('home')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('owned-all')">
     <i class="fas fa-satellite-dish"></i> 나의 운영 채널
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.openCreateChannel()">
     <i class="fas fa-plus-circle"></i> 채널 만들기
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('channel')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('joined-all')">
     <i class="fas fa-list"></i> 나의 가입 채널
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.openJoinChannel()">

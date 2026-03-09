@@ -275,6 +275,15 @@ const App = {
     else if (tab === 'inbox')    this.loadInbox()
     else if (tab === 'send')     this.loadSend()
     else if (tab === 'settings') this.loadSettings()
+    else if (tab === 'owned-all')  this.loadOwnedAll()
+    else if (tab === 'joined-all') this.loadJoinedAll()
+  },
+
+  // 뒤로가기 (전체 페이지에서 홈으로)
+  gotoBack() {
+    if (currentTab === 'owned-all' || currentTab === 'joined-all') {
+      this.goto('home')
+    }
   },
 
   // ── 뒤로가기 (Android 하단 뒤로가기 버튼) ─────────────
@@ -300,11 +309,15 @@ const App = {
     if (drawer && drawer.classList.contains('open')) {
       this.closeDrawer(); return false
     }
-    // 5. 홈이 아닌 탭이면 홈으로
+    // 5. 전체 페이지(운영/가입채널)에서 홈으로
+    if (currentTab === 'owned-all' || currentTab === 'joined-all') {
+      this.goto('home'); return false
+    }
+    // 6. 홈이 아닌 탭이면 홈으로
     if (currentTab !== 'home') {
       this.goto('home'); return false
     }
-    // 6. 홈 탭이면 Flutter에서 앱 종료 처리
+    // 7. 홈 탭이면 Flutter에서 앱 종료 처리
     return true
   },
 
@@ -363,7 +376,7 @@ const App = {
 
     if (ownedChannels.length > MAX_PREVIEW) {
       more.style.display = 'block'
-      more.innerHTML = `<div class="more-btn" onclick="App._showAllOwned()">
+      more.innerHTML = `<div class="more-btn" onclick="App.goto('owned-all')">
         <i class="fas fa-plus-circle" style="color:var(--primary);"></i>
         + 더보기 (${ownedChannels.length - MAX_PREVIEW}개 더)
       </div>`
@@ -376,6 +389,28 @@ const App = {
     const el = document.getElementById('owned-list')
     el.innerHTML = ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')
     document.getElementById('owned-more').style.display = 'none'
+  },
+
+  // ── 나의 운영채널 전체 페이지 ──────────────────────────
+  loadOwnedAll() {
+    const el = document.getElementById('owned-all-list')
+    if (!el) return
+    if (!ownedChannels.length) {
+      el.innerHTML = '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
+      return
+    }
+    el.innerHTML = ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')
+  },
+
+  // ── 나의 가입채널 전체 페이지 ──────────────────────────
+  loadJoinedAll() {
+    const el = document.getElementById('joined-all-list')
+    if (!el) return
+    if (!joinedChannels.length) {
+      el.innerHTML = '<div class="empty-box">가입한 채널이 없습니다.<br>초대 링크로 참여해 보세요!</div>'
+      return
+    }
+    el.innerHTML = joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')
   },
 
   _ownedTileHtml(ch) {
@@ -412,7 +447,7 @@ const App = {
 
     if (joinedChannels.length > MAX_PREVIEW) {
       more.style.display = 'block'
-      more.innerHTML = `<div class="more-btn" onclick="App._showAllJoined()">
+      more.innerHTML = `<div class="more-btn" onclick="App.goto('joined-all')">
         <i class="fas fa-plus-circle" style="color:var(--primary);"></i>
         + 더보기 (${joinedChannels.length - MAX_PREVIEW}개 더)
       </div>`
