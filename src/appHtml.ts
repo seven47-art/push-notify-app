@@ -455,7 +455,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="section-header" style="margin-top:8px;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
       <span class="section-title">나의 가입채널</span>
-      <button class="section-btn" onclick="App.openJoinChannel()"><i class="fas fa-plus"></i> 채널 참여</button>
     </div>
     <div id="joined-all-list"></div>
     <div style="height:12px;"></div>

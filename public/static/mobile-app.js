@@ -378,7 +378,7 @@ const App = {
       more.style.display = 'block'
       more.innerHTML = `<div class="more-btn" onclick="App.goto('owned-all')">
         <i class="fas fa-plus-circle" style="color:var(--primary);"></i>
-        + 더보기 (${ownedChannels.length - MAX_PREVIEW}개 더)
+        + 전체보기(${ownedChannels.length}개)
       </div>`
     } else {
       more.style.display = 'none'
@@ -449,7 +449,7 @@ const App = {
       more.style.display = 'block'
       more.innerHTML = `<div class="more-btn" onclick="App.goto('joined-all')">
         <i class="fas fa-plus-circle" style="color:var(--primary);"></i>
-        + 더보기 (${joinedChannels.length - MAX_PREVIEW}개 더)
+        + 전체보기(${joinedChannels.length}개)
       </div>`
     } else {
       more.style.display = 'none'
