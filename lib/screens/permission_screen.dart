@@ -1,8 +1,9 @@
-// lib/screens/permission_screen.dart  v2.0
-// 권한 요청 3단계로 간소화
-// [1단계] 시스템 팝업 일괄 요청: 알림 + 정확한알람 + 배터리최적화 + 마이크 + 카메라
-// [2단계] 다른 앱 위에 표시 → 설정앱 이동
-// [3단계] 전체화면 알림 → 설정앱 이동
+// lib/screens/permission_screen.dart  v2.1
+// 권한 요청 4단계
+// [1단계] 전체화면 알림       → 설정앱 이동
+// [2단계] 다른 앱 위에 표시   → 설정앱 이동
+// [3단계] 배터리 최적화 제외  → 별도 시스템 팝업 (단독)
+// [4단계] 알림 + 카메라 + 마이크 → 시스템 팝업 일괄
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,10 +21,10 @@ class _PermissionScreenState extends State<PermissionScreen>
 
   static const _platform = MethodChannel('com.pushnotify/permissions');
 
-  // 3단계 정의
-  static const int _stepBulk    = 0; // 시스템 팝업 일괄
-  static const int _stepOverlay = 1; // 다른 앱 위에 표시
-  static const int _stepFsi     = 2; // 전체화면 알림
+  static const int _stepFsi      = 0; // 전체화면 알림
+  static const int _stepOverlay  = 1; // 다른 앱 위에 표시
+  static const int _stepBattery  = 2; // 배터리 최적화 제외
+  static const int _stepBulk     = 3; // 알림 + 카메라 + 마이크 일괄
 
   int  _currentStep  = 0;
   bool _isRequesting = false;
@@ -33,14 +34,14 @@ class _PermissionScreenState extends State<PermissionScreen>
   late final AnimationController _slideCtrl;
   late final Animation<Offset>   _slideAnim;
 
-  // 각 단계 UI 정보
   final _stepInfo = const [
     _StepInfo(
-      icon:        Icons.security_rounded,
-      color:       Color(0xFF6C63FF),
-      title:       '앱 권한 허용',
-      subtitle:    '링고 앱 이용에 필요한 권한을 한 번에 허용합니다',
-      description: '알림, 정확한 알람, 배터리 최적화 제외,\n마이크, 카메라 권한을 요청합니다.\n팝업이 나타나면 모두 "허용"을 눌러주세요.',
+      icon:        Icons.fullscreen_rounded,
+      color:       Color(0xFFEF4444),
+      title:       '전체화면 알림 권한',
+      subtitle:    '잠금화면 위에 알람을 표시합니다',
+      description: '설정 화면으로 이동합니다.\n"링고(RinGo)" 항목을 찾아 허용으로 켜주세요.',
+      badges:      [],
     ),
     _StepInfo(
       icon:        Icons.picture_in_picture_alt_rounded,
@@ -48,13 +49,27 @@ class _PermissionScreenState extends State<PermissionScreen>
       title:       '다른 앱 위에 표시',
       subtitle:    '화면이 켜진 상태에서도 알람을 표시합니다',
       description: '설정 화면으로 이동합니다.\n"링고(RinGo)" 항목을 찾아 허용으로 켜주세요.',
+      badges:      [],
     ),
     _StepInfo(
-      icon:        Icons.fullscreen_rounded,
-      color:       Color(0xFFEF4444),
-      title:       '전체화면 알림 권한',
-      subtitle:    '잠금화면 위에 알람을 표시합니다',
-      description: '설정 화면으로 이동합니다.\n"링고(RinGo)" 항목을 찾아 허용으로 켜주세요.',
+      icon:        Icons.battery_charging_full_rounded,
+      color:       Color(0xFFF59E0B),
+      title:       '배터리 최적화 제외',
+      subtitle:    '앱이 꺼져 있어도 알람을 받습니다',
+      description: '배터리 절약 모드에서 앱이 강제 종료되면\n알람을 받을 수 없습니다.\n팝업이 나타나면 "허용"을 눌러주세요.',
+      badges:      [],
+    ),
+    _StepInfo(
+      icon:        Icons.security_rounded,
+      color:       Color(0xFF6C63FF),
+      title:       '앱 권한 허용',
+      subtitle:    '알림·카메라·마이크 권한을 한 번에 허용합니다',
+      description: '팝업이 나타나면 모두 "허용"을 눌러주세요.',
+      badges:      [
+        _BadgeInfo(Icons.notifications_active_rounded, '알림'),
+        _BadgeInfo(Icons.videocam_rounded,             '카메라'),
+        _BadgeInfo(Icons.mic_rounded,                  '마이크'),
+      ],
     ),
   ];
 
@@ -89,45 +104,22 @@ class _PermissionScreenState extends State<PermissionScreen>
 
   // ── 이미 허용된 단계 건너뛰기 ─────────────────────────────────────────
   Future<void> _checkAlreadyGranted() async {
-    int startStep = _stepBulk;
+    final fsiDone      = await _checkFsiGranted();
+    final overlayDone  = await _checkOverlayGranted();
+    final batteryDone  = await Permission.ignoreBatteryOptimizations.isGranted;
+    final bulkDone     = await _isBulkGranted();
 
-    // 1단계 — 시스템 팝업 권한 모두 허용됐는지 확인
-    final bulkDone = await _isBulkGranted();
-
-    // 2단계 — 오버레이 권한
-    final overlayDone = await _checkOverlayGranted();
-
-    // 3단계 — 전체화면 인텐트
-    final fsiDone = await _checkFsiGranted();
-
-    if (bulkDone && overlayDone && fsiDone) {
+    if (fsiDone && overlayDone && batteryDone && bulkDone) {
       await _finish();
       return;
     }
 
-    if (bulkDone)    startStep = _stepOverlay;
-    if (bulkDone && overlayDone) startStep = _stepFsi;
+    int startStep = _stepFsi;
+    if (fsiDone)     startStep = _stepOverlay;
+    if (fsiDone && overlayDone)                startStep = _stepBattery;
+    if (fsiDone && overlayDone && batteryDone) startStep = _stepBulk;
 
     if (mounted) setState(() => _currentStep = startStep);
-  }
-
-  Future<bool> _isBulkGranted() async {
-    final statuses = await [
-      Permission.notification,
-      Permission.scheduleExactAlarm,
-      Permission.ignoreBatteryOptimizations,
-      Permission.microphone,
-      Permission.camera,
-    ].request(); // request() 는 이미 허용된 건 팝업 없이 통과
-    return statuses.values.every(
-      (s) => s.isGranted || s.isLimited,
-    );
-  }
-
-  Future<bool> _checkOverlayGranted() async {
-    try {
-      return await _platform.invokeMethod<bool>('canDrawOverlays') ?? true;
-    } catch (_) { return true; }
   }
 
   Future<bool> _checkFsiGranted() async {
@@ -136,32 +128,46 @@ class _PermissionScreenState extends State<PermissionScreen>
     } catch (_) { return true; }
   }
 
+  Future<bool> _checkOverlayGranted() async {
+    try {
+      return await _platform.invokeMethod<bool>('canDrawOverlays') ?? true;
+    } catch (_) { return true; }
+  }
+
+  Future<bool> _isBulkGranted() async {
+    final n = await Permission.notification.isGranted;
+    final c = await Permission.camera.isGranted;
+    final m = await Permission.microphone.isGranted;
+    return n && c && m;
+  }
+
   // ── 현재 단계 실행 ────────────────────────────────────────────────────
   Future<void> _requestCurrent() async {
     if (_isRequesting) return;
     setState(() => _isRequesting = true);
 
     switch (_currentStep) {
-      case _stepBulk:
-        await _doBulkRequest();
-      case _stepOverlay:
-        await _doOverlayRequest();
       case _stepFsi:
         await _doFsiRequest();
+      case _stepOverlay:
+        await _doOverlayRequest();
+      case _stepBattery:
+        await _doBatteryRequest();
+      case _stepBulk:
+        await _doBulkRequest();
     }
 
     if (mounted) setState(() => _isRequesting = false);
   }
 
-  // 1단계: 시스템 팝업 일괄 요청
-  Future<void> _doBulkRequest() async {
-    await [
-      Permission.notification,
-      Permission.scheduleExactAlarm,
-      Permission.ignoreBatteryOptimizations,
-      Permission.microphone,
-      Permission.camera,
-    ].request();
+  // 1단계: 전체화면 알림
+  Future<void> _doFsiRequest() async {
+    try {
+      await _platform.invokeMethod('openFullScreenIntentSettings');
+    } catch (_) {
+      await openAppSettings();
+    }
+    await Future.delayed(const Duration(seconds: 2));
     await _moveToNext(_stepOverlay);
   }
 
@@ -173,17 +179,22 @@ class _PermissionScreenState extends State<PermissionScreen>
       await openAppSettings();
     }
     await Future.delayed(const Duration(seconds: 2));
-    await _moveToNext(_stepFsi);
+    await _moveToNext(_stepBattery);
   }
 
-  // 3단계: 전체화면 알림
-  Future<void> _doFsiRequest() async {
-    try {
-      await _platform.invokeMethod('openFullScreenIntentSettings');
-    } catch (_) {
-      await openAppSettings();
-    }
-    await Future.delayed(const Duration(seconds: 2));
+  // 3단계: 배터리 최적화 제외 (단독 팝업)
+  Future<void> _doBatteryRequest() async {
+    await Permission.ignoreBatteryOptimizations.request();
+    await _moveToNext(_stepBulk);
+  }
+
+  // 4단계: 알림 + 카메라 + 마이크 일괄
+  Future<void> _doBulkRequest() async {
+    await [
+      Permission.notification,
+      Permission.camera,
+      Permission.microphone,
+    ].request();
     await _finish();
   }
 
@@ -196,7 +207,7 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 
   Future<void> _skipCurrent() async {
-    if (_currentStep < _stepFsi) {
+    if (_currentStep < _stepBulk) {
       await _moveToNext(_currentStep + 1);
     } else {
       await _finish();
@@ -251,7 +262,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                   color: const Color(0xFF6C63FF).withOpacity(0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text('${_currentStep + 1} / 3',
+                child: Text('${_currentStep + 1} / 4',
                     style: const TextStyle(color: Color(0xFF6C63FF),
                         fontSize: 13, fontWeight: FontWeight.w700)),
               ),
@@ -261,14 +272,14 @@ class _PermissionScreenState extends State<PermissionScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: (_currentStep + 1) / 3,
+              value: (_currentStep + 1) / 4,
               minHeight: 5,
               backgroundColor: const Color(0xFF1E1B4B),
               valueColor: const AlwaysStoppedAnimation(Color(0xFF6C63FF)),
             ),
           ),
           const SizedBox(height: 6),
-          Text('${_currentStep + 1}단계 / 3단계',
+          Text('${_currentStep + 1}단계 / 4단계',
               style: const TextStyle(color: Color(0xFF4B5563), fontSize: 12)),
         ],
       ),
@@ -334,20 +345,15 @@ class _PermissionScreenState extends State<PermissionScreen>
                 ],
               ),
             ),
-
-            // 1단계 — 요청할 권한 목록 뱃지
-            if (_currentStep == _stepBulk) ...[
+            // 4단계 뱃지
+            if (info.badges.isNotEmpty) ...[
               const SizedBox(height: 20),
               Wrap(
                 spacing: 8, runSpacing: 8,
                 alignment: WrapAlignment.center,
-                children: const [
-                  _Badge(Icons.notifications_active_rounded, '알림'),
-                  _Badge(Icons.alarm_on_rounded,             '정확한 알람'),
-                  _Badge(Icons.battery_charging_full_rounded,'배터리 최적화 제외'),
-                  _Badge(Icons.mic_rounded,                  '마이크'),
-                  _Badge(Icons.videocam_rounded,             '카메라'),
-                ],
+                children: info.badges.map((b) =>
+                  _BadgeWidget(b.icon, b.label, info.color)
+                ).toList(),
               ),
             ],
           ],
@@ -357,7 +363,7 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 
   Widget _buildButtons(_StepInfo info) {
-    final isLast = _currentStep == _stepFsi;
+    final isLast = _currentStep == _stepBulk;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       child: Column(
@@ -387,9 +393,11 @@ class _PermissionScreenState extends State<PermissionScreen>
                         const Icon(Icons.check_circle_outline_rounded, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          _currentStep == _stepBulk ? '권한 허용하기'
-                              : isLast ? '허용하고 시작하기'
-                              : '설정으로 이동',
+                          _currentStep == _stepBulk
+                              ? '허용하고 시작하기'
+                              : _currentStep == _stepBattery
+                                  ? '허용하기'
+                                  : '설정으로 이동',
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w700),
                         ),
@@ -420,45 +428,54 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 }
 
-// ── 단계 정보 데이터 클래스 ──────────────────────────────────────────────
+// ── 데이터 클래스 ─────────────────────────────────────────────────────────
 class _StepInfo {
-  final IconData icon;
-  final Color    color;
-  final String   title;
-  final String   subtitle;
-  final String   description;
+  final IconData         icon;
+  final Color            color;
+  final String           title;
+  final String           subtitle;
+  final String           description;
+  final List<_BadgeInfo> badges;
   const _StepInfo({
     required this.icon,
     required this.color,
     required this.title,
     required this.subtitle,
     required this.description,
+    required this.badges,
   });
 }
 
-// ── 권한 뱃지 위젯 ────────────────────────────────────────────────────────
-class _Badge extends StatelessWidget {
+class _BadgeInfo {
   final IconData icon;
   final String   label;
-  const _Badge(this.icon, this.label);
+  const _BadgeInfo(this.icon, this.label);
+}
+
+// ── 뱃지 위젯 ─────────────────────────────────────────────────────────────
+class _BadgeWidget extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final Color    color;
+  const _BadgeWidget(this.icon, this.label, this.color);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF6C63FF).withOpacity(0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: const Color(0xFF6C63FF), size: 14),
+          Icon(icon, color: color, size: 14),
           const SizedBox(width: 5),
           Text(label,
-              style: const TextStyle(
-                  color: Color(0xFF6C63FF),
+              style: TextStyle(
+                  color: color,
                   fontSize: 12,
                   fontWeight: FontWeight.w600)),
         ],
