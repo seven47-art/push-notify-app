@@ -125,12 +125,11 @@ class ContentPlayerActivity : Activity() {
         }
 
         // ════════════════════════════════════════════════
-        // 상단: 콘텐츠 재생 영역 — 화면 너비 기준 16:9 높이 고정
+        // 상단: 콘텐츠 재생 영역 — weight=1f (하단바 제외 전체 공간)
         // ════════════════════════════════════════════════
-        val screenWidth = resources.displayMetrics.widthPixels
-        val playerHeight = screenWidth * 9 / 16          // 16:9 비율
+        // weight=1f 로 하단바를 제외한 전체 공간을 채움
         val playerParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, playerHeight
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         )
 
         // file 타입: 확장자로 실제 타입 판별
@@ -360,77 +359,69 @@ class ContentPlayerActivity : Activity() {
         }
 
         // ════════════════════════════════════════════════
-        // 하단: 채널 정보 영역 — 나머지 공간 자동 채움 (weight=1f)
+        // 하단: 고정 바 — 가로 배치 (채널이미지 | 채널명 | 홈페이지아이콘 | X버튼)
         // ════════════════════════════════════════════════
-        val infoPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+        val bottomBarHeight = dp(72)
+        val bottomBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.parseColor("#0D0D1A"))
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+                LinearLayout.LayoutParams.MATCH_PARENT, bottomBarHeight
             )
-            setPadding(dp(20), dp(16), dp(20), dp(20))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
 
-        // ── 채널 대표이미지 (원형) ─────────────────────────────────
-        val thumbSize = dp(100)
+        // ── 채널 대표이미지 (원형, 48dp) ─────────────────────────
+        val thumbSize = dp(48)
         val channelThumb = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            }
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#3D2F6E"))
             }
             setImageResource(R.drawable.ringo_icon)
+            layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also {
+                it.marginEnd = dp(10)
+            }
         }
-        infoPanel.addView(channelThumb)
+        bottomBar.addView(channelThumb)
 
         // 채널 이미지 비동기 로드
         if (channelPublicId.isNotEmpty()) {
             loadChannelImageIntoView(channelPublicId, channelThumb)
         }
 
-        // ── 채널명 ────────────────────────────────────────────────
-        infoPanel.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, dp(12))
-        })
-        infoPanel.addView(TextView(this).apply {
+        // ── 채널명 (weight=1f 로 남은 공간 채움) ─────────────────
+        val channelNameView = TextView(this).apply {
             text = channelName
-            textSize = 18f
+            textSize = 15f
             setTextColor(Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        })
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                it.marginEnd = dp(8)
+            }
+        }
+        bottomBar.addView(channelNameView)
 
-        // ── Spacer ────────────────────────────────────────────────
-        infoPanel.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, 0, 1f)
-        })
-
-        // ── 종료 버튼 + 홈페이지 버튼 묶음 (홈페이지 버튼이 종료 버튼 바로 위) ──
-        // 홈페이지 버튼 (있을 때만)
+        // ── 홈페이지 아이콘 버튼 (있을 때만) ──────────────────────
         if (homepageUrl.isNotEmpty()) {
             val hpUrl = if (homepageUrl.startsWith("http")) homepageUrl else "https://$homepageUrl"
-            infoPanel.addView(TextView(this).apply {
-                text = "🌐  $homepageUrl"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                setPadding(dp(20), dp(12), dp(20), dp(12))
+            val iconSize = dp(44)
+            val hpBtn = ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_compass)
+                setColorFilter(Color.WHITE)
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(10).toFloat()
+                    shape = GradientDrawable.OVAL
                     setColor(Color.parseColor("#2563EB"))
                 }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
+                    it.marginEnd = dp(8)
+                }
+                setPadding(dp(10), dp(10), dp(10), dp(10))
                 setOnClickListener {
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(hpUrl)).apply {
@@ -440,52 +431,26 @@ class ContentPlayerActivity : Activity() {
                         Log.e(TAG, "홈페이지 열기 실패: ${e.message}")
                     }
                 }
-            })
-            infoPanel.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(1, dp(12))
-            })
+            }
+            bottomBar.addView(hpBtn)
         }
 
-        // ── 종료 버튼 ─────────────────────────────────────────────
-        val closeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-        val closeCircle = ImageView(this).apply {
+        // ── X (종료) 버튼 ──────────────────────────────────────────
+        val closeSize = dp(44)
+        val closeBtn = ImageView(this).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             setColorFilter(Color.WHITE)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#EF4444"))
             }
-            val size = dp(60)
-            layoutParams = LinearLayout.LayoutParams(size, size).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            }
-            setPadding(dp(13), dp(13), dp(13), dp(13))
+            layoutParams = LinearLayout.LayoutParams(closeSize, closeSize)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             setOnClickListener { closePlayer() }
         }
-        closeRow.addView(closeCircle)
-        closeRow.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, dp(4))
-        })
-        closeRow.addView(TextView(this).apply {
-            text = "종료"
-            textSize = 12f
-            setTextColor(Color.parseColor("#94A3B8"))
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        })
-        infoPanel.addView(closeRow)
+        bottomBar.addView(closeBtn)
 
-        root.addView(infoPanel)
+        root.addView(bottomBar)
         return root
     }
 
