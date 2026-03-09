@@ -89,7 +89,8 @@ function showPage(page) {
   const titles = {
     dashboard: '대시보드', channels: '채널 관리', invites: '초대 링크 관리',
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
-    notifications: '알림 발송', logs: '발송 로그', members: '회원 관리'
+    notifications: '알림 발송', notices: '공지사항 관리',
+    logs: '발송 로그', members: '회원 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -100,6 +101,7 @@ function showPage(page) {
   else if (page === 'contents') loadContents()
   else if (page === 'subscribers') loadSubscribers()
   else if (page === 'notifications') loadNotifPage()
+  else if (page === 'notices') loadNoticesAdmin()
   else if (page === 'alarms') loadAlarmManagement()
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
@@ -1470,3 +1472,111 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init)
+
+// =============================================
+// 공지사항 관리
+// =============================================
+let editNoticeId = null
+
+async function loadNoticesAdmin() {
+  try {
+    const { data } = await API.get('/notices?all=1')
+    const list = data.data || []
+    const tbody = document.getElementById('notices-table-body')
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">등록된 공지사항이 없습니다.</td></tr>'
+      return
+    }
+    tbody.innerHTML = list.map(n => `
+      <tr class="border-b border-slate-700/30 hover:bg-slate-700/20">
+        <td class="px-5 py-3 text-slate-200 font-medium">${n.title}</td>
+        <td class="px-5 py-3 text-slate-400 text-sm">${(n.content || '').slice(0, 60)}${n.content?.length > 60 ? '...' : ''}</td>
+        <td class="px-5 py-3 text-center">
+          <span class="${n.is_active ? 'badge-completed' : 'badge-failed'} badge">${n.is_active ? '활성' : '비활성'}</span>
+        </td>
+        <td class="px-5 py-3 text-center text-slate-400 text-xs">${(n.created_at || '').slice(0, 10)}</td>
+        <td class="px-5 py-3 text-center">
+          <div class="flex items-center justify-center gap-2">
+            <button onclick="openNoticeModal(${n.id})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i></button>
+            <button onclick="deleteNotice(${n.id})" class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>`).join('')
+  } catch (e) { showToast('공지사항 로드 오류: ' + e.message, 'error') }
+}
+
+async function openNoticeModal(id = null) {
+  editNoticeId = id
+  const modal = document.getElementById('modal-notice')
+  if (!modal) {
+    // 모달 동적 생성
+    const div = document.createElement('div')
+    div.id = 'modal-notice'
+    div.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'
+    div.innerHTML = `
+      <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg">
+        <h3 class="text-white font-bold text-lg mb-4" id="notice-modal-title">공지사항 추가</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-slate-400 text-xs font-semibold uppercase mb-1 block">제목 *</label>
+            <input id="notice-title" class="input-field w-full" placeholder="공지사항 제목">
+          </div>
+          <div>
+            <label class="text-slate-400 text-xs font-semibold uppercase mb-1 block">내용 *</label>
+            <textarea id="notice-content" class="input-field w-full" rows="6" placeholder="공지사항 내용을 입력하세요"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="notice-active" checked style="width:16px;height:16px;accent-color:#6366f1;">
+            <label for="notice-active" class="text-slate-300 text-sm">활성화</label>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-5">
+          <button onclick="saveNotice()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold flex-1">저장</button>
+          <button onclick="document.getElementById('modal-notice').remove()" class="bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex-1">취소</button>
+        </div>
+      </div>`
+    document.body.appendChild(div)
+  }
+  document.getElementById('notice-modal-title').textContent = id ? '공지사항 수정' : '공지사항 추가'
+  document.getElementById('notice-title').value = ''
+  document.getElementById('notice-content').value = ''
+  document.getElementById('notice-active').checked = true
+  if (id) {
+    try {
+      const { data } = await API.get('/notices/' + id)
+      const n = data.data
+      document.getElementById('notice-title').value = n.title || ''
+      document.getElementById('notice-content').value = n.content || ''
+      document.getElementById('notice-active').checked = !!n.is_active
+    } catch (e) { showToast('공지사항 로드 실패', 'error') }
+  }
+  document.getElementById('modal-notice').style.display = 'flex'
+}
+
+async function saveNotice() {
+  const title   = document.getElementById('notice-title').value.trim()
+  const content = document.getElementById('notice-content').value.trim()
+  const isActive = document.getElementById('notice-active').checked ? 1 : 0
+  if (!title) { showToast('제목을 입력하세요', 'error'); return }
+  if (!content) { showToast('내용을 입력하세요', 'error'); return }
+  try {
+    if (editNoticeId) {
+      await API.put('/notices/' + editNoticeId, { title, content, is_active: isActive })
+      showToast('공지사항이 수정되었습니다')
+    } else {
+      await API.post('/notices', { title, content, is_active: isActive })
+      showToast('공지사항이 등록되었습니다')
+    }
+    document.getElementById('modal-notice')?.remove()
+    loadNoticesAdmin()
+  } catch (e) { showToast('저장 실패: ' + e.message, 'error') }
+}
+
+async function deleteNotice(id) {
+  if (!confirm('공지사항을 삭제할까요?')) return
+  try {
+    await API.delete('/notices/' + id)
+    showToast('공지사항이 삭제되었습니다')
+    loadNoticesAdmin()
+  } catch (e) { showToast('삭제 실패: ' + e.message, 'error') }
+}

@@ -277,11 +277,12 @@ const App = {
     else if (tab === 'settings') this.loadSettings()
     else if (tab === 'owned-all')  this.loadOwnedAll()
     else if (tab === 'joined-all') this.loadJoinedAll()
+    else if (tab === 'notices')    this.loadNotices()
   },
 
   // 뒤로가기 (전체 페이지에서 홈으로)
   gotoBack() {
-    if (currentTab === 'owned-all' || currentTab === 'joined-all') {
+    if (currentTab === 'owned-all' || currentTab === 'joined-all' || currentTab === 'notices') {
       this.goto('home')
     }
   },
@@ -310,7 +311,7 @@ const App = {
       this.closeDrawer(); return false
     }
     // 5. 전체 페이지(운영/가입채널)에서 홈으로
-    if (currentTab === 'owned-all' || currentTab === 'joined-all') {
+    if (currentTab === 'owned-all' || currentTab === 'joined-all' || currentTab === 'notices') {
       this.goto('home'); return false
     }
     // 6. 홈이 아닌 탭이면 홈으로
@@ -411,6 +412,47 @@ const App = {
       return
     }
     el.innerHTML = joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')
+  },
+
+  // ── 공지사항 전체 페이지 ──────────────────────────
+  async loadNotices() {
+    const el = document.getElementById('notices-list')
+    if (!el) return
+    el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+    try {
+      const res = await API.get('/notices')
+      const list = res.data?.data || []
+      if (!list.length) {
+        el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
+        return
+      }
+      el.innerHTML = list.map(n => `
+        <div class="channel-tile" style="flex-direction:column;align-items:flex-start;padding:14px 16px;cursor:pointer;"
+          onclick="App._toggleNotice(this)">
+          <div style="display:flex;align-items:center;width:100%;gap:8px;">
+            <i class="fas fa-bullhorn" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
+            <span style="font-size:14px;font-weight:600;color:var(--text);flex:1;">${n.title.replace(/</g,'&lt;')}</span>
+            <span style="font-size:11px;color:var(--text3);">${n.created_at?.slice(0,10) || ''}</span>
+            <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text3);transition:transform 0.2s;"></i>
+          </div>
+          <div class="notice-content" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap;width:100%;">${n.content.replace(/</g,'&lt;')}</div>
+        </div>
+      `).join('')
+    } catch (e) {
+      el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
+    }
+  },
+
+  _toggleNotice(el) {
+    const content = el.querySelector('.notice-content')
+    const icon = el.querySelector('.fa-chevron-down, .fa-chevron-up')
+    if (!content) return
+    const isOpen = content.style.display !== 'none'
+    content.style.display = isOpen ? 'none' : 'block'
+    if (icon) {
+      icon.classList.toggle('fa-chevron-down', isOpen)
+      icon.classList.toggle('fa-chevron-up', !isOpen)
+    }
   },
 
   _ownedTileHtml(ch) {

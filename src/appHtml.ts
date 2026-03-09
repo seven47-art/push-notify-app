@@ -440,6 +440,15 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 
   <!-- 나의 운영채널 전체 페이지 -->
+  <!-- 공지사항 전체 페이지 -->
+  <div class="screen" id="screen-notices">
+    <div class="section-header" style="margin-top:8px;">
+      <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
+      <span class="section-title" style="flex:1;">공지사항</span>
+    </div>
+    <div id="notices-list" style="padding:8px 16px;"></div>
+  </div>
+
   <div class="screen" id="screen-owned-all">
     <div class="section-header" style="margin-top:8px;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
@@ -633,6 +642,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
   </div>
   <div class="drawer-menu-label">메뉴</div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('notices')">
+    <i class="fas fa-bullhorn"></i> 공지사항
+  </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('owned-all')">
     <i class="fas fa-satellite-dish"></i> 나의 운영 채널
   </div>

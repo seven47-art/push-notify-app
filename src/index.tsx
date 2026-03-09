@@ -15,6 +15,7 @@ import auth from './routes/auth'
 import alarms from './routes/alarms'
 import fcm from './routes/fcm'
 import users from './routes/users'
+import notices from './routes/notices'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -45,6 +46,7 @@ app.route('/api/auth', auth)
 app.route('/api/alarms', alarms)
 app.route('/api/fcm', fcm)
 app.route('/api/users', users)
+app.route('/api/notices', notices)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })
@@ -376,6 +378,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notifications')">
       <i class="fas fa-paper-plane w-4 text-center text-sky-400"></i> 알림 발송
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notices')">
+      <i class="fas fa-bullhorn w-4 text-center text-amber-400"></i> 공지사항 관리
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
     </a>
@@ -701,6 +706,34 @@ app.get('/', (c) => {
     </div>
 
     <!-- ===== 발송 로그 ===== -->
+    <!-- ===== 공지사항 관리 ===== -->
+    <div id="page-notices" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2">
+          <i class="fas fa-bullhorn text-amber-400"></i> 공지사항 관리
+        </h2>
+        <button onclick="openNoticeModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-plus mr-1"></i> 공지사항 추가
+        </button>
+      </div>
+      <div class="card overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-slate-700/50">
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase">제목</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase w-1/3">내용 미리보기</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">상태</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">등록일</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">관리</th>
+            </tr>
+          </thead>
+          <tbody id="notices-table-body">
+            <tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div id="page-logs" class="page">
       <div class="flex justify-between items-center mb-6">
         <select id="logBatchFilter" class="input-field text-sm w-72" onchange="loadLogs()">
