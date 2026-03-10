@@ -1182,13 +1182,11 @@ const App = {
     }
 
     if (src === 'file') {
-      // YouTube URL 초기화
-      App._clearYoutubeUrl()
       // Flutter WebView는 input[type=file] 직접 클릭 차단 → FlutterBridge 사용
+      // URL 초기화는 파일 선택 완료 콜백에서 처리
       if (window.FlutterBridge) {
         window.FlutterBridge.postMessage(JSON.stringify({ action: 'pick_file' }))
       } else {
-        // 웹 환경: input 직접 클릭
         document.getElementById('alarm-attach-file')?.click()
       }
     }
@@ -1900,7 +1898,7 @@ window._flutterFileCallback = function(data) {
   const label = document.getElementById('alarm-file-label')
   if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
   const clearBtn = document.getElementById('alarm-file-clear')
-  if (clearBtn) clearBtn.style.display = 'flex'
+  if (clearBtn) clearBtn.style.display = 'inline-flex'
   // YouTube URL 초기화
   App._clearYoutubeUrl()
 
