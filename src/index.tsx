@@ -383,6 +383,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notices')">
       <i class="fas fa-bullhorn w-4 text-center text-amber-400"></i> 공지사항 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('terms')">
+      <i class="fas fa-file-alt w-4 text-center text-teal-400"></i> 서비스 이용약관
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
     </a>
@@ -736,8 +739,27 @@ app.get('/', (c) => {
       </div>
     </div>
 
-    <div id="page-logs" class="page">
+    <!-- ===== 서비스 이용약관 관리 ===== -->
+    <div id="page-terms" class="page">
       <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2">
+          <i class="fas fa-file-alt text-teal-400"></i> 서비스 이용약관 관리
+        </h2>
+        <button onclick="saveTerms()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-save mr-1"></i> 저장
+        </button>
+      </div>
+      <div class="card p-6">
+        <label class="block text-slate-400 text-sm font-semibold mb-3">이용약관 내용</label>
+        <textarea id="terms-editor"
+          class="w-full bg-slate-800 border border-slate-600 rounded-lg text-slate-200 text-sm p-4 resize-none focus:outline-none focus:border-teal-400"
+          style="min-height:480px;line-height:1.8;"
+          placeholder="서비스 이용약관 내용을 입력하세요..."></textarea>
+        <p class="text-slate-500 text-xs mt-2">* 앱의 '서비스 이용약관' 메뉴에 표시됩니다. 저장 후 즉시 반영됩니다.</p>
+      </div>
+    </div>
+
+    <div id="page-logs" class="page">
         <select id="logBatchFilter" class="input-field text-sm w-72" onchange="loadLogs()">
           <option value="">배치 선택 (최근 발송 이력)</option>
         </select>
