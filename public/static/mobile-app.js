@@ -1058,14 +1058,12 @@ const App = {
     alarmMsgSrc = ''
     window._selectedAlarmFile = null
     // 모든 버튼 선택 해제
-    ;['youtube','audio','video'].forEach(s => {
+    ;['youtube','file'].forEach(s => {
       document.getElementById('src-' + s)?.classList.remove('selected')
     })
-    // 모든 영역 숨김
-    ;['youtube','audio','video','file'].forEach(s => {
-      const area = document.getElementById('alarm-area-' + s)
-      if (area) area.style.display = 'none'
-    })
+    // 파일 영역 숨김
+    const areaFile = document.getElementById('alarm-area-file')
+    if (areaFile) areaFile.style.display = 'none'
 
     // 입력 초기화 (URL 입력창은 항상 활성화 상태)
     const ytUrl = document.getElementById('alarm-youtube-url')
@@ -1076,9 +1074,9 @@ const App = {
       ytUrl.placeholder = 'YouTube URL 붙여넣기 (https://youtube.com/...)'
     }
     // 모든 프리뷰 숨김
-    ;['alarm-audio-preview','alarm-video-preview','alarm-file-preview'].forEach(id => {
+    ;['alarm-file-preview','alarm-audio-preview','alarm-video-preview'].forEach(id => {
       const el = document.getElementById(id)
-      if (el) { el.style.display = 'none'; el.textContent = '' }
+      if (el) { el.style.display = 'none'; el.innerHTML = '' }
     })
 
     this._renderDateLabel()
@@ -1173,7 +1171,7 @@ const App = {
 
   // ── 메시지 소스 선택 ──────────────────
   selectMsgSrc(src) {
-    // YouTube 버튼: 유튜브 앱(없으면 웹) 열기만 하고 선택 상태 변경 없음
+    // YouTube 버튼: 유튜브 앱(없으면 웹) 열기 + URL창 초기화
     if (src === 'youtube') {
       const youtubeUrl = 'https://www.youtube.com'
       if (window.FlutterBridge) {
@@ -1181,52 +1179,61 @@ const App = {
       } else {
         window.open(youtubeUrl, '_blank')
       }
-      return  // 선택 상태 변경 없이 종료
+      // 파일 선택 내용 초기화
+      window._selectedAlarmFile = null
+      document.getElementById('src-file')?.classList.remove('selected')
+      const filePreview = document.getElementById('alarm-file-preview')
+      if (filePreview) { filePreview.style.display = 'none'; filePreview.innerHTML = '' }
+      document.getElementById('alarm-area-file').style.display = 'none'
+      // URL창 활성화
+      const urlInput = document.getElementById('alarm-youtube-url')
+      if (urlInput) {
+        urlInput.readOnly = false
+        urlInput.style.color = ''
+        urlInput.placeholder = 'YouTube URL 붙여넣기 (https://youtube.com/...)'
+      }
+      return
     }
 
-    alarmMsgSrc = src
-    window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
-
-    // 버튼 선택 표시 (audio, video만)
-    ;['audio','video'].forEach(s => {
-      document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
-    })
-    // YouTube 버튼은 항상 비선택 상태 유지
-    document.getElementById('src-youtube')?.classList.remove('selected')
-
-    // 영역 전환: 오디오/비디오 영역만 표시/숨김 (youtube/file 영역은 항상 숨김)
-    ;['audio','video','file'].forEach(s => {
-      const area = document.getElementById('alarm-area-' + s)
-      if (area) area.style.display = s === src ? 'block' : 'none'
-    })
-    // 이전 프리뷰 초기화
-    ;['alarm-audio-preview','alarm-video-preview','alarm-file-preview'].forEach(id => {
-      const el = document.getElementById(id)
-      if (el) { el.style.display = 'none'; el.textContent = '' }
-    })
-    // URL 입력창: 파일 선택 모드로 전환
-    const urlInput = document.getElementById('alarm-youtube-url')
-    if (urlInput) {
-      urlInput.placeholder = '파일을 선택하면 여기에 표시됩니다'
-      urlInput.value = ''
-      urlInput.readOnly = true
-      urlInput.style.color = 'var(--text-sub)'
+    // 파일 버튼: 파일 보관함 열기
+    if (src === 'file') {
+      alarmMsgSrc = 'file'
+      // YouTube URL 초기화
+      const urlInput = document.getElementById('alarm-youtube-url')
+      if (urlInput) { urlInput.value = ''; urlInput.readOnly = true; urlInput.style.color = 'var(--text-sub)'; urlInput.placeholder = '파일을 선택하면 여기에 표시됩니다' }
+      // 파일 버튼 선택 표시
+      document.getElementById('src-file')?.classList.add('selected')
+      document.getElementById('src-youtube')?.classList.remove('selected')
+      // 파일 영역 표시 후 파일 선택창 바로 열기
+      document.getElementById('alarm-area-file').style.display = 'block'
+      document.getElementById('alarm-attach-file')?.click()
     }
   },
   onAlarmFileSelected(input, type) {
     const file = input.files?.[0]; if (!file) return
 
-    // 타입별 허용 검증 (오디오: audio/* / 비디오: video/*)
+    // 오디오/비디오 파일 여부 확인
     const isAudio = file.type.startsWith('audio/') || ['.mp3','.m4a','.wav','.aac','.ogg','.flac','.wma'].some(e => file.name.toLowerCase().endsWith(e))
     const isVideo = file.type.startsWith('video/') || ['.mp4','.mov','.mkv','.avi','.wmv','.m4v','.webm'].some(e => file.name.toLowerCase().endsWith(e))
-    if (type === 'audio' && !isAudio) { toast('오디오 파일을 선택해 주세요'); input.value = ''; return }
-    if (type === 'video' && !isVideo) { toast('비디오 파일을 선택해 주세요'); input.value = ''; return }
+
+    // file 타입일 때: 오디오/비디오 자동 판단
+    if (type === 'file') {
+      if (!isAudio && !isVideo) { toast('오디오 또는 비디오 파일을 선택해 주세요'); input.value = ''; return }
+      alarmMsgSrc = isAudio ? 'audio' : 'video'
+    } else {
+      if (type === 'audio' && !isAudio) { toast('오디오 파일을 선택해 주세요'); input.value = ''; return }
+      if (type === 'video' && !isVideo) { toast('비디오 파일을 선택해 주세요'); input.value = ''; return }
+      alarmMsgSrc = type
+    }
 
     // 프리뷰 표시 (파일명 + 용량 + X 버튼)
-    const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
-    const icons = { audio:'🎵', video:'🎬', file:'📎' }
+    const previewId = 'alarm-file-preview'
+    const icon = isAudio ? '🎵' : '🎬'
     const sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(2) + ' MB' : Math.round(file.size/1024) + ' KB'
-    App._showFilePreview(previewId, (icons[type] || '📎') + ' ' + file.name + ' (' + sizeStr + ')', type)
+    App._showFilePreview(previewId, icon + ' ' + file.name + ' (' + sizeStr + ')', 'file')
+    const filePreview = document.getElementById('alarm-file-preview')
+    if (filePreview) filePreview.style.display = 'flex'
+
     // URL 입력창에 파일명 표시
     const urlInput = document.getElementById('alarm-youtube-url')
     if (urlInput) { urlInput.value = file.name; urlInput.readOnly = true; urlInput.style.color = 'var(--text-sub)' }
@@ -1261,10 +1268,15 @@ const App = {
     if (preview) { preview.innerHTML = ''; preview.style.display = 'none' }
     window._selectedAlarmFile = null
     window._selectedAlarmPath = null
+    alarmMsgSrc = ''
     // 파일 input 초기화 (재선택 가능하도록)
-    const inputId = { audio:'alarm-audio-file', video:'alarm-video-file', file:'alarm-attach-file' }[type]
-    const input = document.getElementById(inputId)
+    const input = document.getElementById('alarm-attach-file')
     if (input) input.value = ''
+    // 파일 버튼 선택 해제, URL창 원상 복구
+    document.getElementById('src-file')?.classList.remove('selected')
+    const urlInput = document.getElementById('alarm-youtube-url')
+    if (urlInput) { urlInput.value = ''; urlInput.readOnly = false; urlInput.style.color = ''; urlInput.placeholder = 'YouTube URL 붙여넣기 (https://youtube.com/...)' }
+    document.getElementById('alarm-area-file').style.display = 'none'
     toast('파일이 삭제되었습니다')
   },
 

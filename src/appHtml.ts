@@ -789,81 +789,40 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="alarm-section-card">
       <div class="alarm-section-title">메시지 소스</div>
       <div class="msg-type-row">
-        <div class="msg-type-btn" id="src-youtube"  onclick="App.selectMsgSrc('youtube')">
+        <div class="msg-type-btn" id="src-youtube" onclick="App.selectMsgSrc('youtube')">
           <div class="msg-type-icon" style="background:#FF0000;"><i class="fab fa-youtube" style="color:#fff;"></i></div>
           <span class="msg-type-label">YouTube</span>
         </div>
-        <div class="msg-type-btn" id="src-audio" onclick="App.selectMsgSrc('audio')">
-          <div class="msg-type-icon" style="background:#4CAF50;"><i class="fas fa-microphone" style="color:#fff;"></i></div>
-          <span class="msg-type-label">오디오</span>
-        </div>
-        <div class="msg-type-btn" id="src-video" onclick="App.selectMsgSrc('video')">
-          <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-video" style="color:#fff;"></i></div>
-          <span class="msg-type-label">비디오</span>
+        <div class="msg-type-btn" id="src-file" onclick="App.selectMsgSrc('file')">
+          <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-folder-open" style="color:#fff;"></i></div>
+          <span class="msg-type-label">파일</span>
         </div>
       </div>
       <!-- 소스별 입력 영역 -->
       <div class="msg-input-area" id="alarm-input-area">
 
-        <!-- URL 입력창: 항상 노출 (YouTube URL 또는 파일명 표시) -->
+        <!-- YouTube URL 입력창: 항상 노출 -->
         <input id="alarm-youtube-url" type="url"
           placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
           class="form-input" style="margin:0 0 10px 0;">
 
-        <!-- YouTube: 선택 시 추가 영역 없음 -->
-        <div id="alarm-area-youtube" style="display:none;"></div>
-
-        <!-- 오디오: 직접 녹음 / 파일 선택 -->
-        <div id="alarm-area-audio" style="display:none;">
-          <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <button id="record-audio-btn" class="alarm-media-launch-btn bg-teal-500 hover:bg-teal-600" style="flex:1;" onclick="App.launchRecorder('audio')">
-              <i class="fas fa-microphone" style="font-size:20px;color:#4CAF50;"></i>
-              <div>
-                <div style="font-weight:700;font-size:13px;">직접 녹음</div>
-                <div style="font-size:11px;color:var(--text3);">녹음 시작/중지</div>
-              </div>
-            </button>
-            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.pickAudioFile()">
-              <i class="fas fa-folder-open" style="font-size:20px;color:#4CAF50;"></i>
-              <div>
-                <div style="font-weight:700;font-size:13px;">파일 선택</div>
-                <div style="font-size:11px;color:var(--text3);">모든 오디오 파일 선택 가능</div>
-              </div>
-            </button>
-          </div>
-          <input id="alarm-audio-file" type="file" accept="audio/*"
-            style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
-          <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
-        </div>
-
-        <!-- 비디오: 직접 녹화 / 파일 선택 -->
-        <div id="alarm-area-video" style="display:none;">
-          <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.launchRecorder('video')">
-              <i class="fas fa-video" style="font-size:20px;color:#2196F3;"></i>
-              <div>
-                <div style="font-weight:700;font-size:13px;">직접 녹화</div>
-                <div style="font-size:11px;color:var(--text3);">카메라 앱 실행</div>
-              </div>
-            </button>
-            <button class="alarm-media-launch-btn" style="flex:1;" onclick="App.pickVideoFile()">
-              <i class="fas fa-folder-open" style="font-size:20px;color:#2196F3;"></i>
-              <div>
-                <div style="font-weight:700;font-size:13px;">파일 선택</div>
-                <div style="font-size:11px;color:var(--text3);">모든 비디오 파일 선택 가능</div>
-              </div>
-            </button>
-          </div>
-          <input id="alarm-video-file" type="file" accept="video/*"
-            style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
-          <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
-        </div>
-
-        <!-- 파일: 하위 호환용 (숨김 유지) -->
+        <!-- 파일 선택 영역 -->
         <div id="alarm-area-file" style="display:none;">
-          <input id="alarm-attach-file" type="file" accept="audio/mpeg,video/mp4,.mp3,.mp4"
+          <input id="alarm-attach-file" type="file"
+            accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.wma,.mp4,.mov,.mkv,.avi,.wmv,.m4v,.webm"
             style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
           <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>
+        </div>
+
+        <!-- 하위 호환용 숨김 영역 -->
+        <div id="alarm-area-youtube" style="display:none;"></div>
+        <div id="alarm-area-audio" style="display:none;">
+          <input id="alarm-audio-file" type="file" accept="audio/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
+          <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
+        </div>
+        <div id="alarm-area-video" style="display:none;">
+          <input id="alarm-video-file" type="file" accept="video/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
+          <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
         </div>
 
       </div>
