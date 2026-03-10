@@ -798,7 +798,12 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _launchFilePicker() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.any, withData: false, withReadStream: false);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3','m4a','wav','aac','ogg','flac','wma','mp4','mov','mkv','avi','wmv','m4v','webm'],
+        withData: false,
+        withReadStream: false,
+      );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
         _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
