@@ -785,47 +785,71 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-plus-circle" style="color:var(--primary);"></i> 새 알람 추가
     </div>
 
-    <!-- 메시지 소스 선택 -->
+    <!-- 콘텐츠 선택 -->
     <div class="alarm-section-card">
-      <div class="alarm-section-title">메시지 소스</div>
-      <div class="msg-type-row">
-        <div class="msg-type-btn" id="src-youtube" onclick="App.selectMsgSrc('youtube')">
-          <div class="msg-type-icon" style="background:#FF0000;"><i class="fab fa-youtube" style="color:#fff;"></i></div>
-          <span class="msg-type-label">YouTube</span>
-        </div>
-        <div class="msg-type-btn" id="src-file" onclick="App.selectMsgSrc('file')">
-          <div class="msg-type-icon" style="background:#2196F3;"><i class="fas fa-folder-open" style="color:#fff;"></i></div>
-          <span class="msg-type-label">파일</span>
+      <div class="alarm-section-title">콘텐츠 선택</div>
+
+      <!-- YouTube 행 -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <button onclick="App.selectMsgSrc('youtube')" title="YouTube 앱 열기"
+          style="flex-shrink:0;width:44px;height:44px;border:none;border-radius:12px;
+                 background:#FF0000;color:#fff;font-size:20px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;">
+          <i class="fab fa-youtube"></i>
+        </button>
+        <div style="flex:1;position:relative;display:flex;align-items:center;">
+          <input id="alarm-youtube-url" type="url"
+            placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
+            class="form-input" style="margin:0;width:100%;padding-right:36px;"
+            oninput="App._onYoutubeUrlInput()">
+          <button id="alarm-youtube-clear" onclick="App._clearYoutubeUrl()"
+            style="display:none;position:absolute;right:8px;width:22px;height:22px;border:none;
+                   border-radius:50%;background:rgba(255,59,48,0.18);color:#FF3B30;
+                   font-size:13px;font-weight:bold;cursor:pointer;
+                   align-items:center;justify-content:center;">✕</button>
         </div>
       </div>
-      <!-- 소스별 입력 영역 -->
-      <div class="msg-input-area" id="alarm-input-area">
 
-        <!-- YouTube URL 입력창: 항상 노출 -->
-        <input id="alarm-youtube-url" type="url"
-          placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
-          class="form-input" style="margin:0 0 10px 0;">
-
-        <!-- 파일 선택 영역 -->
-        <div id="alarm-area-file" style="display:none;">
-          <input id="alarm-attach-file" type="file"
-            accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.wma,.mp4,.mov,.mkv,.avi,.wmv,.m4v,.webm"
-            style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
-          <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>
+      <!-- 파일 행 -->
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="App.selectMsgSrc('file')" title="파일 선택"
+          style="flex-shrink:0;width:44px;height:44px;border:none;border-radius:12px;
+                 background:#2196F3;color:#fff;font-size:20px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-folder-open"></i>
+        </button>
+        <div id="alarm-file-display"
+          style="flex:1;height:44px;border-radius:10px;background:var(--card2);
+                 border:1px solid var(--border);display:flex;align-items:center;
+                 padding:0 10px;gap:8px;color:var(--text3);font-size:13px;">
+          <span id="alarm-file-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            파일을 선택하세요 (오디오/비디오)
+          </span>
+          <button id="alarm-file-clear" onclick="App._clearFilePreview('alarm-file-preview','file')"
+            style="display:none;flex-shrink:0;width:22px;height:22px;border:none;
+                   border-radius:50%;background:rgba(255,59,48,0.18);color:#FF3B30;
+                   font-size:13px;font-weight:bold;cursor:pointer;
+                   align-items:center;justify-content:center;">✕</button>
         </div>
-
-        <!-- 하위 호환용 숨김 영역 -->
-        <div id="alarm-area-youtube" style="display:none;"></div>
-        <div id="alarm-area-audio" style="display:none;">
-          <input id="alarm-audio-file" type="file" accept="audio/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
-          <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
-        </div>
-        <div id="alarm-area-video" style="display:none;">
-          <input id="alarm-video-file" type="file" accept="video/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
-          <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
-        </div>
-
+        <input id="alarm-attach-file" type="file"
+          accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.wma,.mp4,.mov,.mkv,.avi,.wmv,.m4v,.webm"
+          style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
       </div>
+
+      <!-- 하위 호환용 숨김 영역 -->
+      <div id="alarm-area-youtube" style="display:none;"></div>
+      <div id="alarm-area-file"    style="display:none;">
+        <div id="alarm-file-preview" class="alarm-media-preview" style="display:none;"></div>
+      </div>
+      <div id="alarm-area-audio" style="display:none;">
+        <input id="alarm-audio-file" type="file" accept="audio/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'audio')">
+        <div id="alarm-audio-preview" class="alarm-media-preview" style="display:none;"></div>
+      </div>
+      <div id="alarm-area-video" style="display:none;">
+        <input id="alarm-video-file" type="file" accept="video/*" style="display:none;" onchange="App.onAlarmFileSelected(this,'video')">
+        <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
+      </div>
+
     </div>
 
     <!-- 날짜 선택 (화살표 방식) -->
