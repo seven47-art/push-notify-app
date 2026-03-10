@@ -1534,7 +1534,7 @@ const App = {
         toast('채널에 참여했습니다!')
         this.closeModal('modal-join')
         Store.addNotif({ title:'채널 참여 완료', body:'새 채널에 성공적으로 참여했습니다.', channel_name: res.data?.data?.channel_name || '채널', content_type:'default' })
-        this.loadHome()
+        this.goto('joined-all')
       } else {
         toast(res.data?.error || '참여 실패', 3000)
       }
@@ -1724,7 +1724,7 @@ const App = {
       if (join.data?.success) {
         toast(name + ' 채널에 참여했습니다! 🎉')
         this.closeModal('modal-channel-detail')
-        this.loadHome()
+        this.goto('joined-all')
       } else {
         toast(join.data?.error || '참여 실패', 3000)
       }
