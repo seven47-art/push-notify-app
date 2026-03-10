@@ -408,7 +408,7 @@ const App = {
       more.style.display = 'none'; return
     }
     const preview = ownedChannels.slice(0, MAX_PREVIEW)
-    el.innerHTML = preview.map(ch => this._ownedTileHtml(ch)).join('')
+    el.innerHTML = `<div class="channel-list-wrap">${preview.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
 
     if (ownedChannels.length > MAX_PREVIEW) {
       more.style.display = 'block'
@@ -423,8 +423,7 @@ const App = {
 
   _showAllOwned() {
     const el = document.getElementById('owned-list')
-    el.innerHTML = ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')
-    document.getElementById('owned-more').style.display = 'none'
+    el.innerHTML = `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
   },
 
   // ── 나의 운영채널 전체 페이지 ──────────────────────────
@@ -538,7 +537,7 @@ const App = {
       more.style.display = 'none'; return
     }
     const preview = joinedChannels.slice(0, MAX_PREVIEW)
-    el.innerHTML = preview.map(ch => this._joinedTileHtml(ch)).join('')
+    el.innerHTML = `<div class="joined-list-wrap">${preview.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
 
     if (joinedChannels.length > MAX_PREVIEW) {
       more.style.display = 'block'
@@ -553,8 +552,7 @@ const App = {
 
   _showAllJoined() {
     const el = document.getElementById('joined-list')
-    el.innerHTML = joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')
-    document.getElementById('joined-more').style.display = 'none'
+    el.innerHTML = `<div class="joined-list-wrap">${joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
   },
 
   _joinedTileHtml(ch) {
@@ -608,12 +606,12 @@ const App = {
 
       if (popularEl) {
         popularEl.innerHTML = popList.length
-          ? popList.map(ch => this._channelTileHtml(ch)).join('')
+          ? `<div class="ch-all-list-wrap">${popList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
           : '<div class="empty-box" style="margin:4px 14px;">인기 채널이 없습니다.</div>'
       }
       if (bestEl) {
         bestEl.innerHTML = bestList.length
-          ? bestList.map(ch => this._channelTileHtml(ch)).join('')
+          ? `<div class="ch-all-list-wrap">${bestList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
           : '<div class="empty-box" style="margin:4px 14px;">베스트 채널이 없습니다.</div>'
       }
     } catch {
@@ -650,7 +648,7 @@ const App = {
       el.innerHTML = '<div class="empty-box">검색 결과가 없습니다.</div>'
       return
     }
-    el.innerHTML = list.map(ch => this._channelTileHtml(ch)).join('')
+    el.innerHTML = `<div class="ch-all-list-wrap">${list.map(ch => this._channelTileHtml(ch)).join('')}</div>`
   },
 
   // 검색 입력 핸들러 (실시간 필터링)
