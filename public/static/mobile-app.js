@@ -1344,6 +1344,84 @@ const App = {
     alarmDate = d
     this._renderDateLabel()
   },
+
+  // ── 달력 팝업 ──────────────────────────────
+  openDatePicker() {
+    const modal = document.getElementById('modal-date-picker')
+    if (!modal) return
+    // 현재 alarmDate 기준으로 달력 표시
+    calYear  = alarmDate.getFullYear()
+    calMonth = alarmDate.getMonth()
+    this._renderCalGrid()
+    modal.style.display = 'flex'
+  },
+
+  closeDatePicker() {
+    const modal = document.getElementById('modal-date-picker')
+    if (modal) modal.style.display = 'none'
+  },
+
+  _calMove(delta) {
+    calMonth += delta
+    if (calMonth < 0)  { calMonth = 11; calYear-- }
+    if (calMonth > 11) { calMonth = 0;  calYear++ }
+    this._renderCalGrid()
+  },
+
+  _renderCalGrid() {
+    const monthLabel = document.getElementById('cal-month-label')
+    if (monthLabel) monthLabel.textContent = `${calYear}년 ${calMonth+1}월`
+
+    const grid = document.getElementById('cal-days-grid')
+    if (!grid) return
+
+    const today = new Date(); today.setHours(0,0,0,0)
+    const selected = new Date(alarmDate); selected.setHours(0,0,0,0)
+    const firstDay = new Date(calYear, calMonth, 1).getDay()  // 0=일
+    const lastDate = new Date(calYear, calMonth+1, 0).getDate()
+
+    let html = ''
+    // 첫 주 빈칸
+    for (let i = 0; i < firstDay; i++) {
+      html += '<div></div>'
+    }
+    // 날짜 셀
+    for (let d = 1; d <= lastDate; d++) {
+      const thisDate = new Date(calYear, calMonth, d)
+      thisDate.setHours(0,0,0,0)
+      const isPast     = thisDate < today
+      const isToday    = thisDate.getTime() === today.getTime()
+      const isSelected = thisDate.getTime() === selected.getTime()
+      const dow        = thisDate.getDay()
+      const isSun      = dow === 0
+      const isSat      = dow === 6
+
+      let bg    = 'transparent'
+      let color = isPast ? 'var(--text3)' : isSun ? '#FF6B6B' : isSat ? '#6B9FFF' : 'var(--text)'
+      let fw    = '400'
+      let border = 'none'
+
+      if (isSelected) { bg = 'var(--primary)'; color = '#fff'; fw = '700' }
+      else if (isToday) { border = '2px solid var(--primary)'; fw = '700' }
+
+      const click = isPast ? '' : `onclick="App._pickCalDate(${calYear},${calMonth},${d})"`
+      html += `<div ${click} style="
+        text-align:center;padding:7px 2px;border-radius:50%;font-size:14px;
+        background:${bg};color:${color};font-weight:${fw};
+        border:${border};cursor:${isPast?'default':'pointer'};
+        opacity:${isPast?'0.35':'1'};
+      ">${d}</div>`
+    }
+    grid.innerHTML = html
+  },
+
+  _pickCalDate(y, m, d) {
+    alarmDate = new Date(y, m, d)
+    calYear   = y
+    calMonth  = m
+    this._renderDateLabel()
+    this.closeDatePicker()
+  },
   _renderDateLabel() {
     const el = document.getElementById('alarm-date-label')
     if (!el) return

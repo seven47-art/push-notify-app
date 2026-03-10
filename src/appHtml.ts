@@ -853,12 +853,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
     </div>
 
-    <!-- 날짜 선택 (화살표 방식) -->
+    <!-- 날짜 선택 (클릭 시 달력 팝업) -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">날짜 선택</div>
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0;">
         <button class="cal-nav-btn" onclick="App.dateMove(-1)"><i class="fas fa-chevron-left"></i></button>
-        <div id="alarm-date-label" style="font-size:18px;font-weight:700;color:var(--text);min-width:160px;text-align:center;"></div>
+        <div id="alarm-date-label" onclick="App.openDatePicker()"
+          style="font-size:18px;font-weight:700;color:var(--text);min-width:160px;text-align:center;
+                 cursor:pointer;padding:6px 12px;border-radius:10px;
+                 background:var(--card2);border:1px solid var(--border);
+                 transition:background 0.15s;">
+        </div>
         <button class="cal-nav-btn" onclick="App.dateMove(1)"><i class="fas fa-chevron-right"></i></button>
       </div>
     </div>
@@ -974,6 +979,36 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-sub);font-size:14px;cursor:pointer;">취소</button>
       <button onclick="App.confirmSecretPw()"
         style="flex:1;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 달력 팝업 -->
+<div id="modal-date-picker"
+  style="display:none;position:fixed;inset:0;z-index:9999;
+         background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+  <div style="background:var(--card);border-radius:20px;padding:20px;width:320px;max-width:90vw;">
+    <!-- 헤더: 년/월 + 이동 버튼 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <button onclick="App._calMove(-1)"
+        style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:4px 10px;">‹</button>
+      <span id="cal-month-label" style="font-size:16px;font-weight:700;color:var(--text);"></span>
+      <button onclick="App._calMove(1)"
+        style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:4px 10px;">›</button>
+    </div>
+    <!-- 요일 헤더 -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;">
+      ${['일','월','화','수','목','금','토'].map((d,i) =>
+        `<div style="font-size:12px;font-weight:600;color:${i===0?'#FF6B6B':i===6?'#6B9FFF':'var(--text3)'};">${d}</div>`
+      ).join('')}
+    </div>
+    <!-- 날짜 그리드 -->
+    <div id="cal-days-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
+    <!-- 하단 버튼 -->
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="App.closeDatePicker()"
+        style="flex:1;padding:12px;border:none;border-radius:12px;
+               background:var(--card2);color:var(--text);font-size:15px;cursor:pointer;">취소</button>
     </div>
   </div>
 </div>
