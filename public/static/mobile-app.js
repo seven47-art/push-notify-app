@@ -1163,6 +1163,16 @@ const App = {
     alarmMsgSrc = src
     window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
 
+    // YouTube 버튼 클릭 시 유튜브 앱(없으면 웹) 열기
+    if (src === 'youtube') {
+      const youtubeUrl = 'https://www.youtube.com'
+      if (window.FlutterBridge) {
+        window.FlutterBridge.postMessage(JSON.stringify({ action: 'launch_youtube', url: youtubeUrl }))
+      } else {
+        window.open(youtubeUrl, '_blank')
+      }
+    }
+
     // 버튼 선택 표시 (youtube, audio, video 3개)
     ;['youtube','audio','video'].forEach(s => {
       document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
