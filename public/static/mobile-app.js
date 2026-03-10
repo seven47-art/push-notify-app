@@ -434,7 +434,7 @@ const App = {
       el.innerHTML = '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
       return
     }
-    el.innerHTML = ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')
+    el.innerHTML = `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
   },
 
   // ── 나의 가입채널 전체 페이지 ──────────────────────────
@@ -445,7 +445,7 @@ const App = {
       el.innerHTML = '<div class="empty-box">가입한 채널이 없습니다.<br>초대 링크로 참여해 보세요!</div>'
       return
     }
-    el.innerHTML = joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')
+    el.innerHTML = `<div class="joined-list-wrap">${joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
   },
 
   // ── 공지사항 전체 페이지 ──────────────────────────
