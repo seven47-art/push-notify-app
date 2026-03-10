@@ -609,6 +609,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
+    <div class="settings-menu-item" onclick="App.openTerms()">
+      <i class="fas fa-file-alt"></i> 서비스 이용약관
+      <i class="fas fa-chevron-right menu-arrow"></i>
+    </div>
     <div class="settings-menu-item" onclick="toast('v1.0.48 (web)')">
       <i class="fas fa-info-circle"></i> 버전
       <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.48</span>
@@ -674,6 +678,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openTerms()">
+    <i class="fas fa-file-alt"></i> 서비스 이용약관
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.48 (web)')">
     <i class="fas fa-info-circle"></i> 버전
@@ -954,6 +961,20 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
+<!-- ══ 풀스크린: 서비스 이용약관 ══ -->
+<div class="fullscreen-overlay" id="modal-terms">
+  <div class="appbar" style="display:flex;">
+    <div class="appbar-left">
+      <button class="appbar-back" onclick="App.closeTerms()"><i class="fas fa-arrow-left"></i></button>
+    </div>
+    <span style="font-size:17px;font-weight:700;color:#fff;flex:1;text-align:center;">서비스 이용약관</span>
+    <div style="width:38px;"></div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:20px 16px;">
+    <div id="terms-content" style="font-size:14px;color:var(--text2);line-height:1.8;white-space:pre-wrap;">불러오는 중...</div>
+  </div>
+</div>
+
 <!-- ══ 모달: 초대코드 ══ -->
 <div class="modal-overlay" id="modal-invite">
   <div class="modal-sheet">
@@ -1042,6 +1063,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101500"></script>
+<script src="/static/mobile-app.js?v=202603101510"></script>
 </body>
 </html>`;

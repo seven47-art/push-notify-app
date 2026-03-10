@@ -1694,6 +1694,26 @@ const App = {
   },
 
   // ── 채널 참여 ──────────────────────────
+  // ── 서비스 이용약관 ──────────────────────────────────
+  async openTerms() {
+    const el = document.getElementById('modal-terms')
+    const contentEl = document.getElementById('terms-content')
+    if (!el) return
+    el.classList.add('active')
+    contentEl.textContent = '불러오는 중...'
+    try {
+      const res = await API.get('/settings/terms')
+      contentEl.textContent = res.data?.value || '이용약관 내용이 없습니다.'
+    } catch(e) {
+      contentEl.textContent = '이용약관을 불러오지 못했습니다.'
+    }
+  },
+
+  closeTerms() {
+    const el = document.getElementById('modal-terms')
+    if (el) el.classList.remove('active')
+  },
+
   openJoinChannel() {
     document.getElementById('join-token').value = ''
     document.getElementById('join-password').value = ''
