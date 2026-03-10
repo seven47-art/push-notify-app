@@ -60,15 +60,13 @@ class _PermissionScreenState extends State<PermissionScreen>
       badges:      [],
     ),
     _StepInfo(
-      icon:        Icons.security_rounded,
+      icon:        Icons.notifications_active_rounded,
       color:       Color(0xFF6C63FF),
-      title:       '앱 권한 허용',
-      subtitle:    '알림·카메라·마이크 권한을 한 번에 허용합니다',
-      description: '팝업이 나타나면 모두 "허용"을 눌러주세요.',
+      title:       '알림 권한 허용',
+      subtitle:    '알람 수신을 위해 알림 권한을 허용합니다',
+      description: '팝업이 나타나면 "허용"을 눌러주세요.',
       badges:      [
         _BadgeInfo(Icons.notifications_active_rounded, '알림'),
-        _BadgeInfo(Icons.videocam_rounded,             '카메라'),
-        _BadgeInfo(Icons.mic_rounded,                  '마이크'),
       ],
     ),
   ];
@@ -136,9 +134,7 @@ class _PermissionScreenState extends State<PermissionScreen>
 
   Future<bool> _isBulkGranted() async {
     final n = await Permission.notification.isGranted;
-    final c = await Permission.camera.isGranted;
-    final m = await Permission.microphone.isGranted;
-    return n && c && m;
+    return n;
   }
 
   // ── 현재 단계 실행 ────────────────────────────────────────────────────
@@ -188,13 +184,9 @@ class _PermissionScreenState extends State<PermissionScreen>
     await _moveToNext(_stepBulk);
   }
 
-  // 4단계: 알림 + 카메라 + 마이크 일괄
+  // 4단계: 알림 권한
   Future<void> _doBulkRequest() async {
-    await [
-      Permission.notification,
-      Permission.camera,
-      Permission.microphone,
-    ].request();
+    await Permission.notification.request();
     await _finish();
   }
 
