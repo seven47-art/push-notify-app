@@ -811,14 +811,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         </div>
       </div>
 
-      <!-- 파일 행: label로 감싸서 직접 클릭 연결 -->
+      <!-- 파일 행: label for="alarm-attach-file" 로 직접 연결 (웹 환경), Flutter는 FlutterBridge로 처리 -->
       <div style="display:flex;align-items:center;gap:10px;">
-        <label for="alarm-attach-file" onclick="App._clearYoutubeUrl()"
+        <button onclick="App.selectMsgSrc('file')" title="파일 선택"
           style="flex-shrink:0;width:44px;height:44px;border:none;border-radius:12px;
                  background:#2196F3;color:#fff;font-size:20px;cursor:pointer;
                  display:flex;align-items:center;justify-content:center;">
           <i class="fas fa-folder-open"></i>
-        </label>
+        </button>
         <div id="alarm-file-display"
           style="flex:1;height:44px;border-radius:10px;background:var(--card2);
                  border:1px solid var(--border);display:flex;align-items:center;

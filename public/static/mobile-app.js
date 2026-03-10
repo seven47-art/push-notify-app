@@ -1182,8 +1182,15 @@ const App = {
     }
 
     if (src === 'file') {
-      // label for="alarm-attach-file" 로 직접 연결되므로 별도 처리 불필요
+      // YouTube URL 초기화
       App._clearYoutubeUrl()
+      // Flutter WebView는 input[type=file] 직접 클릭 차단 → FlutterBridge 사용
+      if (window.FlutterBridge) {
+        window.FlutterBridge.postMessage(JSON.stringify({ action: 'pick_file' }))
+      } else {
+        // 웹 환경: input 직접 클릭
+        document.getElementById('alarm-attach-file')?.click()
+      }
     }
   },
 
@@ -1865,10 +1872,9 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // ─────────────────────────────────────────────────────
 window._flutterFileCallback = function(data) {
   // data: { type:'audio'|'video'|'file', name:'xxx.mp3', path:'/storage/...', size:12345, base64:'' }
-  // ⚠️ base64는 비어 있음 - SQLITE_TOOBIG 방지, 파일명/경로만 저장
   const { type, name, path, size } = data
 
-  // 오디오 녹음 완료 시 버튼 상태 리셋
+  // 오디오 녹음 완료 시 버튼 상태 리셋 (하위 호환)
   if (type === 'audio' && App._audioRecording) {
     App._audioRecording = false
     const btn = document.getElementById('record-audio-btn')
@@ -1883,11 +1889,21 @@ window._flutterFileCallback = function(data) {
   window._selectedAlarmFile = name  // 파일명만 저장
   window._selectedAlarmPath = path  // 로컬 경로 (참고용)
 
-  // 프리뷰 표시 (파일명 + 용량 + X 버튼)
-  const previewId = { audio:'alarm-audio-preview', video:'alarm-video-preview', file:'alarm-file-preview' }[type] || 'alarm-file-preview'
-  const icons = { audio:'🎵', video:'🎬', file:'📎' }
+  // alarmMsgSrc 자동 판단
+  const isAudio = ['mp3','m4a','wav','aac','ogg','flac','wma'].some(e => name.toLowerCase().endsWith('.'+e))
+  const isVideo = ['mp4','mov','mkv','avi','wmv','m4v','webm'].some(e => name.toLowerCase().endsWith('.'+e))
+  alarmMsgSrc = isAudio ? 'audio' : (isVideo ? 'video' : type)
+
+  // 새 UI: alarm-file-label / alarm-file-clear 업데이트
+  const icon = isAudio ? '🎵' : (isVideo ? '🎬' : '📎')
   const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
-  App._showFilePreview(previewId, (icons[type] || '📎') + ' ' + name + ' (' + sizeStr + ')', type)
+  const label = document.getElementById('alarm-file-label')
+  if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
+  const clearBtn = document.getElementById('alarm-file-clear')
+  if (clearBtn) clearBtn.style.display = 'flex'
+  // YouTube URL 초기화
+  App._clearYoutubeUrl()
+
   toast('✅ 파일 선택 완료: ' + name, 2000)
 }
 
