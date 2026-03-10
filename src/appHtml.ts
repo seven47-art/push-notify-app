@@ -972,6 +972,27 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 채널 소개 풀스크린 (JS에서 동적 생성) ══ -->
 <div class="fullscreen-overlay" id="modal-channel-detail"></div>
 
+<!-- 비밀채널 비밀번호 입력 모달 -->
+<div class="modal-overlay" id="modal-secret-pw" style="align-items:center;">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:calc(100% - 48px);max-width:360px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <span style="font-size:20px;">🔒</span>
+      <span style="font-weight:700;font-size:16px;color:var(--text);">비밀번호 확인</span>
+    </div>
+    <p style="color:var(--text-sub);font-size:13px;margin-bottom:14px;">비밀채널에 참여하려면 비밀번호를 입력하세요.</p>
+    <input id="secret-pw-input" type="password" placeholder="비밀번호를 입력하세요"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;box-sizing:border-box;outline:none;"
+      onkeydown="if(event.key==='Enter')App.confirmSecretPw()" />
+    <p id="secret-pw-error" style="color:#EF4444;font-size:12px;margin-top:8px;display:none;"></p>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button onclick="App.cancelSecretPw()"
+        style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-sub);font-size:14px;cursor:pointer;">취소</button>
+      <button onclick="App.confirmSecretPw()"
+        style="flex:1;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">확인</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/mobile-app.js?v=202603071900"></script>
 </body>
 </html>`;

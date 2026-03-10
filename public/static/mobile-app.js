@@ -1688,7 +1688,10 @@ const App = {
       const chRes = await API.get('/channels/' + chId)
       const ch = chRes.data?.data
       if (ch?.is_secret) {
-        const pw = prompt('🔒 비밀번호를 입력하세요')
+        let pw
+        try {
+          pw = await this.promptSecretPassword()
+        } catch (_) { return }  // 취소
         if (!pw) return
         try {
           await API.post('/channels/' + chId + '/verify-password', { password: pw })
@@ -1777,6 +1780,39 @@ const App = {
   // ── 모달 ────────────────────────────────
   openModal(id)  { document.getElementById(id)?.classList.add('active') },
   closeModal(id) { document.getElementById(id)?.classList.remove('active') },
+
+  // ── 비밀채널 비밀번호 모달 ──────────────────────────────────────
+  _secretPwResolve: null,
+  _secretPwReject: null,
+
+  promptSecretPassword() {
+    return new Promise((resolve, reject) => {
+      this._secretPwResolve = resolve
+      this._secretPwReject  = reject
+      const input = document.getElementById('secret-pw-input')
+      const errEl = document.getElementById('secret-pw-error')
+      if (input) { input.value = ''; }
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+      this.openModal('modal-secret-pw')
+      setTimeout(() => input?.focus(), 150)
+    })
+  },
+
+  confirmSecretPw() {
+    const pw = document.getElementById('secret-pw-input')?.value.trim() || ''
+    if (!pw) {
+      const errEl = document.getElementById('secret-pw-error')
+      if (errEl) { errEl.textContent = '비밀번호를 입력하세요'; errEl.style.display = 'block'; }
+      return
+    }
+    this.closeModal('modal-secret-pw')
+    if (this._secretPwResolve) { this._secretPwResolve(pw); this._secretPwResolve = null; }
+  },
+
+  cancelSecretPw() {
+    this.closeModal('modal-secret-pw')
+    if (this._secretPwReject) { this._secretPwReject(null); this._secretPwReject = null; }
+  },
 }
 
 // 모달 외부 클릭 닫기
