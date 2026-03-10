@@ -229,6 +229,10 @@ class _FakeCallScreenState extends State<FakeCallScreen>
         final idx = uri.pathSegments.indexOf('shorts');
         return (idx + 1 < uri.pathSegments.length) ? uri.pathSegments[idx + 1] : '';
       }
+      if (uri.pathSegments.contains('live')) {
+        final idx = uri.pathSegments.indexOf('live');
+        return (idx + 1 < uri.pathSegments.length) ? uri.pathSegments[idx + 1] : '';
+      }
     } catch (_) {}
     return '';
   }

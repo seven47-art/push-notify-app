@@ -519,7 +519,7 @@ class ContentPlayerActivity : Activity() {
 
     private fun extractYoutubeId(url: String): String {
         if (url.length == 11 && !url.startsWith("http")) return url
-        val m = Regex("(?:v=|youtu\\.be/|embed/|shorts/)([A-Za-z0-9_-]{11})").find(url)
+        val m = Regex("(?:v=|youtu\\.be/|embed/|shorts/|live/)([A-Za-z0-9_-]{11})").find(url)
         return m?.groupValues?.get(1) ?: ""
     }
 
