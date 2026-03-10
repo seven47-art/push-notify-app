@@ -1067,9 +1067,14 @@ const App = {
       if (area) area.style.display = 'none'
     })
 
-    // 입력 초기화
+    // 입력 초기화 (URL 입력창은 항상 활성화 상태)
     const ytUrl = document.getElementById('alarm-youtube-url')
-    if (ytUrl) ytUrl.value = ''
+    if (ytUrl) {
+      ytUrl.value = ''
+      ytUrl.readOnly = false
+      ytUrl.style.color = ''
+      ytUrl.placeholder = 'YouTube URL 붙여넣기 (https://youtube.com/...)'
+    }
     // 모든 프리뷰 숨김
     ;['alarm-audio-preview','alarm-video-preview','alarm-file-preview'].forEach(id => {
       const el = document.getElementById(id)
@@ -1168,10 +1173,7 @@ const App = {
 
   // ── 메시지 소스 선택 ──────────────────
   selectMsgSrc(src) {
-    alarmMsgSrc = src
-    window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
-
-    // YouTube 버튼 직접 클릭 시에만 유튜브 앱(없으면 웹) 열기
+    // YouTube 버튼: 유튜브 앱(없으면 웹) 열기만 하고 선택 상태 변경 없음
     if (src === 'youtube') {
       const youtubeUrl = 'https://www.youtube.com'
       if (window.FlutterBridge) {
@@ -1179,14 +1181,21 @@ const App = {
       } else {
         window.open(youtubeUrl, '_blank')
       }
+      return  // 선택 상태 변경 없이 종료
     }
 
-    // 버튼 선택 표시 (youtube, audio, video 3개)
-    ;['youtube','audio','video'].forEach(s => {
+    alarmMsgSrc = src
+    window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
+
+    // 버튼 선택 표시 (audio, video만)
+    ;['audio','video'].forEach(s => {
       document.getElementById('src-' + s)?.classList.toggle('selected', s === src)
     })
-    // 영역 전환: 각 소스별 div 표시/숨김
-    ;['youtube','audio','video','file'].forEach(s => {
+    // YouTube 버튼은 항상 비선택 상태 유지
+    document.getElementById('src-youtube')?.classList.remove('selected')
+
+    // 영역 전환: 오디오/비디오 영역만 표시/숨김 (youtube/file 영역은 항상 숨김)
+    ;['audio','video','file'].forEach(s => {
       const area = document.getElementById('alarm-area-' + s)
       if (area) area.style.display = s === src ? 'block' : 'none'
     })
@@ -1195,6 +1204,14 @@ const App = {
       const el = document.getElementById(id)
       if (el) { el.style.display = 'none'; el.textContent = '' }
     })
+    // URL 입력창: 파일 선택 모드로 전환
+    const urlInput = document.getElementById('alarm-youtube-url')
+    if (urlInput) {
+      urlInput.placeholder = '파일을 선택하면 여기에 표시됩니다'
+      urlInput.value = ''
+      urlInput.readOnly = true
+      urlInput.style.color = 'var(--text-sub)'
+    }
   },
   onAlarmFileSelected(input, type) {
     const file = input.files?.[0]; if (!file) return
@@ -1210,6 +1227,9 @@ const App = {
     const icons = { audio:'🎵', video:'🎬', file:'📎' }
     const sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(2) + ' MB' : Math.round(file.size/1024) + ' KB'
     App._showFilePreview(previewId, (icons[type] || '📎') + ' ' + file.name + ' (' + sizeStr + ')', type)
+    // URL 입력창에 파일명 표시
+    const urlInput = document.getElementById('alarm-youtube-url')
+    if (urlInput) { urlInput.value = file.name; urlInput.readOnly = true; urlInput.style.color = 'var(--text-sub)' }
 
     // FileReader로 base64 변환 후 저장 (서버 전송용)
     const reader = new FileReader()
@@ -1380,23 +1400,25 @@ const App = {
     const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
     if (dt <= new Date()) { toast('현재 시각 이후를 선택하세요', 2500); return }
 
+    // URL 입력값 또는 파일 선택 여부로 소스 자동 판단
+    const urlInputVal = document.getElementById('alarm-youtube-url')?.value.trim() || ''
+    const hasFile = !!window._selectedAlarmFile
+
     let srcValue = ''
-    if (alarmMsgSrc === 'youtube') {
-      srcValue = document.getElementById('alarm-youtube-url')?.value.trim() || ''
-      if (!srcValue) { toast('YouTube URL을 입력하세요'); return }
+    if (hasFile && (alarmMsgSrc === 'audio' || alarmMsgSrc === 'video' || alarmMsgSrc === 'file')) {
+      // 파일 선택된 경우
+      srcValue = window._selectedAlarmFile
+    } else if (urlInputVal) {
+      // URL 입력된 경우 → YouTube로 처리
+      alarmMsgSrc = 'youtube'
+      srcValue = urlInputVal
       // 유튜브 URL 형식 검증
       if (!srcValue.includes('youtube.com') && !srcValue.includes('youtu.be')) {
         toast('올바른 YouTube URL을 입력하세요'); return
       }
-    } else if (alarmMsgSrc === 'audio') {
-      srcValue = window._selectedAlarmFile || ''  // 파일명
-      if (!srcValue) { toast('오디오 파일을 선택하세요'); return }
-    } else if (alarmMsgSrc === 'video') {
-      srcValue = window._selectedAlarmFile || ''  // 파일명
-      if (!srcValue) { toast('비디오 파일을 선택하세요'); return }
-    } else if (alarmMsgSrc === 'file') {
-      srcValue = window._selectedAlarmFile || ''  // 파일명
-      if (!srcValue) { toast('파일을 선택하세요'); return }
+    } else {
+      // 아무것도 없는 경우
+      toast('YouTube URL을 입력하거나 파일을 선택하세요'); return
     }
 
     const pad = n => String(n).padStart(2,'0')
