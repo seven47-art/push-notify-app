@@ -867,7 +867,7 @@ const App = {
     document.getElementById('settings-fcm-token').textContent = tok.substring(0, 20) + '...'
 
     // 테마 토글 상태 반영
-    const isDark = (localStorage.getItem('theme') || 'dark') === 'dark'
+    const isDark = (localStorage.getItem('theme') || 'light') === 'dark'
     const toggleEl = document.getElementById('theme-toggle')
     const labelEl  = document.getElementById('theme-label')
     if (toggleEl) toggleEl.checked = isDark
@@ -2170,8 +2170,8 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
-  // 저장된 테마 적용 (기본값: dark)
-  const savedTheme = localStorage.getItem('theme') || 'dark'
+  // 저장된 테마 적용 (기본값: light)
+  const savedTheme = localStorage.getItem('theme') || 'light'
   App.applyTheme(savedTheme)
 
   // 드로어 사용자 이메일 표시
