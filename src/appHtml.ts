@@ -304,7 +304,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .time-val { font-size:32px; font-weight:700; min-width:56px; text-align:center; background:var(--bg3); border-radius:10px; padding:10px 4px; }
 .time-sep { font-size:28px; font-weight:700; color:var(--text2); padding-bottom:8px; }
 /* ── 날짜/시간 통합 행 ── */
-.alarm-datetime-row { display:flex; align-items:center; gap:10px; padding:0 14px 14px; cursor:pointer; border-radius:12px; transition:background 0.15s; }
+.alarm-datetime-row { display:flex; align-items:center; gap:10px; padding:0 14px 14px 14px; cursor:pointer; transition:background 0.15s; }
 .alarm-datetime-row:active { background:var(--bg3); }
 .alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:#9C27B0; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; flex-shrink:0; border:none; cursor:pointer; }
 .alarm-datetime-text { flex:1; display:flex; align-items:center; gap:8px; }
@@ -806,9 +806,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <!-- 콘텐츠 선택 -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">콘텐츠 선택</div>
+      <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;">
 
       <!-- YouTube 행 -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
         <button onclick="App.selectMsgSrc('youtube')" title="YouTube 앱 열기"
           style="flex-shrink:0;width:44px;height:44px;border:none;border-radius:12px;
                  background:#FF0000;color:#fff;font-size:20px;cursor:pointer;
@@ -853,7 +854,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <input id="alarm-attach-file" type="file"
           accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.wma,.mp4,.mov,.mkv,.avi,.wmv,.m4v,.webm"
           style="display:none;" onchange="App.onAlarmFileSelected(this,'file')">
-      </div>
+      </div><!-- /파일 행 -->
+      </div><!-- /padding wrapper -->
 
       <!-- 하위 호환용 숨김 영역 -->
       <div id="alarm-area-youtube" style="display:none;"></div>
@@ -881,6 +883,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           <span class="alarm-datetime-sep">·</span>
           <span class="alarm-datetime-time" id="alarm-time-label">오전 09:00</span>
         </div>
+        <div style="font-size:16px;color:var(--text3);flex-shrink:0;"><i class="fas fa-chevron-down"></i></div>
       </div>
     </div>
 
