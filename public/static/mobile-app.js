@@ -1398,6 +1398,28 @@ const App = {
     this._renderDtTimePicker()
   },
 
+  // 팝업 내 시 직접 입력
+  _dtInputHour() {
+    const isAm = alarmHour < 12
+    const h12cur = alarmHour % 12 === 0 ? 12 : alarmHour % 12
+    const val = prompt(`시 입력 (1~12)\n현재: ${String(h12cur).padStart(2,'0')}`, String(h12cur))
+    if (val === null) return
+    const n = parseInt(val, 10)
+    if (isNaN(n) || n < 1 || n > 12) { toast('1~12 사이 숫자를 입력하세요'); return }
+    alarmHour = isAm ? (n === 12 ? 0 : n) : (n === 12 ? 12 : n + 12)
+    this._renderDtTimePicker()
+  },
+
+  // 팝업 내 분 직접 입력
+  _dtInputMin() {
+    const val = prompt(`분 입력 (0~59)\n현재: ${String(alarmMin).padStart(2,'0')}`, String(alarmMin))
+    if (val === null) return
+    const n = parseInt(val, 10)
+    if (isNaN(n) || n < 0 || n > 59) { toast('0~59 사이 숫자를 입력하세요'); return }
+    alarmMin = n
+    this._renderDtTimePicker()
+  },
+
   // 팝업 내 시간 UI 업데이트
   _renderDtTimePicker() {
     const isAm = alarmHour < 12

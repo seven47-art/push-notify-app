@@ -304,13 +304,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .time-val { font-size:32px; font-weight:700; min-width:56px; text-align:center; background:var(--bg3); border-radius:10px; padding:10px 4px; }
 .time-sep { font-size:28px; font-weight:700; color:var(--text2); padding-bottom:8px; }
 /* ── 날짜/시간 통합 행 ── */
-.alarm-datetime-row { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; }
+.alarm-datetime-row { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-radius:12px; transition:background 0.15s; }
 .alarm-datetime-row:active { background:var(--bg3); }
-.alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:var(--primary-dim,rgba(108,92,231,0.15)); display:flex; align-items:center; justify-content:center; font-size:22px; color:var(--primary); flex-shrink:0; }
-.alarm-datetime-text { flex:1; }
-.alarm-datetime-date { font-size:15px; font-weight:700; color:var(--text); }
-.alarm-datetime-time { font-size:22px; font-weight:800; color:var(--primary); margin-top:2px; }
-.alarm-datetime-arrow { font-size:18px; color:var(--text3); }
+.alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:rgba(108,92,231,0.18); display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--primary); flex-shrink:0; border:none; cursor:pointer; }
+.alarm-datetime-text { flex:1; display:flex; align-items:center; gap:8px; }
+.alarm-datetime-date { font-size:15px; font-weight:600; color:var(--text); }
+.alarm-datetime-sep { font-size:15px; font-weight:600; color:var(--text3); }
+.alarm-datetime-time { font-size:15px; font-weight:700; color:var(--primary); }
 /* ── 날짜/시간 통합 팝업 ── */
 .dt-picker-section { padding:16px; border-bottom:1px solid var(--border); }
 .dt-picker-section-title { font-size:13px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; }
@@ -873,13 +873,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
     <!-- 날짜/시간 통합 선택 (한 줄) -->
     <div class="alarm-section-card">
-      <div class="alarm-datetime-row" onclick="App.openDateTimePicker()">
+      <div class="alarm-section-title">날짜 / 시간 선택</div>
+      <div class="alarm-datetime-row" onclick="App.openDateTimePicker()" style="padding-top:4px;padding-bottom:14px;">
         <div class="alarm-datetime-icon">🕐</div>
         <div class="alarm-datetime-text">
-          <div class="alarm-datetime-date" id="alarm-date-label">날짜 선택</div>
-          <div class="alarm-datetime-time" id="alarm-time-label">오전 09:00</div>
+          <span class="alarm-datetime-date" id="alarm-date-label">날짜 선택</span>
+          <span class="alarm-datetime-sep">·</span>
+          <span class="alarm-datetime-time" id="alarm-time-label">오전 09:00</span>
         </div>
-        <div class="alarm-datetime-arrow"><i class="fas fa-chevron-right"></i></div>
       </div>
     </div>
 
@@ -928,14 +929,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           <!-- 시 -->
           <div class="dt-time-col">
             <button class="dt-time-spin" onclick="App._dtChangeHour(1)"><i class="fas fa-chevron-up"></i></button>
-            <div class="dt-time-val" id="dt-hour">09</div>
+            <div class="dt-time-val" id="dt-hour" onclick="App._dtInputHour()" style="cursor:pointer;" title="클릭하여 직접 입력">09</div>
             <button class="dt-time-spin" onclick="App._dtChangeHour(-1)"><i class="fas fa-chevron-down"></i></button>
           </div>
           <div style="font-size:26px;font-weight:700;color:var(--text2);padding-bottom:6px;">:</div>
           <!-- 분 -->
           <div class="dt-time-col">
             <button class="dt-time-spin" onclick="App._dtChangeMin(5)"><i class="fas fa-chevron-up"></i></button>
-            <div class="dt-time-val" id="dt-min">00</div>
+            <div class="dt-time-val" id="dt-min" onclick="App._dtInputMin()" style="cursor:pointer;" title="클릭하여 직접 입력">00</div>
             <button class="dt-time-spin" onclick="App._dtChangeMin(-5)"><i class="fas fa-chevron-down"></i></button>
           </div>
         </div>
