@@ -798,9 +798,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           <i class="fab fa-youtube"></i>
         </button>
         <div style="flex:1;position:relative;display:flex;align-items:center;">
-          <input id="alarm-youtube-url" type="url"
+          <input id="alarm-youtube-url" type="text"
             placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
-            class="form-input" style="margin:0;width:100%;padding-right:36px;"
+            class="form-input" style="margin:0;width:100%;padding-right:36px;
+            direction:rtl;text-align:left;unicode-bidi:plaintext;"
             oninput="App._onYoutubeUrlInput()">
           <button id="alarm-youtube-clear" onclick="App._clearYoutubeUrl()"
             style="display:none;position:absolute;right:8px;width:22px;height:22px;border:none;
@@ -810,14 +811,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         </div>
       </div>
 
-      <!-- 파일 행 -->
+      <!-- 파일 행: label로 감싸서 직접 클릭 연결 -->
       <div style="display:flex;align-items:center;gap:10px;">
-        <button onclick="App.selectMsgSrc('file')" title="파일 선택"
+        <label for="alarm-attach-file" onclick="App._clearYoutubeUrl()"
           style="flex-shrink:0;width:44px;height:44px;border:none;border-radius:12px;
                  background:#2196F3;color:#fff;font-size:20px;cursor:pointer;
                  display:flex;align-items:center;justify-content:center;">
           <i class="fas fa-folder-open"></i>
-        </button>
+        </label>
         <div id="alarm-file-display"
           style="flex:1;height:44px;border-radius:10px;background:var(--card2);
                  border:1px solid var(--border);display:flex;align-items:center;

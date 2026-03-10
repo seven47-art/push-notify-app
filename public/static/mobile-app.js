@@ -1182,10 +1182,8 @@ const App = {
     }
 
     if (src === 'file') {
-      // YouTube URL 초기화
+      // label for="alarm-attach-file" 로 직접 연결되므로 별도 처리 불필요
       App._clearYoutubeUrl()
-      // 파일 선택창 바로 열기
-      document.getElementById('alarm-attach-file')?.click()
     }
   },
 
