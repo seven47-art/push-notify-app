@@ -789,7 +789,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="alarm-section-card">
       <div class="alarm-section-title">메시지 소스</div>
       <div class="msg-type-row">
-        <div class="msg-type-btn selected" id="src-youtube"  onclick="App.selectMsgSrc('youtube')">
+        <div class="msg-type-btn" id="src-youtube"  onclick="App.selectMsgSrc('youtube')">
           <div class="msg-type-icon" style="background:#FF0000;"><i class="fab fa-youtube" style="color:#fff;"></i></div>
           <span class="msg-type-label">YouTube</span>
         </div>
@@ -806,7 +806,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <div class="msg-input-area" id="alarm-input-area">
 
         <!-- YouTube: URL 입력 -->
-        <div id="alarm-area-youtube" style="display:block;">
+        <div id="alarm-area-youtube" style="display:none;">
           <input id="alarm-youtube-url" type="url"
             placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
             class="form-input" style="margin:0;">

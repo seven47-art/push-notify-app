@@ -217,7 +217,7 @@ let selectedImg   = null       // base64 data URL
 let currentInviteCode = ''
 let currentAlarmChId  = null
 let editChannelId     = null
-let alarmMsgSrc  = 'youtube'  // 'youtube'|'audio'|'video'|'file'
+let alarmMsgSrc  = ''  // 'youtube'|'audio'|'video'|'file'
 let alarmDate    = null        // Date 객체
 let alarmHour    = 9
 let alarmMin     = 0
@@ -1054,10 +1054,18 @@ const App = {
     alarmMin  = Math.ceil(now.getMinutes() / 5) * 5
     if (alarmMin >= 60) { alarmMin = 0; alarmHour = (alarmHour + 1) % 24 }
 
-    // 소스 기본값 초기화 (youtube로 리셋)
-    alarmMsgSrc = 'youtube'
+    // 소스 기본값 초기화 (미선택)
+    alarmMsgSrc = ''
     window._selectedAlarmFile = null
-    this.selectMsgSrc('youtube')
+    // 모든 버튼 선택 해제
+    ;['youtube','audio','video'].forEach(s => {
+      document.getElementById('src-' + s)?.classList.remove('selected')
+    })
+    // 모든 영역 숨김
+    ;['youtube','audio','video','file'].forEach(s => {
+      const area = document.getElementById('alarm-area-' + s)
+      if (area) area.style.display = 'none'
+    })
 
     // 입력 초기화
     const ytUrl = document.getElementById('alarm-youtube-url')
@@ -1163,7 +1171,7 @@ const App = {
     alarmMsgSrc = src
     window._selectedAlarmFile = null  // 소스 변경 시 파일 초기화
 
-    // YouTube 버튼 클릭 시 유튜브 앱(없으면 웹) 열기
+    // YouTube 버튼 직접 클릭 시에만 유튜브 앱(없으면 웹) 열기
     if (src === 'youtube') {
       const youtubeUrl = 'https://www.youtube.com'
       if (window.FlutterBridge) {
