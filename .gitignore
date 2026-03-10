@@ -17,7 +17,7 @@ key.properties
 
 # OS
 .DS_Store
-.github/workflows/
+# .github/workflows/
 
 # Node.js
 node_modules/
