@@ -303,6 +303,24 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .time-spin:active { background:var(--bg3); }
 .time-val { font-size:32px; font-weight:700; min-width:56px; text-align:center; background:var(--bg3); border-radius:10px; padding:10px 4px; }
 .time-sep { font-size:28px; font-weight:700; color:var(--text2); padding-bottom:8px; }
+/* ── 날짜/시간 통합 행 ── */
+.alarm-datetime-row { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; }
+.alarm-datetime-row:active { background:var(--bg3); }
+.alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:var(--primary-dim,rgba(108,92,231,0.15)); display:flex; align-items:center; justify-content:center; font-size:22px; color:var(--primary); flex-shrink:0; }
+.alarm-datetime-text { flex:1; }
+.alarm-datetime-date { font-size:15px; font-weight:700; color:var(--text); }
+.alarm-datetime-time { font-size:22px; font-weight:800; color:var(--primary); margin-top:2px; }
+.alarm-datetime-arrow { font-size:18px; color:var(--text3); }
+/* ── 날짜/시간 통합 팝업 ── */
+.dt-picker-section { padding:16px; border-bottom:1px solid var(--border); }
+.dt-picker-section-title { font-size:13px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; }
+.dt-time-row { display:flex; align-items:center; justify-content:center; gap:8px; }
+.dt-ampm-btn { padding:10px 16px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text2); font-size:15px; font-weight:600; cursor:pointer; }
+.dt-ampm-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.dt-time-col { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.dt-time-spin { background:none; border:none; color:var(--text2); font-size:20px; cursor:pointer; padding:4px 12px; border-radius:8px; }
+.dt-time-spin:active { background:var(--bg3); }
+.dt-time-val { font-size:30px; font-weight:700; min-width:52px; text-align:center; background:var(--bg3); border-radius:10px; padding:8px 4px; color:var(--text); }
 /* ── 알람 하단 버튼 ── */
 .alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
 .btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:17px; font-weight:700; padding:16px; border:none; border-radius:14px; cursor:pointer; }
@@ -853,67 +871,80 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
     </div>
 
-    <!-- 날짜 선택 (클릭 시 달력 팝업) -->
+    <!-- 날짜/시간 통합 선택 (한 줄) -->
     <div class="alarm-section-card">
-      <div class="alarm-section-title">날짜 선택</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0;">
-        <button class="cal-nav-btn" onclick="App.dateMove(-1)"><i class="fas fa-chevron-left"></i></button>
-        <div id="alarm-date-label" onclick="App.openDatePicker()"
-          style="font-size:18px;font-weight:700;color:var(--text);min-width:160px;text-align:center;
-                 cursor:pointer;padding:6px 12px;border-radius:10px;
-                 background:var(--card2);border:1px solid var(--border);
-                 transition:background 0.15s;">
+      <div class="alarm-datetime-row" onclick="App.openDateTimePicker()">
+        <div class="alarm-datetime-icon">🕐</div>
+        <div class="alarm-datetime-text">
+          <div class="alarm-datetime-date" id="alarm-date-label">날짜 선택</div>
+          <div class="alarm-datetime-time" id="alarm-time-label">오전 09:00</div>
         </div>
-        <button class="cal-nav-btn" onclick="App.dateMove(1)"><i class="fas fa-chevron-right"></i></button>
-      </div>
-    </div>
-
-    <!-- 시간 선택 (직접 입력 가능) -->
-    <div class="alarm-section-card">
-      <div class="alarm-section-title">시간 선택 <span style="font-size:11px;color:var(--text3);font-weight:400;">(숫자 클릭 시 직접 입력)</span></div>
-      <div class="time-picker">
-        <div class="time-col">
-          <button class="time-spin" onclick="App.changeHour(1)"><i class="fas fa-chevron-up"></i></button>
-          <div class="time-val" id="time-hour" onclick="App.inputTime('hour')" style="cursor:pointer;">09</div>
-          <button class="time-spin" onclick="App.changeHour(-1)"><i class="fas fa-chevron-down"></i></button>
-        </div>
-        <div class="time-sep">:</div>
-        <div class="time-col">
-          <button class="time-spin" onclick="App.changeMin(5)"><i class="fas fa-chevron-up"></i></button>
-          <div class="time-val" id="time-min" onclick="App.inputTime('min')" style="cursor:pointer;">00</div>
-          <button class="time-spin" onclick="App.changeMin(-5)"><i class="fas fa-chevron-down"></i></button>
-        </div>
+        <div class="alarm-datetime-arrow"><i class="fas fa-chevron-right"></i></div>
       </div>
     </div>
 
   </div><!-- /스크롤 -->
 
-  <!-- 달력 팝업 (modal-alarm 내부, 절대위치) -->
+  <!-- 날짜/시간 통합 팝업 (modal-alarm 내부, 절대위치) -->
   <div id="modal-date-picker"
     style="display:none;position:absolute;inset:0;z-index:100;
-           background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
-    <div style="background:var(--card);border-radius:20px;padding:20px;width:310px;max-width:90vw;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <button onclick="App._calMove(-1)"
-          style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 12px;">‹</button>
-        <span id="cal-month-label" style="font-size:16px;font-weight:700;color:var(--text);"></span>
-        <button onclick="App._calMove(1)"
-          style="background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 12px;">›</button>
+           background:rgba(0,0,0,0.75);align-items:center;justify-content:center;overflow-y:auto;">
+    <div style="background:var(--bg);border-radius:20px;width:320px;max-width:92vw;max-height:90vh;overflow-y:auto;margin:auto;">
+      <!-- 팝업 헤더 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;border-bottom:1px solid var(--border);">
+        <span style="font-size:17px;font-weight:700;color:var(--text);">날짜 / 시간 선택</span>
+        <button onclick="App.closeDateTimePicker()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1;">×</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;">
-        <div style="font-size:12px;font-weight:600;color:#FF6B6B;">일</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text3);">월</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text3);">화</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text3);">수</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text3);">목</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text3);">금</div>
-        <div style="font-size:12px;font-weight:600;color:#6B9FFF;">토</div>
+
+      <!-- 달력 섹션 -->
+      <div class="dt-picker-section">
+        <div class="dt-picker-section-title">날짜</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <button onclick="App._calMove(-1)" class="cal-nav-btn"><i class="fas fa-chevron-left"></i></button>
+          <span id="cal-month-label" style="font-size:15px;font-weight:700;color:var(--text);"></span>
+          <button onclick="App._calMove(1)" class="cal-nav-btn"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:4px;">
+          <div style="font-size:11px;font-weight:600;color:#FF6B6B;padding:4px 0;">일</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);padding:4px 0;">월</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);padding:4px 0;">화</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);padding:4px 0;">수</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);padding:4px 0;">목</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);padding:4px 0;">금</div>
+          <div style="font-size:11px;font-weight:600;color:#6B9FFF;padding:4px 0;">토</div>
+        </div>
+        <div id="cal-days-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
       </div>
-      <div id="cal-days-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
-      <div style="margin-top:16px;">
-        <button onclick="App.closeDatePicker()"
-          style="width:100%;padding:12px;border:none;border-radius:12px;
-                 background:var(--card2);color:var(--text);font-size:15px;cursor:pointer;">취소</button>
+
+      <!-- 시간 섹션 -->
+      <div class="dt-picker-section">
+        <div class="dt-picker-section-title">시간</div>
+        <div class="dt-time-row">
+          <!-- 오전/오후 -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button id="dt-btn-am" class="dt-ampm-btn active" onclick="App._setAmPm('am')">오전</button>
+            <button id="dt-btn-pm" class="dt-ampm-btn" onclick="App._setAmPm('pm')">오후</button>
+          </div>
+          <!-- 시 -->
+          <div class="dt-time-col">
+            <button class="dt-time-spin" onclick="App._dtChangeHour(1)"><i class="fas fa-chevron-up"></i></button>
+            <div class="dt-time-val" id="dt-hour">09</div>
+            <button class="dt-time-spin" onclick="App._dtChangeHour(-1)"><i class="fas fa-chevron-down"></i></button>
+          </div>
+          <div style="font-size:26px;font-weight:700;color:var(--text2);padding-bottom:6px;">:</div>
+          <!-- 분 -->
+          <div class="dt-time-col">
+            <button class="dt-time-spin" onclick="App._dtChangeMin(5)"><i class="fas fa-chevron-up"></i></button>
+            <div class="dt-time-val" id="dt-min">00</div>
+            <button class="dt-time-spin" onclick="App._dtChangeMin(-5)"><i class="fas fa-chevron-down"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 확인/취소 버튼 -->
+      <div style="display:flex;gap:10px;padding:16px;">
+        <button onclick="App.closeDateTimePicker()" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--bg3);color:var(--text2);font-size:15px;font-weight:600;cursor:pointer;">취소</button>
+        <button onclick="App.confirmDateTime()" style="flex:2;padding:13px;border:none;border-radius:12px;background:var(--primary);color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>
       </div>
     </div>
   </div>

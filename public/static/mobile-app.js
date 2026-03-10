@@ -1045,14 +1045,21 @@ const App = {
     const titleEl = document.getElementById('alarm-modal-title')
     if (titleEl) titleEl.textContent = name + ' · 알람 설정'
 
-    // 기본값 설정: 현재 시각 + 10분
+    // 기본값 설정: 현재 시각 + 10분 (5분 단위 반올림)
     const now = new Date()
-    alarmDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const init = new Date(now.getTime() + 10 * 60 * 1000)  // 10분 뒤
+    // 5분 단위로 올림
+    const roundedMin = Math.ceil(init.getMinutes() / 5) * 5
+    if (roundedMin >= 60) {
+      init.setMinutes(0); init.setHours(init.getHours() + 1)
+    } else {
+      init.setMinutes(roundedMin)
+    }
+    alarmDate = new Date(init.getFullYear(), init.getMonth(), init.getDate())
     calYear   = alarmDate.getFullYear()
     calMonth  = alarmDate.getMonth()
-    alarmHour = now.getHours()
-    alarmMin  = Math.ceil(now.getMinutes() / 5) * 5
-    if (alarmMin >= 60) { alarmMin = 0; alarmHour = (alarmHour + 1) % 24 }
+    alarmHour = init.getHours()
+    alarmMin  = init.getMinutes()
 
     // 소스 기본값 초기화 (미선택)
     alarmMsgSrc = ''
@@ -1077,7 +1084,7 @@ const App = {
     })
 
     this._renderDateLabel()
-    this._renderTime()
+    this._renderTimeLabel()
     this.openModal('modal-alarm')
 
     // 기존 알람 목록 로드
@@ -1336,29 +1343,73 @@ const App = {
   },
 
   // ── 날짜 피커 (화살표 방식) ──────────────
-  dateMove(delta) {
-    const d = new Date(alarmDate)
-    d.setDate(d.getDate() + delta)
-    const today = new Date(); today.setHours(0,0,0,0)
-    if (d < today) { toast('오늘 이후 날짜를 선택하세요'); return }
-    alarmDate = d
-    this._renderDateLabel()
-  },
-
-  // ── 달력 팝업 ──────────────────────────────
-  openDatePicker() {
+  // ── 날짜/시간 통합 팝업 ──────────────────────────────
+  openDateTimePicker() {
     const modal = document.getElementById('modal-date-picker')
     if (!modal) return
-    // 현재 alarmDate 기준으로 달력 표시
+    // 현재 alarmDate/Hour/Min 기준으로 달력 및 시간 표시
     calYear  = alarmDate.getFullYear()
     calMonth = alarmDate.getMonth()
     this._renderCalGrid()
+    this._renderDtTimePicker()
     modal.style.display = 'flex'
   },
 
-  closeDatePicker() {
+  closeDateTimePicker() {
     const modal = document.getElementById('modal-date-picker')
     if (modal) modal.style.display = 'none'
+  },
+
+  // 확인 버튼 클릭 시 날짜/시간 반영
+  confirmDateTime() {
+    this._renderDateLabel()
+    this._renderTimeLabel()
+    this.closeDateTimePicker()
+  },
+
+  // 팝업 내 오전/오후 버튼
+  _setAmPm(ampm) {
+    const amBtn = document.getElementById('dt-btn-am')
+    const pmBtn = document.getElementById('dt-btn-pm')
+    if (amBtn) amBtn.classList.toggle('active', ampm === 'am')
+    if (pmBtn) pmBtn.classList.toggle('active', ampm === 'pm')
+    // 24시간 기준으로 변환
+    const h12 = alarmHour % 12   // 12시간 기준 시
+    if (ampm === 'am') {
+      alarmHour = h12  // 오전: 0~11
+    } else {
+      alarmHour = h12 === 0 ? 12 : h12 + 12  // 오후: 12~23
+    }
+    this._renderDtTimePicker()
+  },
+
+  // 팝업 내 시 변경
+  _dtChangeHour(delta) {
+    const isAm = alarmHour < 12
+    const h12 = alarmHour % 12
+    let newH12 = ((h12 + delta - 1 + 12) % 12) + 1  // 1~12 범위 순환
+    alarmHour = isAm ? (newH12 === 12 ? 0 : newH12) : (newH12 === 12 ? 12 : newH12 + 12)
+    this._renderDtTimePicker()
+  },
+
+  // 팝업 내 분 변경
+  _dtChangeMin(delta) {
+    alarmMin = (alarmMin + delta + 60) % 60
+    this._renderDtTimePicker()
+  },
+
+  // 팝업 내 시간 UI 업데이트
+  _renderDtTimePicker() {
+    const isAm = alarmHour < 12
+    const h12  = alarmHour % 12 === 0 ? 12 : alarmHour % 12
+    const amBtn = document.getElementById('dt-btn-am')
+    const pmBtn = document.getElementById('dt-btn-pm')
+    const hEl   = document.getElementById('dt-hour')
+    const mEl   = document.getElementById('dt-min')
+    if (amBtn) amBtn.classList.toggle('active', isAm)
+    if (pmBtn) pmBtn.classList.toggle('active', !isAm)
+    if (hEl)   hEl.textContent  = String(h12).padStart(2, '0')
+    if (mEl)   mEl.textContent  = String(alarmMin).padStart(2, '0')
   },
 
   _calMove(delta) {
@@ -1419,9 +1470,9 @@ const App = {
     alarmDate = new Date(y, m, d)
     calYear   = y
     calMonth  = m
-    this._renderDateLabel()
-    this.closeDatePicker()
+    this._renderCalGrid()   // 선택 표시 갱신 (팝업 유지)
   },
+
   _renderDateLabel() {
     const el = document.getElementById('alarm-date-label')
     if (!el) return
@@ -1436,42 +1487,42 @@ const App = {
     else label = dayNames[d.getDay()]
     el.textContent = `${alarmDate.getMonth()+1}월 ${alarmDate.getDate()}일 (${label})`
   },
+
+  _renderTimeLabel() {
+    const el = document.getElementById('alarm-time-label')
+    if (!el) return
+    const isAm = alarmHour < 12
+    const h12  = alarmHour % 12 === 0 ? 12 : alarmHour % 12
+    const ampm = isAm ? '오전' : '오후'
+    el.textContent = `${ampm} ${String(h12).padStart(2,'0')}:${String(alarmMin).padStart(2,'0')}`
+  },
+
   // 구 달력 함수 (호환성 유지)
-  calMove(delta) { this.dateMove(delta) },
+  dateMove(delta) {
+    const d = new Date(alarmDate)
+    d.setDate(d.getDate() + delta)
+    const today = new Date(); today.setHours(0,0,0,0)
+    if (d < today) { toast('오늘 이후 날짜를 선택하세요'); return }
+    alarmDate = d
+    this._renderDateLabel()
+  },
+  openDatePicker() { this.openDateTimePicker() },
+  closeDatePicker() { this.closeDateTimePicker() },
+  calMove(delta) { this._calMove(delta) },
   _renderCal() { this._renderDateLabel() },
   selectDate(y, m, d) {
     alarmDate = new Date(y, m, d)
     this._renderDateLabel()
   },
-
-  // ── 시간 피커 ─────────────────────────
   changeHour(delta) {
     alarmHour = (alarmHour + delta + 24) % 24
-    this._renderTime()
+    this._renderTimeLabel()
   },
   changeMin(delta) {
     alarmMin = (alarmMin + delta + 60) % 60
-    this._renderTime()
+    this._renderTimeLabel()
   },
-  // 시간 직접 입력
-  inputTime(type) {
-    const isHour = type === 'hour'
-    const cur = isHour ? alarmHour : alarmMin
-    const max = isHour ? 23 : 59
-    const label = isHour ? '시 (0~23)' : '분 (0~59)'
-    const val = prompt(`${label}\n현재: ${String(cur).padStart(2,'0')}`, String(cur))
-    if (val === null) return
-    const n = parseInt(val, 10)
-    if (isNaN(n) || n < 0 || n > max) { toast(`0~${max} 사이 숫자를 입력하세요`); return }
-    if (isHour) alarmHour = n; else alarmMin = n
-    this._renderTime()
-  },
-  _renderTime() {
-    const h = document.getElementById('time-hour')
-    const m = document.getElementById('time-min')
-    if (h) h.textContent = String(alarmHour).padStart(2, '0')
-    if (m) m.textContent = String(alarmMin).padStart(2, '0')
-  },
+  _renderTime() { this._renderTimeLabel() },
 
   // ── 알람 저장 ─────────────────────────
   async saveAlarmSetting() {
