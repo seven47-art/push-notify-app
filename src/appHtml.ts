@@ -52,7 +52,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .back-btn { background:none; border:none; color:var(--text2); font-size:18px; cursor:pointer; padding:4px 8px 4px 0; display:flex; align-items:center; }
 
 /* ── 채널 타일 (운영) ── */
-.channel-list-wrap { margin:0 14px; background:var(--bg); border-radius:12px; border:1px solid var(--border); overflow:hidden; }
+.channel-list-wrap { margin:0 14px; background:var(--bg); border-radius:12px; border:none; overflow:hidden; }
 .channel-tile { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--border); }
 .channel-tile:last-child { border-bottom:none; }
 .channel-tile .info { flex:1; min-width:0; }
@@ -69,7 +69,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .btn-setting{ background:rgba(112,112,128,0.2); color:var(--text2); }
 
 /* ── 가입 채널 타일 ── */
-.joined-list-wrap { margin:0 14px; background:var(--bg); border-radius:12px; border:1px solid var(--border); overflow:hidden; }
+.joined-list-wrap { margin:0 14px; background:var(--bg); border-radius:12px; border:none; overflow:hidden; }
 .joined-tile { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
 .joined-tile:last-child { border-bottom:none; }
 .joined-tile:active { background:var(--bg3); }
@@ -81,7 +81,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .avatar img { width:100%; height:100%; object-fit:cover; }
 
 /* ── 더보기 버튼 ── */
-.more-btn { display:flex; align-items:center; justify-content:center; gap:6px; margin:6px 14px 2px; padding:10px; background:var(--bg); border:1px dashed var(--border); border-radius:10px; color:var(--text3); font-size:13px; cursor:pointer; }
+.more-btn { display:flex; align-items:center; justify-content:center; gap:6px; margin:6px 14px 2px; padding:10px; background:var(--bg); border:none; border-radius:10px; color:var(--text3); font-size:13px; cursor:pointer; }
 .more-btn:active { background:var(--bg3); }
 
 /* ── 채널 검색창 ── */
@@ -94,7 +94,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-search-clear:active { background:var(--bg3); }
 
 /* ── 채널 리스트 아이템 (전체채널) ── */
-.ch-all-list-wrap { margin:4px 14px; background:var(--bg); border-radius:12px; border:1px solid var(--border); overflow:hidden; }
+.ch-all-list-wrap { margin:4px 14px; background:var(--bg); border-radius:12px; border:none; overflow:hidden; }
 .ch-all-tile { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
 .ch-all-tile:last-child { border-bottom:none; }
 .ch-all-tile:active { background:var(--bg3); }
@@ -1035,6 +1035,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101410"></script>
+<script src="/static/mobile-app.js?v=202603101420"></script>
 </body>
 </html>`;
