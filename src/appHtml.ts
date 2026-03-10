@@ -52,7 +52,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .back-btn { background:none; border:none; color:var(--text2); font-size:18px; cursor:pointer; padding:4px 8px 4px 0; display:flex; align-items:center; }
 
 /* ── 채널 타일 (운영) ── */
-.channel-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); }
+.channel-tile { display:flex; align-items:center; gap:12px; background:var(--bg2); margin:0 14px; padding:10px 12px; border-bottom:1px solid var(--border); }
+.channel-tile:first-child { border-radius:12px 12px 0 0; }
+.channel-tile:last-child { border-radius:0 0 12px 12px; border-bottom:none; }
+.channel-tile:only-child { border-radius:12px; border-bottom:none; }
 .channel-tile .info { flex:1; min-width:0; }
 .channel-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .channel-tile .ch-sub { font-size:11px; color:var(--text3); margin-top:2px; }
@@ -67,7 +70,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .btn-setting{ background:rgba(112,112,128,0.2); color:var(--text2); }
 
 /* ── 가입 채널 타일 ── */
-.joined-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); cursor:pointer; }
+.joined-tile { display:flex; align-items:center; gap:12px; background:var(--bg2); margin:0 14px; padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
+.joined-tile:first-child { border-radius:12px 12px 0 0; }
+.joined-tile:last-child { border-radius:0 0 12px 12px; border-bottom:none; }
+.joined-tile:only-child { border-radius:12px; border-bottom:none; }
 .joined-tile:active { background:var(--bg3); }
 .joined-tile .info { flex:1; min-width:0; }
 .joined-tile .chevron { color:var(--text3); font-size:13px; }
@@ -90,7 +96,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-search-clear:active { background:var(--bg3); }
 
 /* ── 채널 리스트 아이템 (전체채널) ── */
-.ch-all-tile { display:flex; align-items:center; gap:10px; background:var(--bg2); margin:3px 14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
+.ch-all-tile { display:flex; align-items:center; gap:12px; background:var(--bg2); margin:0 14px; padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
+.ch-all-tile:first-child { border-radius:12px 12px 0 0; }
+.ch-all-tile:last-child { border-radius:0 0 12px 12px; border-bottom:none; }
+.ch-all-tile:only-child { border-radius:12px; border-bottom:none; }
 .ch-all-tile:active { background:var(--bg3); }
 .ch-all-tile .info { flex:1; min-width:0; }
 .ch-all-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
