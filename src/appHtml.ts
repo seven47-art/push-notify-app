@@ -41,6 +41,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:none; border:none; color:var(--text3); cursor:pointer; font-size:10px; transition:color 0.15s; padding:4px 0; }
 .nav-btn i { font-size:20px; }
 .nav-btn.active { color:var(--primary); }
+[data-theme="light"] .nav-btn { color:#BBBBBB; }
+[data-theme="light"] .nav-btn.active { color:#333333; }
 
 /* ── 화면 ── */
 #screen-wrap { flex:1; overflow:hidden; position:relative; }
@@ -626,8 +628,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <button class="nav-btn active" id="nav-home" onclick="App.goto('home')">
     <i class="fas fa-home"></i><span>홈</span>
   </button>
-  <button class="nav-btn" id="nav-channel" onclick="App.goto('channel')">
-    <i class="fas fa-layer-group"></i><span>채널</span>
+  <button class="nav-btn" id="nav-owned-all" onclick="App.goto('owned-all')">
+    <i class="fas fa-satellite-dish"></i><span>내 채널</span>
+  </button>
+  <button class="nav-btn" id="nav-joined-all" onclick="App.goto('joined-all')">
+    <i class="fas fa-list"></i><span>구독 채널</span>
   </button>
   <button class="nav-btn" id="nav-inbox" onclick="App.goto('inbox')">
     <i class="fas fa-inbox"></i><span>수신함</span>
@@ -1037,6 +1042,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101440"></script>
+<script src="/static/mobile-app.js?v=202603101450"></script>
 </body>
 </html>`;
