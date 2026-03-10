@@ -18,7 +18,7 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
   --appbar-bg: #000000;
 }
 [data-theme="light"] {
-  --bg: #F2F2F7; --bg2: #FFFFFF; --bg3: #E5E5EA;
+  --bg: #FFFFFF; --bg2: #FFFFFF; --bg3: #F2F2F7;
   --primary: #6C63FF; --primary-dim: rgba(108,99,255,0.12);
   --teal: #26D0CE; --text: #1C1C1E; --text2: #3A3A3C;
   --text3: #8E8E93; --border: #D1D1D6;
@@ -1035,6 +1035,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101400"></script>
+<script src="/static/mobile-app.js?v=202603101410"></script>
 </body>
 </html>`;
