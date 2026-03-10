@@ -806,17 +806,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <div class="msg-input-area" id="alarm-input-area">
 
         <!-- URL 입력창: 항상 노출 (YouTube URL 또는 파일명 표시) -->
-        <div style="display:flex;gap:8px;align-items:center;margin:0 0 10px 0;">
-          <input id="alarm-youtube-url" type="url"
-            placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
-            class="form-input" style="margin:0;flex:1;">
-          <button onclick="App.selectMsgSrc('youtube')" title="YouTube 앱 열기"
-            style="flex-shrink:0;width:40px;height:40px;border:none;border-radius:10px;
-                   background:#FF0000;color:#fff;font-size:18px;cursor:pointer;
-                   display:flex;align-items:center;justify-content:center;">
-            <i class="fab fa-youtube"></i>
-          </button>
-        </div>
+        <input id="alarm-youtube-url" type="url"
+          placeholder="YouTube URL 붙여넣기 (https://youtube.com/...)"
+          class="form-input" style="margin:0 0 10px 0;">
 
         <!-- YouTube: 선택 시 추가 영역 없음 -->
         <div id="alarm-area-youtube" style="display:none;"></div>
