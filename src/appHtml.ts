@@ -304,9 +304,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .time-val { font-size:32px; font-weight:700; min-width:56px; text-align:center; background:var(--bg3); border-radius:10px; padding:10px 4px; }
 .time-sep { font-size:28px; font-weight:700; color:var(--text2); padding-bottom:8px; }
 /* ── 날짜/시간 통합 행 ── */
-.alarm-datetime-row { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-radius:12px; transition:background 0.15s; }
+.alarm-datetime-row { display:flex; align-items:center; gap:10px; padding:0 14px 14px; cursor:pointer; border-radius:12px; transition:background 0.15s; }
 .alarm-datetime-row:active { background:var(--bg3); }
-.alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:rgba(108,92,231,0.18); display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--primary); flex-shrink:0; border:none; cursor:pointer; }
+.alarm-datetime-icon { width:44px; height:44px; border-radius:12px; background:#9C27B0; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; flex-shrink:0; border:none; cursor:pointer; }
 .alarm-datetime-text { flex:1; display:flex; align-items:center; gap:8px; }
 .alarm-datetime-date { font-size:15px; font-weight:600; color:var(--text); }
 .alarm-datetime-sep { font-size:15px; font-weight:600; color:var(--text3); }
@@ -874,8 +874,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <!-- 날짜/시간 통합 선택 (한 줄) -->
     <div class="alarm-section-card">
       <div class="alarm-section-title">날짜 / 시간 선택</div>
-      <div class="alarm-datetime-row" onclick="App.openDateTimePicker()" style="padding-top:4px;padding-bottom:14px;">
-        <div class="alarm-datetime-icon">🕐</div>
+      <div class="alarm-datetime-row" onclick="App.openDateTimePicker()">
+        <div class="alarm-datetime-icon"><i class="fas fa-clock"></i></div>
         <div class="alarm-datetime-text">
           <span class="alarm-datetime-date" id="alarm-date-label">날짜 선택</span>
           <span class="alarm-datetime-sep">·</span>
