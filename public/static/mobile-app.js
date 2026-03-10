@@ -322,6 +322,20 @@ const App = {
     return true
   },
 
+  // ── 테마 (다크/라이트 모드) ──────────────────────────
+  applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+    const labelEl  = document.getElementById('theme-label')
+    const toggleEl = document.getElementById('theme-toggle')
+    if (labelEl)  labelEl.textContent = theme === 'dark' ? '다크' : '라이트'
+    if (toggleEl) toggleEl.checked   = theme === 'dark'
+  },
+
+  toggleTheme(isDark) {
+    this.applyTheme(isDark ? 'dark' : 'light')
+  },
+
   // ── 드로어 ───────────────────────────────
   openDrawer()  {
     document.getElementById('drawer-overlay').classList.add('open')
@@ -851,6 +865,13 @@ const App = {
     document.getElementById('settings-user-id').textContent  = Store.getUserId()
     const tok = Store.getFcmToken()
     document.getElementById('settings-fcm-token').textContent = tok.substring(0, 20) + '...'
+
+    // 테마 토글 상태 반영
+    const isDark = (localStorage.getItem('theme') || 'dark') === 'dark'
+    const toggleEl = document.getElementById('theme-toggle')
+    const labelEl  = document.getElementById('theme-label')
+    if (toggleEl) toggleEl.checked = isDark
+    if (labelEl)  labelEl.textContent = isDark ? '다크' : '라이트'
 
     // 계정 정보 표시
     const emailEl = document.getElementById('settings-email')
@@ -2149,6 +2170,10 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  // 저장된 테마 적용 (기본값: dark)
+  const savedTheme = localStorage.getItem('theme') || 'dark'
+  App.applyTheme(savedTheme)
+
   // 드로어 사용자 이메일 표시
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'

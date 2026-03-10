@@ -15,11 +15,20 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
   --teal: #26D0CE; --text: #FFFFFF; --text2: #B0B0C0;
   --text3: #707080; --border: #2E2E42;
   --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
+  --appbar-bg: #000000;
+}
+[data-theme="light"] {
+  --bg: #F2F2F7; --bg2: #FFFFFF; --bg3: #E5E5EA;
+  --primary: #6C63FF; --primary-dim: rgba(108,99,255,0.12);
+  --teal: #26D0CE; --text: #1C1C1E; --text2: #3A3A3C;
+  --text3: #8E8E93; --border: #D1D1D6;
+  --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
+  --appbar-bg: #6C63FF;
 }
 body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto Sans KR',sans-serif; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
 
 /* ── 앱바 ── */
-.appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:#000000; flex-shrink:0; }
+.appbar { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:var(--appbar-bg); flex-shrink:0; transition:background 0.3s; }
 .appbar-left { display:flex; align-items:center; gap:10px; }
 .appbar-icon { border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .appbar-title { font-size:20px; font-weight:700; color:#fff; }
@@ -180,6 +189,15 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .settings-menu-item:active { background:var(--bg3); }
 .settings-menu-item i { width:22px; text-align:center; color:var(--primary); font-size:16px; }
 .settings-menu-item .menu-arrow { margin-left:auto; color:var(--text3); font-size:12px; }
+/* ── 테마 토글 스위치 ── */
+.theme-toggle-wrap { margin-left:auto; display:flex; align-items:center; gap:8px; }
+.theme-toggle-label { font-size:12px; color:var(--text3); }
+.toggle-switch { position:relative; width:48px; height:26px; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:var(--bg3); border-radius:13px; cursor:pointer; transition:background 0.3s; border:1px solid var(--border); }
+.toggle-slider:before { content:''; position:absolute; width:20px; height:20px; left:2px; top:2px; background:#fff; border-radius:50%; transition:transform 0.3s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+.toggle-switch input:checked + .toggle-slider { background:var(--primary); border-color:var(--primary); }
+.toggle-switch input:checked + .toggle-slider:before { transform:translateX(22px); }
 .settings-info-card { margin:12px 14px; background:var(--bg2); border-radius:12px; border:1px solid var(--border); overflow:hidden; }
 .settings-info-row { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); }
 .settings-info-row:last-child { border-bottom:none; }
@@ -575,6 +593,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <span class="section-title">설정</span>
     </div>
     <div class="settings-menu-label">메뉴</div>
+    <!-- 다크/라이트 모드 토글 -->
+    <div class="settings-menu-item" style="cursor:default;">
+      <i class="fas fa-moon"></i> 다크 모드
+      <div class="theme-toggle-wrap">
+        <span class="theme-toggle-label" id="theme-label">다크</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="theme-toggle" onchange="App.toggleTheme(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
     <div class="settings-menu-item" onclick="App.goto('home')">
       <i class="fas fa-satellite-dish"></i> 나의 운영 채널
       <i class="fas fa-chevron-right menu-arrow"></i>
