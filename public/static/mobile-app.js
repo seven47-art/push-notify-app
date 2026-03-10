@@ -301,7 +301,7 @@ const App = {
       this.outboxBack(); return false
     }
     // 3. 모달이 열려있으면 닫기
-    const openModal = document.querySelector('.fullscreen-overlay.active')
+    const openModal = document.querySelector('.fullscreen-overlay.active, .modal-overlay.active')
     if (openModal) {
       openModal.classList.remove('active'); return false
     }
