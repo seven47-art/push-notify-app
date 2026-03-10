@@ -458,16 +458,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
   <!-- 홈 화면 -->
   <div class="screen active" id="screen-home">
-    <!-- 사용자 환영 카드 -->
-    <div style="margin:12px 14px 4px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:10px;">
-      <div style="width:38px;height:38px;border-radius:10px;background:var(--primary-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="fas fa-user" style="color:var(--primary);font-size:16px;"></i>
-      </div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;color:var(--text3);">안녕하세요 👋</div>
-        <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="home-username">-</div>
-      </div>
-    </div>
     <!-- 나의 운영채널 -->
     <div class="section-header" style="margin-top:8px;">
       <span class="section-title">나의 운영채널</span>
