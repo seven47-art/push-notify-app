@@ -23,7 +23,7 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
   --teal: #26D0CE; --text: #1C1C1E; --text2: #3A3A3C;
   --text3: #8E8E93; --border: #D1D1D6;
   --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
-  --appbar-bg: #6C63FF;
+  --appbar-bg: #FFFFFF;
 }
 body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto Sans KR',sans-serif; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
 
@@ -33,6 +33,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .appbar-icon { border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .appbar-title { font-size:20px; font-weight:700; color:#fff; }
 .appbar-menu { background:none; border:none; color:#fff; font-size:22px; cursor:pointer; padding:6px; }
+[data-theme="light"] .appbar-menu { color:#000000; }
+[data-theme="light"] .appbar-back { color:#000000; }
 
 /* ── 하단 네비 ── */
 .bottom-nav { height:var(--nav-h); display:flex; background:var(--bg2); border-top:1px solid var(--border); flex-shrink:0; }
@@ -443,7 +445,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 앱바 ══ -->
 <div class="appbar" id="appbar" style="display:none;">
   <div class="appbar-left">
-    <img src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;">
+    <img id="appbar-logo" src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;">
   </div>
   <div style="display:flex;align-items:center;gap:2px;">
     <button class="appbar-menu" onclick="App.goto('channel')" title="채널 검색">
@@ -1035,6 +1037,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101420"></script>
+<script src="/static/mobile-app.js?v=202603101430"></script>
 </body>
 </html>`;

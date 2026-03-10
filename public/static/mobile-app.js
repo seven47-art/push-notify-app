@@ -330,6 +330,8 @@ const App = {
     const toggleEl = document.getElementById('theme-toggle')
     if (labelEl)  labelEl.textContent = theme === 'dark' ? '다크' : '라이트'
     if (toggleEl) toggleEl.checked   = theme === 'dark'
+    const logoEl = document.getElementById('appbar-logo')
+    if (logoEl) logoEl.src = theme === 'light' ? '/static/ringo-logo-dark.png' : '/static/ringo-logo.png'
   },
 
   toggleTheme(isDark) {
