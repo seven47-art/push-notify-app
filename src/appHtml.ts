@@ -421,10 +421,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="appbar-left">
     <img src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;">
   </div>
-  <button class="appbar-menu" onclick="App.openDrawer()" style="position:relative;">
-    <i class="fas fa-bars"></i>
-    <span id="appbar-notice-badge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:#EF4444;border-radius:50%;pointer-events:none;"></span>
-  </button>
+  <div style="display:flex;align-items:center;gap:2px;">
+    <button class="appbar-menu" onclick="App.goto('channel')" title="채널 검색">
+      <i class="fas fa-search"></i>
+    </button>
+    <button class="appbar-menu" onclick="App.goto('settings')" title="설정">
+      <i class="fas fa-cog"></i>
+    </button>
+    <button class="appbar-menu" onclick="App.openDrawer()" style="position:relative;">
+      <i class="fas fa-bars"></i>
+      <span id="appbar-notice-badge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:#EF4444;border-radius:50%;pointer-events:none;"></span>
+    </button>
+  </div>
 </div>
 
 <!-- ══ 화면 영역 ══ -->
