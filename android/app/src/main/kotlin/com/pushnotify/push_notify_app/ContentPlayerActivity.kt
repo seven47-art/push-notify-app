@@ -2,6 +2,7 @@ package com.pushnotify.push_notify_app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
@@ -184,6 +185,59 @@ class ContentPlayerActivity : Activity() {
                             customViewCallback?.onCustomViewHidden()
                             customViewCallback = null
                             webView?.visibility = View.VISIBLE
+                        }
+
+                        // window.prompt() 를 커스텀 다이얼로그로 교체 (URL 노출 방지)
+                        override fun onJsPrompt(
+                            view: WebView?,
+                            url: String?,
+                            message: String?,
+                            defaultValue: String?,
+                            result: JsPromptResult?
+                        ): Boolean {
+                            val ctx = this@ContentPlayerActivity
+                            val input = EditText(ctx).apply {
+                                inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                                        android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                                hint = "비밀번호를 입력하세요"
+                                setTextColor(Color.WHITE)
+                                setHintTextColor(Color.parseColor("#64748B"))
+                                background = GradientDrawable().apply {
+                                    setColor(Color.parseColor("#1E293B"))
+                                    cornerRadius = dp(10).toFloat()
+                                    setStroke(dp(1), Color.parseColor("#334155"))
+                                }
+                                setPadding(dp(14), dp(12), dp(14), dp(12))
+                            }
+                            val container = LinearLayout(ctx).apply {
+                                orientation = LinearLayout.VERTICAL
+                                setPadding(dp(20), dp(8), dp(20), dp(4))
+                                addView(input)
+                            }
+                            AlertDialog.Builder(ctx)
+                                .setTitle("🔒 비밀번호 확인")
+                                .setMessage(message ?: "비밀번호를 입력하세요")
+                                .setView(container)
+                                .setPositiveButton("확인") { _, _ ->
+                                    result?.confirm(input.text.toString())
+                                }
+                                .setNegativeButton("취소") { _, _ ->
+                                    result?.cancel()
+                                }
+                                .setOnCancelListener {
+                                    result?.cancel()
+                                }
+                                .show()
+                                .apply {
+                                    // 다이얼로그 배경 다크 테마
+                                    window?.setBackgroundDrawable(
+                                        GradientDrawable().apply {
+                                            setColor(Color.parseColor("#1E293B"))
+                                            cornerRadius = dp(16).toFloat()
+                                        }
+                                    )
+                                }
+                            return true
                         }
                     }
                     webViewClient = object : WebViewClient() {
