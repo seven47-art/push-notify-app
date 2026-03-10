@@ -604,22 +604,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         </label>
       </div>
     </div>
-    <div class="settings-menu-item" onclick="App.goto('home')">
-      <i class="fas fa-satellite-dish"></i> 나의 운영 채널
-      <i class="fas fa-chevron-right menu-arrow"></i>
-    </div>
-    <div class="settings-menu-item" onclick="App.openCreateChannel()">
-      <i class="fas fa-plus-circle"></i> 채널 만들기
-      <i class="fas fa-chevron-right menu-arrow"></i>
-    </div>
-    <div class="settings-menu-item" onclick="App.goto('channel')">
-      <i class="fas fa-list"></i> 나의 가입 채널
-      <i class="fas fa-chevron-right menu-arrow"></i>
-    </div>
-    <div class="settings-menu-item" onclick="App.openJoinChannel()">
-      <i class="fas fa-door-open"></i> 채널 참여
-      <i class="fas fa-chevron-right menu-arrow"></i>
-    </div>
+
     <div class="settings-menu-item" onclick="toast('준비 중입니다')">
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
@@ -661,9 +646,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <button class="btn-danger-outline" style="margin:12px 14px 6px;width:calc(100% - 28px);" onclick="App.logout()">
       <i class="fas fa-sign-out-alt"></i> 로그아웃
     </button>
-    <button class="btn-ghost" style="margin:0 14px 12px;width:calc(100% - 28px);" onclick="App.resetDevice()">
-      <i class="fas fa-trash-restore"></i> 기기 초기화
-    </button>
+
     <div style="height:20px;"></div>
   </div>
 
