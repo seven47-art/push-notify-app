@@ -119,7 +119,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .drawer { position:fixed; top:0; right:0; bottom:0; width:72vw; max-width:280px; background:var(--bg2); z-index:201; transform:translateX(100%); transition:transform 0.25s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
 .drawer.open { transform:translateX(0); }
 .drawer-header { padding:20px 16px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-.drawer-logo { width:36px; height:36px; background:var(--primary); border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.drawer-logo { height:34px; display:flex; align-items:center; justify-content:center; }
 .drawer-app-name { font-size:17px; font-weight:700; }
 .drawer-menu-label { font-size:11px; color:var(--text3); font-weight:600; letter-spacing:0.05em; padding:14px 16px 4px; text-transform:uppercase; }
 .drawer-menu-item { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; color:var(--text2); font-size:14px; font-weight:500; transition:background 0.15s; }
@@ -644,9 +644,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <div class="drawer-overlay" id="drawer-overlay" onclick="App.closeDrawer()"></div>
 <div class="drawer" id="drawer">
   <div class="drawer-header">
-    <div class="drawer-logo"><img src="/static/ringo-icon.png" style="width:36px;height:36px;border-radius:10px;object-fit:cover;"></div>
+    <div class="drawer-logo"><img id="drawer-logo" src="/static/ringo-logo.png" style="height:34px;object-fit:contain;display:block;"></div>
     <div style="flex:1;min-width:0;">
-      <div class="drawer-app-name">RinGo</div>
+      <div class="drawer-app-name" style="display:none;">RinGo</div>
       <div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="drawer-user-email">로그인 중...</div>
     </div>
   </div>
@@ -1037,6 +1037,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101430"></script>
+<script src="/static/mobile-app.js?v=202603101440"></script>
 </body>
 </html>`;
