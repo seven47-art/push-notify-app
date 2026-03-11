@@ -567,7 +567,7 @@ const App = {
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
         <div class="ch-name">${name} ${lockIcon}</div>
-        <div class="ch-sub">${ch.description || ''}</div>
+        <div class="ch-sub">${ch.channel_description || ch.description || ''}</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
     </div>`
