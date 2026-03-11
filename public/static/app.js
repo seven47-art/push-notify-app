@@ -1840,12 +1840,8 @@ async function adminLoadChannelsForSend() {
     const opts = adminChannels.map(ch => `<option value="${ch.id}">${escapeHtml(ch.name)} (${ch.subscriber_count||0}명)</option>`).join('')
     sel.innerHTML = '<option value="">채널을 선택하세요</option>' + opts
   } catch (e) {}
-  // 기본 발송 시간: 현재 시각 + 1시간
-  const dt = document.getElementById('admin-send-time')
-  if (dt && !dt.value) {
-    const d = new Date(Date.now() + 60 * 60 * 1000)
-    dt.value = d.toISOString().slice(0, 16)
-  }
+  // 시간 선택 초기화
+  adminInitTimePicker()
 }
 
 // ── 구독자 관리 패널 로드 ──────────────────
@@ -1981,6 +1977,55 @@ async function adminForceUnsubscribe() {
   } catch (e) { showToast('탈퇴 처리 실패: ' + e.message, 'error') }
 }
 
+// ── 시간 선택 초기화 ───────────────────────
+function adminInitTimePicker() {
+  // 시간 select 0~23 생성
+  const hourSel = document.getElementById('admin-send-hour')
+  if (!hourSel) return
+  if (!hourSel.options.length) {
+    for (let h = 0; h < 24; h++) {
+      const opt = document.createElement('option')
+      opt.value = String(h).padStart(2, '0')
+      opt.textContent = String(h).padStart(2, '0') + '시'
+      hourSel.appendChild(opt)
+    }
+  }
+  // 기본값: 현재 시각 + 1시간
+  const d = new Date(Date.now() + 60 * 60 * 1000)
+  const dateEl = document.getElementById('admin-send-date')
+  const minEl  = document.getElementById('admin-send-minute')
+  if (dateEl && !dateEl.value) {
+    dateEl.value = d.toLocaleDateString('sv-SE') // YYYY-MM-DD
+  }
+  hourSel.value = String(d.getHours()).padStart(2, '0')
+  // 분: 가장 가까운 10분 단위
+  const m = Math.ceil(d.getMinutes() / 10) * 10
+  if (minEl) minEl.value = m >= 60 ? '00' : String(m).padStart(2, '0')
+  adminUpdateTimePreview()
+}
+
+// ── 시간 미리보기 업데이트 ─────────────────
+function adminUpdateTimePreview() {
+  const date   = document.getElementById('admin-send-date')?.value
+  const hour   = document.getElementById('admin-send-hour')?.value
+  const minute = document.getElementById('admin-send-minute')?.value
+  const preview = document.getElementById('admin-send-time-preview')
+  if (!preview) return
+  if (!date || !hour || !minute) { preview.textContent = '-'; return }
+  const d = new Date(`${date}T${hour}:${minute}:00`)
+  const days = ['일','월','화','수','목','금','토']
+  preview.textContent = `${date.slice(5).replace('-','/')} (${days[d.getDay()]}) ${hour}:${minute}`
+}
+
+// ── 발송 시간 조합 ─────────────────────────
+function adminGetScheduledAt() {
+  const date   = document.getElementById('admin-send-date')?.value
+  const hour   = document.getElementById('admin-send-hour')?.value
+  const minute = document.getElementById('admin-send-minute')?.value
+  if (!date || !hour || !minute) return null
+  return new Date(`${date}T${hour}:${minute}:00`)
+}
+
 // ── 컨텐츠 타입 선택 ──────────────────────
 function adminSelectMsgType(type) {
   adminSelectedMsgType = type
@@ -2008,11 +2053,9 @@ async function adminSendAlarm() {
   const time    = document.getElementById('admin-send-time').value
   if (!chId)  { showToast('채널을 선택하세요', 'error'); return }
   if (!url)   { showToast('컨텐츠 URL을 입력하세요', 'error'); return }
-  if (!time)  { showToast('발송 시간을 입력하세요', 'error'); return }
 
-  // datetime-local은 로컬 시간 → 서버로 그대로 넘기되 UTC ISO로 변환
-  // 단, 현재 시각 + 2분 이후인지 체크 (서버에서도 미래 시간 검증)
-  const scheduledDate = new Date(time)
+  const scheduledDate = adminGetScheduledAt()
+  if (!scheduledDate)  { showToast('발송 시간을 설정하세요', 'error'); return }
   if (scheduledDate <= new Date(Date.now() + 60 * 1000)) {
     showToast('발송 시간은 현재 시각 1분 이후여야 합니다', 'error'); return
   }

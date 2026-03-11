@@ -1128,7 +1128,39 @@ app.get('/', (c) => {
             </div>
             <div>
               <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 시간 *</label>
-              <input id="admin-send-time" type="datetime-local" class="input-field text-sm">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-slate-500 text-xs mb-1 block">날짜</label>
+                  <input id="admin-send-date" type="date" class="input-field text-sm w-full"
+                    onchange="adminUpdateTimePreview()">
+                </div>
+                <div>
+                  <label class="text-slate-500 text-xs mb-1 block">시간</label>
+                  <select id="admin-send-hour" class="input-field text-sm w-full"
+                    onchange="adminUpdateTimePreview()">
+                  </select>
+                </div>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-slate-500 text-xs mb-1 block">분</label>
+                  <select id="admin-send-minute" class="input-field text-sm w-full"
+                    onchange="adminUpdateTimePreview()">
+                    <option value="00">00분</option>
+                    <option value="10">10분</option>
+                    <option value="20">20분</option>
+                    <option value="30">30분</option>
+                    <option value="40">40분</option>
+                    <option value="50">50분</option>
+                  </select>
+                </div>
+                <div class="flex items-end">
+                  <div id="admin-send-time-preview"
+                    class="w-full text-center py-2 rounded-xl bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 text-sm font-semibold">
+                    -
+                  </div>
+                </div>
+              </div>
             </div>
             <button onclick="adminSendAlarm()" class="w-full btn-primary text-white py-3 rounded-xl font-bold text-sm">
               <i class="fas fa-satellite-dish mr-2"></i>알람 발송
