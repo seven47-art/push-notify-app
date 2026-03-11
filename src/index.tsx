@@ -198,12 +198,32 @@ app.get('/join/:token', async (c) => {
     '</div>'
   )
 
+  // OG 태그용 값 준비
+  const ogTitle = (isValid ? channelName + ' - 채널 초대' : '유효하지 않은 링크') + ' | RinGo'
+  const ogDesc  = isValid
+    ? (channelDesc || '여기를 눌러 링크를 확인하세요.')
+    : '유효하지 않은 초대 링크입니다.'
+  const ogImage = channelImg || 'https://ringo-server.pages.dev/static/og-default.png'
+  const ogUrl   = 'https://ringo-server.pages.dev/join/' + token
+
   return c.html(
     '<!DOCTYPE html>' +
     '<html lang="ko"><head>' +
     '<meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">' +
-    '<title>' + (isValid ? channelName + ' - 채널 초대' : '유효하지 않은 링크') + ' | RinGo</title>' +
+    '<title>' + ogTitle + '</title>' +
+    '<meta name="description" content="' + ogDesc + '">' +
+    '<meta property="og:type" content="website">' +
+    '<meta property="og:url" content="' + ogUrl + '">' +
+    '<meta property="og:title" content="' + ogTitle + '">' +
+    '<meta property="og:description" content="' + ogDesc + '">' +
+    '<meta property="og:image" content="' + ogImage + '">' +
+    '<meta property="og:image:width" content="400">' +
+    '<meta property="og:image:height" content="400">' +
+    '<meta name="twitter:card" content="summary">' +
+    '<meta name="twitter:title" content="' + ogTitle + '">' +
+    '<meta name="twitter:description" content="' + ogDesc + '">' +
+    '<meta name="twitter:image" content="' + ogImage + '">' +
     '<meta name="theme-color" content="#6366f1">' +
     '<script src="https://cdn.tailwindcss.com"><\/script>' +
     '<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">' +
