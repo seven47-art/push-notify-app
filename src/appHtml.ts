@@ -79,6 +79,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .joined-tile:active { background:var(--bg3); }
 .joined-tile .info { flex:1; min-width:0; }
 .joined-tile .chevron { color:var(--text3); font-size:13px; }
+.joined-tile .ch-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.joined-tile .ch-sub  { font-size:11px; color:var(--text3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* ── 아바타 ── */
 .avatar { border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
@@ -1077,6 +1079,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603111000"></script>
+<script src="/static/mobile-app.js?v=202603111030"></script>
 </body>
 </html>`;
