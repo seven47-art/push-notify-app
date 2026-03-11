@@ -1854,10 +1854,15 @@ const App = {
       let hpHtml = ''
       if (ch.homepage_url) {
         const hpUrl = ch.homepage_url.startsWith('http') ? ch.homepage_url : 'https://' + ch.homepage_url
+        let hpDomain = ''
+        try { hpDomain = new URL(hpUrl).hostname } catch(e) { hpDomain = ch.homepage_url }
         hpHtml =
           '<div class="ch-detail-section">' +
             '<div class="ch-detail-section-title"><i class="fas fa-globe" style="color:var(--teal);"></i> 홈페이지</div>' +
-            '<a class="ch-detail-link" href="' + hpUrl + '" target="_blank"><i class="fas fa-external-link-alt" style="color:var(--teal);"></i><span>' + ch.homepage_url + '</span></a>' +
+            '<a class="ch-detail-link" href="' + hpUrl + '" target="_blank" title="' + hpUrl + '" oncontextmenu="event.preventDefault();navigator.clipboard.writeText(\'' + hpUrl.replace(/'/g,"\\'") + '\').then(()=>toast(\'주소가 복사됐습니다\'))" ontouchstart="" ontouchend="clearTimeout(window._hpTimer)" ontouchstart="window._hpTimer=setTimeout(()=>{navigator.clipboard.writeText(\'' + hpUrl.replace(/'/g,"\\'") + '\').then(()=>toast(\'주소가 복사됐습니다\'))},600)">' +
+              '<i class="fas fa-external-link-alt" style="color:var(--teal);"></i>' +
+              '<span>' + hpDomain + '</span>' +
+            '</a>' +
           '</div>'
       }
 
