@@ -173,6 +173,42 @@ channels.get('/by-public-id/:publicId', async (c) => {
   }
 })
 
+// GET /api/channels/:id/image  — base64 이미지를 실제 이미지로 응답 (OG 태그용)
+channels.get('/:id/image', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const channel: any = await c.env.DB.prepare(
+      'SELECT image_url FROM channels WHERE id = ? AND is_active = 1'
+    ).bind(id).first()
+
+    if (!channel || !channel.image_url) {
+      return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+    }
+
+    const imageUrl = channel.image_url as string
+
+    // base64 데이터 URI인 경우 → 실제 이미지로 변환
+    if (imageUrl.startsWith('data:')) {
+      const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/)
+      if (!match) return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+      const mimeType = match[1]
+      const base64Data = match[2]
+      const binary = Uint8Array.from(atob(base64Data), ch => ch.charCodeAt(0))
+      return new Response(binary, {
+        headers: {
+          'Content-Type': mimeType,
+          'Cache-Control': 'public, max-age=86400',
+        }
+      })
+    }
+
+    // 일반 URL인 경우 → 그대로 리다이렉트
+    return c.redirect(imageUrl, 302)
+  } catch (e: any) {
+    return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+  }
+})
+
 // GET /api/channels/:id
 channels.get('/:id', async (c) => {
   try {

@@ -126,6 +126,7 @@ app.get('/join/:token', async (c) => {
   const channelName = linkData?.channel_name || '알 수 없는 채널'
   const channelDesc = linkData?.channel_description || ''
   const channelImg  = linkData?.channel_image_url || ''
+  const channelId   = linkData?.channel_id || ''
   const remaining   = linkData?.max_uses ? linkData.max_uses - linkData.use_count : null
 
   // APK 다운로드 URL
@@ -203,7 +204,9 @@ app.get('/join/:token', async (c) => {
   const ogDesc  = isValid
     ? (channelDesc || '여기를 눌러 링크를 확인하세요.')
     : '유효하지 않은 초대 링크입니다.'
-  const ogImage = channelImg || 'https://ringo-server.pages.dev/static/og-default.png'
+  const ogImage = (isValid && channelId)
+    ? 'https://ringo-server.pages.dev/api/channels/' + channelId + '/image'
+    : 'https://ringo-server.pages.dev/static/og-default.png'
   const ogUrl   = 'https://ringo-server.pages.dev/join/' + token
 
   return c.html(
