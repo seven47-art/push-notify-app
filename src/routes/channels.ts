@@ -366,12 +366,15 @@ channels.put('/:id', async (c) => {
       passwordHash = null
     }
 
+    // homepage_url은 요청에 명시적으로 포함된 경우 null도 그대로 덮어씀 (삭제 지원)
+    const hasHomepage = 'homepage_url' in body
+
     await c.env.DB.prepare(`
       UPDATE channels 
       SET name = COALESCE(?, name),
           description = COALESCE(?, description),
           image_url = COALESCE(?, image_url),
-          homepage_url = COALESCE(?, homepage_url),
+          homepage_url = CASE WHEN ? = 1 THEN ? ELSE homepage_url END,
           is_active = COALESCE(?, is_active),
           is_secret = COALESCE(?, is_secret),
           password_hash = CASE WHEN ? IS NOT NULL OR ? = 1 THEN ? ELSE password_hash END,
@@ -381,6 +384,7 @@ channels.put('/:id', async (c) => {
       name || null,
       description || null,
       image_url || null,
+      hasHomepage ? 1 : 0,
       homepage_url || null,
       is_active ?? null,
       isSecretVal ?? null,
