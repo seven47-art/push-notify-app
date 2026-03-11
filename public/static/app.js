@@ -78,6 +78,14 @@ function getInviteStatus(link) {
 }
 
 // =============================================
+// 공통 유틸리티
+// =============================================
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+}
+
+// =============================================
 // 페이지 라우팅
 // =============================================
 function showPage(page) {
@@ -1722,6 +1730,8 @@ function adminOpenCreateChannel() {
   document.getElementById('adminChannelName').value = ''
   document.getElementById('adminChannelDesc').value = ''
   document.getElementById('adminChannelHomepage').value = ''
+  document.getElementById('adminChannelImageUrl').value = ''
+  document.getElementById('adminChannelImagePreview').classList.add('hidden')
   document.getElementById('adminChannelModal').classList.remove('hidden')
 }
 
@@ -1736,6 +1746,15 @@ async function adminOpenEditChannel(id) {
     document.getElementById('adminChannelName').value      = ch.name || ''
     document.getElementById('adminChannelDesc').value      = ch.description || ''
     document.getElementById('adminChannelHomepage').value  = ch.homepage_url || ''
+    const imgUrl = ch.image_url || ''
+    document.getElementById('adminChannelImageUrl').value  = imgUrl
+    const preview = document.getElementById('adminChannelImagePreview')
+    if (imgUrl) {
+      document.getElementById('adminChannelImgTag').src = imgUrl
+      preview.classList.remove('hidden')
+    } else {
+      preview.classList.add('hidden')
+    }
     document.getElementById('adminChannelModal').classList.remove('hidden')
   } catch (e) { showToast('채널 정보를 불러오지 못했습니다.', 'error') }
 }
@@ -1750,13 +1769,14 @@ async function adminSaveChannel() {
   const name     = document.getElementById('adminChannelName').value.trim()
   const desc     = document.getElementById('adminChannelDesc').value.trim()
   const homepage = document.getElementById('adminChannelHomepage').value.trim()
+  const imageUrl = document.getElementById('adminChannelImageUrl').value.trim()
   if (!name) { showToast('채널명을 입력하세요', 'error'); return }
   try {
     if (id) {
-      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null })
+      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null, image_url: imageUrl || null })
       showToast('채널이 수정됐습니다 ✅')
     } else {
-      await API.post('/channels', { name, description: desc, homepage_url: homepage || null, owner_id: 'admin' })
+      await API.post('/channels', { name, description: desc, homepage_url: homepage || null, image_url: imageUrl || null, owner_id: 'admin' })
       showToast('채널이 생성됐습니다 ✅')
     }
     closeAdminChannelModal()

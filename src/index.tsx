@@ -979,6 +979,165 @@ app.get('/', (c) => {
       </div>
     </div>
 
+    <!-- ===== 관리자 알람발송 페이지 ===== -->
+    <div id="page-admin-alarm" class="page">
+      <div class="space-y-6">
+        <!-- 페이지 헤더 -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
+            <i class="fas fa-satellite-dish text-red-400"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-white">관리자 알람발송</h2>
+            <p class="text-slate-400 text-sm">관리자 채널을 통해 직접 알람을 발송합니다</p>
+          </div>
+        </div>
+
+        <!-- 탭 -->
+        <div class="flex gap-2 border-b border-slate-700 pb-0">
+          <button id="admin-tab-channel" onclick="adminShowTab('channel')"
+            class="admin-tab active px-4 py-2 text-sm font-semibold text-white border-b-2 border-indigo-500 -mb-px">
+            <i class="fas fa-layer-group mr-1.5"></i>채널 관리
+          </button>
+          <button id="admin-tab-members" onclick="adminShowTab('members')"
+            class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
+            <i class="fas fa-users mr-1.5"></i>구독자 관리
+          </button>
+          <button id="admin-tab-send" onclick="adminShowTab('send')"
+            class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
+            <i class="fas fa-paper-plane mr-1.5"></i>알람 발송
+          </button>
+        </div>
+
+        <!-- 탭1: 채널 관리 -->
+        <div id="admin-tab-content-channel">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-white font-semibold">관리자 채널 목록</h3>
+            <button onclick="adminOpenCreateChannel()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-semibold">
+              <i class="fas fa-plus mr-1.5"></i>채널 생성
+            </button>
+          </div>
+          <div id="admin-channel-list" class="space-y-3">
+            <div class="text-slate-500 text-sm text-center py-8">
+              <i class="fas fa-spinner spin mr-2"></i>불러오는 중...
+            </div>
+          </div>
+        </div>
+
+        <!-- 탭2: 구독자 관리 -->
+        <div id="admin-tab-content-members" class="hidden">
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">관리할 채널 선택</label>
+            <select id="admin-member-channel-select" onchange="adminLoadMemberPanels()" class="input-field text-sm">
+              <option value="">채널을 선택하세요</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <!-- 왼쪽: 전체 회원 -->
+            <div class="card rounded-xl overflow-hidden">
+              <div class="card-header p-3 flex items-center justify-between">
+                <span class="text-white text-sm font-semibold"><i class="fas fa-users mr-1.5 text-blue-300"></i>전체 회원</span>
+                <span id="admin-left-count" class="text-slate-400 text-xs">0명</span>
+              </div>
+              <div class="p-3 border-b border-slate-700 space-y-2">
+                <select id="admin-left-filter" onchange="adminLoadLeftMembers(1)"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs">
+                  <option value="">전체 회원</option>
+                  <option value="fcm">FCM 있는 회원만</option>
+                </select>
+                <input id="admin-left-search" type="text" placeholder="이름/이메일 검색..."
+                  oninput="adminLeftSearchDebounce()"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
+              </div>
+              <div id="admin-left-list" class="overflow-y-auto" style="max-height:360px;">
+                <div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div>
+              </div>
+              <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                  <input type="checkbox" id="admin-left-all" onchange="adminToggleAllLeft(this.checked)" class="w-3.5 h-3.5 accent-indigo-500"> 전체선택
+                </label>
+                <button onclick="adminForceSubscribe()" class="btn-success text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1">
+                  <i class="fas fa-arrow-right mr-1"></i>가입
+                </button>
+              </div>
+              <div id="admin-left-pagination" class="flex justify-center gap-1 p-2 border-t border-slate-700"></div>
+            </div>
+            <!-- 오른쪽: 채널 구독자 -->
+            <div class="card rounded-xl overflow-hidden">
+              <div class="card-header p-3 flex items-center justify-between">
+                <span class="text-white text-sm font-semibold"><i class="fas fa-check-circle mr-1.5 text-emerald-300"></i>채널 구독자</span>
+                <span id="admin-right-count" class="text-slate-400 text-xs">0명</span>
+              </div>
+              <div class="p-3 border-b border-slate-700">
+                <input id="admin-right-search" type="text" placeholder="이름/이메일 검색..."
+                  oninput="adminRightSearchDebounce()"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
+              </div>
+              <div id="admin-right-list" class="overflow-y-auto" style="max-height:360px;">
+                <div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div>
+              </div>
+              <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                  <input type="checkbox" id="admin-right-all" onchange="adminToggleAllRight(this.checked)" class="w-3.5 h-3.5 accent-indigo-500"> 전체선택
+                </label>
+                <button onclick="adminForceUnsubscribe()" class="btn-danger text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1">
+                  <i class="fas fa-arrow-left mr-1"></i>채널 나가기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 탭3: 알람 발송 -->
+        <div id="admin-tab-content-send" class="hidden">
+          <div class="card rounded-xl p-5 space-y-4">
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 채널 *</label>
+              <select id="admin-send-channel" class="input-field text-sm">
+                <option value="">채널을 선택하세요</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 block">컨텐츠 타입 *</label>
+              <div class="grid grid-cols-4 gap-2">
+                <button onclick="adminSelectMsgType('youtube')" id="admin-type-youtube"
+                  class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 text-white text-xs font-semibold cursor-pointer">
+                  <i class="fab fa-youtube text-red-400 text-lg"></i>YouTube
+                </button>
+                <button onclick="adminSelectMsgType('audio')" id="admin-type-audio"
+                  class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
+                  <i class="fas fa-music text-purple-400 text-lg"></i>오디오
+                </button>
+                <button onclick="adminSelectMsgType('video')" id="admin-type-video"
+                  class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
+                  <i class="fas fa-video text-blue-400 text-lg"></i>비디오
+                </button>
+                <button onclick="adminSelectMsgType('file')" id="admin-type-file"
+                  class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
+                  <i class="fas fa-file text-orange-400 text-lg"></i>파일
+                </button>
+              </div>
+            </div>
+            <div>
+              <label id="admin-send-url-label" class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">YouTube URL *</label>
+              <input id="admin-send-url" type="url" class="input-field text-sm" placeholder="https://youtu.be/...">
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">링크 URL <span class="text-slate-500 normal-case font-normal">(선택)</span></label>
+              <input id="admin-send-link-url" type="url" class="input-field text-sm" placeholder="https://...">
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 시간 *</label>
+              <input id="admin-send-time" type="datetime-local" class="input-field text-sm">
+            </div>
+            <button onclick="adminSendAlarm()" class="w-full btn-primary text-white py-3 rounded-xl font-bold text-sm">
+              <i class="fas fa-satellite-dish mr-2"></i>알람 발송
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1136,188 +1295,7 @@ app.get('/', (c) => {
   </div>
 </div>
 
-<!-- ===== 관리자 알람발송 페이지 ===== -->
-<div id="page-admin-alarm" class="page">
-  <div class="p-6 space-y-6">
-    <!-- 페이지 헤더 -->
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
-        <i class="fas fa-satellite-dish text-red-400"></i>
-      </div>
-      <div>
-        <h2 class="text-xl font-bold text-white">관리자 알람발송</h2>
-        <p class="text-slate-400 text-sm">관리자 채널을 통해 직접 알람을 발송합니다</p>
-      </div>
-    </div>
-
-    <!-- 탭 -->
-    <div class="flex gap-2 border-b border-slate-700 pb-0">
-      <button id="admin-tab-channel" onclick="adminShowTab('channel')"
-        class="admin-tab active px-4 py-2 text-sm font-semibold text-white border-b-2 border-indigo-500 -mb-px">
-        <i class="fas fa-layer-group mr-1.5"></i>채널 관리
-      </button>
-      <button id="admin-tab-members" onclick="adminShowTab('members')"
-        class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
-        <i class="fas fa-users mr-1.5"></i>구독자 관리
-      </button>
-      <button id="admin-tab-send" onclick="adminShowTab('send')"
-        class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
-        <i class="fas fa-paper-plane mr-1.5"></i>알람 발송
-      </button>
-    </div>
-
-    <!-- 탭1: 채널 관리 -->
-    <div id="admin-tab-content-channel">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-white font-semibold">관리자 채널 목록</h3>
-        <button onclick="adminOpenCreateChannel()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-semibold">
-          <i class="fas fa-plus mr-1.5"></i>채널 생성
-        </button>
-      </div>
-      <div id="admin-channel-list" class="space-y-3">
-        <div class="text-slate-500 text-sm text-center py-8">
-          <i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...
-        </div>
-      </div>
-    </div>
-
-    <!-- 탭2: 구독자 관리 -->
-    <div id="admin-tab-content-members" class="hidden">
-      <!-- 채널 선택 -->
-      <div class="mb-4">
-        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">관리할 채널 선택</label>
-        <select id="admin-member-channel-select" onchange="adminLoadMemberPanels()"
-          class="input-field text-sm">
-          <option value="">채널을 선택하세요</option>
-        </select>
-      </div>
-
-      <!-- 좌우 패널 -->
-      <div class="grid grid-cols-2 gap-4">
-        <!-- 왼쪽: 전체 회원 -->
-        <div class="card rounded-xl overflow-hidden">
-          <div class="card-header p-3 flex items-center justify-between">
-            <span class="text-white text-sm font-semibold"><i class="fas fa-users mr-1.5 text-blue-300"></i>전체 회원</span>
-            <span id="admin-left-count" class="text-slate-400 text-xs">0명</span>
-          </div>
-          <div class="p-3 border-b border-slate-700 space-y-2">
-            <!-- 필터 -->
-            <select id="admin-left-filter" onchange="adminLoadLeftMembers(1)"
-              class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs">
-              <option value="">전체 회원</option>
-              <option value="fcm">FCM 있는 회원만</option>
-            </select>
-            <input id="admin-left-search" type="text" placeholder="이름/이메일 검색..."
-              oninput="adminLeftSearchDebounce()"
-              class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
-          </div>
-          <div id="admin-left-list" class="overflow-y-auto" style="max-height:360px;">
-            <div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div>
-          </div>
-          <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
-            <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
-              <input type="checkbox" id="admin-left-all" onchange="adminToggleAllLeft(this.checked)"
-                class="w-3.5 h-3.5 accent-indigo-500"> 전체선택
-            </label>
-            <button onclick="adminForceSubscribe()"
-              class="btn-success text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1">
-              <i class="fas fa-arrow-right mr-1"></i>가입
-            </button>
-          </div>
-          <!-- 페이지네이션 -->
-          <div id="admin-left-pagination" class="flex justify-center gap-1 p-2 border-t border-slate-700"></div>
-        </div>
-
-        <!-- 오른쪽: 채널 구독자 -->
-        <div class="card rounded-xl overflow-hidden">
-          <div class="card-header p-3 flex items-center justify-between">
-            <span class="text-white text-sm font-semibold"><i class="fas fa-check-circle mr-1.5 text-emerald-300"></i>채널 구독자</span>
-            <span id="admin-right-count" class="text-slate-400 text-xs">0명</span>
-          </div>
-          <div class="p-3 border-b border-slate-700">
-            <input id="admin-right-search" type="text" placeholder="이름/이메일 검색..."
-              oninput="adminRightSearchDebounce()"
-              class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
-          </div>
-          <div id="admin-right-list" class="overflow-y-auto" style="max-height:360px;">
-            <div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div>
-          </div>
-          <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
-            <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
-              <input type="checkbox" id="admin-right-all" onchange="adminToggleAllRight(this.checked)"
-                class="w-3.5 h-3.5 accent-indigo-500"> 전체선택
-            </label>
-            <button onclick="adminForceUnsubscribe()"
-              class="btn-danger text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1">
-              <i class="fas fa-arrow-left mr-1"></i>채널 나가기
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 탭3: 알람 발송 -->
-    <div id="admin-tab-content-send" class="hidden">
-      <div class="card rounded-xl p-5 space-y-4">
-        <!-- 채널 선택 -->
-        <div>
-          <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 채널 *</label>
-          <select id="admin-send-channel" class="input-field text-sm">
-            <option value="">채널을 선택하세요</option>
-          </select>
-        </div>
-
-        <!-- 컨텐츠 타입 -->
-        <div>
-          <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 block">컨텐츠 타입 *</label>
-          <div class="grid grid-cols-4 gap-2">
-            <button onclick="adminSelectMsgType('youtube')" id="admin-type-youtube"
-              class="admin-type-btn active-type flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 text-white text-xs font-semibold cursor-pointer">
-              <i class="fab fa-youtube text-red-400 text-lg"></i>YouTube
-            </button>
-            <button onclick="adminSelectMsgType('audio')" id="admin-type-audio"
-              class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
-              <i class="fas fa-music text-purple-400 text-lg"></i>오디오
-            </button>
-            <button onclick="adminSelectMsgType('video')" id="admin-type-video"
-              class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
-              <i class="fas fa-video text-blue-400 text-lg"></i>비디오
-            </button>
-            <button onclick="adminSelectMsgType('file')" id="admin-type-file"
-              class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer">
-              <i class="fas fa-file text-orange-400 text-lg"></i>파일
-            </button>
-          </div>
-        </div>
-
-        <!-- 컨텐츠 URL -->
-        <div>
-          <label id="admin-send-url-label" class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">YouTube URL *</label>
-          <input id="admin-send-url" type="url" class="input-field text-sm" placeholder="https://youtu.be/...">
-        </div>
-
-        <!-- 링크 URL (선택) -->
-        <div>
-          <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">링크 URL <span class="text-slate-500 normal-case font-normal">(선택 - 알람 하단 링크 버튼)</span></label>
-          <input id="admin-send-link-url" type="url" class="input-field text-sm" placeholder="https://...">
-        </div>
-
-        <!-- 발송 시간 -->
-        <div>
-          <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 시간 *</label>
-          <input id="admin-send-time" type="datetime-local" class="input-field text-sm">
-        </div>
-
-        <!-- 발송 버튼 -->
-        <button onclick="adminSendAlarm()"
-          class="w-full btn-primary text-white py-3 rounded-xl font-bold text-sm">
-          <i class="fas fa-satellite-dish mr-2"></i>알람 발송
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
+<!-- ===== 관리자 알람발송 페이지 (main 안으로 이동됨) ===== -->
 <!-- 관리자 채널 생성/수정 모달 -->
 <div id="adminChannelModal" class="modal-overlay hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
   <div class="card rounded-2xl p-6 w-full max-w-md mx-4 space-y-4">
@@ -1334,6 +1312,13 @@ app.get('/', (c) => {
     <div>
       <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">홈페이지 URL</label>
       <input id="adminChannelHomepage" type="text" class="input-field text-sm" placeholder="https://...">
+    </div>
+    <div>
+      <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">대표 이미지 URL <span class="text-slate-500 normal-case font-normal">(선택)</span></label>
+      <input id="adminChannelImageUrl" type="url" class="input-field text-sm" placeholder="https://...">
+      <div id="adminChannelImagePreview" class="mt-2 hidden">
+        <img id="adminChannelImgTag" src="" class="w-16 h-16 rounded-xl object-cover border border-slate-600">
+      </div>
     </div>
     <div class="flex gap-3 pt-2">
       <button onclick="closeAdminChannelModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm font-semibold">취소</button>
