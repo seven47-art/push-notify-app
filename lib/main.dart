@@ -951,7 +951,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _controller.loadRequest(Uri.parse('$_appUrl?join_token=$token'));
+                  _joinChannel(token);
                 },
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -987,6 +987,90 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         ),
       ),
     );
+  }
+
+  // 채널 가입 처리 (Flutter에서 직접 API 호출)
+  Future<void> _joinChannel(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      final fcmToken = prefs.getString('fcm_token') ?? '';
+      final sessionToken = prefs.getString('session_token') ?? '';
+      final displayName = prefs.getString('display_name') ?? '';
+
+      if (userId.isEmpty || sessionToken.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('로그인이 필요합니다')),
+          );
+        }
+        return;
+      }
+
+      // 로딩 표시
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+            ),
+          ),
+        );
+      }
+
+      final res = await http.post(
+        Uri.parse('$_baseUrl/api/invites/join'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
+        body: jsonEncode({
+          'invite_token': token,
+          'user_id': userId,
+          'display_name': displayName,
+          'fcm_token': fcmToken,
+          'platform': 'android',
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      // 로딩 닫기
+      if (mounted) Navigator.of(context).pop();
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final channelName = body['data']?['channel_name'] ?? '채널';
+        // 웹뷰 구독채널 탭으로 이동 및 새로고침
+        await _controller.runJavaScript(
+          "if(typeof App !== 'undefined') { App.goto('channel'); }"
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$channelName 채널에 참여했습니다! 🎉'),
+              backgroundColor: const Color(0xFF6C63FF),
+            ),
+          );
+        }
+      } else {
+        final errMsg = body['message'] ?? body['error'] ?? '참여에 실패했습니다';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      debugPrint('[JoinChannel] 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('네트워크 오류가 발생했습니다'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   Widget _defaultChannelIcon() {
