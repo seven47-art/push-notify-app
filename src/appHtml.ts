@@ -667,16 +667,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <span style="display:flex;align-items:center;gap:4px;">공지사항<span id="notice-badge" style="display:none;width:8px;height:8px;background:#EF4444;border-radius:50%;flex-shrink:0;"></span></span>
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('owned-all')">
-    <i class="fas fa-satellite-dish"></i> 내 채널
-  </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openCreateChannel()">
-    <i class="fas fa-plus-circle"></i> 채널 만들기
+    <i class="fas fa-satellite-dish"></i> 내채널
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('joined-all')">
-    <i class="fas fa-list"></i> 구독 채널
-  </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openJoinChannel()">
-    <i class="fas fa-door-open"></i> 채널 참여
+    <i class="fas fa-list"></i> 구독채널
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.openPrivacy()">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
@@ -687,6 +681,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.48 (web)')">
     <i class="fas fa-info-circle"></i> 버전
     <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.48</span>
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('settings')">
+    <i class="fas fa-cog"></i> 설정
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
     <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
