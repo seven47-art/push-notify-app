@@ -1073,6 +1073,11 @@ const App = {
       toast('채널이 수정됐습니다')
       this.closeModal('modal-edit')
       this.loadHome()
+      // 채널 소개 모달이 열려있으면 즉시 갱신
+      const detailModal = document.getElementById('modal-channel-detail')
+      if (detailModal && detailModal.classList.contains('active')) {
+        this.openChannelDetail(id)
+      }
     } catch (e) {
       const msg = e.response?.data?.error || e.message
       if (e.response?.status === 409) {
@@ -1295,17 +1300,9 @@ const App = {
     if (clearBtn) clearBtn.style.display = 'none'
   },
 
-  // 채널 홈페이지 입력 - X 버튼 처리
-  _onEditHomepageInput(el) {
-    const clearBtn = document.getElementById('edit-homepage-clear')
-    if (clearBtn) clearBtn.style.display = el.value ? 'block' : 'none'
-  },
-
   _clearEditHomepage() {
-    const input    = document.getElementById('edit-homepage')
-    const clearBtn = document.getElementById('edit-homepage-clear')
-    if (input)    { input.value = ''; input.focus() }
-    if (clearBtn) clearBtn.style.display = 'none'
+    const input = document.getElementById('edit-homepage')
+    if (input) { input.value = ''; input.focus() }
   },
 
   // 연결 URL - 홈페이지와 동일 체크박스
