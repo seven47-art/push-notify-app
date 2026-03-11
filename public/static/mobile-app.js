@@ -1058,7 +1058,13 @@ const App = {
     const name = document.getElementById('edit-name').value.trim()
     if (!confirm(`"${name}" 채널을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
     API.delete('/channels/' + id)
-      .then(() => { toast('삭제됐습니다'); this.closeModal('modal-edit'); this.loadHome() })
+      .then(() => {
+        toast('삭제됐습니다')
+        this.closeModal('modal-edit')
+        // 현재 탭에 맞게 새로고침
+        if (currentTab === 'owned-all') this.loadOwnedAll()
+        else this.loadHome()
+      })
       .catch(e => toast('삭제 실패: ' + e.message, 3000))
   },
 
