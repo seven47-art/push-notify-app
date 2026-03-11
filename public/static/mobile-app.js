@@ -1954,7 +1954,7 @@ const App = {
         btns =
           '<button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
           '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
-          '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>' +
+          '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-pencil-alt"></i></button>' +
           '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._deleteChannelFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널삭제"><i class="fas fa-trash-alt"></i></button>'
       } else if (isJoined) {
         btns =

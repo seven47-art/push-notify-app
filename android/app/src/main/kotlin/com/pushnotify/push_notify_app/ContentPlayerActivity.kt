@@ -481,7 +481,7 @@ class ContentPlayerActivity : Activity() {
                 setPadding(dp(10), dp(10), dp(10), dp(10))
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#FF6B35"))
+                    setColor(Color.parseColor("#3B82F6"))
                 }
                 layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
                     it.marginEnd = dp(8)
