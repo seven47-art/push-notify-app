@@ -1044,7 +1044,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         final channelName = body['data']?['channel_name'] ?? '채널';
         // 웹뷰 구독채널 탭으로 이동 및 새로고침
         await _controller.runJavaScript(
-          "if(typeof App !== 'undefined') { App.goto('channel'); }"
+          "if(typeof App !== 'undefined') { App.goto('joined-all'); }"
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
