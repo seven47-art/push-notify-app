@@ -105,7 +105,7 @@ alarms.get('/twiml', (c) => {
 alarms.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const { channel_id, created_by, scheduled_at, msg_type, msg_value } = body
+    const { channel_id, created_by, scheduled_at, msg_type, msg_value, link_url } = body
 
     if (!channel_id || !created_by || !scheduled_at || !msg_type) {
       return c.json({ success: false, error: 'channel_id, created_by, scheduled_at, msg_type 필수' }, 400)
@@ -131,10 +131,12 @@ alarms.post('/', async (c) => {
       'SELECT COUNT(*) as cnt FROM subscribers WHERE channel_id = ? AND is_active = 1'
     ).bind(channel_id).first()
 
+    const safeLinkUrl = (link_url || '').toString().trim() || null
+
     const result = await c.env.DB.prepare(`
-      INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets)
-      VALUES (?, ?, ?, ?, ?, 'pending', ?)
-    `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0).run()
+      INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets, link_url)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+    `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0, safeLinkUrl).run()
 
     const alarmId = result.meta.last_row_id as number
 
@@ -184,6 +186,7 @@ alarms.post('/', async (c) => {
         msg_value:      safeValue,
         content_url:    contentUrl,
         homepage_url:   (channel as any).homepage_url || '',
+        link_url:       safeLinkUrl || '',
         scheduled_time: String(scheduledMs),    // 앱이 AlarmManager에 넘길 Unix ms
         notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
       }
@@ -358,7 +361,8 @@ alarms.post('/trigger', async (c) => {
     // (triggered 포함 이유: FCM 발송은 완료됐어도 폴링 사용자가 아직 못 받을 수 있음)
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
-             ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id
+             ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id,
+             a.link_url as alarm_link_url
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status IN ('pending', 'triggered')
@@ -488,6 +492,7 @@ alarms.post('/trigger', async (c) => {
               alarm_id:     String(alarm.id),
               content_url:  contentUrl         || '',
               homepage_url: alarm.channel_homepage_url || '',
+              link_url:     alarm.alarm_link_url || '',
             },
             fcmServiceAccount,
             fcmProjectId
@@ -579,6 +584,7 @@ alarms.post('/trigger', async (c) => {
         msg_value:         alarm.msg_value,
         content_url:       contentUrl,
         homepage_url:      alarm.channel_homepage_url || '',
+        link_url:          alarm.alarm_link_url || '',
         total_targets:     recipientMap.size,
         sent_count:        sentCount,
         failed_count:      failedCount,
