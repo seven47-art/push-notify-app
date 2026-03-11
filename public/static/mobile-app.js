@@ -1863,20 +1863,19 @@ const App = {
 
       // 액션 버튼
       const hasAlarmDetail = (ch.pending_alarm_count || 0) > 0
-      const alarmIconColor = hasAlarmDetail ? 'var(--primary)' : 'var(--text3)'
-      const alarmBtnStyle = 'background:var(--bg2);border:1px solid var(--border);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;'
+      const alarmCls = hasAlarmDetail ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
       let btns = ''
       if (isOwner) {
         btns =
-          '<button style="' + alarmBtnStyle + 'color:' + alarmIconColor + ';" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
-          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
-          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>'
+          '<button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
+          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="ch-action-btn btn-setting" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>'
       } else if (isJoined) {
         btns =
-          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
+          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
       } else {
         btns =
-          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
           '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
       }
 
