@@ -376,7 +376,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-detail-badge { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text2); background:var(--bg3); padding:4px 10px; border-radius:20px; }
 .ch-detail-section { padding:16px 16px 0; }
 .ch-detail-section-title { font-size:12px; font-weight:700; color:var(--text3); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-.ch-detail-section-body { font-size:14px; color:var(--text2); line-height:1.65; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:13px 14px; }
+.ch-detail-section-body { font-size:14px; color:var(--text2); line-height:1.65; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:13px 14px; white-space:pre-wrap; word-break:break-word; }
 .ch-detail-link { font-size:14px; color:var(--primary); background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:13px 14px; display:flex; align-items:center; gap:8px; cursor:pointer; text-decoration:none; }
 .ch-detail-link:active { background:var(--bg3); }
 .ch-detail-action-bar { padding:14px 16px; display:flex; gap:10px; }
@@ -1079,6 +1079,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603111100"></script>
+<script src="/static/mobile-app.js?v=202603111130"></script>
 </body>
 </html>`;
