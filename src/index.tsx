@@ -275,8 +275,13 @@ app.get('/join/:token', async (c) => {
     (isValid ? (
       'if(isMobile){' +
       '  var intentUrl="intent://join?token=' + token + '#Intent;scheme=pushapp;package=com.pushnotify.push_notify_app;end";' +
+      '  var appOpened=false;' +
+      '  document.addEventListener("visibilitychange",function(){' +
+      '    if(document.hidden){appOpened=true;}' +
+      '    else{if(appOpened){document.body.style.display="none";}}' +
+      '  });' +
       '  window.location.href=intentUrl;' +
-      '  setTimeout(function(){showScreen("screen-join");},1500);' +
+      '  setTimeout(function(){if(!document.hidden){showScreen("screen-join");}},2000);' +
       '}else{showScreen("screen-join");}' 
     ) : '') +
     '<\/script>' +
