@@ -90,7 +90,7 @@ function showPage(page) {
     dashboard: '대시보드', channels: '채널 관리', invites: '초대 링크 관리',
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
     notifications: '알림 발송', notices: '공지사항 관리',
-    logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관'
+    logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -103,6 +103,7 @@ function showPage(page) {
   else if (page === 'notifications') loadNotifPage()
   else if (page === 'notices') loadNoticesAdmin()
   else if (page === 'terms') loadTerms()
+  else if (page === 'privacy') loadPrivacy()
   else if (page === 'alarms') loadAlarmManagement()
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
@@ -1591,7 +1592,7 @@ async function loadTerms() {
   editor.value = '불러오는 중...'
   try {
     const res = await API.get('/settings/terms')
-    editor.value = res.data?.value || ''
+    editor.value = res.data?.data?.value || ''
   } catch (e) {
     editor.value = ''
     showToast('이용약관을 불러오지 못했습니다.', 'error')
@@ -1606,6 +1607,35 @@ async function saveTerms() {
   try {
     await API.put('/settings/terms', { value })
     showToast('서비스 이용약관이 저장되었습니다 ✅')
+  } catch (e) {
+    showToast('저장 실패: ' + e.message, 'error')
+  }
+}
+
+// =============================================
+// 개인정보보호정책 관리
+// =============================================
+async function loadPrivacy() {
+  const editor = document.getElementById('privacy-editor')
+  if (!editor) return
+  editor.value = '불러오는 중...'
+  try {
+    const res = await API.get('/settings/privacy')
+    editor.value = res.data?.data?.value || ''
+  } catch (e) {
+    editor.value = ''
+    showToast('개인정보보호정책을 불러오지 못했습니다.', 'error')
+  }
+}
+
+async function savePrivacy() {
+  const editor = document.getElementById('privacy-editor')
+  if (!editor) return
+  const value = editor.value.trim()
+  if (!value) { showToast('내용을 입력해주세요', 'error'); return }
+  try {
+    await API.put('/settings/privacy', { value })
+    showToast('개인정보보호정책이 저장되었습니다 ✅')
   } catch (e) {
     showToast('저장 실패: ' + e.message, 'error')
   }

@@ -605,7 +605,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
     </div>
 
-    <div class="settings-menu-item" onclick="toast('준비 중입니다')">
+    <div class="settings-menu-item" onclick="App.openPrivacy()">
       <i class="fas fa-shield-alt"></i> 개인정보보호정책
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
@@ -676,7 +676,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.openJoinChannel()">
     <i class="fas fa-door-open"></i> 채널 참여
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('준비 중입니다')">
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openPrivacy()">
     <i class="fas fa-shield-alt"></i> 개인정보보호정책
   </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.openTerms()">
@@ -961,6 +961,20 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
+<!-- ══ 풀스크린: 개인정보보호정책 ══ -->
+<div class="fullscreen-overlay" id="modal-privacy">
+  <div class="appbar" style="display:flex;">
+    <div class="appbar-left">
+      <button class="appbar-back" onclick="App.closePrivacy()"><i class="fas fa-arrow-left"></i></button>
+    </div>
+    <span style="font-size:17px;font-weight:700;color:#fff;flex:1;text-align:center;">개인정보보호정책</span>
+    <div style="width:38px;"></div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:20px 16px;">
+    <div id="privacy-content" style="font-size:14px;color:var(--text2);line-height:1.8;white-space:pre-wrap;">불러오는 중...</div>
+  </div>
+</div>
+
 <!-- ══ 풀스크린: 서비스 이용약관 ══ -->
 <div class="fullscreen-overlay" id="modal-terms">
   <div class="appbar" style="display:flex;">
@@ -1063,6 +1077,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101510"></script>
+<script src="/static/mobile-app.js?v=202603101520"></script>
 </body>
 </html>`;

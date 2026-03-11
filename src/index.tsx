@@ -386,6 +386,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('terms')">
       <i class="fas fa-file-alt w-4 text-center text-teal-400"></i> 서비스 이용약관
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('privacy')">
+      <i class="fas fa-shield-alt w-4 text-center text-green-400"></i> 개인정보보호정책
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
       <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
     </a>
@@ -736,6 +739,26 @@ app.get('/', (c) => {
             <tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">로딩 중...</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ===== 개인정보보호정책 관리 ===== -->
+    <div id="page-privacy" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2">
+          <i class="fas fa-shield-alt text-green-400"></i> 개인정보보호정책 관리
+        </h2>
+        <button onclick="savePrivacy()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-save mr-1"></i> 저장
+        </button>
+      </div>
+      <div class="card p-6">
+        <label class="block text-slate-400 text-sm font-semibold mb-3">개인정보보호정책 내용</label>
+        <textarea id="privacy-editor"
+          class="w-full bg-slate-800 border border-slate-600 rounded-lg text-slate-200 text-sm p-4 resize-none focus:outline-none focus:border-green-400"
+          style="min-height:480px;line-height:1.8;"
+          placeholder="개인정보보호정책 내용을 입력하세요..."></textarea>
+        <p class="text-slate-500 text-xs mt-2">* 앱의 '개인정보보호정책' 메뉴에 표시됩니다. 저장 후 즉시 반영됩니다.</p>
       </div>
     </div>
 

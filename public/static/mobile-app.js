@@ -1703,7 +1703,7 @@ const App = {
     contentEl.textContent = '불러오는 중...'
     try {
       const res = await API.get('/settings/terms')
-      contentEl.textContent = res.data?.value || '이용약관 내용이 없습니다.'
+      contentEl.textContent = res.data?.data?.value || '이용약관 내용이 없습니다.'
     } catch(e) {
       contentEl.textContent = '이용약관을 불러오지 못했습니다.'
     }
@@ -1711,6 +1711,26 @@ const App = {
 
   closeTerms() {
     const el = document.getElementById('modal-terms')
+    if (el) el.classList.remove('active')
+  },
+
+  // ── 개인정보보호정책 ──────────────────────────────
+  async openPrivacy() {
+    const el = document.getElementById('modal-privacy')
+    const contentEl = document.getElementById('privacy-content')
+    if (!el) return
+    el.classList.add('active')
+    contentEl.textContent = '불러오는 중...'
+    try {
+      const res = await API.get('/settings/privacy')
+      contentEl.textContent = res.data?.data?.value || '개인정보보호정책 내용이 없습니다.'
+    } catch(e) {
+      contentEl.textContent = '개인정보보호정책를 불러오지 못했습니다.'
+    }
+  },
+
+  closePrivacy() {
+    const el = document.getElementById('modal-privacy')
     if (el) el.classList.remove('active')
   },
 
