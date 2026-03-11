@@ -90,7 +90,8 @@ function showPage(page) {
     dashboard: '대시보드', channels: '채널 관리', invites: '초대 링크 관리',
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
     notifications: '알림 발송', notices: '공지사항 관리',
-    logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책'
+    logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
+    'admin-alarm': '관리자 알람발송'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -107,6 +108,7 @@ function showPage(page) {
   else if (page === 'alarms') loadAlarmManagement()
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
+  else if (page === 'admin-alarm') adminAlarmPageInit()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }
@@ -1639,4 +1641,354 @@ async function savePrivacy() {
   } catch (e) {
     showToast('저장 실패: ' + e.message, 'error')
   }
+}
+
+// =============================================
+// 관리자 알람발송 기능
+// =============================================
+
+let adminChannels = []          // 관리자 채널 목록 캐시
+let adminLeftPage = 1           // 왼쪽 패널 현재 페이지
+let adminLeftSearch = ''        // 왼쪽 검색어
+let adminLeftSearchTimer = null // 검색 디바운스 타이머
+let adminRightSearch = ''       // 오른쪽 검색어
+let adminRightSearchTimer = null
+let adminSelectedMsgType = 'youtube' // 선택된 컨텐츠 타입
+
+// ── 탭 전환 ────────────────────────────────
+function adminShowTab(tab) {
+  ['channel', 'members', 'send'].forEach(t => {
+    const btn     = document.getElementById('admin-tab-' + t)
+    const content = document.getElementById('admin-tab-content-' + t)
+    if (t === tab) {
+      btn.classList.add('text-white', 'border-indigo-500')
+      btn.classList.remove('text-slate-400', 'border-transparent')
+      content.classList.remove('hidden')
+    } else {
+      btn.classList.remove('text-white', 'border-indigo-500')
+      btn.classList.add('text-slate-400', 'border-transparent')
+      content.classList.add('hidden')
+    }
+  })
+  if (tab === 'channel') adminLoadChannels()
+  if (tab === 'members') adminLoadChannelsForSelect()
+  if (tab === 'send')    adminLoadChannelsForSend()
+}
+
+// ── 채널 목록 로드 ─────────────────────────
+async function adminLoadChannels() {
+  const list = document.getElementById('admin-channel-list')
+  list.innerHTML = '<div class="text-slate-500 text-sm text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>'
+  try {
+    const res = await API.get('/channels?owner_id=admin')
+    adminChannels = res.data?.data || []
+    if (!adminChannels.length) {
+      list.innerHTML = '<div class="text-slate-500 text-sm text-center py-8">채널이 없습니다.<br>채널을 생성해주세요.</div>'
+      return
+    }
+    list.innerHTML = adminChannels.map(ch => `
+      <div class="card rounded-xl p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-lg bg-indigo-600/30 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-layer-group text-indigo-400 text-sm"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="text-white text-sm font-semibold truncate">${escapeHtml(ch.name)}</div>
+            <div class="text-slate-400 text-xs truncate">${escapeHtml(ch.description || '-')}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-slate-400 text-xs">${ch.subscriber_count || 0}명</span>
+          <button onclick="adminOpenEditChannel(${ch.id})"
+            class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs flex items-center justify-center">
+            <i class="fas fa-pencil-alt"></i>
+          </button>
+          <button onclick="adminDeleteChannel(${ch.id}, '${escapeHtml(ch.name)}')"
+            class="w-7 h-7 rounded-lg bg-red-900/40 hover:bg-red-800/60 text-red-400 text-xs flex items-center justify-center">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `).join('')
+  } catch (e) {
+    list.innerHTML = '<div class="text-red-400 text-sm text-center py-8">불러오기 실패: ' + e.message + '</div>'
+  }
+}
+
+// ── 채널 생성 모달 열기 ────────────────────
+function adminOpenCreateChannel() {
+  document.getElementById('adminChannelModalTitle').textContent = '채널 생성'
+  document.getElementById('adminChannelId').value = ''
+  document.getElementById('adminChannelName').value = ''
+  document.getElementById('adminChannelDesc').value = ''
+  document.getElementById('adminChannelHomepage').value = ''
+  document.getElementById('adminChannelModal').classList.remove('hidden')
+}
+
+// ── 채널 수정 모달 열기 ────────────────────
+async function adminOpenEditChannel(id) {
+  try {
+    const res = await API.get('/channels/' + id)
+    const ch  = res.data?.data
+    if (!ch) return
+    document.getElementById('adminChannelModalTitle').textContent = '채널 수정'
+    document.getElementById('adminChannelId').value        = ch.id
+    document.getElementById('adminChannelName').value      = ch.name || ''
+    document.getElementById('adminChannelDesc').value      = ch.description || ''
+    document.getElementById('adminChannelHomepage').value  = ch.homepage_url || ''
+    document.getElementById('adminChannelModal').classList.remove('hidden')
+  } catch (e) { showToast('채널 정보를 불러오지 못했습니다.', 'error') }
+}
+
+function closeAdminChannelModal() {
+  document.getElementById('adminChannelModal').classList.add('hidden')
+}
+
+// ── 채널 저장 (생성/수정) ──────────────────
+async function adminSaveChannel() {
+  const id       = document.getElementById('adminChannelId').value
+  const name     = document.getElementById('adminChannelName').value.trim()
+  const desc     = document.getElementById('adminChannelDesc').value.trim()
+  const homepage = document.getElementById('adminChannelHomepage').value.trim()
+  if (!name) { showToast('채널명을 입력하세요', 'error'); return }
+  try {
+    if (id) {
+      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null })
+      showToast('채널이 수정됐습니다 ✅')
+    } else {
+      await API.post('/channels', { name, description: desc, homepage_url: homepage || null, owner_id: 'admin' })
+      showToast('채널이 생성됐습니다 ✅')
+    }
+    closeAdminChannelModal()
+    adminLoadChannels()
+  } catch (e) { showToast('저장 실패: ' + e.message, 'error') }
+}
+
+// ── 채널 삭제 ─────────────────────────────
+async function adminDeleteChannel(id, name) {
+  if (!confirm(`"${name}" 채널을 삭제하시겠습니까?`)) return
+  try {
+    await API.delete('/channels/' + id)
+    showToast('삭제됐습니다')
+    adminLoadChannels()
+  } catch (e) { showToast('삭제 실패: ' + e.message, 'error') }
+}
+
+// ── 구독자 관리 탭 채널 셀렉트 로드 ────────
+async function adminLoadChannelsForSelect() {
+  const sel  = document.getElementById('admin-member-channel-select')
+  const sel2 = document.getElementById('admin-send-channel')
+  try {
+    const res = await API.get('/channels?owner_id=admin')
+    adminChannels = res.data?.data || []
+    const opts = adminChannels.map(ch => `<option value="${ch.id}">${escapeHtml(ch.name)} (${ch.subscriber_count||0}명)</option>`).join('')
+    sel.innerHTML  = '<option value="">채널을 선택하세요</option>' + opts
+  } catch (e) { showToast('채널 목록 로드 실패', 'error') }
+}
+
+async function adminLoadChannelsForSend() {
+  const sel = document.getElementById('admin-send-channel')
+  try {
+    const res = await API.get('/channels?owner_id=admin')
+    adminChannels = res.data?.data || []
+    const opts = adminChannels.map(ch => `<option value="${ch.id}">${escapeHtml(ch.name)} (${ch.subscriber_count||0}명)</option>`).join('')
+    sel.innerHTML = '<option value="">채널을 선택하세요</option>' + opts
+  } catch (e) {}
+  // 기본 발송 시간: 현재 시각 + 1시간
+  const dt = document.getElementById('admin-send-time')
+  if (dt && !dt.value) {
+    const d = new Date(Date.now() + 60 * 60 * 1000)
+    dt.value = d.toISOString().slice(0, 16)
+  }
+}
+
+// ── 구독자 관리 패널 로드 ──────────────────
+async function adminLoadMemberPanels() {
+  const chId = document.getElementById('admin-member-channel-select').value
+  if (!chId) return
+  adminLeftPage = 1
+  adminLeftSearch = ''
+  document.getElementById('admin-left-search').value = ''
+  document.getElementById('admin-right-search').value = ''
+  await Promise.all([adminLoadLeftMembers(1), adminLoadRightMembers()])
+}
+
+// ── 왼쪽: 전체 회원 목록 (해당 채널 구독자 제외) ──
+async function adminLoadLeftMembers(page = 1) {
+  adminLeftPage = page
+  const chId   = document.getElementById('admin-member-channel-select').value
+  if (!chId) return
+  const filter = document.getElementById('admin-left-filter').value
+  const search = document.getElementById('admin-left-search').value.trim()
+  const list   = document.getElementById('admin-left-list')
+  list.innerHTML = '<div class="text-slate-500 text-xs text-center py-6"><i class="fas fa-spinner fa-spin"></i></div>'
+  try {
+    let url = `/users?limit=20&page=${page}&exclude_channel_id=${chId}`
+    if (filter === 'fcm') url += '&has_fcm=1'
+    if (search) url += '&search=' + encodeURIComponent(search)
+    const res   = await API.get(url)
+    const users = res.data?.data || []
+    const total = res.data?.pagination?.total || 0
+    const pages = res.data?.pagination?.pages || 1
+    document.getElementById('admin-left-count').textContent = total + '명'
+    if (!users.length) {
+      list.innerHTML = '<div class="text-slate-500 text-xs text-center py-6">회원이 없습니다</div>'
+      document.getElementById('admin-left-pagination').innerHTML = ''
+      return
+    }
+    list.innerHTML = users.map(u => `
+      <label class="flex items-center gap-2 px-3 py-2 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50">
+        <input type="checkbox" class="admin-left-check w-3.5 h-3.5 accent-indigo-500 flex-shrink-0" value="${u.user_id}">
+        <div class="min-w-0 flex-1">
+          <div class="text-white text-xs font-medium truncate">${escapeHtml(u.display_name || u.user_id)}</div>
+          <div class="text-slate-500 text-xs truncate">${escapeHtml(u.email || u.user_id)}</div>
+        </div>
+        ${u.has_fcm ? '<i class="fas fa-bell text-emerald-400 text-xs flex-shrink-0" title="FCM 있음"></i>' : '<i class="fas fa-bell-slash text-slate-600 text-xs flex-shrink-0" title="FCM 없음"></i>'}
+      </label>
+    `).join('')
+    // 페이지네이션
+    const pg = document.getElementById('admin-left-pagination')
+    if (pages <= 1) { pg.innerHTML = ''; return }
+    let pgHtml = ''
+    if (page > 1) pgHtml += `<button onclick="adminLoadLeftMembers(${page-1})" class="px-2 py-1 rounded bg-slate-700 text-slate-300 text-xs">◀</button>`
+    pgHtml += `<span class="text-slate-400 text-xs px-2">${page}/${pages}</span>`
+    if (page < pages) pgHtml += `<button onclick="adminLoadLeftMembers(${page+1})" class="px-2 py-1 rounded bg-slate-700 text-slate-300 text-xs">▶</button>`
+    pg.innerHTML = pgHtml
+  } catch (e) { list.innerHTML = '<div class="text-red-400 text-xs text-center py-6">로드 실패</div>' }
+}
+
+// ── 오른쪽: 채널 구독자 목록 ──────────────
+async function adminLoadRightMembers() {
+  const chId   = document.getElementById('admin-member-channel-select').value
+  const search = document.getElementById('admin-right-search').value.trim()
+  const list   = document.getElementById('admin-right-list')
+  list.innerHTML = '<div class="text-slate-500 text-xs text-center py-6"><i class="fas fa-spinner fa-spin"></i></div>'
+  try {
+    let url = `/subscribers?channel_id=${chId}`
+    const res  = await API.get(url)
+    let subs   = res.data?.data || []
+    if (search) subs = subs.filter(s => (s.display_name||'').includes(search) || (s.email||'').includes(search) || (s.user_id||'').includes(search))
+    document.getElementById('admin-right-count').textContent = subs.length + '명'
+    if (!subs.length) {
+      list.innerHTML = '<div class="text-slate-500 text-xs text-center py-6">구독자가 없습니다</div>'
+      return
+    }
+    list.innerHTML = subs.map(s => `
+      <label class="flex items-center gap-2 px-3 py-2 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50">
+        <input type="checkbox" class="admin-right-check w-3.5 h-3.5 accent-red-500 flex-shrink-0" value="${s.user_id}">
+        <div class="min-w-0 flex-1">
+          <div class="text-white text-xs font-medium truncate">${escapeHtml(s.display_name || s.user_id)}</div>
+          <div class="text-slate-500 text-xs truncate">${escapeHtml(s.email || s.user_id)}</div>
+        </div>
+        ${s.fcm_token ? '<i class="fas fa-bell text-emerald-400 text-xs flex-shrink-0"></i>' : '<i class="fas fa-bell-slash text-slate-600 text-xs flex-shrink-0"></i>'}
+      </label>
+    `).join('')
+  } catch (e) { list.innerHTML = '<div class="text-red-400 text-xs text-center py-6">로드 실패</div>' }
+}
+
+// ── 검색 디바운스 ──────────────────────────
+function adminLeftSearchDebounce() {
+  clearTimeout(adminLeftSearchTimer)
+  adminLeftSearchTimer = setTimeout(() => adminLoadLeftMembers(1), 400)
+}
+function adminRightSearchDebounce() {
+  clearTimeout(adminRightSearchTimer)
+  adminRightSearchTimer = setTimeout(() => adminLoadRightMembers(), 400)
+}
+
+// ── 전체 선택/해제 ─────────────────────────
+function adminToggleAllLeft(checked) {
+  document.querySelectorAll('.admin-left-check').forEach(cb => cb.checked = checked)
+}
+function adminToggleAllRight(checked) {
+  document.querySelectorAll('.admin-right-check').forEach(cb => cb.checked = checked)
+}
+
+// ── 강제 구독 ─────────────────────────────
+async function adminForceSubscribe() {
+  const chId     = document.getElementById('admin-member-channel-select').value
+  const selected = [...document.querySelectorAll('.admin-left-check:checked')].map(cb => cb.value)
+  if (!chId)          { showToast('채널을 선택하세요', 'error'); return }
+  if (!selected.length){ showToast('회원을 선택하세요', 'error'); return }
+  try {
+    const res = await API.post('/subscribers/force', { channel_id: parseInt(chId), user_ids: selected })
+    showToast(`${res.data?.added || 0}명 가입 완료 ✅`)
+    document.getElementById('admin-left-all').checked  = false
+    document.getElementById('admin-right-all').checked = false
+    await adminLoadMemberPanels()
+  } catch (e) { showToast('가입 처리 실패: ' + e.message, 'error') }
+}
+
+// ── 강제 탈퇴 ─────────────────────────────
+async function adminForceUnsubscribe() {
+  const chId     = document.getElementById('admin-member-channel-select').value
+  const selected = [...document.querySelectorAll('.admin-right-check:checked')].map(cb => cb.value)
+  if (!chId)          { showToast('채널을 선택하세요', 'error'); return }
+  if (!selected.length){ showToast('구독자를 선택하세요', 'error'); return }
+  if (!confirm(`선택한 ${selected.length}명을 채널에서 탈퇴시키겠습니까?`)) return
+  try {
+    const res = await API.delete('/subscribers/force', { data: { channel_id: parseInt(chId), user_ids: selected } })
+    showToast(`${res.data?.removed || 0}명 탈퇴 완료 ✅`)
+    document.getElementById('admin-left-all').checked  = false
+    document.getElementById('admin-right-all').checked = false
+    await adminLoadMemberPanels()
+  } catch (e) { showToast('탈퇴 처리 실패: ' + e.message, 'error') }
+}
+
+// ── 컨텐츠 타입 선택 ──────────────────────
+function adminSelectMsgType(type) {
+  adminSelectedMsgType = type
+  ['youtube','audio','video','file'].forEach(t => {
+    const btn = document.getElementById('admin-type-' + t)
+    if (t === type) {
+      btn.classList.add('border-indigo-500','bg-indigo-500/10','text-white')
+      btn.classList.remove('border-slate-600','bg-slate-700/50','text-slate-400')
+    } else {
+      btn.classList.remove('border-indigo-500','bg-indigo-500/10','text-white')
+      btn.classList.add('border-slate-600','bg-slate-700/50','text-slate-400')
+    }
+  })
+  const labels = { youtube: 'YouTube URL *', audio: '오디오 URL *', video: '비디오 URL *', file: '파일 URL *' }
+  const placeholders = { youtube: 'https://youtu.be/...', audio: 'https://...', video: 'https://...', file: 'https://...' }
+  document.getElementById('admin-send-url-label').textContent = labels[type]
+  document.getElementById('admin-send-url').placeholder = placeholders[type]
+}
+
+// ── 알람 발송 ─────────────────────────────
+async function adminSendAlarm() {
+  const chId    = document.getElementById('admin-send-channel').value
+  const url     = document.getElementById('admin-send-url').value.trim()
+  const linkUrl = document.getElementById('admin-send-link-url').value.trim()
+  const time    = document.getElementById('admin-send-time').value
+  if (!chId)  { showToast('채널을 선택하세요', 'error'); return }
+  if (!url)   { showToast('컨텐츠 URL을 입력하세요', 'error'); return }
+  if (!time)  { showToast('발송 시간을 입력하세요', 'error'); return }
+
+  // datetime-local → UTC ISO
+  const scheduledAt = new Date(time).toISOString()
+  if (new Date(time) <= new Date()) { showToast('발송 시간은 현재 시각 이후여야 합니다', 'error'); return }
+
+  // 채널 정보에서 owner_id(admin) 확인
+  const ch = adminChannels.find(c => c.id == chId)
+
+  try {
+    const res = await API.post('/alarms', {
+      channel_id:   parseInt(chId),
+      created_by:   'admin',
+      scheduled_at: scheduledAt,
+      msg_type:     adminSelectedMsgType,
+      msg_value:    url,
+      link_url:     linkUrl || null
+    })
+    showToast('알람이 예약됐습니다 ✅ (채널: ' + (ch?.name || chId) + ')')
+    document.getElementById('admin-send-url').value      = ''
+    document.getElementById('admin-send-link-url').value = ''
+  } catch (e) {
+    showToast('발송 실패: ' + (e.response?.data?.error || e.message), 'error')
+  }
+}
+
+// ── 관리자 알람발송 페이지 진입 시 초기 로드 ──
+function adminAlarmPageInit() {
+  adminShowTab('channel')
 }

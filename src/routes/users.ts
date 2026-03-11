@@ -30,10 +30,13 @@ users.get('/stats/summary', async (c) => {
 // 회원 목록 조회
 users.get('/', async (c) => {
   const { DB } = c.env
-  const search = c.req.query('search') || ''
-  const page   = parseInt(c.req.query('page')  || '1')
-  const limit  = parseInt(c.req.query('limit') || '20')
-  const offset = (page - 1) * limit
+  const search    = c.req.query('search') || ''
+  const page      = parseInt(c.req.query('page')       || '1')
+  const limit     = parseInt(c.req.query('limit')      || '20')
+  const offset    = (page - 1) * limit
+  const channelId = c.req.query('channel_id') || ''   // 채널별 필터
+  const hasFcm    = c.req.query('has_fcm')    || ''   // FCM 있는 회원만
+  const excludeChannelId = c.req.query('exclude_channel_id') || '' // 해당 채널 구독자 제외
 
   try {
     // subscribers 테이블은 is_active 컬럼 사용
@@ -48,21 +51,49 @@ users.get('/', async (c) => {
       LEFT JOIN subscribers s ON s.user_id = u.user_id AND s.is_active = 1
     `
     const params: any[] = []
+    const where: string[] = []
+
     if (search) {
-      query += ` WHERE (u.email LIKE ? OR u.display_name LIKE ? OR u.user_id LIKE ?)`
+      where.push(`(u.email LIKE ? OR u.display_name LIKE ? OR u.user_id LIKE ?)`)
       params.push(`%${search}%`, `%${search}%`, `%${search}%`)
     }
+    if (hasFcm === '1') {
+      where.push(`u.fcm_token IS NOT NULL`)
+    }
+    if (channelId) {
+      where.push(`EXISTS (SELECT 1 FROM subscribers sx WHERE sx.user_id = u.user_id AND sx.channel_id = ? AND sx.is_active = 1)`)
+      params.push(channelId)
+    }
+    if (excludeChannelId) {
+      where.push(`NOT EXISTS (SELECT 1 FROM subscribers sx WHERE sx.user_id = u.user_id AND sx.channel_id = ? AND sx.is_active = 1)`)
+      params.push(excludeChannelId)
+    }
+    if (where.length) query += ` WHERE ` + where.join(' AND ')
     query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?`
     params.push(limit, offset)
 
     const rows = await DB.prepare(query).bind(...params).all()
 
-    let countQuery = `SELECT COUNT(*) as total FROM users`
+    let countQuery = `SELECT COUNT(*) as total FROM users u`
     const countParams: any[] = []
+    const countWhere: string[] = []
     if (search) {
-      countQuery += ` WHERE (email LIKE ? OR display_name LIKE ? OR user_id LIKE ?)`
+      countWhere.push(`(u.email LIKE ? OR u.display_name LIKE ? OR u.user_id LIKE ?)`)
       countParams.push(`%${search}%`, `%${search}%`, `%${search}%`)
     }
+    if (hasFcm === '1') {
+      countWhere.push(`u.fcm_token IS NOT NULL`)
+    }
+    if (channelId) {
+      countWhere.push(`EXISTS (SELECT 1 FROM subscribers sx WHERE sx.user_id = u.user_id AND sx.channel_id = ? AND sx.is_active = 1)`)
+      countParams.push(channelId)
+    }
+    if (excludeChannelId) {
+      countWhere.push(`NOT EXISTS (SELECT 1 FROM subscribers sx WHERE sx.user_id = u.user_id AND sx.channel_id = ? AND sx.is_active = 1)`)
+      countParams.push(excludeChannelId)
+    }
+    if (countWhere.length) countQuery += ` WHERE ` + countWhere.join(' AND ')
+
     const countRow = await DB.prepare(countQuery).bind(...countParams).first<{ total: number }>()
     const total = countRow?.total || 0
 
