@@ -951,14 +951,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _joinChannel(token);
+                  // 채널 소개 페이지 열기 (가입은 사용자가 소개 페이지에서 직접)
+                  if (channelId != null) {
+                    final safeChName = channelName.replaceAll("'", "\\'");
+                    _controller.runJavaScript(
+                      "if(typeof App !== 'undefined') { App.goto('joined-all'); setTimeout(function(){ App.openChannelDetail($channelId, '$safeChName'); }, 400); }"
+                    );
+                  } else {
+                    _controller.runJavaScript(
+                      "if(typeof App !== 'undefined') { App.goto('joined-all'); }"
+                    );
+                  }
                 },
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.notifications_active, size: 18),
+                    Icon(Icons.info_outline, size: 18),
                     SizedBox(width: 8),
-                    Text('채널 참여하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('채널 소개 보기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -1042,9 +1052,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         final channelName = body['data']?['channel_name'] ?? '채널';
-        // 웹뷰 구독채널 탭으로 이동 및 새로고침
+        final channelId = body['data']?['channel_id'];
+        // 웹뷰 구독채널 탭으로 이동 후 해당 채널 소개 페이지 열기
         await _controller.runJavaScript(
-          "if(typeof App !== 'undefined') { App.goto('joined-all'); }"
+          "if(typeof App !== 'undefined') { App.goto('joined-all'); ${channelId != null ? "setTimeout(function(){ App.openChannelDetail($channelId, '${channelName.replaceAll("'", "\\'")}'); }, 600);" : ''} }"
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -2265,6 +2265,25 @@ function _doLogin() {
   App.goto('home')
   pollAlarmTrigger()
   setInterval(pollAlarmTrigger, 60 * 1000)
+
+  // join_token URL 파라미터 처리 - 해당 채널 소개 페이지 열기
+  const urlParams = new URLSearchParams(window.location.search)
+  const joinToken = urlParams.get('join_token')
+  if (joinToken) {
+    setTimeout(async () => {
+      try {
+        const res = await API.get('/invites/verify/' + joinToken)
+        const data = res.data
+        if (data?.success && data?.valid && data?.data?.channel_id) {
+          const chId = data.data.channel_id
+          const chName = data.data.channel_name || '채널'
+          App.openChannelDetail(chId, chName)
+        }
+      } catch(e) {
+        console.error('[join_token] 채널 조회 실패:', e)
+      }
+    }, 500)
+  }
 }
 
 // ── Flutter에서 호출하는 세션 주입 함수 ──────────────────────

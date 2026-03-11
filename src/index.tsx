@@ -265,10 +265,8 @@ app.get('/join/:token', async (c) => {
     '  });' +
     '}' +
     'function openInApp(){' +
-    '  var start=Date.now();' +
-    '  window.location.href=DEEP_LINK;' +
-    '  var t=setTimeout(function(){if(!document.hidden&&Date.now()-start<3500){showScreen("screen-install");}},2500);' +
-    '  document.addEventListener("visibilitychange",function(){if(document.hidden)clearTimeout(t);},{once:true});' +
+    '  var intentUrl="intent://join?token=' + token + '#Intent;scheme=pushapp;package=com.pushnotify.push_notify_app;end";' +
+    '  window.location.href=intentUrl;' +
     '}' +
     'function goInstall(){' +
     '  window.location.href=INSTALL_URL;' +
@@ -276,12 +274,9 @@ app.get('/join/:token', async (c) => {
     '}' +
     (isValid ? (
       'if(isMobile){' +
-      '  showScreen("screen-loading");' +
-      '  window.location.href=DEEP_LINK;' +
-      '  var autoT=setTimeout(function(){showScreen("screen-install");},2200);' +
-      '  document.addEventListener("visibilitychange",function(){' +
-      '    if(document.hidden){clearTimeout(autoT);setTimeout(function(){showScreen("screen-join");},500);}' +
-      '  },{once:true});' +
+      '  var intentUrl="intent://join?token=' + token + '#Intent;scheme=pushapp;package=com.pushnotify.push_notify_app;end";' +
+      '  window.location.href=intentUrl;' +
+      '  setTimeout(function(){showScreen("screen-join");},1500);' +
       '}else{showScreen("screen-join");}' 
     ) : '') +
     '<\/script>' +
