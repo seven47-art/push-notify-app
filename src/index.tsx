@@ -1009,7 +1009,7 @@ app.get('/', (c) => {
           </button>
           <button id="admin-tab-list" onclick="adminShowTab('list')"
             class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
-            <i class="fas fa-list-alt mr-1.5"></i>예약 목록
+            <i class="fas fa-calendar-check mr-1.5"></i>예약 알람
           </button>
         </div>
 
@@ -1226,7 +1226,7 @@ app.get('/', (c) => {
           </div>
         </div>
 
-        <!-- 탭4: 예약 목록 -->
+        <!-- 탭4: 예약 알람 -->
         <div id="admin-tab-content-list" class="hidden">
           <div class="flex justify-between items-center mb-4">
             <h3 class="text-white font-semibold">예약된 알람 목록</h3>
