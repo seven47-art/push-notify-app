@@ -300,10 +300,15 @@ const App = {
     if (outboxDetail && outboxDetail.style.display !== 'none') {
       this.outboxBack(); return false
     }
-    // 3. 모달이 열려있으면 닫기
-    const openModal = document.querySelector('.fullscreen-overlay.active, .modal-overlay.active')
-    if (openModal) {
-      openModal.classList.remove('active'); return false
+    // 3. 모달이 열려있으면 가장 위(z-index 높은) 모달만 닫기
+    const openModals = [...document.querySelectorAll('.fullscreen-overlay.active, .modal-overlay.active')]
+    if (openModals.length) {
+      const topModal = openModals.reduce((a, b) => {
+        const az = parseInt(window.getComputedStyle(a).zIndex) || 0
+        const bz = parseInt(window.getComputedStyle(b).zIndex) || 0
+        return bz > az ? b : a
+      })
+      topModal.classList.remove('active'); return false
     }
     // 4. 드로어가 열려있으면 닫기
     const drawer = document.getElementById('drawer')
