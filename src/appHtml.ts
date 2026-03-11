@@ -1058,7 +1058,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
 <!-- 비밀채널 비밀번호 입력 모달 -->
 <div class="modal-overlay" id="modal-secret-pw" style="align-items:center;">
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:calc(100% - 48px);max-width:360px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:calc(100% - 48px);max-width:360px;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
       <span style="font-size:20px;">🔒</span>
       <span style="font-weight:700;font-size:16px;color:var(--text);">비밀번호 확인</span>
@@ -1077,6 +1077,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603101520"></script>
+<script src="/static/mobile-app.js?v=202603111000"></script>
 </body>
 </html>`;
