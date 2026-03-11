@@ -379,7 +379,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .ch-detail-section-body { font-size:14px; color:var(--text2); line-height:1.65; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:13px 14px; white-space:pre-wrap; word-break:break-word; }
 .ch-detail-link { font-size:14px; color:var(--primary); background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:13px 14px; display:flex; align-items:center; gap:8px; cursor:pointer; text-decoration:none; }
 .ch-detail-link:active { background:var(--bg3); }
-.ch-detail-action-bar { padding:14px 16px; display:flex; gap:10px; }
+.ch-detail-action-bar { padding:14px 16px; display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .ch-detail-btn-share { flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text2); font-size:14px; font-weight:600; padding:12px; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
 .ch-detail-btn-join { flex:2; background:var(--primary); border:none; color:#fff; font-size:14px; font-weight:700; padding:12px; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
 .ch-detail-btn-leave { flex:2; background:var(--danger); border:none; color:#fff; font-size:14px; font-weight:700; padding:12px; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }

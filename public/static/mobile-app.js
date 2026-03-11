@@ -1862,13 +1862,22 @@ const App = {
         : '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
 
       // 액션 버튼
-      let btns = '<button class="ch-detail-btn-share" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-share-alt"></i> 공유</button>'
+      const hasAlarmDetail = (ch.pending_alarm_count || 0) > 0
+      const alarmIconColor = hasAlarmDetail ? 'var(--primary)' : 'var(--text3)'
+      const alarmBtnStyle = 'background:var(--bg2);border:1px solid var(--border);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;'
+      let btns = ''
       if (isOwner) {
-        btns += '<button class="ch-detail-btn-join" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')"><i class="fas fa-cog"></i> 채널 설정</button>'
+        btns =
+          '<button style="' + alarmBtnStyle + 'color:' + alarmIconColor + ';" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
+          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>'
       } else if (isJoined) {
-        // 가입채널: 알림설정 버튼 없음 (공유만)
+        btns =
+          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
       } else {
-        btns += '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
+        btns =
+          '<button style="' + alarmBtnStyle + 'color:var(--text2);" onclick="App._shareChannel(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
       }
 
       // 가입채널일 때만 하단 '채널 나가기' 버튼 (운영자는 제외)
