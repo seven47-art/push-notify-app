@@ -2328,6 +2328,10 @@ window.flutterSetSession = function(token, userId, email, displayName) {
   // 드로어 이메일 갱신
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = email || displayName || ''
+  // 앱 버전 라벨 갱신
+  const appVer = localStorage.getItem('app_version')
+  const versionEl = document.getElementById('app-version-label')
+  if (versionEl && appVer) versionEl.textContent = 'v' + appVer
   // 알람 폴링 시작 (중복 방지)
   if (!window._pollStarted) {
     window._pollStarted = true
