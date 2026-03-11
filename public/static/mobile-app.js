@@ -2303,7 +2303,8 @@ async function pollAlarmTrigger() {
             msg_type: alarm.msg_type,
             msg_value: alarm.msg_value || '',
             alarm_id: alarm.alarm_id,
-            content_url: alarm.content_url || ''
+            content_url: alarm.content_url || '',
+            link_url: alarm.link_url || ''
           }))
         }
       })

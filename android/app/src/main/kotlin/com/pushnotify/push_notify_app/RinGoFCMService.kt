@@ -47,11 +47,12 @@ class RinGoFCMService : FirebaseMessagingService() {
         val msgValue        = data["msg_value"]         ?: ""
         val contentUrl      = data["content_url"]       ?: ""
         val homepageUrl     = data["homepage_url"]      ?: ""
+        val linkUrl         = data["link_url"]          ?: ""
 
         Log.d(TAG, "알람 예약: $channelName (id=$alarmId) at $scheduledMs")
         AlarmScheduler.schedule(
             this, alarmId, scheduledMs,
-            channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId
+            channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl
         )
     }
 
@@ -69,11 +70,12 @@ class RinGoFCMService : FirebaseMessagingService() {
         val msgValue        = data["msg_value"]         ?: ""
         val contentUrl      = data["content_url"]       ?: ""
         val homepageUrl     = data["homepage_url"]      ?: ""
+        val linkUrl         = data["link_url"]          ?: ""
 
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         Log.d(TAG, "FCM 즉시 알람: $channelName (id=$alarmId)")
         AlarmPollingService.triggerAlarm(
-            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
+            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl
         )
     }
 }

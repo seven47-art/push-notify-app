@@ -69,7 +69,7 @@ class AlarmPollingService : Service() {
             context: Context,
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = "",
-            channelPublicId: String = ""
+            channelPublicId: String = "", linkUrl: String = ""
         ) {
             if (alarmId > 0) {
                 synchronized(fcmLock) {
@@ -86,7 +86,7 @@ class AlarmPollingService : Service() {
             )
             FakeCallActivity.start(
                 context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
-                channelPublicId = channelPublicId
+                channelPublicId = channelPublicId, linkUrl = linkUrl
             )
         }
     }
@@ -180,12 +180,13 @@ class AlarmPollingService : Service() {
                 val msgValue        = alarm.optString("msg_value",         "")
                 val contentUrl      = alarm.optString("content_url",       "")
                 val homepageUrl     = alarm.optString("channel_homepage_url", "").ifEmpty { alarm.optString("homepage_url", "") }
+                val linkUrl         = alarm.optString("link_url", "")
 
                 Log.d(TAG, "polling alarm: $channelName (id=$alarmId)")
 
                 triggerAlarm(
                     this@AlarmPollingService,
-                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
+                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl
                 )
             }
 

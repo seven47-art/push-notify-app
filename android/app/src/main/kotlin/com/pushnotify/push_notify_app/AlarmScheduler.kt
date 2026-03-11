@@ -32,6 +32,7 @@ object AlarmScheduler {
      * @param contentUrl       콘텐츠 스트림 URL
      * @param homepageUrl      채널 홈페이지 URL
      * @param channelPublicId  채널 public_id (수신 화면 이미지 로드용)
+     * @param linkUrl          연결 URL (알람 설정의 연결 URL)
      */
     fun schedule(
         context: Context,
@@ -42,12 +43,13 @@ object AlarmScheduler {
         msgValue: String,
         contentUrl: String,
         homepageUrl: String = "",
-        channelPublicId: String = ""
+        channelPublicId: String = "",
+        linkUrl: String = ""
     ) {
         val nowMs = System.currentTimeMillis()
         if (scheduledMs <= nowMs) {
             Log.w(TAG, "예약 시간이 이미 지남: alarmId=$alarmId, scheduledMs=$scheduledMs, now=$nowMs")
-            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId)
+            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl)
             return
         }
 
@@ -60,6 +62,7 @@ object AlarmScheduler {
             putExtra(AlarmReceiver.EXTRA_MSG_VALUE,         msgValue)
             putExtra(AlarmReceiver.EXTRA_CONTENT_URL,       contentUrl)
             putExtra(AlarmReceiver.EXTRA_HOMEPAGE_URL,      homepageUrl)
+            putExtra(AlarmReceiver.EXTRA_LINK_URL,          linkUrl)
         }
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

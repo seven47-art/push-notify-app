@@ -39,6 +39,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_MSG_VALUE         = "msg_value"
         const val EXTRA_CONTENT_URL       = "content_url"
         const val EXTRA_HOMEPAGE_URL      = "homepage_url"
+        const val EXTRA_LINK_URL          = "link_url"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -57,6 +58,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
         val contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
         val homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
+        val linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
 
         Log.d(TAG, "AlarmManager 트리거: $channelName (id=$alarmId)")
 
@@ -65,7 +67,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         AlarmPollingService.triggerAlarm(
-            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId
+            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl
         )
 
         Log.d(TAG, "알람 처리 완료: $channelName (id=$alarmId)")

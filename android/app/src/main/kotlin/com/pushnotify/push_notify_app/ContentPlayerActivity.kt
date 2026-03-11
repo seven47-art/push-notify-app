@@ -49,6 +49,7 @@ class ContentPlayerActivity : Activity() {
         const val EXTRA_CONTENT_URL       = "content_url"
         const val EXTRA_CHANNEL_NAME      = "channel_name"
         const val EXTRA_HOMEPAGE_URL      = "homepage_url"
+        const val EXTRA_LINK_URL          = "link_url"
         const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
 
         fun start(
@@ -58,7 +59,8 @@ class ContentPlayerActivity : Activity() {
             contentUrl: String,
             channelName: String,
             homepageUrl: String = "",
-            channelPublicId: String = ""
+            channelPublicId: String = "",
+            linkUrl: String = ""
         ) {
             val intent = Intent(context, ContentPlayerActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -68,6 +70,7 @@ class ContentPlayerActivity : Activity() {
                 putExtra(EXTRA_CONTENT_URL,       contentUrl)
                 putExtra(EXTRA_CHANNEL_NAME,      channelName)
                 putExtra(EXTRA_HOMEPAGE_URL,      homepageUrl)
+                putExtra(EXTRA_LINK_URL,          linkUrl)
                 putExtra(EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
             }
             context.startActivity(intent)
@@ -100,9 +103,10 @@ class ContentPlayerActivity : Activity() {
         val contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
         val channelName     = intent.getStringExtra(EXTRA_CHANNEL_NAME)      ?: "알람"
         val homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
+        val linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
         val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
 
-        setContentView(buildUI(channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId))
+        setContentView(buildUI(channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -112,7 +116,8 @@ class ContentPlayerActivity : Activity() {
         msgValue: String,
         contentUrl: String,
         homepageUrl: String,
-        channelPublicId: String
+        channelPublicId: String,
+        linkUrl: String = ""
     ): View {
 
         // ── 루트: 세로 LinearLayout ──
@@ -461,40 +466,35 @@ class ContentPlayerActivity : Activity() {
         }
         bottomBar.addView(channelNameView)
 
-        // ── 홈페이지 아이콘 버튼 (있을 때만) ──────────────────────
-        if (homepageUrl.isNotEmpty()) {
-            val hpUrl = if (homepageUrl.startsWith("http")) homepageUrl else "https://$homepageUrl"
+        // ── 링크 URL 아이콘 버튼 (link_url 있을 때만 표시) ──────────────────────
+        if (linkUrl.isNotEmpty()) {
+            val fullLinkUrl = if (linkUrl.startsWith("http")) linkUrl else "https://$linkUrl"
             val iconSize = dp(44)
-            val hpBtn = ImageView(this).apply {
-                setImageResource(R.drawable.homepage_icon)
+            val linkBtn = ImageView(this).apply {
+                setImageResource(R.drawable.link_icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
                     it.marginEnd = dp(8)
                 }
                 setOnClickListener {
                     try {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(hpUrl)).apply {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fullLinkUrl)).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         })
                     } catch (e: Exception) {
-                        Log.e(TAG, "홈페이지 열기 실패: ${e.message}")
+                        Log.e(TAG, "링크 열기 실패: ${e.message}")
                     }
                 }
             }
-            bottomBar.addView(hpBtn)
+            bottomBar.addView(linkBtn)
         }
 
         // ── X (종료) 버튼 ──────────────────────────────────────────
         val closeSize = dp(44)
         val closeBtn = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setColorFilter(Color.WHITE)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#EF4444"))
-            }
+            setImageResource(R.drawable.close_icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
             layoutParams = LinearLayout.LayoutParams(closeSize, closeSize)
-            setPadding(dp(10), dp(10), dp(10), dp(10))
             setOnClickListener { closePlayer() }
         }
         bottomBar.addView(closeBtn)
