@@ -675,21 +675,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('joined-all')">
     <i class="fas fa-list"></i> 구독채널
   </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openPrivacy()">
-    <i class="fas fa-shield-alt"></i> 개인정보보호정책
-  </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.openTerms()">
-    <i class="fas fa-file-alt"></i> 서비스 이용약관
-  </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();toast('v1.0.48 (web)')">
-    <i class="fas fa-info-circle"></i> 버전
-    <span style="margin-left:auto;font-size:12px;color:var(--text3);">v1.0.48</span>
-  </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('settings')">
     <i class="fas fa-cog"></i> 설정
-  </div>
-  <div class="drawer-menu-item" onclick="App.closeDrawer();App.logout()" style="color:var(--danger);">
-    <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> 로그아웃
   </div>
   <div class="drawer-version">RinGo Web v1.0.48</div>
 </div>
