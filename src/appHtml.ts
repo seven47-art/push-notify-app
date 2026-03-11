@@ -597,13 +597,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="settings-menu-label">메뉴</div>
     <!-- 다크/라이트 모드 토글 -->
     <div class="settings-menu-item" style="cursor:default;">
-      <i class="fas fa-moon"></i> 다크 모드
+      <i class="fas fa-moon"></i> 모드 선택
       <div class="theme-toggle-wrap">
-        <span class="theme-toggle-label" id="theme-label">다크</span>
-        <label class="toggle-switch">
+        <span style="font-size:13px;color:var(--text2);">라이트</span>
+        <label class="toggle-switch" style="margin:0 4px;">
           <input type="checkbox" id="theme-toggle" onchange="App.toggleTheme(this.checked)">
           <span class="toggle-slider"></span>
         </label>
+        <span style="font-size:13px;color:var(--text2);">다크</span>
       </div>
     </div>
 
