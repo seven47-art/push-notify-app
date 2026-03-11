@@ -1305,6 +1305,16 @@ const App = {
     if (input) { input.value = ''; input.focus() }
   },
 
+  // 외부 브라우저로 URL 열기 (Flutter: externalApplication / 웹: 새 탭)
+  openExternalUrl(url) {
+    if (!url) return
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'open_url', url }))
+    } else {
+      window.open(url, '_blank')
+    }
+  },
+
   // 연결 URL - 홈페이지와 동일 체크박스
   async _onAlarmLinkHomepageCheck(checkbox) {
     const linkInput = document.getElementById('alarm-link-url')
@@ -1967,10 +1977,10 @@ const App = {
         hpHtml =
           '<div class="ch-detail-section">' +
             '<div class="ch-detail-section-title"><i class="fas fa-globe" style="color:var(--teal);"></i> 홈페이지</div>' +
-            '<a class="ch-detail-link" href="' + hpUrl + '" target="_blank" title="' + hpUrl + '" oncontextmenu="event.preventDefault();navigator.clipboard.writeText(\'' + hpUrl.replace(/'/g,"\\'") + '\').then(()=>toast(\'주소가 복사됐습니다\'))" ontouchstart="" ontouchend="clearTimeout(window._hpTimer)" ontouchstart="window._hpTimer=setTimeout(()=>{navigator.clipboard.writeText(\'' + hpUrl.replace(/'/g,"\\'") + '\').then(()=>toast(\'주소가 복사됐습니다\'))},600)">' +
+            '<div class="ch-detail-link" style="cursor:pointer;" onclick="App.openExternalUrl(\'' + hpUrl.replace(/'/g,"\\'") + '\')" ontouchstart="window._hpTimer=setTimeout(()=>{navigator.clipboard.writeText(\'' + hpUrl.replace(/'/g,"\\'") + '\').then(()=>toast(\'주소가 복사됐습니다\'))},600)" ontouchend="clearTimeout(window._hpTimer)">' +
               '<i class="fas fa-external-link-alt" style="color:var(--teal);"></i>' +
               '<span>' + hpDomain + '</span>' +
-            '</a>' +
+            '</div>' +
           '</div>'
       }
 

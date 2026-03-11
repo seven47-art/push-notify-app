@@ -623,6 +623,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             await launchUrl(uri, mode: LaunchMode.externalApplication);
           }
           break;
+        case 'open_url':
+          final openUrlStr = data['url'] as String? ?? '';
+          if (openUrlStr.isNotEmpty) {
+            final openUri = Uri.parse(openUrlStr);
+            await launchUrl(openUri, mode: LaunchMode.externalApplication);
+          }
+          break;
         case 'get_fcm_token':
           // 웹뷰에서 FCM 토큰 요청 → SharedPreferences에서 읽어서 콜백으로 전달
           final callback = data['callback'] as String? ?? '';
