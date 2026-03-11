@@ -107,6 +107,28 @@ subscribers.delete('/leave', async (c) => {
   }
 })
 
+// DELETE /api/subscribers/force - 관리자: 구독자 강제 채널 탈퇴 (/:id 보다 먼저 등록)
+subscribers.delete('/force', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { channel_id, user_ids } = body
+    if (!channel_id || !Array.isArray(user_ids) || user_ids.length === 0) {
+      return c.json({ success: false, error: 'channel_id, user_ids 필수' }, 400)
+    }
+    let removed = 0
+    for (const user_id of user_ids) {
+      await c.env.DB.prepare(`
+        UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE channel_id = ? AND user_id = ?
+      `).bind(channel_id, user_id).run()
+      removed++
+    }
+    return c.json({ success: true, removed })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // DELETE /api/subscribers/:id - 구독자 완전 삭제 (subscriber row id)
 subscribers.delete('/:id', async (c) => {
   try {
@@ -172,26 +194,7 @@ subscribers.post('/force', async (c) => {
 })
 
 // DELETE /api/subscribers/force - 관리자: 구독자 강제 채널 탈퇴
-subscribers.delete('/force', async (c) => {
-  try {
-    const body = await c.req.json()
-    const { channel_id, user_ids } = body
-    if (!channel_id || !Array.isArray(user_ids) || user_ids.length === 0) {
-      return c.json({ success: false, error: 'channel_id, user_ids 필수' }, 400)
-    }
-    let removed = 0
-    for (const user_id of user_ids) {
-      await c.env.DB.prepare(`
-        UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-        WHERE channel_id = ? AND user_id = ?
-      `).bind(channel_id, user_id).run()
-      removed++
-    }
-    return c.json({ success: true, removed })
-  } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500)
-  }
-})
+// (위에서 이미 등록됨 - 이 위치의 중복 제거)
 
 // POST /api/subscribers/action - Flutter 앱에서 수락/거절 이벤트 기록
 subscribers.post('/action', async (c) => {

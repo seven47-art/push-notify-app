@@ -1314,10 +1314,19 @@ app.get('/', (c) => {
       <input id="adminChannelHomepage" type="text" class="input-field text-sm" placeholder="https://...">
     </div>
     <div>
-      <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">대표 이미지 URL <span class="text-slate-500 normal-case font-normal">(선택)</span></label>
-      <input id="adminChannelImageUrl" type="url" class="input-field text-sm" placeholder="https://...">
+      <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">대표 이미지 <span class="text-slate-500 normal-case font-normal">(선택)</span></label>
+      <!-- 파일 첨부 -->
+      <div class="flex items-center gap-2 mb-2">
+        <label class="cursor-pointer btn-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+          <i class="fas fa-upload mr-1.5"></i>파일 선택
+          <input type="file" id="adminChannelImageFile" accept="image/*" class="hidden" onchange="adminPreviewChannelImage(this)">
+        </label>
+        <span class="text-slate-500 text-xs">또는</span>
+        <input id="adminChannelImageUrl" type="url" class="input-field text-sm flex-1" placeholder="이미지 URL 직접 입력">
+      </div>
       <div id="adminChannelImagePreview" class="mt-2 hidden">
         <img id="adminChannelImgTag" src="" class="w-16 h-16 rounded-xl object-cover border border-slate-600">
+        <button onclick="adminClearChannelImage()" class="mt-1 text-xs text-red-400 hover:text-red-300"><i class="fas fa-times mr-1"></i>이미지 제거</button>
       </div>
     </div>
     <div class="flex gap-3 pt-2">

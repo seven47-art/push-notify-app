@@ -112,7 +112,7 @@ alarms.post('/', async (c) => {
     }
     // scheduled_at이 UTC ISO 문자열인지 확인 후 미래 시간 검증
     const scheduledDate = new Date(scheduled_at)
-    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date(Date.now() - 60 * 1000)) {
       return c.json({ success: false, error: '현재 시각 이후로 설정해주세요' }, 400)
     }
 

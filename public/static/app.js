@@ -1731,8 +1731,30 @@ function adminOpenCreateChannel() {
   document.getElementById('adminChannelDesc').value = ''
   document.getElementById('adminChannelHomepage').value = ''
   document.getElementById('adminChannelImageUrl').value = ''
+  document.getElementById('adminChannelImageFile').value = ''
   document.getElementById('adminChannelImagePreview').classList.add('hidden')
   document.getElementById('adminChannelModal').classList.remove('hidden')
+}
+
+// 이미지 파일 선택 → base64 미리보기
+function adminPreviewChannelImage(input) {
+  const file = input.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    document.getElementById('adminChannelImgTag').src = e.target.result
+    document.getElementById('adminChannelImageUrl').value = '' // URL 입력 초기화
+    document.getElementById('adminChannelImagePreview').classList.remove('hidden')
+  }
+  reader.readAsDataURL(file)
+}
+
+// 이미지 제거
+function adminClearChannelImage() {
+  document.getElementById('adminChannelImageFile').value = ''
+  document.getElementById('adminChannelImageUrl').value = ''
+  document.getElementById('adminChannelImgTag').src = ''
+  document.getElementById('adminChannelImagePreview').classList.add('hidden')
 }
 
 // ── 채널 수정 모달 열기 ────────────────────
@@ -1769,14 +1791,18 @@ async function adminSaveChannel() {
   const name     = document.getElementById('adminChannelName').value.trim()
   const desc     = document.getElementById('adminChannelDesc').value.trim()
   const homepage = document.getElementById('adminChannelHomepage').value.trim()
-  const imageUrl = document.getElementById('adminChannelImageUrl').value.trim()
+  // 이미지: 파일 첨부(base64) 우선, 없으면 URL 입력값 사용
+  const imgTag   = document.getElementById('adminChannelImgTag')
+  const imgSrc   = imgTag?.src || ''
+  const imageUrl = imgSrc.startsWith('data:') ? imgSrc
+                 : document.getElementById('adminChannelImageUrl').value.trim() || null
   if (!name) { showToast('채널명을 입력하세요', 'error'); return }
   try {
     if (id) {
-      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null, image_url: imageUrl || null })
+      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null, image_url: imageUrl })
       showToast('채널이 수정됐습니다 ✅')
     } else {
-      await API.post('/channels', { name, description: desc, homepage_url: homepage || null, image_url: imageUrl || null, owner_id: 'admin' })
+      await API.post('/channels', { name, description: desc, homepage_url: homepage || null, image_url: imageUrl, owner_id: 'admin' })
       showToast('채널이 생성됐습니다 ✅')
     }
     closeAdminChannelModal()
@@ -1984,9 +2010,13 @@ async function adminSendAlarm() {
   if (!url)   { showToast('컨텐츠 URL을 입력하세요', 'error'); return }
   if (!time)  { showToast('발송 시간을 입력하세요', 'error'); return }
 
-  // datetime-local → UTC ISO
-  const scheduledAt = new Date(time).toISOString()
-  if (new Date(time) <= new Date()) { showToast('발송 시간은 현재 시각 이후여야 합니다', 'error'); return }
+  // datetime-local은 로컬 시간 → 서버로 그대로 넘기되 UTC ISO로 변환
+  // 단, 현재 시각 + 2분 이후인지 체크 (서버에서도 미래 시간 검증)
+  const scheduledDate = new Date(time)
+  if (scheduledDate <= new Date(Date.now() + 60 * 1000)) {
+    showToast('발송 시간은 현재 시각 1분 이후여야 합니다', 'error'); return
+  }
+  const scheduledAt = scheduledDate.toISOString()
 
   // 채널 정보에서 owner_id(admin) 확인
   const ch = adminChannels.find(c => c.id == chId)
