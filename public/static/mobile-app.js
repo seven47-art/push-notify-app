@@ -888,6 +888,11 @@ const App = {
     // 드로어 이메일 업데이트
     const drawerEmail = document.getElementById('drawer-user-email')
     if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
+
+    // 앱 버전 표시
+    const versionEl = document.getElementById('app-version-label')
+    const appVer = localStorage.getItem('app_version')
+    if (versionEl) versionEl.textContent = appVer ? 'v' + appVer : 'v?'
   },
 
   // ── 전화번호 저장 ────────────────────────

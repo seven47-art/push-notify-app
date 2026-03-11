@@ -616,9 +616,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <i class="fas fa-file-alt"></i> 서비스 이용약관
       <i class="fas fa-chevron-right menu-arrow"></i>
     </div>
-    <div class="settings-menu-item" onclick="toast('v1.0.48 (web)')">
+    <div class="settings-menu-item" onclick="toast('v' + (localStorage.getItem('app_version') || '?'))">
       <i class="fas fa-info-circle"></i> 버전
-      <span style="margin-left:auto;font-size:13px;color:var(--text3);">v1.0.48</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text3);" id="app-version-label">v...</span>
     </div>
 
     <button class="btn-danger-outline" style="margin:12px 14px 6px;width:calc(100% - 28px);" onclick="App.logout()">
