@@ -1098,6 +1098,18 @@ const App = {
       .catch(e => toast('삭제 실패: ' + e.message, 3000))
   },
 
+  _deleteChannelFromDetail(chId, name) {
+    if (!confirm(`"${name}" 채널을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+    API.delete('/channels/' + chId)
+      .then(() => {
+        toast('삭제됐습니다')
+        this.closeModal('modal-channel-detail')
+        if (currentTab === 'owned-all') this.loadOwnedAll()
+        else this.loadHome()
+      })
+      .catch(e => toast('삭제 실패: ' + e.message, 3000))
+  },
+
   // ── 알람 설정 모달 ──────────────────────
   async openAlarmModal(chId, name) {
     currentAlarmChId = chId
@@ -1874,25 +1886,19 @@ const App = {
         btns =
           '<button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
           '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
-          '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>'
+          '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>' +
+          '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._deleteChannelFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널삭제"><i class="fas fa-trash-alt"></i></button>'
       } else if (isJoined) {
         btns =
-          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
+          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._leaveChannelConfirm(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널나가기"><i class="fas fa-sign-out-alt"></i></button>'
       } else {
         btns =
           '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
           '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
       }
 
-      // 가입채널일 때만 하단 '채널 나가기' 버튼 (운영자는 제외)
-      const leaveBarHtml = (!isOwner && isJoined)
-        ? '<div style="padding:16px 16px 32px;flex-shrink:0;">' +
-            '<button class="ch-detail-btn-leave" style="width:100%;font-size:16px;padding:16px;" ' +
-              'onclick="App._leaveChannelConfirm(' + ch.id + ',\'' + (ch.name||'채널').replace(/'/g,"\\'") + '\')">' +
-              '<i class="fas fa-sign-out-alt"></i> 채널 나가기' +
-            '</button>' +
-          '</div>'
-        : '<div style="height:24px;"></div>'
+      const leaveBarHtml = '<div style="height:24px;"></div>'
 
       // 홈페이지 섹션
       let hpHtml = ''
