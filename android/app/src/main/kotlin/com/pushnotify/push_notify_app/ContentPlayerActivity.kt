@@ -472,7 +472,12 @@ class ContentPlayerActivity : Activity() {
             val iconSize = dp(44)
             val linkBtn = ImageView(this).apply {
                 setImageResource(R.drawable.link_icon)
-                scaleType = ImageView.ScaleType.FIT_CENTER
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#FF6B35"))
+                }
                 layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
                     it.marginEnd = dp(8)
                 }
@@ -493,7 +498,12 @@ class ContentPlayerActivity : Activity() {
         val closeSize = dp(44)
         val closeBtn = ImageView(this).apply {
             setImageResource(R.drawable.close_icon)
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#FF3B30"))
+            }
             layoutParams = LinearLayout.LayoutParams(closeSize, closeSize)
             setOnClickListener { closePlayer() }
         }
