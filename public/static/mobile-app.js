@@ -921,6 +921,28 @@ const App = {
     }
   },
 
+  async deleteAccount() {
+    if (!confirm('정말 탈퇴하시겠습니까?\n\n내 채널, 구독 채널, 모든 정보가 삭제되며\n복구할 수 없습니다.')) return
+    if (!confirm('마지막 확인입니다.\n회원탈퇴를 진행하시겠습니까?')) return
+    const userId = Store.getUserId()
+    const sessionToken = Store.getSessionToken()
+    if (!userId || !sessionToken) { toast('로그인 정보가 없습니다'); return }
+    try {
+      await API.delete('/users/me', { data: { user_id: userId, session_token: sessionToken } })
+    } catch(e) {
+      toast('탈퇴 처리 중 오류가 발생했습니다')
+      return
+    }
+    Store.clearSession()
+    // Flutter 앱에 탈퇴 알림 → 계정 선택 화면으로 이동
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'logout' }))
+    } else {
+      toast('탈퇴가 완료되었습니다')
+      setTimeout(() => Auth.show(), 500)
+    }
+  },
+
   showFcmToken() {
     const tok = Store.getFcmToken()
     if (confirm('FCM 토큰:\n\n' + tok + '\n\n클립보드에 복사할까요?')) {

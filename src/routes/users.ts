@@ -142,6 +142,59 @@ users.patch('/:userId/toggle', async (c) => {
   }
 })
 
+// 회원 탈퇴 (본인)
+users.delete('/me', async (c) => {
+  const { DB } = c.env
+  try {
+    const { user_id, session_token } = await c.req.json<{ user_id: string; session_token: string }>()
+    if (!user_id || !session_token)
+      return c.json({ success: false, error: '인증 정보가 필요합니다' }, 400)
+
+    // 세션 검증
+    const session = await DB.prepare(
+      `SELECT user_id FROM user_sessions WHERE user_id = ? AND session_token = ? AND expires_at > CURRENT_TIMESTAMP`
+    ).bind(user_id, session_token).first()
+    if (!session) return c.json({ success: false, error: '인증이 유효하지 않습니다' }, 401)
+
+    // 내가 만든 채널 목록 조회
+    const myChannels = await DB.prepare(
+      `SELECT id FROM channels WHERE owner_id = ?`
+    ).bind(user_id).all()
+
+    for (const ch of myChannels.results as { id: number }[]) {
+      const chId = ch.id
+      // 채널 관련 데이터 삭제
+      const batches = await DB.prepare(`SELECT id FROM notification_batches WHERE channel_id = ?`).bind(chId).all()
+      for (const b of batches.results as { id: number }[]) {
+        await DB.prepare(`DELETE FROM notification_logs WHERE batch_id = ?`).bind(b.id).run()
+      }
+      await DB.prepare(`DELETE FROM notification_batches WHERE channel_id = ?`).bind(chId).run()
+      const alarms = await DB.prepare(`SELECT id FROM alarm_schedules WHERE channel_id = ?`).bind(chId).all()
+      for (const a of alarms.results as { id: number }[]) {
+        await DB.prepare(`DELETE FROM alarm_logs WHERE alarm_id = ?`).bind(a.id).run()
+      }
+      await DB.prepare(`DELETE FROM alarm_schedules WHERE channel_id = ?`).bind(chId).run()
+      await DB.prepare(`DELETE FROM subscribers WHERE channel_id = ?`).bind(chId).run()
+      await DB.prepare(`DELETE FROM contents WHERE channel_id = ?`).bind(chId).run()
+      await DB.prepare(`DELETE FROM channel_invite_links WHERE channel_id = ?`).bind(chId).run()
+      await DB.prepare(`DELETE FROM channels WHERE id = ?`).bind(chId).run()
+    }
+
+    // 내 구독 정보 삭제
+    await DB.prepare(`DELETE FROM subscribers WHERE user_id = ?`).bind(user_id).run()
+    // 내 알람 로그 삭제
+    await DB.prepare(`DELETE FROM alarm_logs WHERE receiver_id = ?`).bind(user_id).run()
+    // 세션 삭제
+    await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(user_id).run()
+    // 회원 삭제
+    await DB.prepare(`DELETE FROM users WHERE user_id = ?`).bind(user_id).run()
+
+    return c.json({ success: true, message: '회원탈퇴가 완료되었습니다' })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // 회원 단건 삭제
 users.delete('/:userId', async (c) => {
   const { DB } = c.env

@@ -623,6 +623,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <button class="btn-danger-outline" style="margin:12px 14px 6px;width:calc(100% - 28px);" onclick="App.logout()">
       <i class="fas fa-sign-out-alt"></i> 로그아웃
     </button>
+    <button class="btn-danger-outline" style="margin:4px 14px 6px;width:calc(100% - 28px);opacity:0.7;" onclick="App.deleteAccount()">
+      <i class="fas fa-user-times"></i> 회원탈퇴
+    </button>
 
     <div style="height:20px;"></div>
   </div>
