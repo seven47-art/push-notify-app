@@ -637,8 +637,8 @@ const App = {
     return `<div class="ch-all-tile" onclick="App.openChannelDetail(${ch.id},'${name.replace(/'/g,"\'")}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name.replace(/</g,'&lt;')} ${lockIcon}</div>
-        <div class="ch-sub">${subLabel} · <i class="fas fa-users" style="font-size:10px;"></i> ${subCnt}명</div>
+        <div class="ch-name">${name.replace(/</g,'&lt;')} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${subCnt}</span></div>
+        <div class="ch-sub">${subLabel}</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
     </div>`
