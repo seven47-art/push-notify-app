@@ -1998,9 +1998,8 @@ function adminInitTimePicker() {
     dateEl.value = d.toLocaleDateString('sv-SE') // YYYY-MM-DD
   }
   hourSel.value = String(d.getHours()).padStart(2, '0')
-  // 분: 가장 가까운 10분 단위
-  const m = Math.ceil(d.getMinutes() / 10) * 10
-  if (minEl) minEl.value = m >= 60 ? '00' : String(m).padStart(2, '0')
+  // 분: 현재 분 그대로 (1분 단위)
+  if (minEl) minEl.value = String(d.getMinutes()).padStart(2, '0')
   adminUpdateTimePreview()
 }
 
