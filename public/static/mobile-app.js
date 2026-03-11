@@ -1867,15 +1867,15 @@ const App = {
       let btns = ''
       if (isOwner) {
         btns =
-          '<button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
-          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="' + alarmCls + '" onclick="App.closeModal(\'modal-channel-detail\');App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
+          '<button class="ch-action-btn btn-invite" onclick="App.closeModal(\'modal-channel-detail\');App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
           '<button class="ch-action-btn btn-setting" onclick="App.closeModal(\'modal-channel-detail\');App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-cog"></i></button>'
       } else if (isJoined) {
         btns =
-          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
+          '<button class="ch-action-btn btn-invite" onclick="App.closeModal(\'modal-channel-detail\');App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>'
       } else {
         btns =
-          '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+          '<button class="ch-action-btn btn-invite" onclick="App.closeModal(\'modal-channel-detail\');App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
           '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
       }
 
