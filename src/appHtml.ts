@@ -353,8 +353,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .dt-time-val { font-size:30px; font-weight:700; min-width:52px; text-align:center; background:var(--bg3); border-radius:10px; padding:8px 4px; color:var(--text); }
 /* ── 알람 하단 버튼 ── */
 .alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
-.btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:15px; font-weight:700; padding:11px; border:none; border-radius:12px; cursor:pointer; }
-.btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:15px; font-weight:600; padding:11px; border-radius:12px; cursor:pointer; }
+.btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:14px; font-weight:700; padding:9px; border:none; border-radius:12px; cursor:pointer; }
+.btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:14px; font-weight:600; padding:9px; border-radius:12px; cursor:pointer; }
 /* ── 알람 미디어 버튼 ── */
 .alarm-media-launch-btn { display:flex; align-items:center; gap:14px; width:100%; background:var(--bg3); border:1.5px solid var(--border); border-radius:12px; padding:14px 16px; cursor:pointer; color:var(--text); text-align:left; transition:border-color 0.15s; }
 .alarm-media-launch-btn:active { border-color:var(--primary); background:var(--primary-dim); }
@@ -773,7 +773,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <!-- ══ 알람 설정 전체화면 ══ -->
 <div class="fullscreen-overlay" id="modal-alarm" style="z-index:400;">
   <!-- 앱바 -->
-  <div class="app-bar" style="display:flex;align-items:center;gap:6px;padding:0 16px;">
+  <div class="app-bar" style="display:flex;align-items:center;gap:6px;padding:0 16px;margin-top:12px;">
     <button class="appbar-back" onclick="App.closeModal('modal-alarm')">
       <i class="fas fa-arrow-left"></i>
     </button>
@@ -787,11 +787,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="alarm-section-card" id="alarm-list-section" style="display:none;">
       <div class="alarm-section-title">설정된 알람</div>
       <div id="alarm-list-body" style="padding:0 14px 14px;"></div>
-    </div>
-
-    <!-- 새 알람 추가 구분선 -->
-    <div id="alarm-add-area" style="padding:6px 14px 0;font-size:13px;font-weight:600;color:var(--text2);">
-      <i class="fas fa-plus-circle" style="color:var(--primary);"></i> 새 알람 추가
     </div>
 
     <!-- 콘텐츠 선택 -->
@@ -862,6 +857,27 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <div id="alarm-video-preview" class="alarm-media-preview" style="display:none;"></div>
       </div>
 
+    </div>
+
+    <!-- 연결 URL 섹션 -->
+    <div class="alarm-section-card">
+      <div class="alarm-section-title">연결 URL</div>
+      <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex-shrink:0;width:44px;height:44px;border-radius:12px;background:rgba(108,99,255,0.15);color:var(--primary);font-size:20px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-link"></i>
+          </div>
+          <input id="alarm-link-url" type="url"
+            placeholder="https://"
+            class="form-input" style="margin:0;flex:1;">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);padding-left:4px;">
+          <input type="checkbox" id="alarm-link-same-as-homepage"
+            style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;"
+            onchange="App._onAlarmLinkHomepageCheck(this)">
+          홈페이지와 동일
+        </label>
+      </div>
     </div>
 
     <!-- 날짜/시간 통합 선택 (한 줄) -->

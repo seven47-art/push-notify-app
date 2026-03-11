@@ -1154,6 +1154,12 @@ const App = {
       if (el) { el.style.display = 'none'; el.innerHTML = '' }
     })
 
+    // 연결 URL 초기화
+    const linkUrl = document.getElementById('alarm-link-url')
+    if (linkUrl) linkUrl.value = ''
+    const linkCheck = document.getElementById('alarm-link-same-as-homepage')
+    if (linkCheck) linkCheck.checked = false
+
     this._renderDateLabel()
     this._renderTimeLabel()
     this.openModal('modal-alarm')
@@ -1285,6 +1291,26 @@ const App = {
     if (urlInput) { urlInput.value = '' }
     const clearBtn = document.getElementById('alarm-youtube-clear')
     if (clearBtn) clearBtn.style.display = 'none'
+  },
+
+  // 연결 URL - 홈페이지와 동일 체크박스
+  async _onAlarmLinkHomepageCheck(checkbox) {
+    const linkInput = document.getElementById('alarm-link-url')
+    if (!linkInput) return
+    if (checkbox.checked) {
+      try {
+        const res = await API.get('/channels/' + currentAlarmChId)
+        const hp = res.data?.data?.homepage_url || ''
+        linkInput.value = hp ? (hp.startsWith('http') ? hp : 'https://' + hp) : ''
+        linkInput.readOnly = true
+      } catch(e) {
+        linkInput.value = ''
+        linkInput.readOnly = false
+      }
+    } else {
+      linkInput.value = ''
+      linkInput.readOnly = false
+    }
   },
 
   // 파일 표시 초기화 (X 없이 조용히)
@@ -1661,7 +1687,8 @@ const App = {
         created_by:   userId,
         scheduled_at: scheduledAt,
         msg_type:     alarmMsgSrc,
-        msg_value:    srcValue
+        msg_value:    srcValue,
+        link_url:     document.getElementById('alarm-link-url')?.value.trim() || null
       })
 
       if (res.data?.success) {
