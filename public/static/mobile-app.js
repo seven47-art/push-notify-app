@@ -923,7 +923,6 @@ const App = {
 
   async deleteAccount() {
     if (!confirm('정말 탈퇴하시겠습니까?\n\n내 채널, 구독 채널, 모든 정보가 삭제되며\n복구할 수 없습니다.')) return
-    if (!confirm('마지막 확인입니다.\n회원탈퇴를 진행하시겠습니까?')) return
     const userId = Store.getUserId()
     const sessionToken = Store.getSessionToken()
     if (!userId || !sessionToken) { toast('로그인 정보가 없습니다'); return }
