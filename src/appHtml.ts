@@ -729,7 +729,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 모달: 채널 수정 ══ -->
-<div class="modal-overlay" id="modal-edit">
+<div class="modal-overlay" id="modal-edit" style="z-index:400;">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">채널 설정</div>
