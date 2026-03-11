@@ -806,6 +806,7 @@ app.get('/', (c) => {
     </div>
 
     <div id="page-logs" class="page">
+      <div class="flex gap-3 mb-4">
         <select id="logBatchFilter" class="input-field text-sm w-72" onchange="loadLogs()">
           <option value="">배치 선택 (최근 발송 이력)</option>
         </select>
