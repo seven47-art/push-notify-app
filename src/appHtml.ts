@@ -297,8 +297,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .toggle-btn.on { background:var(--primary); }
 .toggle-btn.on span { transform:translateX(22px); }
 /* ── 알람 설정 전체화면 ── */
-.alarm-section-card { margin:10px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-.alarm-section-title { font-size:18px; font-weight:700; color:var(--text); padding:18px 16px 14px; }
+.alarm-section-card { margin:8px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.alarm-section-title { font-size:14px; font-weight:700; color:var(--text); padding:14px 16px 10px; }
 .alarm-section-row { display:flex; align-items:center; justify-content:space-between; padding:16px; border-top:1px solid var(--border); cursor:pointer; transition:background 0.15s; }
 .alarm-section-row:active { background:var(--bg3); }
 .alarm-section-row-label { font-size:16px; font-weight:600; color:var(--text); }
@@ -353,8 +353,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .dt-time-val { font-size:30px; font-weight:700; min-width:52px; text-align:center; background:var(--bg3); border-radius:10px; padding:8px 4px; color:var(--text); }
 /* ── 알람 하단 버튼 ── */
 .alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
-.btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:17px; font-weight:700; padding:16px; border:none; border-radius:14px; cursor:pointer; }
-.btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:17px; font-weight:600; padding:16px; border-radius:14px; cursor:pointer; }
+.btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:15px; font-weight:700; padding:11px; border:none; border-radius:12px; cursor:pointer; }
+.btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:15px; font-weight:600; padding:11px; border-radius:12px; cursor:pointer; }
 /* ── 알람 미디어 버튼 ── */
 .alarm-media-launch-btn { display:flex; align-items:center; gap:14px; width:100%; background:var(--bg3); border:1.5px solid var(--border); border-radius:12px; padding:14px 16px; cursor:pointer; color:var(--text); text-align:left; transition:border-color 0.15s; }
 .alarm-media-launch-btn:active { border-color:var(--primary); background:var(--primary-dim); }
@@ -781,7 +781,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 
   <!-- 스크롤 영역 -->
-  <div style="flex:1;overflow-y:auto;padding-bottom:90px;">
+  <div style="flex:1;overflow-y:auto;padding-bottom:90px;padding-top:8px;">
 
     <!-- 기존 알람 목록 -->
     <div class="alarm-section-card" id="alarm-list-section" style="display:none;">
@@ -790,7 +790,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
 
     <!-- 새 알람 추가 구분선 -->
-    <div id="alarm-add-area" style="padding:8px 14px 0;font-size:13px;font-weight:700;color:var(--text2);">
+    <div id="alarm-add-area" style="padding:6px 14px 0;font-size:13px;font-weight:600;color:var(--text2);">
       <i class="fas fa-plus-circle" style="color:var(--primary);"></i> 새 알람 추가
     </div>
 
