@@ -315,7 +315,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     final fcmToken    = prefs.getString('fcm_token')    ?? '';  // Android FCM 토큰
 
     // 앱 버전 (pubspec.yaml의 version에서 앞부분만 사용)
-    const appVersion = '2.1.1';
+    const appVersion = '2.1.2';
 
     final t = token.replaceAll("'", "\\'");
     final u = userId.replaceAll("'", "\\'");
