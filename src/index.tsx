@@ -1007,6 +1007,10 @@ app.get('/', (c) => {
             class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
             <i class="fas fa-paper-plane mr-1.5"></i>알람 발송
           </button>
+          <button id="admin-tab-list" onclick="adminShowTab('list')"
+            class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white">
+            <i class="fas fa-list-alt mr-1.5"></i>예약 목록
+          </button>
         </div>
 
         <!-- 탭1: 채널 관리 -->
@@ -1221,6 +1225,22 @@ app.get('/', (c) => {
             </button>
           </div>
         </div>
+
+        <!-- 탭4: 예약 목록 -->
+        <div id="admin-tab-content-list" class="hidden">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-white font-semibold">예약된 알람 목록</h3>
+            <button onclick="adminLoadReservationList()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold">
+              <i class="fas fa-sync-alt mr-1"></i>새로고침
+            </button>
+          </div>
+          <div id="admin-reservation-list" class="space-y-3">
+            <div class="text-slate-500 text-sm text-center py-8">
+              <i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 

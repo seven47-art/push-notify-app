@@ -1665,7 +1665,7 @@ let adminSelectedMsgType = 'youtube' // 선택된 컨텐츠 타입
 
 // ── 탭 전환 ────────────────────────────────
 function adminShowTab(tab) {
-  ['channel', 'members', 'send'].forEach(t => {
+  ['channel', 'members', 'send', 'list'].forEach(t => {
     const btn     = document.getElementById('admin-tab-' + t)
     const content = document.getElementById('admin-tab-content-' + t)
     if (t === tab) {
@@ -1681,6 +1681,7 @@ function adminShowTab(tab) {
   if (tab === 'channel') adminLoadChannels()
   if (tab === 'members') adminLoadChannelsForSelect()
   if (tab === 'send')    adminLoadChannelsForSend()
+  if (tab === 'list')    adminLoadReservationList()
 }
 
 // ── 채널 목록 로드 ─────────────────────────
@@ -2074,8 +2075,92 @@ async function adminSendAlarm() {
     showToast('알람이 예약됐습니다 ✅ (채널: ' + (ch?.name || chId) + ')')
     document.getElementById('admin-send-url').value      = ''
     document.getElementById('admin-send-link-url').value = ''
+    adminShowTab('list')
   } catch (e) {
     showToast('발송 실패: ' + (e.response?.data?.error || e.message), 'error')
+  }
+}
+
+// ── 예약 목록 로드 ─────────────────────────
+async function adminLoadReservationList() {
+  const container = document.getElementById('admin-reservation-list')
+  if (!container) return
+  container.innerHTML = '<div class="text-slate-500 text-sm text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>'
+  try {
+    // 관리자 채널 ID 목록 조회
+    const chRes = await API.get('/channels?owner_id=admin')
+    const channels = chRes.data?.data || []
+    if (!channels.length) {
+      container.innerHTML = '<div class="text-slate-500 text-sm text-center py-8">관리자 채널이 없습니다.</div>'
+      return
+    }
+    // 각 채널의 알람 목록을 병렬로 조회
+    const allAlarms = []
+    await Promise.all(channels.map(async ch => {
+      try {
+        const res = await API.get('/alarms?channel_id=' + ch.id)
+        const alarms = res.data?.data || []
+        alarms.forEach(a => { a._channelName = ch.name })
+        allAlarms.push(...alarms)
+      } catch (_) {}
+    }))
+    // 예약 시간 오름차순 정렬
+    allAlarms.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    if (!allAlarms.length) {
+      container.innerHTML = '<div class="text-slate-500 text-sm text-center py-8">예약된 알람이 없습니다.</div>'
+      return
+    }
+    const typeIcon = { youtube: 'fab fa-youtube text-red-400', audio: 'fas fa-music text-purple-400', video: 'fas fa-video text-blue-400', file: 'fas fa-file text-orange-400' }
+    const typeLabel = { youtube: 'YouTube', audio: '오디오', video: '비디오', file: '파일' }
+    const statusBadge = {
+      pending:   '<span class="px-2 py-0.5 rounded-full text-xs bg-amber-900/40 text-amber-300 border border-amber-600/30">대기중</span>',
+      triggered: '<span class="px-2 py-0.5 rounded-full text-xs bg-blue-900/40 text-blue-300 border border-blue-600/30">발송됨</span>',
+      cancelled: '<span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-400">취소됨</span>'
+    }
+    container.innerHTML = allAlarms.map(a => {
+      const d = new Date(a.scheduled_at)
+      const timeStr = d.getFullYear() + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + String(d.getDate()).padStart(2,'0')
+        + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')
+      const icon = typeIcon[a.msg_type] || 'fas fa-bell text-slate-400'
+      const label = typeLabel[a.msg_type] || a.msg_type
+      const badge = statusBadge[a.status] || statusBadge['pending']
+      const cancelBtn = (a.status === 'pending')
+        ? `<button onclick="adminCancelAlarm(${a.id})" class="w-7 h-7 rounded-lg bg-red-900/40 hover:bg-red-800/60 text-red-400 text-xs flex items-center justify-center" title="취소"><i class="fas fa-times"></i></button>`
+        : '<div class="w-7 h-7"></div>'
+      return `
+        <div class="card rounded-xl p-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+              <i class="${icon} text-sm"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-white text-sm font-semibold truncate">${escapeHtml(a._channelName)}</span>
+                <span class="text-slate-500 text-xs">${label}</span>
+                ${badge}
+              </div>
+              <div class="text-slate-400 text-xs truncate mt-0.5">${escapeHtml(a.msg_value || '')}</div>
+              <div class="text-slate-500 text-xs mt-0.5"><i class="fas fa-clock mr-1"></i>${timeStr}</div>
+            </div>
+          </div>
+          ${cancelBtn}
+        </div>
+      `
+    }).join('')
+  } catch (e) {
+    container.innerHTML = '<div class="text-red-400 text-sm text-center py-8">불러오기 실패: ' + (e.response?.data?.error || e.message) + '</div>'
+  }
+}
+
+// ── 예약 알람 취소 ─────────────────────────
+async function adminCancelAlarm(alarmId) {
+  if (!confirm('이 알람을 취소하시겠습니까?')) return
+  try {
+    await API.delete('/alarms/' + alarmId)
+    showToast('알람이 취소됐습니다')
+    adminLoadReservationList()
+  } catch (e) {
+    showToast('취소 실패: ' + (e.response?.data?.error || e.message), 'error')
   }
 }
 
