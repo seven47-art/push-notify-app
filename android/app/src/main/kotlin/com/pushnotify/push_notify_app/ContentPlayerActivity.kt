@@ -466,9 +466,14 @@ class ContentPlayerActivity : Activity() {
         }
         bottomBar.addView(channelNameView)
 
-        // ── 링크 URL 아이콘 버튼 (link_url 있을 때만 표시) ──────────────────────
-        if (linkUrl.isNotEmpty()) {
-            val fullLinkUrl = if (linkUrl.startsWith("http")) linkUrl else "https://$linkUrl"
+        // ── 링크 버튼 (우선순위: link_url → homepage_url → 없으면 숨김) ──────────
+        val effectiveLinkUrl = when {
+            linkUrl.isNotEmpty()      -> linkUrl
+            homepageUrl.isNotEmpty()  -> homepageUrl
+            else                      -> ""
+        }
+        if (effectiveLinkUrl.isNotEmpty()) {
+            val fullLinkUrl = if (effectiveLinkUrl.startsWith("http")) effectiveLinkUrl else "https://$effectiveLinkUrl"
             val iconSize = dp(44)
             val linkBtn = ImageView(this).apply {
                 setImageResource(R.drawable.link_icon)

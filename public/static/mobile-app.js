@@ -1064,7 +1064,7 @@ const App = {
       await API.put('/channels/' + id, {
         name,
         description:   document.getElementById('edit-desc').value.trim(),
-        homepage_url:  document.getElementById('edit-homepage').value.trim(),
+        homepage_url:  document.getElementById('edit-homepage').value.trim() || null,
         is_secret:     isSecret ? 1 : 0,
         ...(isSecret && password ? { password } : {}),
         ...(!isSecret ? { remove_password: true } : {}),
