@@ -522,13 +522,12 @@ const App = {
         ${avatar(name, ch.image_url, 44)}
       </div>
       <div class="info" onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
-        <div class="ch-name">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
-        <div class="ch-sub">${ch.description || '채널 운영자'}</div>
+        <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
+        <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.description || '채널 운영자'}</div>
       </div>
       <div class="ch-actions">
         <button class="${alarmCls}"        onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="알람설정"><i class="fas fa-clock"></i></button>
         <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
-        <button class="ch-action-btn btn-setting" onclick="App.openEditChannel(${id});"                               title="설정"><i class="fas fa-cog"></i></button>
       </div>
     </div>`
   },
@@ -566,8 +565,8 @@ const App = {
     return `<div class="joined-tile" onclick="App.openChannelDetail(${chId},'${name}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${ch.subscriber_count || 0}</span></div>
-        <div class="ch-sub">${ch.channel_description || ch.description || ''}</div>
+        <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${ch.subscriber_count || 0}</span></div>
+        <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.channel_description || ch.description || ''}</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
     </div>`
@@ -637,8 +636,8 @@ const App = {
     return `<div class="ch-all-tile" onclick="App.openChannelDetail(${ch.id},'${name.replace(/'/g,"\'")}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name.replace(/</g,'&lt;')} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${subCnt}</span></div>
-        <div class="ch-sub">${subLabel}</div>
+        <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name.replace(/</g,'&lt;')} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${subCnt}</span></div>
+        <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${subLabel}</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
     </div>`
