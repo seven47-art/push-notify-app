@@ -864,12 +864,21 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <div class="alarm-section-title">연결 URL</div>
       <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex-shrink:0;width:44px;height:44px;border-radius:12px;background:rgba(108,99,255,0.15);color:var(--primary);font-size:20px;display:flex;align-items:center;justify-content:center;">
+          <div style="flex-shrink:0;width:44px;height:44px;border-radius:12px;background:#FF6B35;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;">
             <i class="fas fa-link"></i>
           </div>
-          <input id="alarm-link-url" type="url"
-            placeholder="https://"
-            class="form-input" style="margin:0;flex:1;">
+          <div style="flex:1;position:relative;display:flex;align-items:center;">
+            <input id="alarm-link-url" type="url"
+              placeholder="https://"
+              class="form-input" style="margin:0;width:100%;padding-right:36px;
+              direction:rtl;text-align:left;unicode-bidi:plaintext;"
+              oninput="App._onAlarmLinkUrlInput()">
+            <button id="alarm-link-clear" onclick="App._clearAlarmLinkUrl()"
+              style="display:none;position:absolute;right:8px;width:22px;height:22px;border:none;
+                     border-radius:50%;background:rgba(255,59,48,0.18);color:#FF3B30;
+                     font-size:13px;font-weight:bold;cursor:pointer;
+                     align-items:center;justify-content:center;">✕</button>
+          </div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);padding-left:4px;">
           <input type="checkbox" id="alarm-link-same-as-homepage"

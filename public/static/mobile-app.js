@@ -1156,7 +1156,9 @@ const App = {
 
     // 연결 URL 초기화
     const linkUrl = document.getElementById('alarm-link-url')
-    if (linkUrl) linkUrl.value = ''
+    if (linkUrl) { linkUrl.value = ''; linkUrl.readOnly = false }
+    const linkClear = document.getElementById('alarm-link-clear')
+    if (linkClear) linkClear.style.display = 'none'
     const linkCheck = document.getElementById('alarm-link-same-as-homepage')
     if (linkCheck) linkCheck.checked = false
 
@@ -1296,6 +1298,7 @@ const App = {
   // 연결 URL - 홈페이지와 동일 체크박스
   async _onAlarmLinkHomepageCheck(checkbox) {
     const linkInput = document.getElementById('alarm-link-url')
+    const clearBtn  = document.getElementById('alarm-link-clear')
     if (!linkInput) return
     if (checkbox.checked) {
       try {
@@ -1303,6 +1306,7 @@ const App = {
         const hp = res.data?.data?.homepage_url || ''
         linkInput.value = hp ? (hp.startsWith('http') ? hp : 'https://' + hp) : ''
         linkInput.readOnly = true
+        if (clearBtn) clearBtn.style.display = 'none'
       } catch(e) {
         linkInput.value = ''
         linkInput.readOnly = false
@@ -1310,7 +1314,24 @@ const App = {
     } else {
       linkInput.value = ''
       linkInput.readOnly = false
+      if (clearBtn) clearBtn.style.display = 'none'
     }
+  },
+
+  _onAlarmLinkUrlInput() {
+    const linkInput = document.getElementById('alarm-link-url')
+    const clearBtn  = document.getElementById('alarm-link-clear')
+    if (!clearBtn) return
+    clearBtn.style.display = linkInput?.value ? 'flex' : 'none'
+  },
+
+  _clearAlarmLinkUrl() {
+    const linkInput = document.getElementById('alarm-link-url')
+    const clearBtn  = document.getElementById('alarm-link-clear')
+    const checkbox  = document.getElementById('alarm-link-same-as-homepage')
+    if (linkInput) { linkInput.value = ''; linkInput.readOnly = false }
+    if (clearBtn)  clearBtn.style.display = 'none'
+    if (checkbox)  checkbox.checked = false
   },
 
   // 파일 표시 초기화 (X 없이 조용히)
