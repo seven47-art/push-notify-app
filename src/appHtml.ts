@@ -771,7 +771,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 알람 설정 전체화면 ══ -->
-<div class="fullscreen-overlay" id="modal-alarm">
+<div class="fullscreen-overlay" id="modal-alarm" style="z-index:400;">
   <!-- 앱바 -->
   <div class="app-bar" style="display:flex;align-items:center;gap:6px;padding:0 16px;">
     <button class="appbar-back" onclick="App.closeModal('modal-alarm')">
@@ -980,7 +980,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 모달: 초대코드 ══ -->
-<div class="modal-overlay" id="modal-invite">
+<div class="modal-overlay" id="modal-invite" style="z-index:400;">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">초대 코드</div>
