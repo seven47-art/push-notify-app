@@ -2,7 +2,7 @@ name: push_notify_app
 description: "Push Notification Subscriber App - 폐쇄형 채널 구독 앱"
 publish_to: 'none'
 
-version: 2.0.5+205
+version: 2.0.6+206
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

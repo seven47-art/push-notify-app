@@ -818,63 +818,192 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   void _handleDeepLink(Uri uri) {
     if (uri.host == 'join') {
       final token = uri.queryParameters['token'] ?? '';
-      if (token.isNotEmpty) _showJoinDialog(token);
+      if (token.isNotEmpty) _showChannelJoinScreen(token);
     }
   }
 
-  void _showJoinDialog(String token) {
+  // 채널 소개 화면 표시 (서버에서 채널 정보 조회 후)
+  Future<void> _showChannelJoinScreen(String token) async {
+    // 로딩 다이얼로그 표시
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B4B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.notifications_active, color: Color(0xFF6C63FF)),
-            SizedBox(width: 10),
-            Text('채널 초대', style: TextStyle(color: Colors.white, fontSize: 18)),
-          ],
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
         ),
-        content: Column(
+      ),
+    );
+
+    // 채널 정보 조회
+    Map<String, dynamic>? channelData;
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/invites/verify/$token'),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && body['valid'] == true) {
+          channelData = body['data'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (e) {
+      debugPrint('[DeepLink] 채널 정보 조회 실패: $e');
+    }
+
+    // 로딩 다이얼로그 닫기
+    if (mounted) Navigator.of(context).pop();
+
+    if (!mounted) return;
+
+    // 채널 소개 화면 표시
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _buildChannelJoinDialog(ctx, token, channelData),
+    );
+  }
+
+  Widget _buildChannelJoinDialog(BuildContext ctx, String token, Map<String, dynamic>? data) {
+    final channelName = data?['channel_name'] as String? ?? '채널 초대';
+    final channelDesc = data?['channel_description'] as String? ?? '';
+    final channelImageUrl = data?['channel_image_url'] as String? ?? '';
+    final channelId = data?['channel_id'];
+    final isValid = data != null;
+
+    // 이미지 위젯
+    Widget imageWidget;
+    if (channelImageUrl.isNotEmpty && channelImageUrl.startsWith('http')) {
+      imageWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          channelImageUrl,
+          width: 80, height: 80, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _defaultChannelIcon(),
+        ),
+      );
+    } else if (channelId != null) {
+      // base64 이미지인 경우 프록시 URL 사용
+      imageWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          '$_baseUrl/api/channels/$channelId/image',
+          width: 80, height: 80, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _defaultChannelIcon(),
+        ),
+      );
+    } else {
+      imageWidget = _defaultChannelIcon();
+    }
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1B4B),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '초대 링크를 통해 채널에 참여하시겠습니까?\n참여 후 새 콘텐츠 알림을 받을 수 있습니다.',
-              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14, height: 1.6),
+            // 상단 배지
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C63FF).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+              ),
+              child: const Text('채널 초대',
+                style: TextStyle(color: Color(0xFFA5B4FC), fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: 20),
+            // 채널 이미지
+            imageWidget,
+            const SizedBox(height: 16),
+            // 채널명
+            Text(channelName,
+              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F0C29),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+            // 채널 설명
+            if (channelDesc.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(channelDesc,
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.5),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
-              child: Text(token,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFFA5B4FC))),
+            ],
+            const SizedBox(height: 24),
+            // 참여 버튼
+            if (isValid) SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C63FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _controller.loadRequest(Uri.parse('$_appUrl?join_token=$token'));
+                },
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.notifications_active, size: 18),
+                    SizedBox(width: 8),
+                    Text('채널 참여하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ) else Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: const Text('유효하지 않은 초대 링크입니다',
+                style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // 취소 버튼
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('닫기', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소', style: TextStyle(color: Color(0xFF94A3B8))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _controller.loadRequest(Uri.parse('$_appUrl?join_token=$token'));
-            },
-            child: const Text('참여하기', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
+      ),
+    );
+  }
+
+  Widget _defaultChannelIcon() {
+    return Container(
+      width: 80, height: 80,
+      decoration: BoxDecoration(
+        color: const Color(0xFF6C63FF).withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+      ),
+      child: const Icon(Icons.notifications, color: Color(0xFF6C63FF), size: 36),
+    );
+  }
+
+  void _showJoinDialog(String token) {
+    _showChannelJoinScreen(token);
+  }
       ),
     );
   }
