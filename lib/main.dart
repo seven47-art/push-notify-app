@@ -1004,9 +1004,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   void _showJoinDialog(String token) {
     _showChannelJoinScreen(token);
   }
-      ),
-    );
-  }
 
   Future<bool> _onWillPop() async {
     // 1. 웹뷰 JS에 goBack() 요청 → 웹에서 처리하면 false(앱 유지)
