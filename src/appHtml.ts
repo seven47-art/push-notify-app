@@ -352,7 +352,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .dt-time-spin:active { background:var(--bg3); }
 .dt-time-val { font-size:30px; font-weight:700; min-width:52px; text-align:center; background:var(--bg3); border-radius:10px; padding:8px 4px; color:var(--text); }
 /* ── 알람 하단 버튼 ── */
-.alarm-bottom-btns { display:flex; gap:10px; padding:14px 14px 24px; position:sticky; bottom:0; background:var(--bg); }
+.alarm-bottom-btns { display:flex; gap:10px; padding:12px 14px 16px; background:var(--bg); }
 .btn-alarm-done { flex:1; background:var(--teal); color:#fff; font-size:14px; font-weight:700; padding:9px; border:none; border-radius:12px; cursor:pointer; }
 .btn-alarm-cancel { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2); font-size:14px; font-weight:600; padding:9px; border-radius:12px; cursor:pointer; }
 /* ── 알람 미디어 버튼 ── */
@@ -771,17 +771,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 알람 설정 전체화면 ══ -->
-<div class="fullscreen-overlay" id="modal-alarm" style="z-index:400;">
-  <!-- 앱바 -->
-  <div class="app-bar" style="display:flex;align-items:center;gap:6px;padding:0 16px;margin-top:12px;">
-    <button class="appbar-back" onclick="App.closeModal('modal-alarm')">
-      <i class="fas fa-arrow-left"></i>
-    </button>
-    <span id="alarm-modal-title" style="font-size:17px;font-weight:700;flex:1;">알람 설정</span>
-  </div>
+<div class="modal-overlay" id="modal-alarm" style="z-index:400;">
+  <div class="modal-sheet" style="max-height:92vh;display:flex;flex-direction:column;padding:0;">
+    <div class="modal-handle"></div>
+    <!-- 헤더 -->
+    <div style="display:flex;align-items:center;gap:6px;padding:4px 16px 12px;flex-shrink:0;">
+      <button onclick="App.closeModal('modal-alarm')" style="background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:6px;margin-right:4px;"><i class="fas fa-arrow-left"></i></button>
+      <span id="alarm-modal-title" style="font-size:17px;font-weight:700;flex:1;">알람 설정</span>
+    </div>
 
   <!-- 스크롤 영역 -->
-  <div style="flex:1;overflow-y:auto;padding-bottom:90px;padding-top:8px;">
+  <div style="flex:1;overflow-y:auto;padding-bottom:8px;">
 
     <!-- 기존 알람 목록 -->
     <div class="alarm-section-card" id="alarm-list-section" style="display:none;">
@@ -961,9 +961,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 
   <!-- 하단 고정 버튼 -->
-  <div class="alarm-bottom-btns">
+  <div class="alarm-bottom-btns" style="flex-shrink:0;">
     <button class="btn-alarm-cancel" onclick="App.closeModal('modal-alarm')">취소</button>
     <button class="btn-alarm-done"   onclick="App.saveAlarmSetting()">확인</button>
+  </div>
   </div>
 </div>
 
