@@ -2049,7 +2049,6 @@ async function adminSendAlarm() {
   const chId    = document.getElementById('admin-send-channel').value
   const url     = document.getElementById('admin-send-url').value.trim()
   const linkUrl = document.getElementById('admin-send-link-url').value.trim()
-  const time    = document.getElementById('admin-send-time').value
   if (!chId)  { showToast('채널을 선택하세요', 'error'); return }
   if (!url)   { showToast('컨텐츠 URL을 입력하세요', 'error'); return }
 
