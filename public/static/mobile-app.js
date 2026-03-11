@@ -522,7 +522,7 @@ const App = {
         ${avatar(name, ch.image_url, 44)}
       </div>
       <div class="info" onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
-        <div class="ch-name">${name} (${cnt}) ${lockIcon}</div>
+        <div class="ch-name">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
         <div class="ch-sub">${ch.description || '채널 운영자'}</div>
       </div>
       <div class="ch-actions">
@@ -566,7 +566,7 @@ const App = {
     return `<div class="joined-tile" onclick="App.openChannelDetail(${chId},'${name}')">
       ${avatar(name, ch.image_url, 44)}
       <div class="info">
-        <div class="ch-name">${name} ${lockIcon}</div>
+        <div class="ch-name">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"><i class="fas fa-user" style="font-size:10px;"></i> ${ch.subscriber_count || 0}</span></div>
         <div class="ch-sub">${ch.channel_description || ch.description || ''}</div>
       </div>
       <i class="fas fa-chevron-right chevron"></i>
