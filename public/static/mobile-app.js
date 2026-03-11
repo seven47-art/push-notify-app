@@ -1295,6 +1295,19 @@ const App = {
     if (clearBtn) clearBtn.style.display = 'none'
   },
 
+  // 채널 홈페이지 입력 - X 버튼 처리
+  _onEditHomepageInput(el) {
+    const clearBtn = document.getElementById('edit-homepage-clear')
+    if (clearBtn) clearBtn.style.display = el.value ? 'block' : 'none'
+  },
+
+  _clearEditHomepage() {
+    const input    = document.getElementById('edit-homepage')
+    const clearBtn = document.getElementById('edit-homepage-clear')
+    if (input)    { input.value = ''; input.focus() }
+    if (clearBtn) clearBtn.style.display = 'none'
+  },
+
   // 연결 URL - 홈페이지와 동일 체크박스
   async _onAlarmLinkHomepageCheck(checkbox) {
     const linkInput = document.getElementById('alarm-link-url')

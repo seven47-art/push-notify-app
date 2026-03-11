@@ -750,7 +750,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
 
       <label class="form-label">채널 홈페이지</label>
-      <input class="form-input" id="edit-homepage" type="url" placeholder="https://">
+      <div style="position:relative;display:flex;align-items:center;">
+        <input class="form-input" id="edit-homepage" type="text" placeholder="https://"
+               style="padding-right:36px;direction:rtl;text-align:left;"
+               oninput="App._onEditHomepageInput(this)">
+        <button id="edit-homepage-clear" onclick="App._clearEditHomepage()"
+                style="display:none;position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:var(--text3);font-size:16px;">✕</button>
+      </div>
 
       <label class="form-label">비밀번호 설정</label>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
