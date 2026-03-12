@@ -756,7 +756,10 @@ const App = {
         : item.status === 'rejected'
         ? '<span class="status-badge badge-rejected">✕ 거절</span>'
         : ''
-      return `<div class="notif-card">
+      const hasUrl = item.msg_value && item.msg_value.startsWith('http')
+      const cardStyle = hasUrl ? 'cursor:pointer;' : ''
+      const playIcon = hasUrl ? '<div style="color:#6C63FF;font-size:18px;"><i class="fas fa-play-circle"></i></div>' : ''
+      return `<div class="notif-card" style="${cardStyle}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
         <div class="notif-header">
           <div class="notif-icon-wrap" style="font-size:18px;">${typeIcon}</div>
           <div class="notif-meta">
@@ -766,6 +769,7 @@ const App = {
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
             <div class="notif-time">${timeStr}</div>
             ${statusBadge}
+            ${playIcon}
           </div>
         </div>
       </div>`
@@ -828,11 +832,15 @@ const App = {
       const timeStr  = this._fmtTime(item.scheduled_at)
       const stCls    = statusMap[item.status] || 'send-status-pending'
       const stLabel  = statusLabel[item.status] || item.status
-      return `<div class="send-card">
+      const hasUrl = item.msg_value && item.msg_value.startsWith('http')
+      const cardStyle = hasUrl ? 'cursor:pointer;' : ''
+      const playIcon = hasUrl ? '<i class="fas fa-play-circle" style="color:#1DE9B6;font-size:16px;margin-left:auto;"></i>' : ''
+      return `<div class="send-card" style="${cardStyle}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
         <div class="send-card-header">
           <span style="font-size:16px;">${typeIcon}</span>
           <span class="send-type-badge">${this._msgLabel(item.msg_type)}</span>
           <span class="send-status-badge ${stCls}">${stLabel}</span>
+          ${playIcon}
         </div>
         <div class="send-card-time"><i class="fas fa-clock" style="margin-right:4px;"></i>${timeStr}</div>
         <div class="send-card-stats"><i class="fas fa-users" style="margin-right:4px;"></i>대상 ${item.total_targets || 0}명 · 발송 ${item.sent_count || 0}명</div>
