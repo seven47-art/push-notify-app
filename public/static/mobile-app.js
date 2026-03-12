@@ -731,8 +731,7 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
-        return `<div class="alarm-list-row" style="${clickUrl ? 'cursor:pointer;' : ''}" ${clickUrl ? `onclick="App.openExternalUrl('${clickUrl.replace(/'/g,"&#39;")}')"` : ''}>
+        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
           <span class="alarm-list-icon">${typeIcon}</span>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
@@ -784,8 +783,7 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
-        return `<div class="alarm-list-row" style="${clickUrl ? 'cursor:pointer;' : ''}" ${clickUrl ? `onclick="App.openExternalUrl('${clickUrl.replace(/'/g,"&#39;")}')"` : ''}>
+        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
           <span class="alarm-list-icon">${typeIcon}</span>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
@@ -804,6 +802,39 @@ const App = {
     document.getElementById('outbox-channel-list').style.display = 'block'
     const dv = document.getElementById('outbox-detail-view')
     if (dv) dv.style.display = 'none'
+  },
+
+  // 수신함/발신함 알람 클릭 → 컨텐츠 재생 + 상태 업데이트
+  async openAlarmContent(logId, channelName, msgType, msgValue, linkUrl, source) {
+    // 1. Flutter 네이티브 재생 화면 호출 (기존 show_fake_call 그대로)
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({
+        action: 'show_fake_call',
+        channel_name: channelName,
+        msg_type: msgType,
+        msg_value: msgValue || '',
+        alarm_log_id: logId,
+        link_url: linkUrl || ''
+      }))
+    } else {
+      // 웹 환경: link_url 또는 msg_value URL 열기
+      const url = linkUrl || (msgValue && msgValue.startsWith('http') ? msgValue : null)
+      if (url) window.open(url, '_blank')
+    }
+
+    // 2. 수신함 클릭 시 상태를 accepted로 업데이트
+    if (source === 'inbox') {
+      try {
+        await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
+        // 리스트 새로고침
+        this.loadInbox()
+      } catch(e) {}
+    } else if (source === 'outbox') {
+      try {
+        await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
+        this.loadSend()
+      } catch(e) {}
+    }
   },
 
   _buildChannelFilter(channels, selectedId, callbackFn) {
