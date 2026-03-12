@@ -154,8 +154,8 @@ alarms.post('/', async (c) => {
       try {
         await c.env.DB.prepare(`
           INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
         `).bind(
           alarmId,
           channel_id,
@@ -163,7 +163,9 @@ alarms.post('/', async (c) => {
           sub.user_id,
           msg_type,
           safeValue,
-          created_by
+          created_by,
+          scheduled_at,
+          safeLinkUrl
         ).run()
       } catch (_) {}
     }
@@ -560,8 +562,8 @@ alarms.post('/trigger', async (c) => {
               if ((updated.meta.changes ?? 0) === 0) {
                 await c.env.DB.prepare(`
                   INSERT OR IGNORE INTO alarm_logs
-                    (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                   alarm.id,
                   alarm.channel_id,
@@ -570,7 +572,9 @@ alarms.post('/trigger', async (c) => {
                   alarm.msg_type  || 'youtube',
                   alarm.msg_value || '',
                   newStatus,
-                  alarm.created_by || null
+                  alarm.created_by || null,
+                  alarm.scheduled_at || null,
+                  alarm.link_url || null
                 ).run()
               }
             } catch (_) {}
@@ -791,7 +795,8 @@ alarms.get('/inbox', async (c) => {
     let query = `
       SELECT
         l.id, l.alarm_id, l.channel_id, l.channel_name,
-        l.msg_type, l.msg_value, l.status, l.received_at
+        l.msg_type, l.msg_value, l.status, l.received_at,
+        l.scheduled_at, l.link_url
       FROM alarm_logs l
       WHERE l.receiver_id = ?
     `
@@ -869,7 +874,8 @@ alarms.get('/outbox', async (c) => {
     let query = `
       SELECT
         l.id, l.alarm_id, l.channel_id, l.channel_name,
-        l.msg_type, l.msg_value, l.status, l.received_at
+        l.msg_type, l.msg_value, l.status, l.received_at,
+        l.scheduled_at, l.link_url
       FROM alarm_logs l
       WHERE l.sender_id = ?
     `
@@ -925,7 +931,7 @@ alarms.post('/status', async (c) => {
       // 로그가 없으면 새로 생성 (폴링 수신 후 app 응답)
       // alarm_schedules에서 채널 정보 조회
       const alarm: any = await c.env.DB.prepare(`
-        SELECT a.*, ch.name as channel_name
+        SELECT a.*, ch.name as channel_name, a.scheduled_at, a.link_url
         FROM alarm_schedules a
         JOIN channels ch ON a.channel_id = ch.id
         WHERE a.id = ?
@@ -934,8 +940,8 @@ alarms.post('/status', async (c) => {
       if (alarm) {
         await c.env.DB.prepare(`
           INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           alarm_schedule_id,
           alarm.channel_id,
@@ -944,7 +950,9 @@ alarms.post('/status', async (c) => {
           alarm.msg_type || 'youtube',
           alarm.msg_value || '',
           status,
-          alarm.created_by || null
+          alarm.created_by || null,
+          alarm.scheduled_at || null,
+          alarm.link_url || null
         ).run()
       }
       return c.json({ success: true, action: 'created', status })
