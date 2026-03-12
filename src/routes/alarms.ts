@@ -689,9 +689,6 @@ async function getUserFromSession(c: any): Promise<{ id: string; user_id: string
 // =============================================
 alarms.get('/logs', async (c) => {
   try {
-    const user = await getUserFromSession(c)
-    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
     const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)
     const offset = Number(c.req.query('offset') || 0)
 
