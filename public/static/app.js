@@ -1125,7 +1125,7 @@ async function loadAlarmLogs(offset = 0) {
   if (!tbody) return
   tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
   try {
-    const res = await axios.get('/api/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
+    const res = await API.get('/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
     const { data, total } = res.data
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
