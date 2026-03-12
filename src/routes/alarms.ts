@@ -131,7 +131,7 @@ alarms.post('/', async (c) => {
       'SELECT COUNT(*) as cnt FROM subscribers WHERE channel_id = ? AND is_active = 1'
     ).bind(channel_id).first()
 
-    const safeLinkUrl = (link_url || '').toString().trim() || null
+    const safeLinkUrl = (link_url || '').toString().trim() || (channel as any).homepage_url || null
 
     const result = await c.env.DB.prepare(`
       INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets, link_url)
@@ -574,7 +574,7 @@ alarms.post('/trigger', async (c) => {
                   newStatus,
                   alarm.created_by || null,
                   alarm.scheduled_at || null,
-                  alarm.link_url || null
+                  alarm.alarm_link_url || alarm.channel_homepage_url || null
                 ).run()
               }
             } catch (_) {}
@@ -954,7 +954,7 @@ alarms.post('/status', async (c) => {
       // 로그가 없으면 새로 생성 (폴링 수신 후 app 응답)
       // alarm_schedules에서 채널 정보 조회
       const alarm: any = await c.env.DB.prepare(`
-        SELECT a.*, ch.name as channel_name, a.scheduled_at, a.link_url
+        SELECT a.*, ch.name as channel_name, ch.homepage_url as channel_homepage_url, a.scheduled_at, a.link_url
         FROM alarm_schedules a
         JOIN channels ch ON a.channel_id = ch.id
         WHERE a.id = ?
@@ -975,7 +975,7 @@ alarms.post('/status', async (c) => {
           status,
           alarm.created_by || null,
           alarm.scheduled_at || null,
-          alarm.link_url || null
+          alarm.link_url || alarm.channel_homepage_url || null
         ).run()
       }
       return c.json({ success: true, action: 'created', status })
