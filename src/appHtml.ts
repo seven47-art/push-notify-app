@@ -620,7 +620,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
     </div>
     <!-- 하단 바 -->
-    <div id="cp-bottom-bar" style="position:absolute; bottom:0; left:0; right:0; padding:20px 20px 36px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,0.9));">
+    <div id="cp-bottom-bar" style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,0.8));">
       <!-- 채널 아바타 -->
       <div id="cp-channel-avatar" style="width:44px; height:44px; border-radius:12px; background:rgba(108,99,255,0.3); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:#6C63FF; flex-shrink:0;"></div>
       <!-- 채널명 -->
