@@ -188,6 +188,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .send-status-cancelled { background:rgba(239,68,68,0.15);   color:#ef4444; }
 .send-card-time { font-size:12px; color:var(--text3); margin-bottom:4px; }
 .send-card-stats { font-size:12px; color:var(--text3); }
+.alarm-list-row { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
+.alarm-list-row:active { background:var(--bg3); }
+.alarm-list-icon { font-size:20px; flex-shrink:0; width:28px; text-align:center; }
+.alarm-list-channel { flex:1; font-size:14px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.alarm-list-time { font-size:12px; color:var(--text3); flex-shrink:0; }
+.alarm-list-status { font-size:11px; font-weight:600; flex-shrink:0; min-width:32px; text-align:right; }
 .btn-accept { flex:1; background:rgba(76,175,80,0.15); border:1px solid rgba(76,175,80,0.4); color:var(--success); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
 .btn-reject { flex:1; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:var(--danger); padding:9px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:600; }
 .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:3px 7px; border-radius:20px; font-weight:600; margin-top:4px; }

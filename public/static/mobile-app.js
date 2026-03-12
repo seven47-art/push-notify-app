@@ -718,28 +718,20 @@ const App = {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
         return
       }
-      const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+      const iconMap = { youtube:'📺', audio:'🎵', video:'🎬', file:'📎' }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
       const items = resData.data.map(item => {
-        const typeIcon = icons[item.msg_type] || '🔔'
-        const timeStr = this._fmtTime(item.received_at)
+        const typeIcon = iconMap[item.msg_type] || '🔔'
+        const timeStr = this._fmtTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        const hasUrl = item.msg_value && item.msg_value.startsWith('http')
-        return `<div class="notif-card" style="${hasUrl ? 'cursor:pointer;' : ''}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
-          <div class="notif-header">
-            <div class="notif-icon-wrap" style="font-size:18px;">${typeIcon}</div>
-            <div class="notif-meta">
-              <div class="notif-title">${this._msgLabel(item.msg_type)}</div>
-              <div class="notif-channel">${item.channel_name}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-              <div class="notif-time">${timeStr}</div>
-              <span style="font-size:11px;color:${stColor};font-weight:600;">${stLabel}</span>
-              ${hasUrl ? '<i class="fas fa-play-circle" style="color:#6C63FF;font-size:16px;"></i>' : ''}
-            </div>
-          </div>
+        const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
+        return `<div class="alarm-list-row" style="${clickUrl ? 'cursor:pointer;' : ''}" ${clickUrl ? `onclick="App.openExternalUrl('${clickUrl.replace(/'/g,"&#39;")}')"` : ''}>
+          <span class="alarm-list-icon">${typeIcon}</span>
+          <span class="alarm-list-channel">${item.channel_name}</span>
+          <span class="alarm-list-time">${timeStr}</span>
+          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
       channelEl.innerHTML = filterHtml + items
@@ -774,24 +766,20 @@ const App = {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
         return
       }
-      const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
+      const iconMap = { youtube:'📺', audio:'🎵', video:'🎬', file:'📎' }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
       const items = resData.data.map(item => {
-        const typeIcon = icons[item.msg_type] || '🔔'
-        const timeStr = this._fmtTime(item.received_at)
+        const typeIcon = iconMap[item.msg_type] || '🔔'
+        const timeStr = this._fmtTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        const hasUrl = item.msg_value && item.msg_value.startsWith('http')
-        return `<div class="send-card" style="${hasUrl ? 'cursor:pointer;' : ''}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
-          <div class="send-card-header">
-            <span style="font-size:16px;">${typeIcon}</span>
-            <span class="send-type-badge">${this._msgLabel(item.msg_type)}</span>
-            <span style="font-size:11px;color:${stColor};font-weight:600;margin-left:auto;">${stLabel}</span>
-            ${hasUrl ? '<i class="fas fa-play-circle" style="color:#1DE9B6;font-size:16px;margin-left:8px;"></i>' : ''}
-          </div>
-          <div class="send-card-time"><i class="fas fa-clock" style="margin-right:4px;"></i>${timeStr}</div>
-          <div class="send-card-channel" style="font-size:12px;color:#90A4AE;margin-top:2px;">${item.channel_name}</div>
+        const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
+        return `<div class="alarm-list-row" style="${clickUrl ? 'cursor:pointer;' : ''}" ${clickUrl ? `onclick="App.openExternalUrl('${clickUrl.replace(/'/g,"&#39;")}')"` : ''}>
+          <span class="alarm-list-icon">${typeIcon}</span>
+          <span class="alarm-list-channel">${item.channel_name}</span>
+          <span class="alarm-list-time">${timeStr}</span>
+          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
       channelEl.innerHTML = filterHtml + items
