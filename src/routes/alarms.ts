@@ -526,8 +526,8 @@ alarms.post('/trigger', async (c) => {
             try {
               await c.env.DB.prepare(`
                 INSERT OR IGNORE INTO alarm_logs
-                  (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                  (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 alarm.id,
                 alarm.channel_id,
@@ -535,7 +535,8 @@ alarms.post('/trigger', async (c) => {
                 recipient.user_id,
                 alarm.msg_type  || 'youtube',
                 alarm.msg_value || '',
-                lastResult.success ? 'received' : 'failed'
+                lastResult.success ? 'received' : 'failed',
+                alarm.created_by || null
               ).run()
             } catch (_) {}
           }
@@ -703,9 +704,7 @@ alarms.get('/logs', async (c) => {
         MAX(l.status)                   AS status,
         MIN(l.received_at)              AS scheduled_at
       FROM alarm_logs l
-      LEFT JOIN users u ON u.user_id = (
-        SELECT created_by FROM alarm_schedules WHERE id = l.alarm_id LIMIT 1
-      )
+      LEFT JOIN users u ON u.user_id = l.sender_id
       GROUP BY l.alarm_id
       ORDER BY MIN(l.received_at) DESC
       LIMIT ? OFFSET ?
@@ -869,8 +868,8 @@ alarms.post('/status', async (c) => {
       if (alarm) {
         await c.env.DB.prepare(`
           INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           alarm_schedule_id,
           alarm.channel_id,
@@ -878,7 +877,8 @@ alarms.post('/status', async (c) => {
           user.user_id,
           alarm.msg_type || 'youtube',
           alarm.msg_value || '',
-          status
+          status,
+          alarm.created_by || null
         ).run()
       }
       return c.json({ success: true, action: 'created', status })
