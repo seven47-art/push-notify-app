@@ -199,6 +199,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 #screen-content-player.active { display:flex !important; }
 #cp-audio-wrap { display:none; }
 #cp-audio-wrap.active { display:flex !important; }
+#cp-link-btn { display:none; }
+#cp-link-btn.active { display:flex !important; }
 .alarm-list-channel { flex:1; font-size:14px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .alarm-list-time { font-size:12px; color:var(--text3); flex-shrink:0; }
 .alarm-list-status { font-size:11px; font-weight:600; flex-shrink:0; min-width:32px; text-align:right; }
@@ -624,7 +626,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 채널명 -->
       <span id="cp-channel-name" style="flex:1; color:#fff; font-size:15px; font-weight:600;"></span>
       <!-- 링크 버튼 -->
-      <button id="cp-link-btn" onclick="App.cpOpenLink()" style="display:none; width:44px; height:44px; border-radius:50%; background:#6C63FF; border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+      <button id="cp-link-btn" onclick="App.cpOpenLink()" style="width:44px; height:44px; border-radius:50%; background:#6C63FF; border:none; color:#fff; font-size:18px; cursor:pointer; align-items:center; justify-content:center;">
         <i class="fas fa-link"></i>
       </button>
       <!-- 닫기 버튼 -->

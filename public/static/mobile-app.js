@@ -731,7 +731,7 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
+        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
           <span class="alarm-list-icon">${typeIcon}</span>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
@@ -783,7 +783,7 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
-        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
+        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
           <span class="alarm-list-icon">${typeIcon}</span>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
@@ -805,28 +805,43 @@ const App = {
   },
 
   // 수신함/발신함 알람 클릭 → 컨텐츠 재생 전용 페이지 표시
-  async openAlarmContent(logId, channelName, msgType, msgValue, linkUrl, source) {
+  async openAlarmContent(logId, channelId, channelName, msgType, msgValue, linkUrl, source) {
     const screen = document.getElementById('screen-content-player')
     if (!screen) return
 
-    // 채널명 표시
-    const nameEl = document.getElementById('cp-channel-name')
+    // 1. 채널 정보 조회 (현재 최신 이미지/이름)
+    const nameEl   = document.getElementById('cp-channel-name')
     const avatarEl = document.getElementById('cp-channel-avatar')
-    if (nameEl) nameEl.textContent = channelName
-    if (avatarEl) avatarEl.textContent = channelName ? channelName.charAt(0).toUpperCase() : '?'
+    try {
+      const chRes = await API.get(`/channels/${channelId}`)
+      const ch = chRes.data?.data || chRes.data
+      const currentName  = ch?.name  || channelName
+      const currentImage = ch?.image_url || ''
+      if (nameEl) nameEl.textContent = currentName
+      if (avatarEl) {
+        if (currentImage) {
+          avatarEl.innerHTML = `<img src="${currentImage}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`
+        } else {
+          avatarEl.textContent = currentName ? currentName.charAt(0).toUpperCase() : '?'
+        }
+      }
+    } catch(e) {
+      if (nameEl)   nameEl.textContent = channelName
+      if (avatarEl) avatarEl.textContent = channelName ? channelName.charAt(0).toUpperCase() : '?'
+    }
 
-    // 링크 버튼 처리
+    // 2. 링크 버튼 처리
     const linkBtn = document.getElementById('cp-link-btn')
     if (linkBtn) {
       if (linkUrl) {
-        linkBtn.style.display = 'flex'
+        linkBtn.classList.add('active')
         linkBtn.dataset.url = linkUrl
       } else {
-        linkBtn.style.display = 'none'
+        linkBtn.classList.remove('active')
       }
     }
 
-    // 이전 재생 초기화
+    // 3. 이전 재생 초기화
     const ytFrame   = document.getElementById('cp-youtube-frame')
     const videoEl   = document.getElementById('cp-video-player')
     const audioEl   = document.getElementById('cp-audio-player')
@@ -834,39 +849,39 @@ const App = {
     if (ytFrame)   { ytFrame.style.display = 'none'; ytFrame.src = '' }
     if (videoEl)   { videoEl.style.display = 'none'; videoEl.src = ''; videoEl.pause?.() }
     if (audioEl)   { audioEl.src = ''; audioEl.pause?.() }
-    if (audioWrap) audioWrap.style.display = 'none'
+    if (audioWrap) audioWrap.classList.remove('active')
 
-    // 컨텐츠 타입별 재생
+    // 4. 컨텐츠 타입별 재생
     if (msgType === 'youtube' && msgValue) {
-      // 유튜브 ID 추출 후 임베드
       let videoId = ''
       try {
         const u = new URL(msgValue)
         videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || ''
       } catch(e) { videoId = msgValue }
       if (ytFrame) {
-        ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`
+        // autoplay=1&mute=0 + playsinline 으로 모바일 자동재생 대응
+        ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`
         ytFrame.style.display = 'block'
       }
     } else if (msgType === 'video' && msgValue) {
       if (videoEl) {
         videoEl.src = msgValue
         videoEl.style.display = 'block'
-        videoEl.play?.()
+        videoEl.play?.().catch(()=>{})
       }
     } else if (msgType === 'audio' && msgValue) {
       if (audioEl && audioWrap) {
         audioEl.src = msgValue
-        audioWrap.style.display = 'flex'
-        audioEl.play?.()
+        audioWrap.classList.add('active')
+        audioEl.play?.().catch(()=>{})
       }
     }
 
-    // 재생 페이지 표시 (source 저장해서 닫을 때 돌아갈 곳 기억)
+    // 5. 재생 페이지 표시
     screen.dataset.source = source
     screen.classList.add('active')
 
-    // 상태 업데이트 (수신함: accepted, 발신함도 동일)
+    // 6. 상태 업데이트
     if (logId) {
       try {
         await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
