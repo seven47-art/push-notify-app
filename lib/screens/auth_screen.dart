@@ -1,5 +1,5 @@
-// lib/screens/auth_screen.dart  v9
-// "Google 계정으로 시작하기" → 시스템 계정 선택 팝업 → 확인 즉시 로그인 → 메인화면
+// lib/screens/auth_screen.dart  v10
+// 앱 시작 시 자동으로 커스텀 계정 선택 다이얼로그 표시
 // 별도 로그인/회원가입 화면 없음
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -19,12 +19,21 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   // 로딩 상태
   bool    _isLoggingIn     = false;
-  String  _statusMsg       = '';   // 로그인 중 표시할 이메일 등
+  String  _statusMsg       = '';
   // 오류 상태
   String  _errorMsg        = '';
   // 수동 입력 폴백
   bool    _showManualInput = false;
   final   _emailCtrl       = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // 화면 빌드 완료 후 자동으로 계정 선택 다이얼로그 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openAccountPicker();
+    });
+  }
 
   @override
   void dispose() {
@@ -36,7 +45,7 @@ class _AuthScreenState extends State<AuthScreen> {
   //  Step 1: 커스텀 계정 선택 다이얼로그 열기
   // ══════════════════════════════════════════════════
   Future<void> _openAccountPicker() async {
-    setState(() { _errorMsg = ''; });
+    setState(() { _errorMsg = ''; _showManualInput = false; });
 
     try {
       // 기기에서 Google 계정 목록 가져오기
@@ -54,7 +63,7 @@ class _AuthScreenState extends State<AuthScreen> {
       // 커스텀 다이얼로그 표시
       final selectedEmail = await showDialog<String>(
         context: context,
-        barrierDismissible: true,
+        barrierDismissible: false, // 바깥 탭으로 닫기 방지
         builder: (ctx) => _AccountPickerDialog(accounts: emailList),
       );
 
@@ -101,16 +110,12 @@ class _AuthScreenState extends State<AuthScreen> {
       if (body['success'] == true) {
         final data  = body['data'] as Map<String, dynamic>;
         final prefs = await SharedPreferences.getInstance();
-        // 웹앱 localStorage와 동일한 키 이름으로 저장
         await prefs.setString('session_token', data['session_token'] as String);
         await prefs.setString('user_id',       data['user_id']       as String? ?? '');
-        await prefs.setString('email',         trimmed);          // 웹앱 키: email
+        await prefs.setString('email',         trimmed);
         await prefs.setString('display_name',  trimmed.split('@')[0]);
-        // 호환용 (기존 코드에서 user_email로 읽는 곳 있음)
         await prefs.setString('user_email',    trimmed);
 
-        // ✅ 로그인 성공 → 권한 설정 화면으로 이동 (최초 1회)
-        // 이후 앱 재시작 시에는 splash에서 /main으로 바로 이동
         if (mounted) Navigator.of(context).pushReplacementNamed('/permissions');
       } else {
         setState(() {
@@ -202,23 +207,22 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ],
 
-                  // ── Google 계정 선택 버튼 ──
-                  if (!_showManualInput) ...[
-                    _GoogleSignInButton(onTap: _openAccountPicker),
-                  ] else ...[
-                    // ── 이메일 직접 입력 폼 ──
+                  // ── 수동 입력 폴백 ──
+                  if (_showManualInput) ...[
                     _ManualEmailForm(
                       controller: _emailCtrl,
                       onSubmit:   () => _loginWithEmail(_emailCtrl.text),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
-                      onPressed: () =>
-                          setState(() { _showManualInput = false; _errorMsg = ''; }),
+                      onPressed: () => _openAccountPicker(),
                       child: const Text('Google 계정 선택으로 돌아가기',
                           style: TextStyle(
                               color: Color(0xFF6B7280), fontSize: 13)),
                     ),
+                  ] else if (!_isLoggingIn) ...[
+                    // ── 계정 선택 버튼 (다이얼로그 닫힌 후 재시도용) ──
+                    _GoogleSignInButton(onTap: _openAccountPicker),
                   ],
                 ],
 
@@ -412,7 +416,7 @@ class _AccountPickerDialogState extends State<_AccountPickerDialog> {
             ),
             const SizedBox(height: 16),
 
-            // 계정 목록
+            // 계정 목록 (계정 추가 없이 순수 계정만)
             ...widget.accounts.map((email) => InkWell(
               onTap: () => setState(() => _selected = email),
               borderRadius: BorderRadius.circular(8),
@@ -442,70 +446,51 @@ class _AccountPickerDialogState extends State<_AccountPickerDialog> {
               ),
             )),
 
-            // 계정 추가 항목
-            InkWell(
-              onTap: () => Navigator.pop(context, null),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                child: Row(
-                  children: [
-                    Radio<String>(
-                      value: '__add__',
-                      groupValue: _selected,
-                      onChanged: (_) => Navigator.pop(context, null),
-                      activeColor: const Color(0xFF6C63FF),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            const SizedBox(height: 24),
+
+            // 버튼 행 - 취소 / 확인 (간격 넓게)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, null),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF6B7280),
+                      side: const BorderSide(color: Color(0xFFD1D5DB)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      '계정 추가',
+                    child: const Text(
+                      '취소',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.w500,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 버튼 행 (취소 / 확인)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, null),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: const Text(
-                    '취소',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFF6B7280),
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                TextButton(
-                  onPressed: _selected == null
-                      ? null
-                      : () => Navigator.pop(context, _selected),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: Text(
-                    '확인',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: _selected == null
-                          ? const Color(0xFFD1D5DB)
-                          : const Color(0xFF6C63FF),
-                      fontWeight: FontWeight.w600,
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _selected == null
+                        ? null
+                        : () => Navigator.pop(context, _selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C63FF),
+                      disabledBackgroundColor: const Color(0xFFD1D5DB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      '확인',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
