@@ -608,10 +608,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           break;
         case 'pick_image':
           // v1.0.50: 채널 대표이미지 선택 - Flutter ImagePicker로 처리 (WebView file input 우회)
-          // WebView 포커스 해제 후 이미지 피커 호출 (선택창이 WebView 뒤에 열리는 문제 방지)
           final imgSource = data['source'] as String? ?? 'gallery';
-          FocusScope.of(context).unfocus();
-          await Future.delayed(const Duration(milliseconds: 300));
           await _pickChannelImage(imgSource);
           break;
         case 'show_fake_call':

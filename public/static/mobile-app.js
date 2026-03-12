@@ -2219,11 +2219,10 @@ const App = {
     this.closeModal('modal-img-src')
     // Flutter 앱 환경: FlutterBridge로 네이티브 이미지 피커 호출
     // (Android WebView file input.click()은 보안 정책으로 동작 불안정)
-    // 모달 닫힘 애니메이션 완료 후 호출 (딜레이 400ms → 선택창이 모달 뒤에 열리는 문제 방지)
     if (window.FlutterBridge) {
       setTimeout(() => {
         FlutterBridge.postMessage(JSON.stringify({ action: 'pick_image', source: source }))
-      }, 400)
+      }, 200)
     } else {
       // 웹 브라우저 fallback: file input 사용
       setTimeout(() => {
