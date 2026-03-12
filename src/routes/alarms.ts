@@ -809,31 +809,34 @@ alarms.get('/inbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 채널 목록 (필터용)
-    const channelMap: Record<string, string> = {}
-    for (const row of results) {
-      if (!channelMap[row.channel_id]) channelMap[row.channel_id] = row.channel_name
-    }
-    const channels = Object.entries(channelMap).map(([id, name]) => ({ id: Number(id), name }))
-
-    // 그룹핑 제거 → 플랫 리스트 반환
-    const groups: Record<string, any> = {}
-    for (const row of results) {
-      const key = String(row.channel_id)
-      if (!groups[key]) {
-        groups[key] = {
-          channel_id:   row.channel_id,
-          channel_name: row.channel_name,
-          items:        [],
-          unread:       0,
-          latest_at:    row.received_at
-        }
+    // 채널 ID 목록 추출 → 최신 채널명/이미지 조회
+    const channelIds = [...new Set(results.map((r: any) => r.channel_id).filter(Boolean))]
+    const channelInfoMap: Record<string, { name: string; image_url: string }> = {}
+    if (channelIds.length > 0) {
+      const placeholders = channelIds.map(() => '?').join(',')
+      const { results: chRows } = await c.env.DB.prepare(
+        `SELECT id, name, image_url FROM channels WHERE id IN (${placeholders})`
+      ).bind(...channelIds).all() as { results: any[] }
+      for (const ch of chRows) {
+        channelInfoMap[String(ch.id)] = { name: ch.name, image_url: ch.image_url || '' }
       }
-      groups[key].items.push(row)
-      if (row.status === 'received') groups[key].unread++
     }
 
-    return c.json({ success: true, data: results, channels })
+    // 채널 목록 (필터용) - 최신 채널명 사용
+    const channels = channelIds.map(id => ({
+      id: Number(id),
+      name: channelInfoMap[String(id)]?.name || '',
+      image_url: channelInfoMap[String(id)]?.image_url || ''
+    }))
+
+    // 결과에 최신 채널명/이미지 반영
+    const data = results.map((r: any) => ({
+      ...r,
+      channel_name:  channelInfoMap[String(r.channel_id)]?.name  || r.channel_name,
+      channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
+    }))
+
+    return c.json({ success: true, data, channels })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
@@ -888,14 +891,34 @@ alarms.get('/outbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 채널 목록 (필터용)
-    const channelMap: Record<string, string> = {}
-    for (const row of results) {
-      if (!channelMap[row.channel_id]) channelMap[row.channel_id] = row.channel_name
+    // 채널 ID 목록 추출 → 최신 채널명/이미지 조회
+    const channelIds = [...new Set(results.map((r: any) => r.channel_id).filter(Boolean))]
+    const channelInfoMap: Record<string, { name: string; image_url: string }> = {}
+    if (channelIds.length > 0) {
+      const placeholders = channelIds.map(() => '?').join(',')
+      const { results: chRows } = await c.env.DB.prepare(
+        `SELECT id, name, image_url FROM channels WHERE id IN (${placeholders})`
+      ).bind(...channelIds).all() as { results: any[] }
+      for (const ch of chRows) {
+        channelInfoMap[String(ch.id)] = { name: ch.name, image_url: ch.image_url || '' }
+      }
     }
-    const channels = Object.entries(channelMap).map(([id, name]) => ({ id: Number(id), name }))
 
-    return c.json({ success: true, data: results, channels })
+    // 채널 목록 (필터용) - 최신 채널명 사용
+    const channels = channelIds.map(id => ({
+      id: Number(id),
+      name: channelInfoMap[String(id)]?.name || '',
+      image_url: channelInfoMap[String(id)]?.image_url || ''
+    }))
+
+    // 결과에 최신 채널명/이미지 반영
+    const data = results.map((r: any) => ({
+      ...r,
+      channel_name:  channelInfoMap[String(r.channel_id)]?.name  || r.channel_name,
+      channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
+    }))
+
+    return c.json({ success: true, data, channels })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

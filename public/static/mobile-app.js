@@ -731,8 +731,11 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
+        const chImg = item.channel_image
+          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` 
+          : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
-          <span class="alarm-list-icon">${typeIcon}</span>
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
@@ -783,8 +786,11 @@ const App = {
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
+        const chImg = item.channel_image
+          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` 
+          : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
-          <span class="alarm-list-icon">${typeIcon}</span>
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
