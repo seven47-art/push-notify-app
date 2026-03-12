@@ -101,6 +101,10 @@ subscribers.delete('/leave', async (c) => {
       UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND channel_id = ?
     `).bind(userId, channelId).run()
+    // 해당 채널의 수신함 alarm_logs 삭제
+    await c.env.DB.prepare(`
+      DELETE FROM alarm_logs WHERE receiver_id = ? AND channel_id = ?
+    `).bind(userId, channelId).run()
     return c.json({ success: true, message: 'Left channel successfully' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

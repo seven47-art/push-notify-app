@@ -213,8 +213,9 @@ users.delete('/me', async (c) => {
 
     // 내 구독 정보 삭제
     await DB.prepare(`DELETE FROM subscribers WHERE user_id = ?`).bind(user_id).run()
-    // 내 알람 로그 삭제
+    // 내 알람 로그 삭제 (수신함 + 발신함)
     await DB.prepare(`DELETE FROM alarm_logs WHERE receiver_id = ?`).bind(user_id).run()
+    await DB.prepare(`DELETE FROM alarm_logs WHERE sender_id = ?`).bind(user_id).run()
     // 세션 삭제
     await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(user_id).run()
     // 회원 삭제

@@ -429,6 +429,8 @@ channels.post('/:id/verify-password', async (c) => {
 channels.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
+    // alarm_logs 명시적 삭제 (D1 FK CASCADE 미동작 대비)
+    await c.env.DB.prepare('DELETE FROM alarm_logs WHERE channel_id = ?').bind(id).run()
     await c.env.DB.prepare('DELETE FROM channels WHERE id = ?').bind(id).run()
     return c.json({ success: true, message: 'Channel deleted' })
   } catch (e: any) {
@@ -443,6 +445,8 @@ channels.post('/bulk-delete', async (c) => {
     if (!Array.isArray(ids) || ids.length === 0)
       return c.json({ success: false, error: 'ids 필수' }, 400)
     const placeholders = ids.map(() => '?').join(',')
+    // alarm_logs 명시적 삭제 (D1 FK CASCADE 미동작 대비)
+    await c.env.DB.prepare(`DELETE FROM alarm_logs WHERE channel_id IN (${placeholders})`).bind(...ids).run()
     await c.env.DB.prepare(`DELETE FROM channels WHERE id IN (${placeholders})`).bind(...ids).run()
     return c.json({ success: true, deleted: ids.length })
   } catch (e: any) {
