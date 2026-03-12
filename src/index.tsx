@@ -394,6 +394,9 @@ app.get('/', (c) => {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarms')">
       <i class="fas fa-bell w-4 text-center text-orange-400"></i> 알람 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarm-logs')">
+      <i class="fas fa-history w-4 text-center text-yellow-400"></i> 알람 로그
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('invites')">
       <i class="fas fa-link w-4 text-center text-amber-400"></i> 초대 링크
     </a>
@@ -917,6 +920,47 @@ app.get('/', (c) => {
               <tr><td colspan="8" class="text-center py-10 text-slate-500">불러오는 중...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알람 로그 ===== -->
+    <div id="page-alarm-logs" class="page">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+              <i class="fas fa-history text-yellow-400"></i>
+            </div>
+            <div>
+              <h2 class="text-white font-bold text-lg">알람 로그</h2>
+              <p class="text-slate-400 text-sm">전체 알람 수신 이력</p>
+            </div>
+          </div>
+          <button onclick="loadAlarmLogs()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
+            <i class="fas fa-sync-alt"></i> 새로고침
+          </button>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-700/50">
+                <tr class="text-slate-400 text-xs uppercase tracking-wider">
+                  <th class="px-4 py-3 text-left">ID</th>
+                  <th class="px-4 py-3 text-left">채널</th>
+                  <th class="px-4 py-3 text-left">수신자</th>
+                  <th class="px-4 py-3 text-left">타입</th>
+                  <th class="px-4 py-3 text-left">컨텐츠</th>
+                  <th class="px-4 py-3 text-left">상태</th>
+                  <th class="px-4 py-3 text-left">수신 시각</th>
+                </tr>
+              </thead>
+              <tbody id="alarmLogsTableBody">
+                <tr><td colspan="7" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="alarmLogsPagination" class="px-5 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400"></div>
         </div>
       </div>
     </div>

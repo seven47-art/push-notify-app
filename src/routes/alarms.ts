@@ -685,6 +685,50 @@ async function getUserFromSession(c: any): Promise<{ id: string; user_id: string
 }
 
 // =============================================
+// GET /api/alarms/logs  - 알람 로그 전체 조회 (관리자용)
+// =============================================
+alarms.get('/logs', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)
+    const offset = Number(c.req.query('offset') || 0)
+
+    const { results } = await c.env.DB.prepare(`
+      SELECT
+        l.id,
+        l.alarm_id,
+        l.channel_id,
+        l.channel_name,
+        l.receiver_id,
+        l.msg_type,
+        l.msg_value,
+        l.status,
+        l.received_at,
+        a.scheduled_at,
+        a.created_by
+      FROM alarm_logs l
+      LEFT JOIN alarm_schedules a ON l.alarm_id = a.id
+      ORDER BY l.received_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(limit, offset).all() as { results: any[] }
+
+    const { results: countResult } = await c.env.DB.prepare(
+      'SELECT COUNT(*) as total FROM alarm_logs'
+    ).all() as { results: any[] }
+
+    return c.json({
+      success: true,
+      total: countResult[0]?.total || 0,
+      data: results
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // GET /api/alarms/inbox  - 수신함 (채널별 그룹)
 // =============================================
 alarms.get('/inbox', async (c) => {

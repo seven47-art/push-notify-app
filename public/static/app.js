@@ -99,7 +99,7 @@ function showPage(page) {
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
-    'admin-alarm': '관리자 알람발송'
+    'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -114,6 +114,7 @@ function showPage(page) {
   else if (page === 'terms') loadTerms()
   else if (page === 'privacy') loadPrivacy()
   else if (page === 'alarms') loadAlarmManagement()
+  else if (page === 'alarm-logs') loadAlarmLogs()
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
   else if (page === 'admin-alarm') adminAlarmPageInit()
@@ -1113,6 +1114,64 @@ async function bulkDeleteMembers() {
 // ──────────────────────────────────────────────
 // 알람 관리
 // ──────────────────────────────────────────────
+// 알람 로그
+let alarmLogsPage = 0
+const ALARM_LOGS_PAGE_SIZE = 100
+
+async function loadAlarmLogs(offset = 0) {
+  alarmLogsPage = offset
+  const tbody = document.getElementById('alarmLogsTableBody')
+  const pagination = document.getElementById('alarmLogsPagination')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
+  try {
+    const res = await axios.get('/api/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
+    const { data, total } = res.data
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
+      if (pagination) pagination.innerHTML = ''
+      return
+    }
+    const statusColor = { received: 'text-blue-400', accepted: 'text-emerald-400', rejected: 'text-red-400', timeout: 'text-orange-400' }
+    const statusLabel = { received: '수신', accepted: '수락', rejected: '거절', timeout: '시간초과' }
+    tbody.innerHTML = data.map(row => {
+      const st = row.status || 'received'
+      const stColor = statusColor[st] || 'text-slate-400'
+      const stLabel = statusLabel[st] || st
+      const msgVal = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : '-'
+      const receivedAt = row.received_at ? new Date(row.received_at).toLocaleString('ko-KR') : '-'
+      return `<tr class="border-t border-slate-700 hover:bg-slate-700/30">
+        <td class="px-4 py-3 text-slate-400 text-xs">${row.id}</td>
+        <td class="px-4 py-3 text-white font-medium">${row.channel_name || '-'}</td>
+        <td class="px-4 py-3 text-slate-300 text-xs">${row.receiver_id || '-'}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-300">${(row.msg_type || '-').toUpperCase()}</span>
+        </td>
+        <td class="px-4 py-3 text-slate-300 text-xs">${msgVal}</td>
+        <td class="px-4 py-3"><span class="font-semibold text-xs ${stColor}">${stLabel}</span></td>
+        <td class="px-4 py-3 text-slate-400 text-xs">${receivedAt}</td>
+      </tr>`
+    }).join('')
+
+    // 페이지네이션
+    if (pagination) {
+      const totalPages = Math.ceil(total / ALARM_LOGS_PAGE_SIZE)
+      const currentPage = Math.floor(offset / ALARM_LOGS_PAGE_SIZE) + 1
+      pagination.innerHTML = `
+        <span>${offset + 1} - ${Math.min(offset + ALARM_LOGS_PAGE_SIZE, total)} / 전체 ${total}건</span>
+        <div class="flex gap-2">
+          <button onclick="loadAlarmLogs(${Math.max(0, offset - ALARM_LOGS_PAGE_SIZE)})" class="px-3 py-1 rounded bg-slate-700 text-slate-300 text-xs ${offset === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-600'}" ${offset === 0 ? 'disabled' : ''}>이전</button>
+          <span class="px-3 py-1 text-slate-400 text-xs">${currentPage} / ${totalPages}</span>
+          <button onclick="loadAlarmLogs(${offset + ALARM_LOGS_PAGE_SIZE})" class="px-3 py-1 rounded bg-slate-700 text-slate-300 text-xs ${offset + ALARM_LOGS_PAGE_SIZE >= total ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-600'}" ${offset + ALARM_LOGS_PAGE_SIZE >= total ? 'disabled' : ''}>다음</button>
+        </div>`
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
+  }
+}
+
+// ──────────────────────────────────────────────
+// 알람 관리
 let allAlarms = []
 
 async function loadAlarmManagement() {
