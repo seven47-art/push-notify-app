@@ -718,12 +718,17 @@ const App = {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
         return
       }
-      const iconMap = { youtube:'📺', audio:'🎵', video:'🎬', file:'📎' }
+      const iconMap = {
+        youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
+        audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
+        video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+        file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+      }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
       const items = resData.data.map(item => {
-        const typeIcon = iconMap[item.msg_type] || '🔔'
-        const timeStr = this._fmtTime(item.scheduled_at || item.received_at)
+        const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+        const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
         const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
@@ -766,12 +771,17 @@ const App = {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
         return
       }
-      const iconMap = { youtube:'📺', audio:'🎵', video:'🎬', file:'📎' }
+      const iconMap = {
+        youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
+        audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
+        video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+        file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+      }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
       const items = resData.data.map(item => {
-        const typeIcon = iconMap[item.msg_type] || '🔔'
-        const timeStr = this._fmtTime(item.scheduled_at || item.received_at)
+        const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+        const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
         const clickUrl = item.link_url || (item.msg_value && item.msg_value.startsWith('http') ? item.msg_value : null)
@@ -826,6 +836,21 @@ const App = {
       const dd = String(d.getDate()).padStart(2,'0')
       const hh = String(d.getHours()).padStart(2,'0')
       const mi = String(d.getMinutes()).padStart(2,'0')
+      return `${mm}/${dd} ${hh}:${mi}`
+    } catch { return isoStr }
+  },
+
+  // 알람이 울리는 시간 - 절대시간 표시 (UTC → KST +9h)
+  _fmtAlarmTime(isoStr) {
+    if (!isoStr) return ''
+    try {
+      const d = new Date(isoStr)
+      // UTC 문자열이면 KST(+9) 보정
+      const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+      const mm = String(kst.getUTCMonth()+1).padStart(2,'0')
+      const dd = String(kst.getUTCDate()).padStart(2,'0')
+      const hh = String(kst.getUTCHours()).padStart(2,'0')
+      const mi = String(kst.getUTCMinutes()).padStart(2,'0')
       return `${mm}/${dd} ${hh}:${mi}`
     } catch { return isoStr }
   },
