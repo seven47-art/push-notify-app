@@ -33,24 +33,36 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   // ══════════════════════════════════════════════════
-  //  Step 1: 시스템 계정 선택 팝업 열기
+  //  Step 1: 커스텀 계정 선택 다이얼로그 열기
   // ══════════════════════════════════════════════════
   Future<void> _openAccountPicker() async {
     setState(() { _errorMsg = ''; });
 
     try {
-      // AccountManager.newChooseAccountIntent() → 선택된 이메일 반환
-      final email = await _platform.invokeMethod<String>('showAccountPicker');
+      // 기기에서 Google 계정 목록 가져오기
+      final accounts = await _platform.invokeMethod<List>('getGoogleAccounts');
+      final emailList = accounts?.cast<String>() ?? [];
 
-      if (email != null && email.isNotEmpty) {
-        // 선택 즉시 서버 로그인 (별도 화면 없이)
-        await _loginWithEmail(email);
+      if (emailList.isEmpty) {
+        // 계정이 없으면 수동 입력으로 전환
+        setState(() { _showManualInput = true; });
+        return;
       }
-      // email == null 이면 사용자가 취소 → 아무것도 안 함
 
-    } on PlatformException catch (e) {
-      if (e.code == 'CANCELLED') return; // 취소는 무시
-      // 팝업을 열 수 없는 기기 → 수동 입력 표시
+      if (!mounted) return;
+
+      // 커스텀 다이얼로그 표시
+      final selectedEmail = await showDialog<String>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => _AccountPickerDialog(accounts: emailList),
+      );
+
+      if (selectedEmail != null && selectedEmail.isNotEmpty) {
+        await _loginWithEmail(selectedEmail);
+      }
+
+    } on PlatformException {
       setState(() { _showManualInput = true; });
     } catch (_) {
       setState(() { _showManualInput = true; });
@@ -362,4 +374,146 @@ class _GIconPainter extends CustomPainter {
   }
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ══════════════════════════════════════════════════
+//  커스텀 계정 선택 다이얼로그
+// ══════════════════════════════════════════════════
+class _AccountPickerDialog extends StatefulWidget {
+  final List<String> accounts;
+  const _AccountPickerDialog({required this.accounts});
+
+  @override
+  State<_AccountPickerDialog> createState() => _AccountPickerDialogState();
+}
+
+class _AccountPickerDialogState extends State<_AccountPickerDialog> {
+  String? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 제목
+            const Text(
+              '계정 선택',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 계정 목록
+            ...widget.accounts.map((email) => InkWell(
+              onTap: () => setState(() => _selected = email),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                child: Row(
+                  children: [
+                    Radio<String>(
+                      value: email,
+                      groupValue: _selected,
+                      onChanged: (v) => setState(() => _selected = v),
+                      activeColor: const Color(0xFF6C63FF),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        email,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )),
+
+            // 계정 추가 항목
+            InkWell(
+              onTap: () => Navigator.pop(context, null),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                child: Row(
+                  children: [
+                    Radio<String>(
+                      value: '__add__',
+                      groupValue: _selected,
+                      onChanged: (_) => Navigator.pop(context, null),
+                      activeColor: const Color(0xFF6C63FF),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '계정 추가',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 버튼 행 (취소 / 확인)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  child: const Text(
+                    '취소',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _selected == null
+                      ? null
+                      : () => Navigator.pop(context, _selected),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  child: Text(
+                    '확인',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: _selected == null
+                          ? const Color(0xFFD1D5DB)
+                          : const Color(0xFF6C63FF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
