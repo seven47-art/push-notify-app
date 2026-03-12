@@ -1096,7 +1096,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </div>
 
 <!-- ══ 모달: 이미지 소스 선택 ══ -->
-<div class="modal-overlay" id="modal-img-src">
+<div class="modal-overlay" id="modal-img-src" style="z-index:600;">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">이미지 선택</div>
