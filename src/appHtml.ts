@@ -620,13 +620,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
     </div>
     <!-- 하단 바 -->
-    <div id="cp-bottom-bar" style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,0.8));">
+    <div id="cp-bottom-bar" style="position:absolute; bottom:0; left:0; right:0; padding:20px 20px 36px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,0.9));">
       <!-- 채널 아바타 -->
       <div id="cp-channel-avatar" style="width:44px; height:44px; border-radius:12px; background:rgba(108,99,255,0.3); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:#6C63FF; flex-shrink:0;"></div>
       <!-- 채널명 -->
       <span id="cp-channel-name" style="flex:1; color:#fff; font-size:15px; font-weight:600;"></span>
       <!-- 링크 버튼 -->
-      <button id="cp-link-btn" onclick="App.cpOpenLink()" style="width:44px; height:44px; border-radius:50%; background:#6C63FF; border:none; color:#fff; font-size:18px; cursor:pointer; align-items:center; justify-content:center;">
+      <button id="cp-link-btn" onclick="App.cpOpenLink()" style="width:44px; height:44px; border-radius:50%; background:#6C63FF; border:none; color:#fff; font-size:18px; cursor:pointer; display:none; align-items:center; justify-content:center;">
         <i class="fas fa-link"></i>
       </button>
       <!-- 닫기 버튼 -->

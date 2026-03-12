@@ -840,10 +840,10 @@ const App = {
     const linkBtn = document.getElementById('cp-link-btn')
     if (linkBtn) {
       if (linkUrl) {
-        linkBtn.classList.add('active')
+        linkBtn.style.display = 'flex'
         linkBtn.dataset.url = linkUrl
       } else {
-        linkBtn.classList.remove('active')
+        linkBtn.style.display = 'none'
       }
     }
 
