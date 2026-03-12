@@ -1123,33 +1123,34 @@ async function loadAlarmLogs(offset = 0) {
   const tbody = document.getElementById('alarmLogsTableBody')
   const pagination = document.getElementById('alarmLogsPagination')
   if (!tbody) return
-  tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
   try {
     const res = await API.get('/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
     const { data, total } = res.data
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
       if (pagination) pagination.innerHTML = ''
       return
     }
-    const statusColor = { received: 'text-blue-400', accepted: 'text-emerald-400', rejected: 'text-red-400', timeout: 'text-orange-400' }
-    const statusLabel = { received: '수신', accepted: '수락', rejected: '거절', timeout: '시간초과' }
+    const statusColor = { pending: 'text-slate-400', triggered: 'text-blue-400', cancelled: 'text-red-400' }
+    const statusLabel = { pending: '대기', triggered: '발송완료', cancelled: '취소' }
     tbody.innerHTML = data.map(row => {
-      const st = row.status || 'received'
+      const st = row.status || 'pending'
       const stColor = statusColor[st] || 'text-slate-400'
       const stLabel = statusLabel[st] || st
       const msgVal = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : '-'
-      const receivedAt = row.received_at ? new Date(row.received_at).toLocaleString('ko-KR') : '-'
+      const scheduledAt = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ko-KR') : '-'
       return `<tr class="border-t border-slate-700 hover:bg-slate-700/30">
         <td class="px-4 py-3 text-slate-400 text-xs">${row.id}</td>
         <td class="px-4 py-3 text-white font-medium">${row.channel_name || '-'}</td>
-        <td class="px-4 py-3 text-slate-300 text-xs">${row.receiver_id || '-'}</td>
+        <td class="px-4 py-3 text-slate-300 text-xs">${row.sender_email || '-'}</td>
+        <td class="px-4 py-3 text-slate-300 text-xs text-center">${row.receiver_count ?? 0}명</td>
         <td class="px-4 py-3">
           <span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-300">${(row.msg_type || '-').toUpperCase()}</span>
         </td>
         <td class="px-4 py-3 text-slate-300 text-xs">${msgVal}</td>
         <td class="px-4 py-3"><span class="font-semibold text-xs ${stColor}">${stLabel}</span></td>
-        <td class="px-4 py-3 text-slate-400 text-xs">${receivedAt}</td>
+        <td class="px-4 py-3 text-slate-400 text-xs">${scheduledAt}</td>
       </tr>`
     }).join('')
 
@@ -1166,7 +1167,7 @@ async function loadAlarmLogs(offset = 0) {
         </div>`
     }
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
   }
 }
 

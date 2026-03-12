@@ -694,25 +694,25 @@ alarms.get('/logs', async (c) => {
 
     const { results } = await c.env.DB.prepare(`
       SELECT
-        l.id,
-        l.alarm_id,
-        l.channel_id,
+        a.id,
+        a.channel_id,
         l.channel_name,
-        l.receiver_id,
+        u.email        AS sender_email,
+        COUNT(l.id)    AS receiver_count,
         l.msg_type,
         l.msg_value,
-        l.status,
-        l.received_at,
-        a.scheduled_at,
-        a.created_by
-      FROM alarm_logs l
-      LEFT JOIN alarm_schedules a ON l.alarm_id = a.id
-      ORDER BY l.received_at DESC
+        a.status,
+        a.scheduled_at
+      FROM alarm_schedules a
+      LEFT JOIN alarm_logs l   ON l.alarm_id = a.id
+      LEFT JOIN users u        ON u.user_id  = a.created_by
+      GROUP BY a.id
+      ORDER BY a.scheduled_at DESC
       LIMIT ? OFFSET ?
     `).bind(limit, offset).all() as { results: any[] }
 
     const { results: countResult } = await c.env.DB.prepare(
-      'SELECT COUNT(*) as total FROM alarm_logs'
+      'SELECT COUNT(*) as total FROM alarm_schedules'
     ).all() as { results: any[] }
 
     return c.json({

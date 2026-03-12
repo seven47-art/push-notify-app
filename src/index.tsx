@@ -948,15 +948,16 @@ app.get('/', (c) => {
                 <tr class="text-slate-400 text-xs uppercase tracking-wider">
                   <th class="px-4 py-3 text-left">ID</th>
                   <th class="px-4 py-3 text-left">채널</th>
-                  <th class="px-4 py-3 text-left">수신자</th>
+                  <th class="px-4 py-3 text-left">발신자</th>
+                  <th class="px-4 py-3 text-center">수신자</th>
                   <th class="px-4 py-3 text-left">타입</th>
                   <th class="px-4 py-3 text-left">컨텐츠</th>
                   <th class="px-4 py-3 text-left">상태</th>
-                  <th class="px-4 py-3 text-left">수신 시각</th>
+                  <th class="px-4 py-3 text-left">시간</th>
                 </tr>
               </thead>
               <tbody id="alarmLogsTableBody">
-                <tr><td colspan="7" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
+                <tr><td colspan="8" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
               </tbody>
             </table>
           </div>
