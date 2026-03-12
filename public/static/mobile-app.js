@@ -804,37 +804,105 @@ const App = {
     if (dv) dv.style.display = 'none'
   },
 
-  // 수신함/발신함 알람 클릭 → 컨텐츠 재생 + 상태 업데이트
+  // 수신함/발신함 알람 클릭 → 컨텐츠 재생 전용 페이지 표시
   async openAlarmContent(logId, channelName, msgType, msgValue, linkUrl, source) {
-    // 1. Flutter 네이티브 재생 화면 호출 (기존 show_fake_call 그대로)
-    if (window.FlutterBridge) {
-      window.FlutterBridge.postMessage(JSON.stringify({
-        action: 'show_fake_call',
-        channel_name: channelName,
-        msg_type: msgType,
-        msg_value: msgValue || '',
-        alarm_log_id: logId,
-        link_url: linkUrl || ''
-      }))
-    } else {
-      // 웹 환경: link_url 또는 msg_value URL 열기
-      const url = linkUrl || (msgValue && msgValue.startsWith('http') ? msgValue : null)
-      if (url) window.open(url, '_blank')
+    const screen = document.getElementById('screen-content-player')
+    if (!screen) return
+
+    // 채널명 표시
+    const nameEl = document.getElementById('cp-channel-name')
+    const avatarEl = document.getElementById('cp-channel-avatar')
+    if (nameEl) nameEl.textContent = channelName
+    if (avatarEl) avatarEl.textContent = channelName ? channelName.charAt(0).toUpperCase() : '?'
+
+    // 링크 버튼 처리
+    const linkBtn = document.getElementById('cp-link-btn')
+    if (linkBtn) {
+      if (linkUrl) {
+        linkBtn.style.display = 'flex'
+        linkBtn.dataset.url = linkUrl
+      } else {
+        linkBtn.style.display = 'none'
+      }
     }
 
-    // 2. 수신함 클릭 시 상태를 accepted로 업데이트
-    if (source === 'inbox') {
+    // 이전 재생 초기화
+    const ytFrame   = document.getElementById('cp-youtube-frame')
+    const videoEl   = document.getElementById('cp-video-player')
+    const audioEl   = document.getElementById('cp-audio-player')
+    const audioWrap = document.getElementById('cp-audio-wrap')
+    if (ytFrame)   { ytFrame.style.display = 'none'; ytFrame.src = '' }
+    if (videoEl)   { videoEl.style.display = 'none'; videoEl.src = ''; videoEl.pause?.() }
+    if (audioEl)   { audioEl.src = ''; audioEl.pause?.() }
+    if (audioWrap) audioWrap.style.display = 'none'
+
+    // 컨텐츠 타입별 재생
+    if (msgType === 'youtube' && msgValue) {
+      // 유튜브 ID 추출 후 임베드
+      let videoId = ''
+      try {
+        const u = new URL(msgValue)
+        videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || ''
+      } catch(e) { videoId = msgValue }
+      if (ytFrame) {
+        ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`
+        ytFrame.style.display = 'block'
+      }
+    } else if (msgType === 'video' && msgValue) {
+      if (videoEl) {
+        videoEl.src = msgValue
+        videoEl.style.display = 'block'
+        videoEl.play?.()
+      }
+    } else if (msgType === 'audio' && msgValue) {
+      if (audioEl && audioWrap) {
+        audioEl.src = msgValue
+        audioWrap.style.display = 'flex'
+        audioEl.play?.()
+      }
+    }
+
+    // 재생 페이지 표시 (source 저장해서 닫을 때 돌아갈 곳 기억)
+    screen.dataset.source = source
+    screen.classList.add('active')
+
+    // 상태 업데이트 (수신함: accepted, 발신함도 동일)
+    if (logId) {
       try {
         await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
-        // 리스트 새로고침
-        this.loadInbox()
-      } catch(e) {}
-    } else if (source === 'outbox') {
-      try {
-        await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
-        this.loadSend()
       } catch(e) {}
     }
+  },
+
+  cpOpenLink() {
+    const linkBtn = document.getElementById('cp-link-btn')
+    const url = linkBtn?.dataset?.url
+    if (!url) return
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'open_url', url }))
+    } else {
+      window.open(url, '_blank')
+    }
+  },
+
+  closeContentPlayer() {
+    const screen = document.getElementById('screen-content-player')
+    if (!screen) return
+
+    // 재생 중지
+    const ytFrame = document.getElementById('cp-youtube-frame')
+    const videoEl = document.getElementById('cp-video-player')
+    const audioEl = document.getElementById('cp-audio-player')
+    if (ytFrame) ytFrame.src = ''
+    if (videoEl) { videoEl.pause?.(); videoEl.src = '' }
+    if (audioEl) { audioEl.pause?.(); audioEl.src = '' }
+
+    screen.classList.remove('active')
+
+    // 돌아갈 탭 새로고침
+    const source = screen.dataset.source
+    if (source === 'inbox') this.loadInbox()
+    else if (source === 'outbox') this.loadSend()
   },
 
   _buildChannelFilter(channels, selectedId, callbackFn) {

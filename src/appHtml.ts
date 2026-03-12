@@ -195,6 +195,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .alarm-list-row { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
 .alarm-list-row:active { background:var(--bg3); }
 .alarm-list-icon { font-size:20px; flex-shrink:0; width:28px; text-align:center; }
+#screen-content-player { display:none; }
+#screen-content-player.active { display:flex !important; }
+#cp-audio-wrap { display:none; }
+#cp-audio-wrap.active { display:flex !important; }
 .alarm-list-channel { flex:1; font-size:14px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .alarm-list-time { font-size:12px; color:var(--text3); flex-shrink:0; }
 .alarm-list-status { font-size:11px; font-weight:600; flex-shrink:0; min-width:32px; text-align:right; }
@@ -597,6 +601,37 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <div id="outbox-detail-list"></div>
     </div>
     <div style="height:12px;"></div>
+  </div>
+
+  <!-- 컨텐츠 재생 전용 페이지 -->
+  <div class="screen" id="screen-content-player" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:999; background:#000; flex-direction:column;">
+    <!-- 컨텐츠 영역 (전체화면) -->
+    <div id="cp-content-area" style="flex:1; width:100%; position:relative; overflow:hidden; background:#000;">
+      <!-- 유튜브 iframe -->
+      <iframe id="cp-youtube-frame" style="display:none; width:100%; height:100%; border:none;" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+      <!-- 비디오 플레이어 -->
+      <video id="cp-video-player" style="display:none; width:100%; height:100%; object-fit:contain;" controls playsinline></video>
+      <!-- 오디오 플레이어 -->
+      <div id="cp-audio-wrap" style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+        <i class="fas fa-music" style="font-size:80px; color:#4FC3F7; margin-bottom:32px; opacity:0.8;"></i>
+        <audio id="cp-audio-player" controls style="width:85%;"></audio>
+      </div>
+    </div>
+    <!-- 하단 바 -->
+    <div id="cp-bottom-bar" style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,0.8));">
+      <!-- 채널 아바타 -->
+      <div id="cp-channel-avatar" style="width:44px; height:44px; border-radius:12px; background:rgba(108,99,255,0.3); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:#6C63FF; flex-shrink:0;"></div>
+      <!-- 채널명 -->
+      <span id="cp-channel-name" style="flex:1; color:#fff; font-size:15px; font-weight:600;"></span>
+      <!-- 링크 버튼 -->
+      <button id="cp-link-btn" onclick="App.cpOpenLink()" style="display:none; width:44px; height:44px; border-radius:50%; background:#6C63FF; border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+        <i class="fas fa-link"></i>
+      </button>
+      <!-- 닫기 버튼 -->
+      <button onclick="App.closeContentPlayer()" style="width:44px; height:44px; border-radius:50%; background:#EF5350; border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
   </div>
 
   <!-- 설정 화면 -->
