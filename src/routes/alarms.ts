@@ -697,14 +697,13 @@ alarms.get('/logs', async (c) => {
       SELECT
         l.alarm_id                      AS id,
         l.channel_name,
-        u.email                         AS sender_email,
+        NULL                            AS sender_email,
         COUNT(l.id)                     AS receiver_count,
         l.msg_type,
         l.msg_value,
         MAX(l.status)                   AS status,
         MIN(l.received_at)              AS scheduled_at
       FROM alarm_logs l
-      LEFT JOIN users u ON u.user_id = l.sender_id
       GROUP BY l.alarm_id
       ORDER BY MIN(l.received_at) DESC
       LIMIT ? OFFSET ?
