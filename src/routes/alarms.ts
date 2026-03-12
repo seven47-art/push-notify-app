@@ -779,25 +779,39 @@ alarms.post('/logs/bulk-delete', async (c) => {
 })
 
 // =============================================
-// GET /api/alarms/inbox  - 수신함 (채널별 그룹)
+// GET /api/alarms/inbox  - 수신함
 // =============================================
 alarms.get('/inbox', async (c) => {
   try {
     const user = await getUserFromSession(c)
     if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
-    // 채널별 최신 알람 + 전체 목록
-    const { results } = await c.env.DB.prepare(`
+    const channelId = c.req.query('channel_id') || ''
+
+    let query = `
       SELECT
         l.id, l.alarm_id, l.channel_id, l.channel_name,
         l.msg_type, l.msg_value, l.status, l.received_at
       FROM alarm_logs l
       WHERE l.receiver_id = ?
-      ORDER BY l.received_at DESC
-      LIMIT 200
-    `).bind(user.id).all() as { results: any[] }
+    `
+    const params: any[] = [user.id]
+    if (channelId) {
+      query += ` AND l.channel_id = ?`
+      params.push(Number(channelId))
+    }
+    query += ` ORDER BY l.received_at DESC LIMIT 200`
 
-    // 채널별 그룹핑
+    const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
+
+    // 채널 목록 (필터용)
+    const channelMap: Record<string, string> = {}
+    for (const row of results) {
+      if (!channelMap[row.channel_id]) channelMap[row.channel_id] = row.channel_name
+    }
+    const channels = Object.entries(channelMap).map(([id, name]) => ({ id: Number(id), name }))
+
+    // 그룹핑 제거 → 플랫 리스트 반환
     const groups: Record<string, any> = {}
     for (const row of results) {
       const key = String(row.channel_id)
@@ -814,7 +828,7 @@ alarms.get('/inbox', async (c) => {
       if (row.status === 'received') groups[key].unread++
     }
 
-    return c.json({ success: true, data: Object.values(groups) })
+    return c.json({ success: true, data: results, channels })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
@@ -843,41 +857,39 @@ alarms.post('/inbox/:id/status', async (c) => {
 })
 
 // =============================================
-// GET /api/alarms/outbox  - 발신함 (채널별 그룹)
+// GET /api/alarms/outbox  - 발신함
 // =============================================
 alarms.get('/outbox', async (c) => {
   try {
     const user = await getUserFromSession(c)
     if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
-    const { results } = await c.env.DB.prepare(`
+    const channelId = c.req.query('channel_id') || ''
+
+    let query = `
       SELECT
-        a.id, a.channel_id, ch.name as channel_name,
-        a.msg_type, a.msg_value, a.scheduled_at, a.status,
-        a.total_targets, a.sent_count, a.triggered_at
-      FROM alarm_schedules a
-      JOIN channels ch ON a.channel_id = ch.id
-      WHERE a.created_by = ?
-      ORDER BY a.scheduled_at DESC
-      LIMIT 200
-    `).bind(user.id).all() as { results: any[] }
-
-    // 채널별 그룹핑
-    const groups: Record<string, any> = {}
-    for (const row of results) {
-      const key = String(row.channel_id)
-      if (!groups[key]) {
-        groups[key] = {
-          channel_id:   row.channel_id,
-          channel_name: row.channel_name,
-          items:        [],
-          latest_at:    row.scheduled_at
-        }
-      }
-      groups[key].items.push(row)
+        l.id, l.alarm_id, l.channel_id, l.channel_name,
+        l.msg_type, l.msg_value, l.status, l.received_at
+      FROM alarm_logs l
+      WHERE l.sender_id = ?
+    `
+    const params: any[] = [user.id]
+    if (channelId) {
+      query += ` AND l.channel_id = ?`
+      params.push(Number(channelId))
     }
+    query += ` ORDER BY l.received_at DESC LIMIT 200`
 
-    return c.json({ success: true, data: Object.values(groups) })
+    const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
+
+    // 채널 목록 (필터용)
+    const channelMap: Record<string, string> = {}
+    for (const row of results) {
+      if (!channelMap[row.channel_id]) channelMap[row.channel_id] = row.channel_name
+    }
+    const channels = Object.entries(channelMap).map(([id, name]) => ({ id: Number(id), name }))
+
+    return c.json({ success: true, data: results, channels })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

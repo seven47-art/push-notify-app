@@ -701,156 +701,122 @@ const App = {
   },
 
   // ── 수신함 ──────────────────────────────
-  async loadInbox() {
+  async loadInbox(channelId = '') {
     const channelEl = document.getElementById('inbox-channel-list')
     const detailView = document.getElementById('inbox-detail-view')
     if (!channelEl) return
-    // 채널 목록 뷰로 초기화
     channelEl.style.display = 'block'
-    detailView.style.display = 'none'
+    if (detailView) detailView.style.display = 'none'
     channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
     try {
-      const res = await API.get('/alarms/inbox')
-      if (!res.success || !res.data.length) {
-        channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
+      const url = channelId ? `/alarms/inbox?channel_id=${channelId}` : '/alarms/inbox'
+      const res = await API.get(url)
+      if (!res.success) throw new Error()
+      const filterHtml = this._buildChannelFilter(res.channels || [], channelId, 'App.loadInbox')
+      if (!res.data || !res.data.length) {
+        channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
         return
       }
       const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
-      channelEl.innerHTML = res.data.map(g => {
-        const first = g.items[0]
-        const typeLabel = icons[first?.msg_type] || '🔔'
-        const timeStr = first ? this._fmtTime(first.received_at) : ''
-        const initial = (g.channel_name || '?')[0].toUpperCase()
-        const badge = g.unread > 0 ? `<div class="ch-group-badge">${g.unread}</div>` : ''
-        return `<div class="ch-group-card" onclick="App.inboxOpenChannel(${JSON.stringify(g).replace(/"/g,'&quot;')})">
-          <div class="ch-group-avatar">${initial}</div>
-          <div class="ch-group-info">
-            <div class="ch-group-name">${g.channel_name}</div>
-            <div class="ch-group-last">${typeLabel} ${this._msgLabel(first?.msg_type)} &nbsp;·&nbsp; ${g.items.length}개</div>
-          </div>
-          <div class="ch-group-meta">
-            <div class="ch-group-time">${timeStr}</div>
-            ${badge}
+      const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
+      const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
+      const items = res.data.map(item => {
+        const typeIcon = icons[item.msg_type] || '🔔'
+        const timeStr = this._fmtTime(item.received_at)
+        const stLabel = statusMap[item.status] || item.status
+        const stColor = statusColor[item.status] || '#90A4AE'
+        const hasUrl = item.msg_value && item.msg_value.startsWith('http')
+        return `<div class="notif-card" style="${hasUrl ? 'cursor:pointer;' : ''}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
+          <div class="notif-header">
+            <div class="notif-icon-wrap" style="font-size:18px;">${typeIcon}</div>
+            <div class="notif-meta">
+              <div class="notif-title">${this._msgLabel(item.msg_type)}</div>
+              <div class="notif-channel">${item.channel_name}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <div class="notif-time">${timeStr}</div>
+              <span style="font-size:11px;color:${stColor};font-weight:600;">${stLabel}</span>
+              ${hasUrl ? '<i class="fas fa-play-circle" style="color:#6C63FF;font-size:16px;"></i>' : ''}
+            </div>
           </div>
         </div>`
       }).join('')
+      channelEl.innerHTML = filterHtml + items
     } catch(e) {
       channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
     }
   },
 
-  inboxOpenChannel(group) {
-    const channelEl = document.getElementById('inbox-channel-list')
-    const detailView = document.getElementById('inbox-detail-view')
-    const titleEl = document.getElementById('inbox-detail-title')
-    const listEl  = document.getElementById('inbox-detail-list')
-    channelEl.style.display = 'none'
-    detailView.style.display = 'flex'
-    titleEl.textContent = group.channel_name
-    const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
-    listEl.innerHTML = group.items.map(item => {
-      const typeIcon = icons[item.msg_type] || '🔔'
-      const timeStr  = this._fmtTime(item.received_at)
-      const statusBadge = item.status === 'accepted'
-        ? '<span class="status-badge badge-accepted">✔ 수락</span>'
-        : item.status === 'rejected'
-        ? '<span class="status-badge badge-rejected">✕ 거절</span>'
-        : ''
-      const hasUrl = item.msg_value && item.msg_value.startsWith('http')
-      const cardStyle = hasUrl ? 'cursor:pointer;' : ''
-      const playIcon = hasUrl ? '<div style="color:#6C63FF;font-size:18px;"><i class="fas fa-play-circle"></i></div>' : ''
-      return `<div class="notif-card" style="${cardStyle}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
-        <div class="notif-header">
-          <div class="notif-icon-wrap" style="font-size:18px;">${typeIcon}</div>
-          <div class="notif-meta">
-            <div class="notif-title">${this._msgLabel(item.msg_type)}</div>
-            <div class="notif-channel">${group.channel_name}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-            <div class="notif-time">${timeStr}</div>
-            ${statusBadge}
-            ${playIcon}
-          </div>
-        </div>
-      </div>`
-    }).join('')
-  },
+  inboxOpenChannel(group) {},
 
   inboxBack() {
     document.getElementById('inbox-channel-list').style.display = 'block'
-    document.getElementById('inbox-detail-view').style.display  = 'none'
+    const dv = document.getElementById('inbox-detail-view')
+    if (dv) dv.style.display = 'none'
   },
 
   // ── 발신함 ──────────────────────────────
-  async loadSend() {
+  async loadSend(channelId = '') {
     const channelEl = document.getElementById('outbox-channel-list')
     const detailView = document.getElementById('outbox-detail-view')
     if (!channelEl) return
     channelEl.style.display = 'block'
-    detailView.style.display = 'none'
+    if (detailView) detailView.style.display = 'none'
     channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
     try {
-      const res = await API.get('/alarms/outbox')
-      if (!res.success || !res.data.length) {
-        channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
+      const url = channelId ? `/alarms/outbox?channel_id=${channelId}` : '/alarms/outbox'
+      const res = await API.get(url)
+      if (!res.success) throw new Error()
+      const filterHtml = this._buildChannelFilter(res.channels || [], channelId, 'App.loadSend')
+      if (!res.data || !res.data.length) {
+        channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
         return
       }
       const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
-      channelEl.innerHTML = res.data.map(g => {
-        const first = g.items[0]
-        const timeStr = first ? this._fmtTime(first.scheduled_at) : ''
-        const initial = (g.channel_name || '?')[0].toUpperCase()
-        return `<div class="ch-group-card" onclick="App.outboxOpenChannel(${JSON.stringify(g).replace(/"/g,'&quot;')})">
-          <div class="ch-group-avatar">${initial}</div>
-          <div class="ch-group-info">
-            <div class="ch-group-name">${g.channel_name}</div>
-            <div class="ch-group-last">${g.items.length}건 발신</div>
+      const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
+      const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
+      const items = res.data.map(item => {
+        const typeIcon = icons[item.msg_type] || '🔔'
+        const timeStr = this._fmtTime(item.received_at)
+        const stLabel = statusMap[item.status] || item.status
+        const stColor = statusColor[item.status] || '#90A4AE'
+        const hasUrl = item.msg_value && item.msg_value.startsWith('http')
+        return `<div class="send-card" style="${hasUrl ? 'cursor:pointer;' : ''}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
+          <div class="send-card-header">
+            <span style="font-size:16px;">${typeIcon}</span>
+            <span class="send-type-badge">${this._msgLabel(item.msg_type)}</span>
+            <span style="font-size:11px;color:${stColor};font-weight:600;margin-left:auto;">${stLabel}</span>
+            ${hasUrl ? '<i class="fas fa-play-circle" style="color:#1DE9B6;font-size:16px;margin-left:8px;"></i>' : ''}
           </div>
-          <div class="ch-group-meta">
-            <div class="ch-group-time">${timeStr}</div>
-          </div>
+          <div class="send-card-time"><i class="fas fa-clock" style="margin-right:4px;"></i>${timeStr}</div>
+          <div class="send-card-channel" style="font-size:12px;color:#90A4AE;margin-top:2px;">${item.channel_name}</div>
         </div>`
       }).join('')
+      channelEl.innerHTML = filterHtml + items
     } catch(e) {
       channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
     }
   },
 
-  outboxOpenChannel(group) {
-    const channelEl = document.getElementById('outbox-channel-list')
-    const detailView = document.getElementById('outbox-detail-view')
-    const titleEl = document.getElementById('outbox-detail-title')
-    const listEl  = document.getElementById('outbox-detail-list')
-    channelEl.style.display = 'none'
-    detailView.style.display = 'flex'
-    titleEl.textContent = group.channel_name
-    const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
-    const statusMap = { triggered:'send-status-triggered', pending:'send-status-pending', cancelled:'send-status-cancelled' }
-    const statusLabel = { triggered:'발송완료', pending:'대기중', cancelled:'취소됨' }
-    listEl.innerHTML = group.items.map(item => {
-      const typeIcon = icons[item.msg_type] || '🔔'
-      const timeStr  = this._fmtTime(item.scheduled_at)
-      const stCls    = statusMap[item.status] || 'send-status-pending'
-      const stLabel  = statusLabel[item.status] || item.status
-      const hasUrl = item.msg_value && item.msg_value.startsWith('http')
-      const cardStyle = hasUrl ? 'cursor:pointer;' : ''
-      const playIcon = hasUrl ? '<i class="fas fa-play-circle" style="color:#1DE9B6;font-size:16px;margin-left:auto;"></i>' : ''
-      return `<div class="send-card" style="${cardStyle}" ${hasUrl ? `onclick="App.openExternalUrl('${item.msg_value.replace(/'/g,"&#39;")}')"` : ''}>
-        <div class="send-card-header">
-          <span style="font-size:16px;">${typeIcon}</span>
-          <span class="send-type-badge">${this._msgLabel(item.msg_type)}</span>
-          <span class="send-status-badge ${stCls}">${stLabel}</span>
-          ${playIcon}
-        </div>
-        <div class="send-card-time"><i class="fas fa-clock" style="margin-right:4px;"></i>${timeStr}</div>
-        <div class="send-card-stats"><i class="fas fa-users" style="margin-right:4px;"></i>대상 ${item.total_targets || 0}명 · 발송 ${item.sent_count || 0}명</div>
-      </div>`
-    }).join('')
-  },
+  outboxOpenChannel(group) {},
 
   outboxBack() {
     document.getElementById('outbox-channel-list').style.display = 'block'
-    document.getElementById('outbox-detail-view').style.display  = 'none'
+    const dv = document.getElementById('outbox-detail-view')
+    if (dv) dv.style.display = 'none'
+  },
+
+  _buildChannelFilter(channels, selectedId, callbackFn) {
+    if (!channels || channels.length === 0) return ''
+    const options = channels.map(ch =>
+      `<option value="${ch.id}" ${String(ch.id) === String(selectedId) ? 'selected' : ''}>${ch.name}</option>`
+    ).join('')
+    return `<div style="padding:10px 16px 4px;">
+      <select onchange="${callbackFn}(this.value)" style="width:100%;background:#1E1E2E;color:#E0E0E0;border:1px solid #333;border-radius:8px;padding:8px 12px;font-size:13px;">
+        <option value="">전체 채널</option>
+        ${options}
+      </select>
+    </div>`
   },
 
   _msgLabel(type) {
