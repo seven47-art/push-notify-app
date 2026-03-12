@@ -711,16 +711,17 @@ const App = {
     try {
       const url = channelId ? `/alarms/inbox?channel_id=${channelId}` : '/alarms/inbox'
       const res = await API.get(url)
-      if (!res.success) throw new Error()
-      const filterHtml = this._buildChannelFilter(res.channels || [], channelId, 'App.loadInbox')
-      if (!res.data || !res.data.length) {
+      const resData = res.data
+      if (!resData.success) throw new Error()
+      const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadInbox')
+      if (!resData.data || !resData.data.length) {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
         return
       }
       const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
-      const items = res.data.map(item => {
+      const items = resData.data.map(item => {
         const typeIcon = icons[item.msg_type] || '🔔'
         const timeStr = this._fmtTime(item.received_at)
         const stLabel = statusMap[item.status] || item.status
@@ -766,16 +767,17 @@ const App = {
     try {
       const url = channelId ? `/alarms/outbox?channel_id=${channelId}` : '/alarms/outbox'
       const res = await API.get(url)
-      if (!res.success) throw new Error()
-      const filterHtml = this._buildChannelFilter(res.channels || [], channelId, 'App.loadSend')
-      if (!res.data || !res.data.length) {
+      const resData = res.data
+      if (!resData.success) throw new Error()
+      const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadSend')
+      if (!resData.data || !resData.data.length) {
         channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
         return
       }
       const icons = { audio:'🎵', video:'🎬', youtube:'📺', file:'📎' }
       const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
       const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
-      const items = res.data.map(item => {
+      const items = resData.data.map(item => {
         const typeIcon = icons[item.msg_type] || '🔔'
         const timeStr = this._fmtTime(item.received_at)
         const stLabel = statusMap[item.status] || item.status
