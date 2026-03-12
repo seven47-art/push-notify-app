@@ -188,6 +188,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .send-status-cancelled { background:rgba(239,68,68,0.15);   color:#ef4444; }
 .send-card-time { font-size:12px; color:var(--text3); margin-bottom:4px; }
 .send-card-stats { font-size:12px; color:var(--text3); }
+.ch-tab-wrap { display:flex; gap:8px; padding:10px 16px 6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.ch-tab-wrap::-webkit-scrollbar { display:none; }
+.ch-tab-btn { flex-shrink:0; padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:var(--bg2); color:var(--text3); font-size:13px; cursor:pointer; white-space:nowrap; }
+.ch-tab-active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
 .alarm-list-row { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
 .alarm-list-row:active { background:var(--bg3); }
 .alarm-list-icon { font-size:20px; flex-shrink:0; width:28px; text-align:center; }

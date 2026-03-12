@@ -808,15 +808,11 @@ const App = {
 
   _buildChannelFilter(channels, selectedId, callbackFn) {
     if (!channels || channels.length === 0) return ''
-    const options = channels.map(ch =>
-      `<option value="${ch.id}" ${String(ch.id) === String(selectedId) ? 'selected' : ''}>${ch.name}</option>`
+    const allBtn = `<button onclick="${callbackFn}('')" class="ch-tab-btn ${!selectedId ? 'ch-tab-active' : ''}">전체</button>`
+    const chBtns = channels.map(ch =>
+      `<button onclick="${callbackFn}('${ch.id}')" class="ch-tab-btn ${String(ch.id) === String(selectedId) ? 'ch-tab-active' : ''}">${ch.name}</button>`
     ).join('')
-    return `<div style="padding:10px 16px 4px;">
-      <select onchange="${callbackFn}(this.value)" style="width:100%;background:#1E1E2E;color:#E0E0E0;border:1px solid #333;border-radius:8px;padding:8px 12px;font-size:13px;">
-        <option value="">전체 채널</option>
-        ${options}
-      </select>
-    </div>`
+    return `<div class="ch-tab-wrap">${allBtn}${chBtns}</div>`
   },
 
   _msgLabel(type) {
