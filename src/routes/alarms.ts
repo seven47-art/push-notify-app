@@ -140,7 +140,34 @@ alarms.post('/', async (c) => {
 
     const alarmId = result.meta.last_row_id as number
 
-    // ── 5분 전 FCM 예약 신호 발송 (AlarmManager 방식) ─────────────────
+    // ── alarm_logs 껍데기 INSERT (수신자별, status=pending) ──────────────
+    // 알람 생성 시점에 구독자 전원을 alarm_logs에 미리 기록
+    // → 시간 지나 alarm_schedules 삭제돼도 로그 보존
+    // → 앱 수신함/발신함에서 receiver_id/sender_id 기준으로 조회 가능
+    const { results: allSubs } = await c.env.DB.prepare(`
+      SELECT s.user_id
+      FROM subscribers s
+      WHERE s.channel_id = ? AND s.is_active = 1
+    `).bind(channel_id).all() as { results: any[] }
+
+    for (const sub of allSubs) {
+      try {
+        await c.env.DB.prepare(`
+          INSERT OR IGNORE INTO alarm_logs
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+        `).bind(
+          alarmId,
+          channel_id,
+          (channel as any).name || '알람',
+          sub.user_id,
+          msg_type,
+          safeValue,
+          created_by
+        ).run()
+      } catch (_) {}
+    }
+    // ─────────────────────────────────────────────────────────────────
     // 알람 시간 5분 전에 각 앱에 "예약 신호(type=alarm_schedule)"를 FCM으로 전송
     // 앱은 이 신호를 받아 AlarmManager.setExactAndAllowWhileIdle()로 정확한 시간 예약
     const scheduledMs   = scheduledDate.getTime()         // 알람 실행 시각 (ms)
@@ -523,20 +550,29 @@ alarms.post('/trigger', async (c) => {
           const lastResult = callResults[callResults.length - 1]
           if (lastResult.mode !== 'skipped') {
             try {
-              await c.env.DB.prepare(`
-                INSERT OR IGNORE INTO alarm_logs
-                  (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-              `).bind(
-                alarm.id,
-                alarm.channel_id,
-                alarm.channel_name || '알람',
-                recipient.user_id,
-                alarm.msg_type  || 'youtube',
-                alarm.msg_value || '',
-                lastResult.success ? 'received' : 'failed',
-                alarm.created_by || null
-              ).run()
+              const newStatus = lastResult.success ? 'received' : 'failed'
+              // 껍데기가 있으면 UPDATE, 없으면 INSERT (폴백)
+              const updated = await c.env.DB.prepare(`
+                UPDATE alarm_logs SET status = ?
+                WHERE alarm_id = ? AND receiver_id = ? AND status = 'pending'
+              `).bind(newStatus, alarm.id, recipient.user_id).run()
+
+              if ((updated.meta.changes ?? 0) === 0) {
+                await c.env.DB.prepare(`
+                  INSERT OR IGNORE INTO alarm_logs
+                    (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                  alarm.id,
+                  alarm.channel_id,
+                  alarm.channel_name || '알람',
+                  recipient.user_id,
+                  alarm.msg_type  || 'youtube',
+                  alarm.msg_value || '',
+                  newStatus,
+                  alarm.created_by || null
+                ).run()
+              }
             } catch (_) {}
           }
         }
