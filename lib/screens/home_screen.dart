@@ -777,6 +777,18 @@ class _AlarmSheetState extends State<_AlarmSheet> {
         const SnackBar(content: Text('YouTube URL을 입력하세요'), backgroundColor: Colors.red));
       return;
     }
+    // 연결 URL https 검증
+    final inputUrl = _urlCtrl.text.trim();
+    if (_selectedSrc == 'youtube' && inputUrl.isNotEmpty && !inputUrl.startsWith('https://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
@@ -1158,6 +1170,18 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('채널명을 입력하세요'), backgroundColor: Colors.red));
+      return;
+    }
+    // 홈페이지 URL https 검증
+    final homepage = _hpCtrl.text.trim();
+    if (homepage.isNotEmpty && !homepage.startsWith('https://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
     setState(() => _saving = true);

@@ -167,6 +167,19 @@ class _CreateChannelScreenState extends State<CreateChannelScreen> {
   Future<void> _createChannel() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // 홈페이지 URL https 검증
+    final homepage = _homepageController.text.trim();
+    if (homepage.isNotEmpty && !homepage.startsWith('https://')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final result = await ApiService.createChannel(
