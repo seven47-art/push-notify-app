@@ -274,7 +274,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   int   _loadingProgress = 0;
 
   // ── 오디오 녹음 상태 (Kotlin MethodChannel 방식) ──
-  static const _audioChannel = MethodChannel('com.pushnotify.push_notify_app/audio_recorder');
+  static const _audioChannel   = MethodChannel('com.pushnotify.push_notify_app/audio_recorder');
+  static const _scheduleChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
   bool _isAudioRecording = false;
   String? _pendingAudioPath;
   int? _pendingAudioTimestamp;
@@ -624,8 +625,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           final cpLinkUrl     = data['link_url']     as String? ?? '';
           debugPrint('[FlutterBridge] open_content_player → msgType=$cpMsgType channelName=$cpChannelName');
           try {
-            const cpChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
-            await cpChannel.invokeMethod('openContentPlayer', {
+            await _scheduleChannel.invokeMethod('openContentPlayer', {
               'msg_type':     cpMsgType,
               'msg_value':    cpMsgValue,
               'channel_name': cpChannelName,
