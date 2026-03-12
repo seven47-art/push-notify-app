@@ -250,10 +250,9 @@ alarms.get('/', async (c) => {
     })
 
     if (expiredAlarms.length > 0) {
-      // 지난 알람 일괄 삭제 (alarm_logs 먼저 삭제 후 alarm_schedules 삭제)
+      // 지난 알람 삭제 (alarm_logs는 이력 보존, alarm_schedules만 삭제)
       for (const alarm of expiredAlarms) {
         try {
-          await c.env.DB.prepare('DELETE FROM alarm_logs WHERE alarm_id = ?').bind(alarm.id).run()
           await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
         } catch (_) { /* 삭제 실패 무시 */ }
       }
@@ -570,7 +569,6 @@ alarms.post('/trigger', async (c) => {
       // triggered 상태가 되고 모든 수신자에게 발송 완료된 알람은 DB에서 정리
       // (alarm_logs는 수신 이력으로 보존, alarm_schedules만 삭제)
       try {
-        await c.env.DB.prepare('DELETE FROM alarm_logs WHERE alarm_id = ?').bind(alarm.id).run()
         await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
       } catch (_) { /* 삭제 실패 무시 — 다음 조회 시 GET에서 처리됨 */ }
       // ────────────────────────────────────────────────────────────────
