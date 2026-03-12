@@ -1117,30 +1117,89 @@ async function bulkDeleteMembers() {
 // 알람 로그
 let alarmLogsPage = 0
 const ALARM_LOGS_PAGE_SIZE = 100
+let selectedAlarmLogIds = new Set()
+
+function updateAlarmLogsBulkBar() {
+  const bar = document.getElementById('alarmLogsBulkBar')
+  const cnt = document.getElementById('alarmLogsSelectedCount')
+  if (!bar) return
+  if (selectedAlarmLogIds.size > 0) {
+    bar.classList.remove('hidden')
+    bar.classList.add('flex')
+    if (cnt) cnt.textContent = `${selectedAlarmLogIds.size}개 선택됨`
+  } else {
+    bar.classList.add('hidden')
+    bar.classList.remove('flex')
+  }
+}
+
+function toggleAlarmLogsAll(checkbox) {
+  const boxes = document.querySelectorAll('.alarm-log-check')
+  boxes.forEach(cb => {
+    cb.checked = checkbox.checked
+    const id = Number(cb.dataset.id)
+    checkbox.checked ? selectedAlarmLogIds.add(id) : selectedAlarmLogIds.delete(id)
+  })
+  updateAlarmLogsBulkBar()
+}
+
+function onAlarmLogCheck(cb) {
+  const id = Number(cb.dataset.id)
+  cb.checked ? selectedAlarmLogIds.add(id) : selectedAlarmLogIds.delete(id)
+  const allBoxes = document.querySelectorAll('.alarm-log-check')
+  const allChecked = [...allBoxes].every(b => b.checked)
+  const checkAll = document.getElementById('alarmLogsCheckAll')
+  if (checkAll) checkAll.checked = allChecked
+  updateAlarmLogsBulkBar()
+}
+
+function clearAlarmLogsSelection() {
+  selectedAlarmLogIds.clear()
+  document.querySelectorAll('.alarm-log-check').forEach(cb => cb.checked = false)
+  const checkAll = document.getElementById('alarmLogsCheckAll')
+  if (checkAll) checkAll.checked = false
+  updateAlarmLogsBulkBar()
+}
+
+async function deleteSelectedAlarmLogs() {
+  if (selectedAlarmLogIds.size === 0) return
+  if (!confirm(`선택한 ${selectedAlarmLogIds.size}개의 로그를 삭제하시겠습니까?`)) return
+  try {
+    const res = await API.post('/alarms/logs/bulk-delete', { alarm_ids: [...selectedAlarmLogIds] })
+    if (!res.data.success) throw new Error(res.data.error || '삭제 실패')
+    showToast(`${selectedAlarmLogIds.size}개 삭제 완료`)
+    selectedAlarmLogIds.clear()
+    loadAlarmLogs(alarmLogsPage)
+  } catch (e) {
+    showToast(e.message, 'error')
+  }
+}
 
 async function loadAlarmLogs(offset = 0) {
   alarmLogsPage = offset
   const tbody = document.getElementById('alarmLogsTableBody')
   const pagination = document.getElementById('alarmLogsPagination')
   if (!tbody) return
-  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
   try {
     const res = await API.get('/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
     const { data, total } = res.data
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
       if (pagination) pagination.innerHTML = ''
       return
     }
-    const statusColor = { pending: 'text-slate-400', triggered: 'text-blue-400', cancelled: 'text-red-400' }
-    const statusLabel = { pending: '대기', triggered: '발송완료', cancelled: '취소' }
+    const statusColor = { pending: 'text-slate-400', triggered: 'text-blue-400', cancelled: 'text-red-400', received: 'text-blue-400', accepted: 'text-emerald-400', rejected: 'text-red-400', timeout: 'text-orange-400', failed: 'text-red-500' }
+    const statusLabel = { pending: '대기', triggered: '발송완료', cancelled: '취소', received: '수신', accepted: '수락', rejected: '거절', timeout: '시간초과', failed: '실패' }
     tbody.innerHTML = data.map(row => {
-      const st = row.status || 'pending'
+      const st = row.status || 'received'
       const stColor = statusColor[st] || 'text-slate-400'
       const stLabel = statusLabel[st] || st
       const msgVal = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : '-'
       const scheduledAt = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ko-KR') : '-'
+      const isChecked = selectedAlarmLogIds.has(row.id)
       return `<tr class="border-t border-slate-700 hover:bg-slate-700/30">
+        <td class="px-4 py-3 text-center"><input type="checkbox" class="alarm-log-check accent-indigo-500 cursor-pointer" data-id="${row.id}" onchange="onAlarmLogCheck(this)" ${isChecked ? 'checked' : ''}></td>
         <td class="px-4 py-3 text-slate-400 text-xs">${row.id}</td>
         <td class="px-4 py-3 text-white font-medium">${row.channel_name || '-'}</td>
         <td class="px-4 py-3 text-slate-300 text-xs">${row.sender_email || '-'}</td>
@@ -1167,7 +1226,7 @@ async function loadAlarmLogs(offset = 0) {
         </div>`
     }
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
   }
 }
 

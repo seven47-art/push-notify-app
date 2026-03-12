@@ -937,15 +937,27 @@ app.get('/', (c) => {
               <p class="text-slate-400 text-sm">전체 알람 수신 이력</p>
             </div>
           </div>
-          <button onclick="loadAlarmLogs()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
-            <i class="fas fa-sync-alt"></i> 새로고침
-          </button>
+          <div class="flex items-center gap-2">
+            <div id="alarmLogsBulkBar" class="hidden items-center gap-2">
+              <span id="alarmLogsSelectedCount" class="text-slate-400 text-sm"></span>
+              <button onclick="deleteSelectedAlarmLogs()" class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm flex items-center gap-1">
+                <i class="fas fa-trash-alt"></i> 선택 삭제
+              </button>
+              <button onclick="clearAlarmLogsSelection()" class="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm">
+                취소
+              </button>
+            </div>
+            <button onclick="loadAlarmLogs()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
+              <i class="fas fa-sync-alt"></i> 새로고침
+            </button>
+          </div>
         </div>
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-slate-700/50">
                 <tr class="text-slate-400 text-xs uppercase tracking-wider">
+                  <th class="px-4 py-3 text-center w-10"><input type="checkbox" id="alarmLogsCheckAll" onchange="toggleAlarmLogsAll(this)" class="accent-indigo-500 cursor-pointer"></th>
                   <th class="px-4 py-3 text-left">ID</th>
                   <th class="px-4 py-3 text-left">채널</th>
                   <th class="px-4 py-3 text-left">발신자</th>
@@ -957,7 +969,7 @@ app.get('/', (c) => {
                 </tr>
               </thead>
               <tbody id="alarmLogsTableBody">
-                <tr><td colspan="8" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
+                <tr><td colspan="9" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
               </tbody>
             </table>
           </div>

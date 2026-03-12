@@ -725,6 +725,26 @@ alarms.get('/logs', async (c) => {
 })
 
 // =============================================
+// POST /api/alarms/logs/bulk-delete  - 알람 로그 선택 삭제 (관리자용)
+// =============================================
+alarms.post('/logs/bulk-delete', async (c) => {
+  try {
+    const { alarm_ids } = await c.req.json() as { alarm_ids: number[] }
+    if (!Array.isArray(alarm_ids) || alarm_ids.length === 0)
+      return c.json({ success: false, error: 'alarm_ids 필수' }, 400)
+
+    const placeholders = alarm_ids.map(() => '?').join(',')
+    await c.env.DB.prepare(
+      `DELETE FROM alarm_logs WHERE alarm_id IN (${placeholders})`
+    ).bind(...alarm_ids).run()
+
+    return c.json({ success: true, deleted: alarm_ids.length })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // GET /api/alarms/inbox  - 수신함 (채널별 그룹)
 // =============================================
 alarms.get('/inbox', async (c) => {
