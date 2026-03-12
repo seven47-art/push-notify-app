@@ -724,8 +724,8 @@ const App = {
         video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
         file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
       }
-      const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
-      const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
+      const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
+      const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
       const items = resData.data.map(item => {
         const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
@@ -777,8 +777,8 @@ const App = {
         video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
         file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
       }
-      const statusMap = { received:'수신', accepted:'수락', rejected:'거절', timeout:'시간초과', pending:'대기', failed:'실패' }
-      const statusColor = { received:'#6C63FF', accepted:'#1DE9B6', rejected:'#FF5252', timeout:'#FFA726', pending:'#90A4AE', failed:'#EF5350' }
+      const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
+      const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
       const items = resData.data.map(item => {
         const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
