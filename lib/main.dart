@@ -616,6 +616,25 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           // 웹에서 직접 알람을 띄우는 경우는 없어야 하므로 로그만 남김
           debugPrint('[FlutterBridge] show_fake_call 무시 (Kotlin FakeCallActivity가 처리)');
           break;
+        case 'open_content_player':
+          // 수신/발신함 리스트 클릭 → ContentPlayerActivity 직접 실행
+          final cpMsgType     = data['msg_type']     as String? ?? '';
+          final cpMsgValue    = data['msg_value']    as String? ?? '';
+          final cpChannelName = data['channel_name'] as String? ?? '';
+          final cpLinkUrl     = data['link_url']     as String? ?? '';
+          debugPrint('[FlutterBridge] open_content_player → msgType=$cpMsgType channelName=$cpChannelName');
+          try {
+            const cpChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
+            await cpChannel.invokeMethod('openContentPlayer', {
+              'msg_type':     cpMsgType,
+              'msg_value':    cpMsgValue,
+              'channel_name': cpChannelName,
+              'link_url':     cpLinkUrl,
+            });
+          } catch (e) {
+            debugPrint('[FlutterBridge] open_content_player 오류: $e');
+          }
+          break;
         case 'launch_youtube':
           final url = data['url'] as String? ?? '';
           if (url.isNotEmpty) {

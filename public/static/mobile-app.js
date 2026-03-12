@@ -812,42 +812,53 @@ const App = {
 
   // 수신함/발신함 알람 클릭 → 컨텐츠 재생 전용 페이지 표시
   async openAlarmContent(logId, channelId, channelName, msgType, msgValue, linkUrl, source) {
-    const screen = document.getElementById('screen-content-player')
-    if (!screen) return
 
-    // 1. 채널 정보 조회 (현재 최신 이미지/이름)
-    const nameEl   = document.getElementById('cp-channel-name')
-    const avatarEl = document.getElementById('cp-channel-avatar')
+    // 1. 채널 최신 정보 조회
+    let currentName  = channelName
+    let currentImage = ''
     try {
       const chRes = await API.get(`/channels/${channelId}`)
       const ch = chRes.data?.data ?? chRes.data
-      const currentName  = (ch && ch.name) ? ch.name : channelName
-      const currentImage = (ch && ch.image_url) ? ch.image_url : ''
-      if (nameEl) nameEl.textContent = currentName
-      if (avatarEl) {
-        if (currentImage) {
-          avatarEl.innerHTML = `<img src="${currentImage}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`
-        } else {
-          avatarEl.textContent = currentName ? currentName.charAt(0).toUpperCase() : '?'
-        }
-      }
-    } catch(e) {
-      if (nameEl)   nameEl.textContent = channelName
-      if (avatarEl) avatarEl.textContent = channelName ? channelName.charAt(0).toUpperCase() : '?'
+      if (ch && ch.name)      currentName  = ch.name
+      if (ch && ch.image_url) currentImage = ch.image_url
+    } catch(e) {}
+
+    // 2. 상태 업데이트 (수신함만)
+    if (logId && source === 'inbox') {
+      try { await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' }) } catch(e) {}
     }
 
-    // 2. 링크 버튼 처리
+    // 3. Flutter 앱이면 ContentPlayerActivity 실행
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage(JSON.stringify({
+        action:       'open_content_player',
+        msg_type:     msgType    || '',
+        msg_value:    msgValue   || '',
+        channel_name: currentName,
+        link_url:     linkUrl    || ''
+      }))
+      return
+    }
+
+    // 4. 웹 브라우저 fallback: 웹 재생 페이지
+    const screen = document.getElementById('screen-content-player')
+    if (!screen) return
+
+    const nameEl   = document.getElementById('cp-channel-name')
+    const avatarEl = document.getElementById('cp-channel-avatar')
+    if (nameEl) nameEl.textContent = currentName
+    if (avatarEl) {
+      avatarEl.innerHTML = currentImage
+        ? `<img src="${currentImage}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`
+        : `<span style="font-size:18px;font-weight:700;">${currentName.charAt(0).toUpperCase()}</span>`
+    }
+
     const linkBtn = document.getElementById('cp-link-btn')
     if (linkBtn) {
-      if (linkUrl) {
-        linkBtn.style.display = 'flex'
-        linkBtn.dataset.url = linkUrl
-      } else {
-        linkBtn.style.display = 'none'
-      }
+      if (linkUrl) { linkBtn.style.display = 'flex'; linkBtn.dataset.url = linkUrl }
+      else         { linkBtn.style.display = 'none' }
     }
 
-    // 3. 이전 재생 초기화
     const ytFrame   = document.getElementById('cp-youtube-frame')
     const videoEl   = document.getElementById('cp-video-player')
     const audioEl   = document.getElementById('cp-audio-player')
@@ -857,42 +868,19 @@ const App = {
     if (audioEl)   { audioEl.src = ''; audioEl.pause?.() }
     if (audioWrap) audioWrap.classList.remove('active')
 
-    // 4. 컨텐츠 타입별 재생
     if (msgType === 'youtube' && msgValue) {
       let videoId = ''
-      try {
-        const u = new URL(msgValue)
-        videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || ''
-      } catch(e) { videoId = msgValue }
-      if (ytFrame) {
-        // autoplay=1&mute=0 + playsinline 으로 모바일 자동재생 대응
-        ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`
-        ytFrame.style.display = 'block'
-      }
+      try { const u = new URL(msgValue); videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || '' }
+      catch(e) { videoId = msgValue }
+      if (ytFrame) { ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`; ytFrame.style.display = 'block' }
     } else if (msgType === 'video' && msgValue) {
-      if (videoEl) {
-        videoEl.src = msgValue
-        videoEl.style.display = 'block'
-        videoEl.play?.().catch(()=>{})
-      }
+      if (videoEl) { videoEl.src = msgValue; videoEl.style.display = 'block'; videoEl.play?.().catch(()=>{}) }
     } else if (msgType === 'audio' && msgValue) {
-      if (audioEl && audioWrap) {
-        audioEl.src = msgValue
-        audioWrap.classList.add('active')
-        audioEl.play?.().catch(()=>{})
-      }
+      if (audioEl && audioWrap) { audioEl.src = msgValue; audioWrap.classList.add('active'); audioEl.play?.().catch(()=>{}) }
     }
 
-    // 5. 재생 페이지 표시
     screen.dataset.source = source
     screen.classList.add('active')
-
-    // 6. 상태 업데이트
-    if (logId) {
-      try {
-        await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' })
-      } catch(e) {}
-    }
   },
 
   cpOpenLink() {

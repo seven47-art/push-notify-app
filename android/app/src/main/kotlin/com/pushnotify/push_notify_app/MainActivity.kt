@@ -69,6 +69,26 @@ class MainActivity : FlutterActivity() {
                             result.error("SCHEDULE_ERROR", e.message, null)
                         }
                     }
+                    "openContentPlayer" -> {
+                        // 수신/발신함 리스트 클릭 → ContentPlayerActivity 직접 실행
+                        try {
+                            val msgType     = call.argument<String>("msg_type")     ?: "youtube"
+                            val msgValue    = call.argument<String>("msg_value")    ?: ""
+                            val channelName = call.argument<String>("channel_name") ?: ""
+                            val linkUrl     = call.argument<String>("link_url")     ?: ""
+                            ContentPlayerActivity.start(
+                                context     = this,
+                                msgType     = msgType,
+                                msgValue    = msgValue,
+                                contentUrl  = msgValue,
+                                channelName = channelName,
+                                linkUrl     = linkUrl
+                            )
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("PLAYER_ERROR", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
