@@ -1,9 +1,11 @@
 package com.pushnotify.push_notify_app
 
+import android.Manifest
 import android.accounts.AccountManager
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.media.RingtoneManager
 import android.net.Uri
@@ -12,6 +14,8 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -32,9 +36,11 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_PERMISSIONS  = "com.pushnotify/permissions"
     private val CHANNEL_AUDIO        = "com.pushnotify.push_notify_app/audio_recorder"
     private val CHANNEL_SCHEDULE     = "com.pushnotify.push_notify_app/alarm"  // v1.0.76: Flutter → Kotlin AlarmManager 예약
-    private val REQUEST_PICK_ACCOUNT = 1002
+    private val REQUEST_PICK_ACCOUNT   = 1002
+    private val REQUEST_GET_ACCOUNTS    = 1003
 
     private var pendingResult: MethodChannel.Result? = null
+    private var pendingAccountsResult: MethodChannel.Result? = null
     private var alarmChannel: MethodChannel? = null
 
     // 오디오 녹음
@@ -314,12 +320,41 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getAccountsDirect(result: MethodChannel.Result) {
+        // Android 6.0+ 런타임 권한 확인
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.GET_ACCOUNTS)
+                != PackageManager.PERMISSION_GRANTED) {
+            // 권한 없음 → 런타임 권한 요청 후 결과에서 재시도
+            pendingAccountsResult = result
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.GET_ACCOUNTS),
+                REQUEST_GET_ACCOUNTS
+            )
+            return
+        }
+        fetchAndReturnAccounts(result)
+    }
+
+    private fun fetchAndReturnAccounts(result: MethodChannel.Result) {
         try {
             val am = AccountManager.get(this)
             val accounts = am.getAccountsByType("com.google")
             result.success(accounts.map { it.name }.filter { it.contains("@") })
         } catch (e: Exception) {
             result.success(emptyList<String>())
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_GET_ACCOUNTS) {
+            val result = pendingAccountsResult ?: return
+            pendingAccountsResult = null
+            // 허용 여부와 무관하게 계정 조회 시도 (허용됐으면 목록 반환, 거절됐으면 빈 리스트)
+            fetchAndReturnAccounts(result)
         }
     }
 

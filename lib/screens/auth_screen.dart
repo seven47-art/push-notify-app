@@ -24,6 +24,8 @@ class _AuthScreenState extends State<AuthScreen> {
   String  _errorMsg        = '';
   // 수동 입력 폴백
   bool    _showManualInput = false;
+  // 계정 없음 상태 (재시도 버튼 표시용)
+  bool    _noAccounts      = false;
   final   _emailCtrl       = TextEditingController();
 
   @override
@@ -45,16 +47,16 @@ class _AuthScreenState extends State<AuthScreen> {
   //  Step 1: 커스텀 계정 선택 다이얼로그 열기
   // ══════════════════════════════════════════════════
   Future<void> _openAccountPicker() async {
-    setState(() { _errorMsg = ''; _showManualInput = false; });
+    setState(() { _errorMsg = ''; _showManualInput = false; _noAccounts = false; });
 
     try {
-      // 기기에서 Google 계정 목록 가져오기
+      // 기기에서 Google 계정 목록 가져오기 (런타임 권한 요청 포함)
       final accounts = await _platform.invokeMethod<List>('getGoogleAccounts');
       final emailList = accounts?.cast<String>() ?? [];
 
       if (emailList.isEmpty) {
-        // 계정이 없으면 수동 입력으로 전환
-        setState(() { _showManualInput = true; });
+        // 계정이 없거나 권한 거절 → 수동입력 폼 대신 재시도 안내
+        setState(() { _noAccounts = true; });
         return;
       }
 
@@ -63,7 +65,7 @@ class _AuthScreenState extends State<AuthScreen> {
       // 커스텀 다이얼로그 표시
       final selectedEmail = await showDialog<String>(
         context: context,
-        barrierDismissible: false, // 바깥 탭으로 닫기 방지
+        barrierDismissible: false,
         builder: (ctx) => _AccountPickerDialog(accounts: emailList),
       );
 
@@ -219,6 +221,43 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: const Text('Google 계정 선택으로 돌아가기',
                           style: TextStyle(
                               color: Color(0xFF6B7280), fontSize: 13)),
+                    ),
+                  ] else if (_noAccounts) ...[
+                    // ── 계정 없음 / 권한 거절 안내 ──
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1B4B),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF3730A3).withOpacity(0.4)),
+                      ),
+                      child: Column(children: [
+                        const Icon(Icons.account_circle_outlined,
+                            color: Color(0xFF6C63FF), size: 40),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Google 계정을 불러올 수 없습니다.\n계정 접근 권한을 허용하거나\n아래 버튼을 눌러 다시 시도해 주세요.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.6),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _openAccountPicker,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6C63FF),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('다시 시도',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                      ]),
                     ),
                   ] else if (!_isLoggingIn) ...[
                     // ── 계정 선택 버튼 (다이얼로그 닫힌 후 재시도용) ──
