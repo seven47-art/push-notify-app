@@ -2034,7 +2034,7 @@ const App = {
       // 아바타 HTML
       const avHtml = ch.image_url
         ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;">'
-        : '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
+        : '<span style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#fff;background:' + color + ';border-radius:50%;">' + init + '</span>'
 
       // 액션 버튼
       const hasAlarmDetail = (ch.pending_alarm_count || 0) > 0
