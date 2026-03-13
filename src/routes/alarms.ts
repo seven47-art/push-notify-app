@@ -382,6 +382,17 @@ alarms.post('/trigger', async (c) => {
       pollingUserId = sessionRow?.user_id || null
     }
 
+    // ── 3일 이전 알람 로그 자동 정리 ──────────────────────────────────
+    try {
+      await c.env.DB.prepare(
+        "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      ).run()
+      await c.env.DB.prepare(
+        "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      ).run()
+    } catch (_) {}
+    // ──────────────────────────────────────────────────────────────────
+
     // UTC 기준 현재 시각 (분 단위 절사)
     const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
 
