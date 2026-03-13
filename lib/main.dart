@@ -11,7 +11,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
 // android_intent_plus: 미사용 (record_audio/video가 MethodChannel/ImagePicker로 대체됨)
 import 'package:url_launcher/url_launcher.dart';
@@ -811,33 +810,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 300,
+        maxHeight: 300,
+        imageQuality: 70,
       );
       if (image == null) {
         _sendToWeb('window._flutterImageCancelled', {});
         return;
       }
-      // CROP: 1:1 정사각형 크롭
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: image.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: '이미지 크롭',
-            toolbarColor: const Color(0xFF6C63FF),
-            toolbarWidgetColor: Colors.white,
-            lockAspectRatio: true,
-            hideBottomControls: false,
-          ),
-        ],
-      );
-      if (croppedFile == null) {
-        _sendToWeb('window._flutterImageCancelled', {});
-        return;
-      }
-      final bytes = await croppedFile.readAsBytes();
+      final bytes = await image.readAsBytes();
       final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       _sendToWeb('window._flutterImageCallback', {
         'base64': base64Str,

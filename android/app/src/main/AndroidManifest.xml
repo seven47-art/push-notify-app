@@ -157,11 +157,6 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"/>
 
         <activity
-            android:name="com.yalantis.ucrop.UCropActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/Ucrop.CropTheme"/>
-
-        <activity
             android:name=".ContentPlayerActivity"
             android:exported="false"
             android:launchMode="singleTop"
