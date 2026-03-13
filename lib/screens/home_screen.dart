@@ -1269,19 +1269,6 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  onPressed: _delete,
-                  child: const Text('채널 삭제', style: TextStyle(fontSize: 16)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('취소', style: TextStyle(color: _text2)),
