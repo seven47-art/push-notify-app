@@ -361,6 +361,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
+      ..clearCache()
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {
