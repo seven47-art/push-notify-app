@@ -19,6 +19,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
+import 'package:gif/gif.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
 
@@ -161,11 +162,29 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late GifController _gifController;
+  static const Duration _gifDuration = Duration(milliseconds: 3500);
+
   @override
   void initState() {
     super.initState();
+    _gifController = GifController(vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _gifController.repeat(
+        min: 0,
+        max: 98,
+        period: _gifDuration,
+      );
+    });
     _checkSession();
+  }
+
+  @override
+  void dispose() {
+    _gifController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkSession() async {
@@ -218,40 +237,13 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0C29),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 90, height: 90,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6C63FF).withOpacity(0.5),
-                    blurRadius: 30, offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Image.asset('assets/images/ringo_icon.png', width: 90, height: 90, fit: BoxFit.cover),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text('RinGo',
-              style: TextStyle(color: Colors.white, fontSize: 28,
-                fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-            const SizedBox(height: 40),
-            const SizedBox(
-              width: 28, height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
-              ),
-            ),
-          ],
+      backgroundColor: const Color(0xFF222222),
+      body: SizedBox.expand(
+        child: Gif(
+          image: const AssetImage('assets/images/splash_animation.gif'),
+          controller: _gifController,
+          fit: BoxFit.cover,
+          placeholder: (context) => const SizedBox.shrink(),
         ),
       ),
     );
