@@ -736,6 +736,7 @@ const App = {
           : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
+          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
@@ -781,7 +782,15 @@ const App = {
       }
       const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
       const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-      const items = resData.data.map(item => {
+      // alarm_id 기준 중복 제거
+      const seenIds = new Set()
+      const dedupedData = resData.data.filter(item => {
+        const key = item.alarm_id || ('log_' + item.id)
+        if (seenIds.has(key)) return false
+        seenIds.add(key)
+        return true
+      })
+      const items = dedupedData.map(item => {
         const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
@@ -791,6 +800,7 @@ const App = {
           : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
+          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
