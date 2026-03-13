@@ -739,6 +739,14 @@ async function getUserFromSession(c: any): Promise<{ id: string; user_id: string
 // =============================================
 alarms.get('/logs', async (c) => {
   try {
+    // 3일 이전 데이터 즉시 삭제
+    await c.env.DB.prepare(
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+    ).run()
+    await c.env.DB.prepare(
+      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+    ).run()
+
     const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)
     const offset = Number(c.req.query('offset') || 0)
 
