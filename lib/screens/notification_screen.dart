@@ -106,10 +106,19 @@ class _NotificationScreenState extends State<NotificationScreen>
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true) {
-          final data = List<Map<String, dynamic>>.from(
+          final raw = List<Map<String, dynamic>>.from(
             (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map))
           );
-          setState(() { _outboxChannels = data; _outboxLoading = false; });
+          // alarm_id 기준 중복 제거 (수신자 수만큼 row 중복 방지)
+          final seen = <dynamic>{};
+          final deduped = raw.where((item) {
+            final alarmId = item['alarm_id'];
+            final key = (alarmId != null && alarmId != 0) ? alarmId : 'log_${item['id']}';
+            if (seen.contains(key)) return false;
+            seen.add(key);
+            return true;
+          }).toList();
+          setState(() { _outboxChannels = deduped; _outboxLoading = false; });
         } else {
           setState(() { _outboxLoading = false; _outboxError = body['error']?.toString() ?? '불러오기 실패'; });
         }
@@ -268,6 +277,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     final msgType    = item['msg_type']?.toString() ?? 'youtube';
     final msgValue   = item['msg_value']?.toString();
     final channelName = item['channel_name']?.toString() ?? '';
+    final channelImage = item['channel_image']?.toString() ?? '';
     final receivedAt = _formatDateTime(item['received_at']?.toString());
 
     return InkWell(
@@ -279,16 +289,19 @@ class _NotificationScreenState extends State<NotificationScreen>
         ),
         child: Row(
           children: [
-            // 타입 아이콘
+            // 채널 이미지
+            _buildChannelAvatar(channelName, channelImage, const Color(0xFF6C63FF)),
+            const SizedBox(width: 8),
+            // 컨텐츠 종류 아이콘
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: _getMsgTypeColor(msgType).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(_getMsgTypeIcon(msgType), color: _getMsgTypeColor(msgType), size: 18),
+              child: Icon(_getMsgTypeIcon(msgType), color: _getMsgTypeColor(msgType), size: 16),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             // 내용 (영상종류 / 채널명 / 알람시간)
             Expanded(
               child: Column(
@@ -409,6 +422,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     final msgType     = item['msg_type']?.toString() ?? 'youtube';
     final msgValue    = item['msg_value']?.toString();
     final channelName = item['channel_name']?.toString() ?? '';
+    final channelImage = item['channel_image']?.toString() ?? '';
     final scheduledAt = _formatDateTime(item['scheduled_at']?.toString());
 
     return InkWell(
@@ -420,16 +434,19 @@ class _NotificationScreenState extends State<NotificationScreen>
         ),
         child: Row(
           children: [
-            // 타입 아이콘
+            // 채널 이미지
+            _buildChannelAvatar(channelName, channelImage, const Color(0xFF1DE9B6)),
+            const SizedBox(width: 8),
+            // 컨텐츠 종류 아이콘
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: _getMsgTypeColor(msgType).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(_getMsgTypeIcon(msgType), color: _getMsgTypeColor(msgType), size: 18),
+              child: Icon(_getMsgTypeIcon(msgType), color: _getMsgTypeColor(msgType), size: 16),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             // 내용 (영상종류 / 채널명 / 알람시간)
             Expanded(
               child: Column(
@@ -495,6 +512,37 @@ class _NotificationScreenState extends State<NotificationScreen>
             onPressed: retry,
           ),
         ],
+      ),
+    );
+  }
+
+  // ── 채널 아바타 (이미지 있으면 이미지, 없으면 첫글자) ──
+  Widget _buildChannelAvatar(String name, String imageUrl, Color fallbackColor) {
+    if (imageUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imageUrl,
+          width: 36, height: 36,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildAvatarFallback(name, fallbackColor),
+        ),
+      );
+    }
+    return _buildAvatarFallback(name, fallbackColor);
+  }
+
+  Widget _buildAvatarFallback(String name, Color color) {
+    return Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }
