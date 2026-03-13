@@ -815,7 +815,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
 
       <button class="btn-teal" onclick="App.saveEditChannel()">저장</button>
-      <button class="btn-danger-outline" onclick="App.confirmDeleteChannelFromEdit()">채널 삭제</button>
       <button class="btn-ghost" onclick="App.closeModal('modal-edit')">취소</button>
       <div style="height:8px;"></div>
     </div>
