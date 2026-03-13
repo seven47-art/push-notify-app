@@ -1152,24 +1152,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
                   ),
                 ),
               if (_loading && _loadingProgress < 10)
-                Container(
-                  color: const Color(0xFF121212),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _AppLogo(),
-                        SizedBox(height: 24),
-                        SizedBox(
-                          width: 32, height: 32,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3, color: Color(0xFF6C63FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                Container(color: const Color(0xFF222222)),
             ],
           ),
         ),
