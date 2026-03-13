@@ -250,9 +250,9 @@ function avatar(name, imgUrl, size = 44) {
         onerror="this.parentNode.innerHTML='<img src=\\/static\\/ringo-icon.png style=width:100%;height:100%;object-fit:cover;>'">
     </div>`
   }
-  // 이미지 없을 때 RinGo 아이콘 기본 표시
-  return `<div style="${s}background:transparent;">
-    <img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">
+  // 이미지 없을 때 첫 글자 + 배경색
+  return `<div style="${s}background:${c};display:flex;align-items:center;justify-content:center;">
+    <span style="font-size:${Math.round(size*0.45)}px;font-weight:700;color:#fff;">${init}</span>
   </div>`
 }
 
@@ -1151,9 +1151,13 @@ const App = {
     document.getElementById('edit-secret-wrap').style.display = ch.is_secret ? 'block' : 'none'
 
     const thumb = document.getElementById('edit-img-thumb')
-    thumb.innerHTML = ch.image_url
-      ? `<img src="${ch.image_url}" style="width:100%;height:100%;object-fit:cover;">`
-      : '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
+    if (ch.image_url) {
+      thumb.innerHTML = `<img src="${ch.image_url}" style="width:100%;height:100%;object-fit:cover;">`
+    } else {
+      const ec = avatarColor(ch.name)
+      const ei = (ch.name || '?')[0].toUpperCase()
+      thumb.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:${ec};"><span style="font-size:28px;font-weight:700;color:#fff;">${ei}</span></div>`
+    }
     this.openModal('modal-edit')
   },
 
