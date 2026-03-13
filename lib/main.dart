@@ -19,7 +19,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
-import 'package:gif/gif.dart';
+// gif 패키지 제거 - Flutter 기본 Image.asset으로 GIF 재생
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
 
@@ -162,29 +162,12 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late GifController _gifController;
-  static const Duration _gifDuration = Duration(milliseconds: 3500);
+class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void initState() {
     super.initState();
-    _gifController = GifController(vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _gifController.repeat(
-        min: 0,
-        max: 98,
-        period: _gifDuration,
-      );
-    });
     _checkSession();
-  }
-
-  @override
-  void dispose() {
-    _gifController.dispose();
-    super.dispose();
   }
 
   Future<void> _checkSession() async {
@@ -239,11 +222,10 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF222222),
       body: SizedBox.expand(
-        child: Gif(
-          image: const AssetImage('assets/images/splash_animation.gif'),
-          controller: _gifController,
+        child: Image.asset(
+          'assets/images/splash_animation.gif',
           fit: BoxFit.cover,
-          placeholder: (context) => const SizedBox.shrink(),
+          gaplessPlayback: true,
         ),
       ),
     );
