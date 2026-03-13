@@ -16,7 +16,8 @@ subscribers.get('/', async (c) => {
              ch.name as channel_name, ch.description as channel_description,
              ch.image_url, ch.owner_id, ch.is_secret,
              il.label as invite_label, il.invite_token as invite_token,
-             u.email as email
+             u.email as email,
+             (SELECT COUNT(*) FROM subscribers s2 WHERE s2.channel_id = ch.id AND s2.is_active = 1) as subscriber_count
       FROM subscribers s
       JOIN channels ch ON s.channel_id = ch.id
       LEFT JOIN channel_invite_links il ON s.joined_via_invite_id = il.id
