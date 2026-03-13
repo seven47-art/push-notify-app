@@ -17,6 +17,7 @@ import fcm from './routes/fcm'
 import users from './routes/users'
 import notices from './routes/notices'
 import settings from './routes/settings'
+import admin from './routes/admin'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -1512,6 +1513,9 @@ app.get('/', (c) => {
 app.get('/app', (c) => {
   return c.html(APP_HTML)
 })
+
+// 관리자 페이지
+app.route('/admin', admin)
 
 app.get('*', (c) => c.redirect('/'))
 
