@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <!-- 어두운 진회색 배경 -->
+    <item android:drawable="@color/splash_bg" />
 
-    <!-- RinGo 아이콘 가운데 표시 -->
+    <!-- RinGo 로고 가운데 표시 -->
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@drawable/ringo_icon" />
+            android:src="@drawable/ringo_logo_splash" />
     </item>
 </layer-list>
