@@ -810,9 +810,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
-        maxWidth: 300,
-        maxHeight: 300,
-        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
       );
       if (image == null) {
         _sendToWeb('window._flutterImageCancelled', {});
