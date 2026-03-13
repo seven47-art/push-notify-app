@@ -2314,7 +2314,7 @@ const App = {
     let innerHtml = ''
     if (imageUrl) {
       // 이미지 있는 경우: 원본 이미지 표시
-      innerHtml = '<img src="' + imageUrl + '" style="max-width:95vw;max-height:88vh;border-radius:16px;object-fit:contain;">'
+      innerHtml = '<img src="' + imageUrl + '" style="width:100vw;height:100vh;object-fit:contain;">'
     } else {
       // 이미지 없는 경우: 첫글자 아바타를 크게 표시
       innerHtml = '<div style="width:260px;height:260px;border-radius:24px;background:' + bgColor + ';display:flex;align-items:center;justify-content:center;"><span style="font-size:120px;font-weight:700;color:#fff;">' + initial + '</span></div>'
