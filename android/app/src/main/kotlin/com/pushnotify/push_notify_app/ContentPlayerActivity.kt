@@ -48,6 +48,7 @@ class ContentPlayerActivity : Activity() {
         const val EXTRA_MSG_VALUE         = "msg_value"
         const val EXTRA_CONTENT_URL       = "content_url"
         const val EXTRA_CHANNEL_NAME      = "channel_name"
+        const val EXTRA_CHANNEL_IMAGE     = "channel_image"
         const val EXTRA_HOMEPAGE_URL      = "homepage_url"
         const val EXTRA_LINK_URL          = "link_url"
         const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
@@ -58,6 +59,7 @@ class ContentPlayerActivity : Activity() {
             msgValue: String,
             contentUrl: String,
             channelName: String,
+            channelImage: String = "",
             homepageUrl: String = "",
             channelPublicId: String = "",
             linkUrl: String = ""
@@ -69,6 +71,7 @@ class ContentPlayerActivity : Activity() {
                 putExtra(EXTRA_MSG_VALUE,         msgValue)
                 putExtra(EXTRA_CONTENT_URL,       contentUrl)
                 putExtra(EXTRA_CHANNEL_NAME,      channelName)
+                putExtra(EXTRA_CHANNEL_IMAGE,     channelImage)
                 putExtra(EXTRA_HOMEPAGE_URL,      homepageUrl)
                 putExtra(EXTRA_LINK_URL,          linkUrl)
                 putExtra(EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
@@ -102,16 +105,18 @@ class ContentPlayerActivity : Activity() {
         val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
         val contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
         val channelName     = intent.getStringExtra(EXTRA_CHANNEL_NAME)      ?: "알람"
+        val channelImage    = intent.getStringExtra(EXTRA_CHANNEL_IMAGE)     ?: ""
         val homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
         val linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
         val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
 
-        setContentView(buildUI(channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl))
+        setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun buildUI(
         channelName: String,
+        channelImage: String,
         msgType: String,
         msgValue: String,
         contentUrl: String,
@@ -446,8 +451,10 @@ class ContentPlayerActivity : Activity() {
         }
         bottomBar.addView(channelThumb)
 
-        // 채널 이미지 비동기 로드
-        if (channelPublicId.isNotEmpty()) {
+        // 채널 이미지 로드 (직접 전달된 URL 우선, 없으면 publicId로 API 조회)
+        if (channelImage.isNotEmpty()) {
+            loadImageUrlIntoView(channelImage, channelThumb)
+        } else if (channelPublicId.isNotEmpty()) {
             loadChannelImageIntoView(channelPublicId, channelThumb)
         }
 
@@ -519,6 +526,40 @@ class ContentPlayerActivity : Activity() {
     }
 
     // ── 채널 이미지 API 로드 ──────────────────────────────────────
+    private fun loadImageUrlIntoView(
+        imageUrl: String,
+        imageView: ImageView
+    ) {
+        scope.launch {
+            try {
+                val bitmap = withContext(Dispatchers.IO) {
+                    val raw: Bitmap? = if (imageUrl.startsWith("data:")) {
+                        val base64 = imageUrl.substringAfter(",")
+                        val bytes  = Base64.decode(base64, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } else {
+                        val imgConn = URL(imageUrl).openConnection() as HttpURLConnection
+                        imgConn.connectTimeout = 5000
+                        imgConn.readTimeout    = 5000
+                        val bmp = BitmapFactory.decodeStream(imgConn.inputStream)
+                        imgConn.disconnect()
+                        bmp
+                    }
+                    raw?.let { toCircleBitmap(it) }
+                }
+                if (bitmap != null) {
+                    imageView.background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.BLACK)
+                    }
+                    imageView.setImageBitmap(bitmap)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "채널 이미지 URL 로드 실패: ${e.message}")
+            }
+        }
+    }
+
     private fun loadChannelImageIntoView(
         publicId: String,
         imageView: ImageView

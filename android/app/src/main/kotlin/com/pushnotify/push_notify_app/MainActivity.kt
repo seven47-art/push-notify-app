@@ -72,17 +72,19 @@ class MainActivity : FlutterActivity() {
                     "openContentPlayer" -> {
                         // 수신/발신함 리스트 클릭 → ContentPlayerActivity 직접 실행
                         try {
-                            val msgType     = call.argument<String>("msg_type")     ?: "youtube"
-                            val msgValue    = call.argument<String>("msg_value")    ?: ""
-                            val channelName = call.argument<String>("channel_name") ?: ""
-                            val linkUrl     = call.argument<String>("link_url")     ?: ""
+                            val msgType      = call.argument<String>("msg_type")      ?: "youtube"
+                            val msgValue     = call.argument<String>("msg_value")     ?: ""
+                            val channelName  = call.argument<String>("channel_name")  ?: ""
+                            val channelImage = call.argument<String>("channel_image") ?: ""
+                            val linkUrl      = call.argument<String>("link_url")      ?: ""
                             ContentPlayerActivity.start(
-                                context     = this,
-                                msgType     = msgType,
-                                msgValue    = msgValue,
-                                contentUrl  = msgValue,
-                                channelName = channelName,
-                                linkUrl     = linkUrl
+                                context      = this,
+                                msgType      = msgType,
+                                msgValue     = msgValue,
+                                contentUrl   = msgValue,
+                                channelName  = channelName,
+                                channelImage = channelImage,
+                                linkUrl      = linkUrl
                             )
                             result.success(true)
                         } catch (e: Exception) {

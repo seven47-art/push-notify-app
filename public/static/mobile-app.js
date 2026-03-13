@@ -841,11 +841,12 @@ const App = {
     // 3. Flutter 앱이면 ContentPlayerActivity 실행
     if (window.FlutterBridge) {
       window.FlutterBridge.postMessage(JSON.stringify({
-        action:       'open_content_player',
-        msg_type:     msgType    || '',
-        msg_value:    msgValue   || '',
-        channel_name: currentName,
-        link_url:     linkUrl    || ''
+        action:        'open_content_player',
+        msg_type:      msgType    || '',
+        msg_value:     msgValue   || '',
+        channel_name:  currentName,
+        channel_image: currentImage,
+        link_url:      linkUrl    || ''
       }))
       return
     }
