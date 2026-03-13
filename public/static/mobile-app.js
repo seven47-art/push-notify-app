@@ -2293,27 +2293,52 @@ const App = {
     const existing = document.getElementById('image-viewer-overlay')
     if (existing) existing.remove()
 
+    const closeViewer = () => {
+      const el = document.getElementById('image-viewer-overlay')
+      if (el) el.remove()
+      window.removeEventListener('popstate', onPopState)
+    }
+
+    // 안드로이드 뒤로가기 가로채기
+    history.pushState({ imageViewer: true }, '')
+    const onPopState = (e) => {
+      closeViewer()
+    }
+    window.addEventListener('popstate', onPopState)
+
     const overlay = document.createElement('div')
     overlay.id = 'image-viewer-overlay'
     overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;'
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove() }
+    overlay.onclick = (e) => { if (e.target === overlay) closeViewer() }
 
     let innerHtml = ''
     if (imageUrl) {
       // 이미지 있는 경우: 원본 이미지 표시
-      innerHtml = '<img src="' + imageUrl + '" style="max-width:90vw;max-height:80vh;border-radius:16px;object-fit:contain;">'
+      innerHtml = '<img src="' + imageUrl + '" style="max-width:95vw;max-height:88vh;border-radius:16px;object-fit:contain;">'
     } else {
       // 이미지 없는 경우: 첫글자 아바타를 크게 표시
-      innerHtml = '<div style="width:200px;height:200px;border-radius:24px;background:' + bgColor + ';display:flex;align-items:center;justify-content:center;"><span style="font-size:90px;font-weight:700;color:#fff;">' + initial + '</span></div>'
+      innerHtml = '<div style="width:260px;height:260px;border-radius:24px;background:' + bgColor + ';display:flex;align-items:center;justify-content:center;"><span style="font-size:120px;font-weight:700;color:#fff;">' + initial + '</span></div>'
     }
 
     overlay.innerHTML =
       '<div style="position:relative;display:flex;align-items:center;justify-content:center;">' +
         innerHtml +
-        '<button onclick="document.getElementById(\'image-viewer-overlay\').remove()" style="position:absolute;top:-16px;right:-16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>' +
+        '<button onclick="App.closeImageViewer()" style="position:absolute;top:-16px;right:-16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>' +
       '</div>'
 
     document.body.appendChild(overlay)
+    this._imageViewerCloseHandler = onPopState
+  },
+
+  closeImageViewer() {
+    const el = document.getElementById('image-viewer-overlay')
+    if (el) el.remove()
+    if (this._imageViewerCloseHandler) {
+      window.removeEventListener('popstate', this._imageViewerCloseHandler)
+      this._imageViewerCloseHandler = null
+    }
+    // pushState 로 쌓인 히스토리 되돌리기
+    history.back()
   },
 }
 
