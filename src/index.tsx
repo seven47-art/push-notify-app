@@ -290,9 +290,15 @@ app.get('/join/:token', async (c) => {
   )
 })
 
-// Admin 대시보드 (메인)
+// 루트 접근 → 관리자 로그인 페이지로 리다이렉트
 // =============================================
 app.get('/', (c) => {
+  return c.redirect('/admin/login')
+})
+
+// 기존 관리자 대시보드 (하위 호환용 - 직접 접근 불가)
+// =============================================
+app.get('/_legacy_dashboard', (c) => {
   return c.html(`<!DOCTYPE html>
 <html lang="ko">
 <head>
