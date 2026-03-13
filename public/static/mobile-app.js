@@ -2035,10 +2035,10 @@ const App = {
       const isOwner  = ch.owner_id === uid
       const isJoined = joinedChannels.some(s => (s.channel_id || s.id) === ch.id)
 
-      // 아바타 HTML
+      // 아바타 HTML (클릭 시 팝업)
       const avHtml = ch.image_url
-        ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;">'
-        : '<span style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#fff;background:' + color + ';">' + init + '</span>'
+        ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="App.showImageViewer(\'' + ch.image_url + '\', null, null)">'
+        : '<span style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#fff;background:' + color + ';cursor:pointer;" onclick="App.showImageViewer(null, \'' + init + '\', \'' + color + '\')">' + init + '</span>'
 
       // 액션 버튼
       const hasAlarmDetail = (ch.pending_alarm_count || 0) > 0
@@ -2286,6 +2286,34 @@ const App = {
   cancelSecretPw() {
     this.closeModal('modal-secret-pw')
     if (this._secretPwReject) { this._secretPwReject(null); this._secretPwReject = null; }
+  },
+
+  // 이미지 뷰어 팝업
+  showImageViewer(imageUrl, initial, bgColor) {
+    const existing = document.getElementById('image-viewer-overlay')
+    if (existing) existing.remove()
+
+    const overlay = document.createElement('div')
+    overlay.id = 'image-viewer-overlay'
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;'
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove() }
+
+    let innerHtml = ''
+    if (imageUrl) {
+      // 이미지 있는 경우: 원본 이미지 표시
+      innerHtml = '<img src="' + imageUrl + '" style="max-width:90vw;max-height:80vh;border-radius:16px;object-fit:contain;">'
+    } else {
+      // 이미지 없는 경우: 첫글자 아바타를 크게 표시
+      innerHtml = '<div style="width:200px;height:200px;border-radius:24px;background:' + bgColor + ';display:flex;align-items:center;justify-content:center;"><span style="font-size:90px;font-weight:700;color:#fff;">' + initial + '</span></div>'
+    }
+
+    overlay.innerHTML =
+      '<div style="position:relative;display:flex;align-items:center;justify-content:center;">' +
+        innerHtml +
+        '<button onclick="document.getElementById(\'image-viewer-overlay\').remove()" style="position:absolute;top:-16px;right:-16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>' +
+      '</div>'
+
+    document.body.appendChild(overlay)
   },
 }
 
