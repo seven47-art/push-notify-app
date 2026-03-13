@@ -34,11 +34,30 @@ async function verifySession(c: any): Promise<boolean> {
   return row?.value === sessionToken
 }
 
-// ── GET /admin ───────────────────────────────────────
+// ── GET /admin → 무조건 /admin/login 으로 리다이렉트 ─
 admin.get('/', async (c) => {
+  return c.redirect('/admin/login')
+})
+
+// ── GET /admin/login ─────────────────────────────────
+admin.get('/login', async (c) => {
   const isLoggedIn = await verifySession(c)
-  if (isLoggedIn) return c.html(adminDashboardHTML())
+  if (isLoggedIn) return c.redirect('/admin/dashboard')
   return c.html(adminLoginHTML())
+})
+
+// ── GET /admin/dashboard ─────────────────────────────
+admin.get('/dashboard', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.redirect('/admin/login')
+  return c.html(adminDashboardHTML())
+})
+
+// ── GET /admin/settings ──────────────────────────────
+admin.get('/settings', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.redirect('/admin/login')
+  return c.html(adminSettingsHTML())
 })
 
 // ── POST /admin/login ────────────────────────────────
@@ -71,7 +90,7 @@ admin.post('/login', async (c) => {
     "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('admin_session_token', ?)"
   ).bind(token).run()
   setCookie(c, 'admin_session', token, { httpOnly: true, secure: true, maxAge: 86400 * 7 })
-  return c.redirect('/admin')
+  return c.redirect('/admin/dashboard')
 })
 
 // ── POST /admin/logout ───────────────────────────────
@@ -80,21 +99,21 @@ admin.post('/logout', async (c) => {
     "DELETE FROM app_settings WHERE key = 'admin_session_token'"
   ).run()
   setCookie(c, 'admin_session', '', { httpOnly: true, secure: true, maxAge: 0 })
-  return c.redirect('/admin')
+  return c.redirect('/admin/login')
 })
 
 // ── POST /admin/change-password ──────────────────────
 admin.post('/change-password', async (c) => {
   const isLoggedIn = await verifySession(c)
-  if (!isLoggedIn) return c.redirect('/admin')
+  if (!isLoggedIn) return c.redirect('/admin/login')
 
   const { current_password, new_password, confirm_password } = await c.req.parseBody()
 
   if (new_password !== confirm_password) {
-    return c.html(adminDashboardHTML('새 비밀번호가 일치하지 않습니다.', '', true))
+    return c.html(adminSettingsHTML('새 비밀번호가 일치하지 않습니다.'))
   }
   if ((new_password as string).length < 4) {
-    return c.html(adminDashboardHTML('비밀번호는 최소 4자 이상이어야 합니다.', '', true))
+    return c.html(adminSettingsHTML('비밀번호는 최소 4자 이상이어야 합니다.'))
   }
 
   const currentHashed = await hashPassword(current_password as string)
@@ -103,7 +122,7 @@ admin.post('/change-password', async (c) => {
   ).first() as { value: string } | null
 
   if (!row || row.value !== currentHashed) {
-    return c.html(adminDashboardHTML('현재 비밀번호가 틀렸습니다.', '', true))
+    return c.html(adminSettingsHTML('현재 비밀번호가 틀렸습니다.'))
   }
 
   const newHashed = await hashPassword(new_password as string)
@@ -111,8 +130,88 @@ admin.post('/change-password', async (c) => {
     "UPDATE app_settings SET value = ? WHERE key = 'admin_password'"
   ).bind(newHashed).run()
 
-  return c.html(adminDashboardHTML('', '비밀번호가 성공적으로 변경되었습니다!', true))
+  return c.html(adminSettingsHTML('', '비밀번호가 성공적으로 변경되었습니다!'))
 })
+
+// ── 공통 사이드바 레이아웃 ───────────────────────────
+function layoutHTML(title: string, activeMenu: string, content: string) {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - RinGo 관리자</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           min-height: 100vh; color: white; display: flex; flex-direction: column; }
+
+    /* 헤더 */
+    .header { background: #1f2937; border-bottom: 1px solid #374151;
+              padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+              position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+    .logo-text { font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f59e0b, #ef4444);
+                 -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .header-user { color: #9ca3af; font-size: 14px; }
+    .logout-btn { background: #374151; border: none; color: #f9fafb; padding: 7px 14px;
+                  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .logout-btn:hover { background: #4b5563; }
+
+    /* 레이아웃 */
+    .layout { display: flex; padding-top: 56px; min-height: 100vh; }
+
+    /* 사이드바 */
+    .sidebar { width: 220px; background: #1a2234; border-right: 1px solid #2d3748;
+               position: fixed; top: 56px; bottom: 0; left: 0; overflow-y: auto; padding: 16px 0; }
+    .sidebar-section { padding: 8px 12px 4px; color: #6b7280; font-size: 11px; font-weight: 600;
+                       text-transform: uppercase; letter-spacing: 0.05em; }
+    .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+                    color: #9ca3af; font-size: 14px; font-weight: 500; cursor: pointer;
+                    text-decoration: none; transition: all 0.15s; border-left: 3px solid transparent; }
+    .sidebar-item:hover { background: #243046; color: #f9fafb; }
+    .sidebar-item.active { background: #1e3a5f; color: #f59e0b; border-left-color: #f59e0b; }
+    .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    /* 메인 콘텐츠 */
+    .main { margin-left: 220px; flex: 1; padding: 32px; }
+    .page-title { font-size: 22px; font-weight: 700; margin-bottom: 24px; color: #f9fafb; }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <div class="header">
+    <div class="logo-text">RinGo</div>
+    <div class="header-right">
+      <span class="header-user">👤 admin</span>
+      <form method="POST" action="/admin/logout" style="margin:0">
+        <button type="submit" class="logout-btn">로그아웃</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- 사이드바 -->
+    <nav class="sidebar">
+      <div style="padding: 12px 16px 8px; color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">메뉴</div>
+      <a href="/admin/dashboard" class="sidebar-item ${activeMenu === 'dashboard' ? 'active' : ''}">
+        <span class="icon">🏠</span> 대시보드
+      </a>
+      <div style="height: 1px; background: #2d3748; margin: 8px 0;"></div>
+      <div style="padding: 8px 16px 4px; color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">설정</div>
+      <a href="/admin/settings" class="sidebar-item ${activeMenu === 'settings' ? 'active' : ''}">
+        <span class="icon">⚙️</span> 관리자 설정
+      </a>
+    </nav>
+
+    <!-- 메인 -->
+    <main class="main">
+      ${content}
+    </main>
+  </div>
+</body>
+</html>`
+}
 
 // ── HTML: 로그인 페이지 ──────────────────────────────
 function adminLoginHTML(error = '') {
@@ -168,153 +267,55 @@ function adminLoginHTML(error = '') {
 </html>`
 }
 
-// ── HTML: 관리자 대시보드 ────────────────────────────
-function adminDashboardHTML(error = '', success = '', showPwModal = false) {
-  return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RinGo 관리자</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           min-height: 100vh; color: white; }
-
-    /* 헤더 */
-    .header { background: #1f2937; border-bottom: 1px solid #374151;
-              padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: relative; }
-    .logo-text { font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f59e0b, #ef4444);
-                 -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
-    /* ADMIN 드롭다운 */
-    .admin-menu { position: relative; }
-    .admin-btn { background: #374151; border: none; color: #f9fafb; padding: 8px 16px;
-                 border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
-                 display: flex; align-items: center; gap: 6px; }
-    .admin-btn:hover { background: #4b5563; }
-    .admin-btn .arrow { font-size: 10px; transition: transform 0.2s; }
-    .admin-btn.open .arrow { transform: rotate(180deg); }
-    .dropdown { display: none; position: absolute; right: 0; top: calc(100% + 8px);
-                background: #1f2937; border: 1px solid #374151; border-radius: 10px;
-                min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 100; overflow: hidden; }
-    .dropdown.open { display: block; }
-    .dropdown-item { display: block; width: 100%; padding: 12px 16px; background: none; border: none;
-                     color: #d1d5db; font-size: 14px; text-align: left; cursor: pointer; }
-    .dropdown-item:hover { background: #374151; color: white; }
-    .dropdown-divider { border-top: 1px solid #374151; }
-    .dropdown-item.danger { color: #f87171; }
-    .dropdown-item.danger:hover { background: #450a0a; }
-
-    /* 대시보드 콘텐츠 */
-    .container { max-width: 800px; margin: 40px auto; padding: 0 24px; }
-    .welcome { color: #9ca3af; font-size: 15px; margin-bottom: 24px; }
-    .welcome strong { color: white; }
-
-    /* 모달 */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-                     z-index: 200; align-items: center; justify-content: center; }
-    .modal-overlay.open { display: flex; }
-    .modal { background: #1f2937; border-radius: 16px; padding: 32px; width: 100%; max-width: 420px;
-             box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
-    .modal-close { float: right; background: none; border: none; color: #9ca3af;
-                   font-size: 20px; cursor: pointer; margin-top: -4px; }
-    label { display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
-    input[type=password] { width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
-            border-radius: 10px; color: white; font-size: 15px; outline: none; transition: border 0.2s; }
-    input[type=password]:focus { border-color: #f59e0b; }
-    .field { margin-bottom: 16px; }
-    .btn-primary { width: 100%; padding: 13px; background: linear-gradient(135deg, #f59e0b, #ef4444);
-           border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600;
-           cursor: pointer; transition: opacity 0.2s; margin-top: 4px; }
-    .btn-primary:hover { opacity: 0.9; }
-    .error { background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; padding: 12px 16px;
-             border-radius: 10px; font-size: 14px; margin-bottom: 16px; }
-    .success-msg { background: #052e16; border: 1px solid #22c55e; color: #86efac; padding: 12px 16px;
-               border-radius: 10px; font-size: 14px; margin-bottom: 16px; }
-    .hint { color: #6b7280; font-size: 12px; margin-top: 6px; }
-  </style>
-</head>
-<body>
-  <!-- 헤더 -->
-  <div class="header">
-    <div class="logo-text">RinGo 관리자</div>
-    <div class="admin-menu">
-      <button class="admin-btn" id="adminBtn" onclick="toggleDropdown()">
-        ADMIN <span class="arrow">▼</span>
-      </button>
-      <div class="dropdown" id="adminDropdown">
-        <button class="dropdown-item" onclick="openPwModal()">🔐 비밀번호 변경</button>
-        <div class="dropdown-divider"></div>
-        <form method="POST" action="/admin/logout" style="margin:0">
-          <button type="submit" class="dropdown-item danger">🚪 로그아웃</button>
-        </form>
-      </div>
+// ── HTML: 대시보드 ───────────────────────────────────
+function adminDashboardHTML() {
+  const content = `
+    <div class="page-title">대시보드</div>
+    <div style="background: #1f2937; border-radius: 12px; padding: 32px; color: #9ca3af; font-size: 15px; line-height: 1.7;">
+      <p>안녕하세요, <strong style="color: white;">admin</strong>님!</p>
+      <p style="margin-top: 8px;">RinGo 관리자 페이지에 오신 것을 환영합니다.</p>
+      <p style="margin-top: 16px; color: #6b7280; font-size: 13px;">왼쪽 사이드바의 <strong style="color: #f59e0b;">관리자 설정</strong>에서 비밀번호를 변경할 수 있습니다.</p>
     </div>
-  </div>
+  `
+  return layoutHTML('대시보드', 'dashboard', content)
+}
 
-  <!-- 대시보드 본문 -->
-  <div class="container">
-    <p class="welcome">안녕하세요, <strong>admin</strong>님! RinGo 관리자 페이지입니다.</p>
-  </div>
-
-  <!-- 비밀번호 변경 모달 -->
-  <div class="modal-overlay ${showPwModal ? 'open' : ''}" id="pwModal" onclick="closePwModalOutside(event)">
-    <div class="modal">
-      <div class="modal-title">
-        🔐 비밀번호 변경
-        <button class="modal-close" onclick="closePwModal()">✕</button>
-      </div>
-      ${error ? `<div class="error">⚠️ ${error}</div>` : ''}
-      ${success ? `<div class="success-msg">✅ ${success}</div>` : ''}
+// ── HTML: 관리자 설정 ────────────────────────────────
+function adminSettingsHTML(error = '', success = '') {
+  const content = `
+    <div class="page-title">관리자 설정</div>
+    <div style="background: #1f2937; border-radius: 12px; padding: 32px; max-width: 480px;">
+      <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 24px; color: #f9fafb;">🔐 비밀번호 변경</h3>
+      ${error ? `<div style="background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 16px;">⚠️ ${error}</div>` : ''}
+      ${success ? `<div style="background: #052e16; border: 1px solid #22c55e; color: #86efac; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 16px;">✅ ${success}</div>` : ''}
       <form method="POST" action="/admin/change-password">
-        <div class="field">
-          <label>현재 비밀번호</label>
-          <input type="password" name="current_password" required autofocus>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">현재 비밀번호</label>
+          <input type="password" name="current_password" required autofocus
+            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
+                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
         </div>
-        <div class="field">
-          <label>새 비밀번호</label>
-          <input type="password" name="new_password" required>
-          <p class="hint">최소 4자 이상</p>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">새 비밀번호</label>
+          <input type="password" name="new_password" required
+            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
+                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
+          <p style="color: #6b7280; font-size: 12px; margin-top: 6px;">최소 4자 이상</p>
         </div>
-        <div class="field">
-          <label>새 비밀번호 확인</label>
-          <input type="password" name="confirm_password" required>
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">새 비밀번호 확인</label>
+          <input type="password" name="confirm_password" required
+            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
+                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
         </div>
-        <button type="submit" class="btn-primary">변경하기</button>
+        <button type="submit"
+          style="width: 100%; padding: 13px; background: linear-gradient(135deg, #f59e0b, #ef4444);
+                 border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600;
+                 cursor: pointer;">변경하기</button>
       </form>
     </div>
-  </div>
-
-  <script>
-    function toggleDropdown() {
-      const btn = document.getElementById('adminBtn')
-      const dd = document.getElementById('adminDropdown')
-      btn.classList.toggle('open')
-      dd.classList.toggle('open')
-    }
-    document.addEventListener('click', function(e) {
-      const menu = document.querySelector('.admin-menu')
-      if (!menu.contains(e.target)) {
-        document.getElementById('adminBtn').classList.remove('open')
-        document.getElementById('adminDropdown').classList.remove('open')
-      }
-    })
-    function openPwModal() {
-      document.getElementById('pwModal').classList.add('open')
-      document.getElementById('adminDropdown').classList.remove('open')
-      document.getElementById('adminBtn').classList.remove('open')
-    }
-    function closePwModal() {
-      document.getElementById('pwModal').classList.remove('open')
-    }
-    function closePwModalOutside(e) {
-      if (e.target === document.getElementById('pwModal')) closePwModal()
-    }
-  </script>
-</body>
-</html>`
+  `
+  return layoutHTML('관리자 설정', 'settings', content)
 }
 
 export default admin
