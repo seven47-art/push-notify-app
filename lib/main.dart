@@ -619,17 +619,19 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           break;
         case 'open_content_player':
           // 수신/발신함 리스트 클릭 → ContentPlayerActivity 직접 실행
-          final cpMsgType     = data['msg_type']     as String? ?? '';
-          final cpMsgValue    = data['msg_value']    as String? ?? '';
-          final cpChannelName = data['channel_name'] as String? ?? '';
-          final cpLinkUrl     = data['link_url']     as String? ?? '';
+          final cpMsgType      = data['msg_type']      as String? ?? '';
+          final cpMsgValue     = data['msg_value']     as String? ?? '';
+          final cpChannelName  = data['channel_name']  as String? ?? '';
+          final cpChannelImage = data['channel_image'] as String? ?? '';
+          final cpLinkUrl      = data['link_url']      as String? ?? '';
           debugPrint('[FlutterBridge] open_content_player → msgType=$cpMsgType channelName=$cpChannelName');
           try {
             await _scheduleChannel.invokeMethod('openContentPlayer', {
-              'msg_type':     cpMsgType,
-              'msg_value':    cpMsgValue,
-              'channel_name': cpChannelName,
-              'link_url':     cpLinkUrl,
+              'msg_type':      cpMsgType,
+              'msg_value':     cpMsgValue,
+              'channel_name':  cpChannelName,
+              'channel_image': cpChannelImage,
+              'link_url':      cpLinkUrl,
             });
           } catch (e) {
             debugPrint('[FlutterBridge] open_content_player 오류: $e');
