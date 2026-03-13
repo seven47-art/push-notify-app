@@ -290,6 +290,9 @@ const App = {
   // ── 뒤로가기 (Android 하단 뒤로가기 버튼) ─────────────
   // Flutter에서 호출 → true 반환 시 Flutter가 앱 종료 처리
   goBack() {
+    // 0. 이미지 뷰어 팝업이 열려있으면 닫기
+    const imageViewer = document.getElementById('image-viewer-overlay')
+    if (imageViewer) { imageViewer.remove(); return false }
     // 1. 수신함 상세 뷰가 열려있으면 채널 목록으로
     const inboxDetail = document.getElementById('inbox-detail-view')
     if (inboxDetail && inboxDetail.style.display !== 'none') {
@@ -2293,19 +2296,6 @@ const App = {
     const existing = document.getElementById('image-viewer-overlay')
     if (existing) existing.remove()
 
-    // 안드로이드 뒤로가기 가로채기: pushState로 히스토리 추가
-    history.pushState({ imageViewer: true }, '')
-
-    const onPopState = (e) => {
-      // 뒤로가기 시 팝업만 닫기 (history.back() 호출 안 함)
-      window.removeEventListener('popstate', onPopState)
-      this._imageViewerCloseHandler = null
-      const el = document.getElementById('image-viewer-overlay')
-      if (el) el.remove()
-    }
-    window.addEventListener('popstate', onPopState)
-    this._imageViewerCloseHandler = onPopState
-
     const overlay = document.createElement('div')
     overlay.id = 'image-viewer-overlay'
     overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;'
@@ -2332,12 +2322,6 @@ const App = {
   closeImageViewer() {
     const el = document.getElementById('image-viewer-overlay')
     if (el) el.remove()
-    if (this._imageViewerCloseHandler) {
-      window.removeEventListener('popstate', this._imageViewerCloseHandler)
-      this._imageViewerCloseHandler = null
-      // X버튼/배경 탭으로 닫을 때: pushState로 쌓인 히스토리 제거
-      history.back()
-    }
   },
 }
 
