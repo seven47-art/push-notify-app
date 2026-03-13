@@ -1196,30 +1196,6 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
     widget.onSaved();
   }
 
-  Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _bg2,
-        title: const Text('채널 삭제', style: TextStyle(color: _text)),
-        content: Text('"${widget.channel['name']}" 채널을 삭제하시겠습니까?',
-            style: const TextStyle(color: _text2)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소', style: TextStyle(color: _text2))),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('삭제', style: TextStyle(color: Colors.white))),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await ApiService.deleteChannel(widget.channel['id']);
-    if (!mounted) return;
-    widget.onDeleted();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1274,6 +1250,7 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
                   child: const Text('취소', style: TextStyle(color: _text2)),
                 ),
               ),
+
             ],
           ),
         ),
