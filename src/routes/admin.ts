@@ -5,10 +5,8 @@ import type { Bindings } from '../types'
 
 const admin = new Hono<{ Bindings: Bindings }>()
 
-// 초기 비밀번호
 const DEFAULT_PASSWORD = '1111'
 
-// ── 비밀번호 해시 (SHA-256) ──────────────────────────
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
@@ -17,14 +15,12 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// ── 세션 토큰 생성 ───────────────────────────────────
 function generateToken(): string {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
   return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// ── 세션 검증 ────────────────────────────────────────
 async function verifySession(c: any): Promise<boolean> {
   const sessionToken = getCookie(c, 'admin_session')
   if (!sessionToken) return false
@@ -34,45 +30,42 @@ async function verifySession(c: any): Promise<boolean> {
   return row?.value === sessionToken
 }
 
-// ── GET /admin → 무조건 /admin/login 으로 리다이렉트 ─
+// ── GET /admin → 무조건 /admin/login ─────────────────
 admin.get('/', async (c) => {
   return c.redirect('/admin/login')
 })
 
-// ── GET /admin/login ─────────────────────────────────
+// ── GET /admin/login ──────────────────────────────────
 admin.get('/login', async (c) => {
   const isLoggedIn = await verifySession(c)
   if (isLoggedIn) return c.redirect('/admin/dashboard')
   return c.html(adminLoginHTML())
 })
 
-// ── GET /admin/dashboard ─────────────────────────────
+// ── GET /admin/dashboard ──────────────────────────────
 admin.get('/dashboard', async (c) => {
   const isLoggedIn = await verifySession(c)
   if (!isLoggedIn) return c.redirect('/admin/login')
   return c.html(adminDashboardHTML())
 })
 
-// ── GET /admin/settings ──────────────────────────────
+// ── GET /admin/settings ───────────────────────────────
 admin.get('/settings', async (c) => {
   const isLoggedIn = await verifySession(c)
   if (!isLoggedIn) return c.redirect('/admin/login')
   return c.html(adminSettingsHTML())
 })
 
-// ── POST /admin/login ────────────────────────────────
+// ── POST /admin/login ─────────────────────────────────
 admin.post('/login', async (c) => {
   const { username, password } = await c.req.parseBody()
   if (username !== 'admin') {
     return c.html(adminLoginHTML('아이디 또는 비밀번호가 틀렸습니다.'))
   }
-
   const hashed = await hashPassword(password as string)
   let row = await c.env.DB.prepare(
     "SELECT value FROM app_settings WHERE key = 'admin_password'"
   ).first() as { value: string } | null
-
-  // 비밀번호 미설정 시 기본값 1111 세팅
   if (!row) {
     const defaultHashed = await hashPassword(DEFAULT_PASSWORD)
     await c.env.DB.prepare(
@@ -80,11 +73,9 @@ admin.post('/login', async (c) => {
     ).bind(defaultHashed).run()
     row = { value: defaultHashed }
   }
-
   if (row.value !== hashed) {
     return c.html(adminLoginHTML('아이디 또는 비밀번호가 틀렸습니다.'))
   }
-
   const token = generateToken()
   await c.env.DB.prepare(
     "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('admin_session_token', ?)"
@@ -93,7 +84,7 @@ admin.post('/login', async (c) => {
   return c.redirect('/admin/dashboard')
 })
 
-// ── POST /admin/logout ───────────────────────────────
+// ── POST /admin/logout ────────────────────────────────
 admin.post('/logout', async (c) => {
   await c.env.DB.prepare(
     "DELETE FROM app_settings WHERE key = 'admin_session_token'"
@@ -102,118 +93,32 @@ admin.post('/logout', async (c) => {
   return c.redirect('/admin/login')
 })
 
-// ── POST /admin/change-password ──────────────────────
+// ── POST /admin/change-password ───────────────────────
 admin.post('/change-password', async (c) => {
   const isLoggedIn = await verifySession(c)
   if (!isLoggedIn) return c.redirect('/admin/login')
-
   const { current_password, new_password, confirm_password } = await c.req.parseBody()
-
   if (new_password !== confirm_password) {
     return c.html(adminSettingsHTML('새 비밀번호가 일치하지 않습니다.'))
   }
   if ((new_password as string).length < 4) {
     return c.html(adminSettingsHTML('비밀번호는 최소 4자 이상이어야 합니다.'))
   }
-
   const currentHashed = await hashPassword(current_password as string)
   const row = await c.env.DB.prepare(
     "SELECT value FROM app_settings WHERE key = 'admin_password'"
   ).first() as { value: string } | null
-
   if (!row || row.value !== currentHashed) {
     return c.html(adminSettingsHTML('현재 비밀번호가 틀렸습니다.'))
   }
-
   const newHashed = await hashPassword(new_password as string)
   await c.env.DB.prepare(
     "UPDATE app_settings SET value = ? WHERE key = 'admin_password'"
   ).bind(newHashed).run()
-
   return c.html(adminSettingsHTML('', '비밀번호가 성공적으로 변경되었습니다!'))
 })
 
-// ── 공통 사이드바 레이아웃 ───────────────────────────
-function layoutHTML(title: string, activeMenu: string, content: string) {
-  return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} - RinGo 관리자</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           min-height: 100vh; color: white; display: flex; flex-direction: column; }
-
-    /* 헤더 */
-    .header { background: #1f2937; border-bottom: 1px solid #374151;
-              padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
-              position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
-    .logo-text { font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f59e0b, #ef4444);
-                 -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .header-right { display: flex; align-items: center; gap: 12px; }
-    .header-user { color: #9ca3af; font-size: 14px; }
-    .logout-btn { background: #374151; border: none; color: #f9fafb; padding: 7px 14px;
-                  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
-    .logout-btn:hover { background: #4b5563; }
-
-    /* 레이아웃 */
-    .layout { display: flex; padding-top: 56px; min-height: 100vh; }
-
-    /* 사이드바 */
-    .sidebar { width: 220px; background: #1a2234; border-right: 1px solid #2d3748;
-               position: fixed; top: 56px; bottom: 0; left: 0; overflow-y: auto; padding: 16px 0; }
-    .sidebar-section { padding: 8px 12px 4px; color: #6b7280; font-size: 11px; font-weight: 600;
-                       text-transform: uppercase; letter-spacing: 0.05em; }
-    .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-                    color: #9ca3af; font-size: 14px; font-weight: 500; cursor: pointer;
-                    text-decoration: none; transition: all 0.15s; border-left: 3px solid transparent; }
-    .sidebar-item:hover { background: #243046; color: #f9fafb; }
-    .sidebar-item.active { background: #1e3a5f; color: #f59e0b; border-left-color: #f59e0b; }
-    .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
-
-    /* 메인 콘텐츠 */
-    .main { margin-left: 220px; flex: 1; padding: 32px; }
-    .page-title { font-size: 22px; font-weight: 700; margin-bottom: 24px; color: #f9fafb; }
-  </style>
-</head>
-<body>
-  <!-- 헤더 -->
-  <div class="header">
-    <div class="logo-text">RinGo</div>
-    <div class="header-right">
-      <span class="header-user">👤 admin</span>
-      <form method="POST" action="/admin/logout" style="margin:0">
-        <button type="submit" class="logout-btn">로그아웃</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="layout">
-    <!-- 사이드바 -->
-    <nav class="sidebar">
-      <div style="padding: 12px 16px 8px; color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">메뉴</div>
-      <a href="/admin/dashboard" class="sidebar-item ${activeMenu === 'dashboard' ? 'active' : ''}">
-        <span class="icon">🏠</span> 대시보드
-      </a>
-      <div style="height: 1px; background: #2d3748; margin: 8px 0;"></div>
-      <div style="padding: 8px 16px 4px; color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">설정</div>
-      <a href="/admin/settings" class="sidebar-item ${activeMenu === 'settings' ? 'active' : ''}">
-        <span class="icon">⚙️</span> 관리자 설정
-      </a>
-    </nav>
-
-    <!-- 메인 -->
-    <main class="main">
-      ${content}
-    </main>
-  </div>
-</body>
-</html>`
-}
-
-// ── HTML: 로그인 페이지 ──────────────────────────────
+// ── HTML: 로그인 페이지 ───────────────────────────────
 function adminLoginHTML(error = '') {
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -267,55 +172,1011 @@ function adminLoginHTML(error = '') {
 </html>`
 }
 
-// ── HTML: 대시보드 ───────────────────────────────────
+// ── HTML: 관리자 대시보드 (기존 / 라우트 전체 통합) ──
 function adminDashboardHTML() {
-  const content = `
-    <div class="page-title">대시보드</div>
-    <div style="background: #1f2937; border-radius: 12px; padding: 32px; color: #9ca3af; font-size: 15px; line-height: 1.7;">
-      <p>안녕하세요, <strong style="color: white;">admin</strong>님!</p>
-      <p style="margin-top: 8px;">RinGo 관리자 페이지에 오신 것을 환영합니다.</p>
-      <p style="margin-top: 16px; color: #6b7280; font-size: 13px;">왼쪽 사이드바의 <strong style="color: #f59e0b;">관리자 설정</strong>에서 비밀번호를 변경할 수 있습니다.</p>
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RinGo 관리자</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root { --primary:#6366f1; }
+  body { background:#0f172a; color:#e2e8f0; font-family:'Segoe UI',sans-serif; }
+  .sidebar { background:linear-gradient(180deg,#1e1b4b 0%,#0f172a 100%); border-right:1px solid #1e293b; }
+  .card { background:#1e293b; border:1px solid #334155; border-radius:12px; }
+  .card-header { background:linear-gradient(135deg,#312e81,#1e1b4b); border-radius:12px 12px 0 0; }
+  .btn-primary { background:linear-gradient(135deg,#6366f1,#4f46e5); }
+  .btn-primary:hover { background:linear-gradient(135deg,#4f46e5,#3730a3); }
+  .btn-success { background:linear-gradient(135deg,#10b981,#059669); }
+  .btn-danger { background:linear-gradient(135deg,#ef4444,#dc2626); }
+  .btn-warning { background:linear-gradient(135deg,#f59e0b,#d97706); }
+  .btn-secondary { background:#334155; color:#e2e8f0; }
+  .btn-secondary:hover { background:#475569; }
+  .nav-item { transition:all 0.2s; border-radius:8px; }
+  .nav-item:hover,.nav-item.active { background:rgba(99,102,241,0.2); color:#a5b4fc; }
+  .nav-item.active { border-left:3px solid #6366f1; }
+  .nav-item-settings:hover { background:rgba(245,158,11,0.15); color:#fbbf24; }
+  .nav-item-settings.active { background:rgba(245,158,11,0.15); color:#fbbf24; border-left:3px solid #f59e0b; }
+  .nav-item-logout:hover { background:rgba(239,68,68,0.15); color:#f87171; }
+  .stat-card { background:linear-gradient(135deg,#1e293b,#0f172a); }
+  .badge { padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; }
+  .badge-audio { background:rgba(59,130,246,0.2); color:#93c5fd; border:1px solid rgba(59,130,246,0.3); }
+  .badge-video { background:rgba(168,85,247,0.2); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); }
+  .badge-youtube { background:rgba(239,68,68,0.2); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+  .badge-completed { background:rgba(16,185,129,0.2); color:#6ee7b7; border:1px solid rgba(16,185,129,0.3); }
+  .badge-processing { background:rgba(245,158,11,0.2); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); }
+  .badge-pending { background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); }
+  .badge-failed { background:rgba(239,68,68,0.2); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+  .badge-active { background:rgba(16,185,129,0.2); color:#6ee7b7; border:1px solid rgba(16,185,129,0.3); }
+  .badge-inactive { background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); }
+  .badge-expired { background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.25); }
+  .badge-full { background:rgba(245,158,11,0.2); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); }
+  .input-field { background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:8px 12px; width:100%; transition:border-color 0.2s; }
+  .input-field:focus { outline:none; border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
+  .input-field option { background:#1e293b; }
+  .modal-overlay { background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); }
+  .table-row:hover { background:rgba(99,102,241,0.05); }
+  .spinner { animation:spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .toast { position:fixed; bottom:24px; right:24px; z-index:9999; padding:12px 20px; border-radius:10px; font-size:14px; font-weight:500; box-shadow:0 10px 25px rgba(0,0,0,0.3); animation:slideIn 0.3s ease; }
+  .toast.success { background:linear-gradient(135deg,#10b981,#059669); color:white; }
+  .toast.error { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; }
+  @keyframes slideIn { from{transform:translateX(100px);opacity:0} to{transform:translateX(0);opacity:1} }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#0f172a; }
+  ::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
+  .page { display:none; }
+  .page.active { display:block; }
+  .invite-token { font-family:monospace; font-size:12px; background:#0f172a; padding:4px 8px; border-radius:6px; border:1px solid #334155; color:#a5b4fc; letter-spacing:0.03em; }
+  .link-card { background:#0f172a; border:1px solid #334155; border-radius:10px; transition:border-color 0.2s; }
+  .link-card:hover { border-color:rgba(99,102,241,0.4); }
+  .copy-btn { transition:all 0.15s; }
+  .copy-btn.copied { background:rgba(16,185,129,0.2); color:#6ee7b7; }
+  .progress-bar { height:4px; border-radius:2px; background:#1e293b; }
+  .progress-fill { height:100%; border-radius:2px; transition:width 0.3s; }
+  /* 설정 모달 */
+  .settings-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; }
+  .settings-modal.open { display:flex; }
+</style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+<!-- 사이드바 -->
+<div class="sidebar w-64 flex-shrink-0 flex flex-col h-full overflow-y-auto">
+  <div class="p-6 border-b border-slate-700/50">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">
+        <span style="font-size:18px;font-weight:900;color:white;">R</span>
+      </div>
+      <div>
+        <h1 class="font-bold text-white text-sm">RinGo Admin</h1>
+        <p class="text-slate-400 text-xs">관리자 페이지</p>
+      </div>
     </div>
-  `
-  return layoutHTML('대시보드', 'dashboard', content)
+  </div>
+
+  <div class="p-4 border-b border-slate-700/50">
+    <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 block">채널 선택</label>
+    <select id="globalChannelSelect" class="input-field text-sm" onchange="onChannelChange()">
+      <option value="">전체 채널</option>
+    </select>
+  </div>
+
+  <nav class="flex-1 p-4 space-y-1">
+    <div class="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-3">메뉴</div>
+    <a href="#" class="nav-item active flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('dashboard')">
+      <i class="fas fa-chart-line w-4 text-center text-indigo-400"></i> 대시보드
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('members')">
+      <i class="fas fa-user-gear w-4 text-center text-pink-400"></i> 회원 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('channels')">
+      <i class="fas fa-layer-group w-4 text-center text-purple-400"></i> 채널 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('subscribers')">
+      <i class="fas fa-users w-4 text-center text-emerald-400"></i> 구독자 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarms')">
+      <i class="fas fa-bell w-4 text-center text-orange-400"></i> 알람 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('alarm-logs')">
+      <i class="fas fa-history w-4 text-center text-yellow-400"></i> 알람 로그
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('invites')">
+      <i class="fas fa-link w-4 text-center text-amber-400"></i> 초대 링크
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('contents')">
+      <i class="fas fa-photo-film w-4 text-center text-blue-400"></i> 콘텐츠 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notifications')">
+      <i class="fas fa-paper-plane w-4 text-center text-sky-400"></i> 알림 발송
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('notices')">
+      <i class="fas fa-bullhorn w-4 text-center text-amber-400"></i> 공지사항 관리
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('terms')">
+      <i class="fas fa-file-alt w-4 text-center text-teal-400"></i> 서비스 이용약관
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('privacy')">
+      <i class="fas fa-shield-alt w-4 text-center text-green-400"></i> 개인정보보호정책
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('logs')">
+      <i class="fas fa-list-check w-4 text-center text-rose-400"></i> 발송 로그
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('admin-alarm')">
+      <i class="fas fa-satellite-dish w-4 text-center text-red-400"></i> 관리자 알람발송
+    </a>
+  </nav>
+
+  <!-- 하단: 관리자 설정 + 로그아웃 -->
+  <div class="p-4 border-t border-slate-700/50 space-y-1">
+    <a href="#" class="nav-item nav-item-settings flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="openSettingsModal()">
+      <i class="fas fa-cog w-4 text-center text-amber-400"></i> 관리자 설정
+    </a>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit" class="nav-item nav-item-logout w-full text-left flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer border-none bg-transparent">
+        <i class="fas fa-sign-out-alt w-4 text-center text-red-400"></i> 로그아웃
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- 메인 콘텐츠 -->
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+  <header class="bg-slate-900 border-b border-slate-700/50 px-6 py-3 flex items-center justify-between flex-shrink-0">
+    <h2 id="pageTitle" class="text-white font-semibold text-lg">대시보드</h2>
+    <div class="flex items-center gap-3">
+      <button onclick="refreshCurrentPage()" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700">
+        <i class="fas fa-rotate-right"></i>
+      </button>
+      <div class="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-1.5">
+        <i class="fas fa-user-shield text-indigo-400 text-sm"></i>
+        <span class="text-slate-300 text-sm">Admin</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-y-auto p-6">
+
+    <!-- ===== 대시보드 ===== -->
+    <div id="page-dashboard" class="page active">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center"><i class="fas fa-layer-group text-purple-400"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-white mb-1" id="stat-channels">-</div>
+          <div class="text-slate-400 text-sm">전체 채널</div>
+        </div>
+        <div class="stat-card card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center"><i class="fas fa-link text-amber-400"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-white mb-1" id="stat-invites">-</div>
+          <div class="text-slate-400 text-sm">활성 초대 링크</div>
+        </div>
+        <div class="stat-card card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center"><i class="fas fa-users text-emerald-400"></i></div>
+          </div>
+          <div class="text-2xl font-bold text-white mb-1" id="stat-subscribers">-</div>
+          <div class="text-slate-400 text-sm">전체 구독자</div>
+        </div>
+        <div class="stat-card card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-sky-500/20 rounded-xl flex items-center justify-center"><i class="fas fa-paper-plane text-sky-400"></i></div>
+            <span id="acceptRate" class="text-sky-400 text-xs">-% 수락률</span>
+          </div>
+          <div class="text-2xl font-bold text-white mb-1" id="stat-sent">-</div>
+          <div class="text-slate-400 text-sm">총 발송 수</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="card lg:col-span-2">
+          <div class="card-header px-5 py-4">
+            <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-chart-bar text-indigo-400"></i> 최근 7일 발송 현황</h3>
+          </div>
+          <div class="p-5"><canvas id="dailyChart" height="200"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header px-5 py-4">
+            <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-chart-pie text-purple-400"></i> 수락률</h3>
+          </div>
+          <div class="p-5 flex flex-col items-center">
+            <canvas id="acceptChart" width="180" height="180"></canvas>
+            <div class="mt-4 w-full space-y-2">
+              <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-emerald-400"></div><span class="text-slate-300">수락</span></div>
+                <span id="acceptCount" class="text-white font-semibold">-</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-400"></div><span class="text-slate-300">거절</span></div>
+                <span id="rejectCount" class="text-white font-semibold">-</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-slate-500"></div><span class="text-slate-300">미응답</span></div>
+                <span id="noResponseCount" class="text-white font-semibold">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header px-5 py-4 flex items-center justify-between">
+          <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-clock-rotate-left text-amber-400"></i> 최근 알림 발송 내역</h3>
+          <button onclick="showPage('notifications')" class="text-indigo-400 text-sm hover:text-indigo-300">전체 보기 →</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-700">
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">채널</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">콘텐츠</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">제목</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">대상</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">발송</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">수락률</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">상태</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">일시</th>
+            </tr></thead>
+            <tbody id="recentBatchesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 채널 관리 ===== -->
+    <div id="page-channels" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <p class="text-slate-400 text-sm">폐쇄형 채널 — 초대 링크 없이는 채널 존재를 알 수 없습니다</p>
+        <button onclick="openChannelModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+          <i class="fas fa-plus"></i> 채널 추가
+        </button>
+      </div>
+      <div id="chBulkDeleteBar" class="hidden items-center gap-3 mb-3 bg-rose-900/20 border border-rose-500/30 rounded-lg px-4 py-2">
+        <span id="chSelectedCount" class="text-rose-400 text-sm font-medium"></span>
+        <button onclick="bulkDeleteChannels()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded text-sm">
+          <i class="fas fa-trash mr-1"></i>선택 삭제
+        </button>
+        <button onclick="clearChSelection()" class="text-slate-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-slate-700">취소</button>
+      </div>
+      <div class="card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 text-left">
+              <th class="px-4 py-3"><input type="checkbox" id="chCheckAll" class="w-4 h-4 accent-indigo-500 cursor-pointer" onchange="toggleChCheckAll(this)"></th>
+              <th class="px-5 py-3 text-slate-400 font-medium">채널</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">구독자</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">초대링크</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">콘텐츠</th>
+              <th class="px-5 py-3 text-slate-400 font-medium">운영자</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">상태</th>
+              <th class="px-5 py-3 text-slate-400 font-medium text-center">관리 (⭐인기채널 지정 포함)</th>
+            </tr>
+          </thead>
+          <tbody id="channelsList"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== 초대 링크 관리 ===== -->
+    <div id="page-invites" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-3">
+          <select id="inviteChannelFilter" class="input-field text-sm w-52" onchange="loadInvites()">
+            <option value="">채널 선택...</option>
+          </select>
+          <span class="text-slate-500 text-sm" id="inviteLinkCount"></span>
+        </div>
+        <button onclick="openInviteModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+          <i class="fas fa-plus"></i> 초대 링크 생성
+        </button>
+      </div>
+      <div class="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+        <i class="fas fa-circle-info text-indigo-400 mt-0.5 flex-shrink-0"></i>
+        <div class="text-sm">
+          <p class="text-indigo-300 font-semibold mb-1">폐쇄형 채널 초대 방식</p>
+          <p class="text-slate-400">채널은 외부에 노출되지 않습니다. 초대 링크(<code class="text-indigo-400">/join/토큰</code>)를 받은 사용자만 채널에 참여할 수 있습니다.</p>
+        </div>
+      </div>
+      <div id="invitesList" class="space-y-3"></div>
+    </div>
+
+    <!-- ===== 콘텐츠 관리 ===== -->
+    <div id="page-contents" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-3">
+          <select id="contentChannelFilter" class="input-field text-sm w-48" onchange="loadContents()">
+            <option value="">전체 채널</option>
+          </select>
+          <select id="contentTypeFilter" class="input-field text-sm w-40" onchange="loadContents()">
+            <option value="">전체 타입</option>
+            <option value="audio">🎵 오디오</option>
+            <option value="video">🎬 비디오</option>
+            <option value="youtube">📺 유튜브</option>
+          </select>
+        </div>
+        <button onclick="openContentModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+          <i class="fas fa-plus"></i> 콘텐츠 등록
+        </button>
+      </div>
+      <div id="contentsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- ===== 구독자 관리 ===== -->
+    <div id="page-subscribers" class="page">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <select id="subscriberChannelFilter" class="input-field text-sm w-48" onchange="loadSubscribers()">
+          <option value="">전체 채널</option>
+        </select>
+        <select id="subscriberPlatformFilter" class="input-field text-sm w-40" onchange="loadSubscribers()">
+          <option value="">전체 플랫폼</option>
+          <option value="android">🤖 Android</option>
+          <option value="ios">🍎 iOS</option>
+          <option value="web">🌐 Web</option>
+        </select>
+        <span class="text-slate-400 text-sm" id="subscriberCount"></span>
+        <div id="subBulkDeleteBar" class="hidden flex items-center gap-2 ml-auto">
+          <span id="subSelectedCount" class="text-slate-300 text-sm font-semibold"></span>
+          <button onclick="bulkDeleteSubscribers()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+            <i class="fas fa-trash mr-1"></i>선택 삭제
+          </button>
+          <button onclick="clearSubSelection()" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded-xl text-sm transition-colors">취소</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-700">
+              <th class="px-4 py-3 w-8"><input type="checkbox" id="subCheckAll" onchange="toggleSubCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer"></th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">구독자</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">채널</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">가입 경로</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">플랫폼</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">수락</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">거절</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">구독일</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">상태</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">삭제</th>
+            </tr></thead>
+            <tbody id="subscribersTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알림 발송 ===== -->
+    <div id="page-notifications" class="page">
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-2">
+          <div class="card">
+            <div class="card-header px-5 py-4">
+              <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-paper-plane text-sky-400"></i> 새 알림 발송</h3>
+            </div>
+            <div class="p-5 space-y-4">
+              <div>
+                <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널 선택 *</label>
+                <select id="notifChannel" class="input-field text-sm" onchange="loadNotifContents()">
+                  <option value="">채널 선택...</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">콘텐츠 선택 *</label>
+                <select id="notifContent" class="input-field text-sm" onchange="onContentSelect()">
+                  <option value="">먼저 채널을 선택하세요</option>
+                </select>
+              </div>
+              <div id="contentPreview" class="hidden bg-slate-900 rounded-xl p-4 border border-slate-700">
+                <div class="flex gap-3">
+                  <img id="previewThumbnail" src="" class="w-16 h-12 object-cover rounded-lg flex-shrink-0" onerror="this.style.display='none'">
+                  <div>
+                    <p id="previewTitle" class="text-white text-sm font-medium"></p>
+                    <p id="previewType" class="text-slate-400 text-xs mt-1"></p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">알림 제목 *</label>
+                <input id="notifTitle" type="text" class="input-field text-sm" placeholder="새 콘텐츠가 등록되었습니다 🎵">
+              </div>
+              <div>
+                <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">알림 내용 *</label>
+                <textarea id="notifBody" class="input-field text-sm" rows="3" placeholder="내용을 입력하세요..."></textarea>
+              </div>
+              <div id="subscriberPreview" class="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-3 hidden">
+                <div class="flex items-center gap-2 text-sm">
+                  <i class="fas fa-users text-indigo-400"></i>
+                  <span id="targetCount" class="text-indigo-300 font-semibold"></span>
+                  <span class="text-slate-400">명에게 발송 예정</span>
+                </div>
+              </div>
+              <button onclick="sendNotification()" id="sendBtn"
+                class="btn-success w-full text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
+                <i class="fas fa-paper-plane"></i>
+                <span id="sendBtnText">푸시 알림 발송</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="lg:col-span-3">
+          <div class="card">
+            <div class="card-header px-5 py-4 flex items-center justify-between">
+              <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-history text-blue-400"></i> 발송 이력</h3>
+              <button onclick="loadBatches()" class="text-slate-400 hover:text-white text-sm"><i class="fas fa-rotate-right mr-1"></i>새로고침</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead><tr class="border-b border-slate-700">
+                  <th class="text-left px-4 py-3 text-slate-400 font-medium">콘텐츠</th>
+                  <th class="text-center px-4 py-3 text-slate-400 font-medium">대상</th>
+                  <th class="text-center px-4 py-3 text-slate-400 font-medium">발송</th>
+                  <th class="text-center px-4 py-3 text-slate-400 font-medium">수락률</th>
+                  <th class="text-center px-4 py-3 text-slate-400 font-medium">상태</th>
+                  <th class="text-left px-4 py-3 text-slate-400 font-medium">일시</th>
+                </tr></thead>
+                <tbody id="batchesTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 공지사항 관리 ===== -->
+    <div id="page-notices" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2"><i class="fas fa-bullhorn text-amber-400"></i> 공지사항 관리</h2>
+        <button onclick="openNoticeModal()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-plus mr-1"></i> 공지사항 추가
+        </button>
+      </div>
+      <div class="card overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-slate-700/50">
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase">제목</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase w-1/3">내용 미리보기</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">상태</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">등록일</th>
+              <th class="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">관리</th>
+            </tr>
+          </thead>
+          <tbody id="notices-table-body">
+            <tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== 개인정보보호정책 관리 ===== -->
+    <div id="page-privacy" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2"><i class="fas fa-shield-alt text-green-400"></i> 개인정보보호정책 관리</h2>
+        <button onclick="savePrivacy()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-save mr-1"></i> 저장
+        </button>
+      </div>
+      <div class="card p-6">
+        <label class="block text-slate-400 text-sm font-semibold mb-3">개인정보보호정책 내용</label>
+        <textarea id="privacy-editor" class="w-full bg-slate-800 border border-slate-600 rounded-lg text-slate-200 text-sm p-4 resize-none focus:outline-none focus:border-green-400" style="min-height:480px;line-height:1.8;" placeholder="개인정보보호정책 내용을 입력하세요..."></textarea>
+        <p class="text-slate-500 text-xs mt-2">* 앱의 '개인정보보호정책' 메뉴에 표시됩니다.</p>
+      </div>
+    </div>
+
+    <!-- ===== 서비스 이용약관 관리 ===== -->
+    <div id="page-terms" class="page">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-white text-xl font-bold flex items-center gap-2"><i class="fas fa-file-alt text-teal-400"></i> 서비스 이용약관 관리</h2>
+        <button onclick="saveTerms()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          <i class="fas fa-save mr-1"></i> 저장
+        </button>
+      </div>
+      <div class="card p-6">
+        <label class="block text-slate-400 text-sm font-semibold mb-3">이용약관 내용</label>
+        <textarea id="terms-editor" class="w-full bg-slate-800 border border-slate-600 rounded-lg text-slate-200 text-sm p-4 resize-none focus:outline-none focus:border-teal-400" style="min-height:480px;line-height:1.8;" placeholder="서비스 이용약관 내용을 입력하세요..."></textarea>
+        <p class="text-slate-500 text-xs mt-2">* 앱의 '서비스 이용약관' 메뉴에 표시됩니다.</p>
+      </div>
+    </div>
+
+    <!-- ===== 발송 로그 ===== -->
+    <div id="page-logs" class="page">
+      <div class="flex gap-3 mb-4">
+        <select id="logBatchFilter" class="input-field text-sm w-72" onchange="loadLogs()">
+          <option value="">배치 선택 (최근 발송 이력)</option>
+        </select>
+        <select id="logStatusFilter" class="input-field text-sm w-40" onchange="filterLogs()">
+          <option value="">전체 상태</option>
+          <option value="sent">발송완료</option>
+          <option value="accepted">수락</option>
+          <option value="rejected">거절</option>
+          <option value="failed">실패</option>
+        </select>
+      </div>
+      <div id="batchStats" class="hidden card mb-4 p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="text-center"><div class="text-xl font-bold text-white" id="logStatTotal">-</div><div class="text-slate-400 text-xs">총 대상</div></div>
+          <div class="text-center"><div class="text-xl font-bold text-blue-400" id="logStatSent">-</div><div class="text-slate-400 text-xs">발송 완료</div></div>
+          <div class="text-center"><div class="text-xl font-bold text-emerald-400" id="logStatAccepted">-</div><div class="text-slate-400 text-xs">수락</div></div>
+          <div class="text-center"><div class="text-xl font-bold text-red-400" id="logStatRejected">-</div><div class="text-slate-400 text-xs">거절</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-700">
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">구독자</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">플랫폼</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">FCM 토큰</th>
+              <th class="text-center px-5 py-3 text-slate-400 font-medium">상태</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">발송 시각</th>
+              <th class="text-left px-5 py-3 text-slate-400 font-medium">액션 시각</th>
+            </tr></thead>
+            <tbody id="logsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알람 관리 ===== -->
+    <div id="page-alarms" class="page">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-white" id="alarmStatTotal">-</div><div class="text-slate-400 text-sm mt-1">전체 알람</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-amber-400" id="alarmStatPending">-</div><div class="text-slate-400 text-sm mt-1">대기중</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-emerald-400" id="alarmStatTriggered">-</div><div class="text-slate-400 text-sm mt-1">발송완료</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-rose-400" id="alarmStatCancelled">-</div><div class="text-slate-400 text-sm mt-1">취소됨</div></div>
+      </div>
+      <div class="card mb-4">
+        <div class="card-header px-5 py-4 flex flex-wrap items-center gap-3">
+          <i class="fas fa-bell text-orange-400"></i>
+          <span class="text-white font-semibold">알람 목록</span>
+          <div id="alarmBulkDeleteBar" class="hidden flex items-center gap-2">
+            <span id="alarmSelectedCount" class="text-slate-300 text-sm font-semibold"></span>
+            <button onclick="bulkDeleteAlarms()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"><i class="fas fa-trash mr-1"></i>선택 삭제</button>
+            <button onclick="clearAlarmSelection()" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded-xl text-sm transition-colors">취소</button>
+          </div>
+          <div class="ml-auto flex items-center gap-2 flex-wrap">
+            <select id="alarmFilterStatus" onchange="filterAlarms()" class="bg-slate-700 border border-slate-600 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+              <option value="">전체 상태</option>
+              <option value="pending">대기중</option>
+              <option value="triggered">발송완료</option>
+              <option value="cancelled">취소됨</option>
+            </select>
+            <select id="alarmFilterChannel" onchange="filterAlarms()" class="bg-slate-700 border border-slate-600 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+              <option value="">전체 채널</option>
+            </select>
+            <button onclick="loadAlarmManagement()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2"><i class="fas fa-refresh"></i> 새로고침</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-slate-700/50">
+                <th class="px-4 py-3 w-8"><input type="checkbox" id="alarmCheckAll" onchange="toggleAlarmCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer"></th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">채널</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">콘텐츠 유형</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">예약 시간</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">대상/발송</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">상태</th>
+                <th class="text-left px-5 py-3 text-slate-400 font-medium text-sm">등록일</th>
+                <th class="text-center px-5 py-3 text-slate-400 font-medium text-sm">삭제</th>
+              </tr>
+            </thead>
+            <tbody id="alarmTableBody"><tr><td colspan="8" class="text-center py-10 text-slate-500">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알람 로그 ===== -->
+    <div id="page-alarm-logs" class="page">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center"><i class="fas fa-history text-yellow-400"></i></div>
+            <div><h2 class="text-white font-bold text-lg">알람 로그</h2><p class="text-slate-400 text-sm">전체 알람 수신 이력</p></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div id="alarmLogsBulkBar" class="hidden items-center gap-2">
+              <span id="alarmLogsSelectedCount" class="text-slate-400 text-sm"></span>
+              <button onclick="deleteSelectedAlarmLogs()" class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm flex items-center gap-1"><i class="fas fa-trash-alt"></i> 선택 삭제</button>
+              <button onclick="clearAlarmLogsSelection()" class="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm">취소</button>
+            </div>
+            <button onclick="loadAlarmLogs()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2"><i class="fas fa-sync-alt"></i> 새로고침</button>
+          </div>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-700/50">
+                <tr class="text-slate-400 text-xs uppercase tracking-wider">
+                  <th class="px-4 py-3 text-center w-10"><input type="checkbox" id="alarmLogsCheckAll" onchange="toggleAlarmLogsAll(this)" class="accent-indigo-500 cursor-pointer"></th>
+                  <th class="px-4 py-3 text-left">ID</th>
+                  <th class="px-4 py-3 text-left">채널</th>
+                  <th class="px-4 py-3 text-left">발신자</th>
+                  <th class="px-4 py-3 text-center">수신자</th>
+                  <th class="px-4 py-3 text-left">타입</th>
+                  <th class="px-4 py-3 text-left">컨텐츠</th>
+                  <th class="px-4 py-3 text-left">상태</th>
+                  <th class="px-4 py-3 text-left">시간</th>
+                </tr>
+              </thead>
+              <tbody id="alarmLogsTableBody"><tr><td colspan="9" class="text-center py-8 text-slate-500">로딩 중...</td></tr></tbody>
+            </table>
+          </div>
+          <div id="alarmLogsPagination" class="px-5 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 회원 관리 ===== -->
+    <div id="page-members" class="page">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-white" id="statTotal">-</div><div class="text-slate-400 text-sm mt-1">전체 회원</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-emerald-400" id="statActive">-</div><div class="text-slate-400 text-sm mt-1">활성 회원</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-sky-400" id="statFcm">-</div><div class="text-slate-400 text-sm mt-1">FCM 등록</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-amber-400" id="statWeek">-</div><div class="text-slate-400 text-sm mt-1">최근 7일 가입</div></div>
+      </div>
+      <div class="flex gap-3 mb-4 items-center flex-wrap">
+        <input id="memberSearch" type="text" class="input-field flex-1 min-w-48" placeholder="이메일, 이름, ID 검색..." oninput="debounceSearchMembers()">
+        <button onclick="loadMembers()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-semibold"><i class="fas fa-search mr-1"></i>검색</button>
+        <div id="bulkDeleteBar" class="hidden flex items-center gap-2">
+          <span id="selectedCount" class="text-slate-300 text-sm font-semibold"></span>
+          <button onclick="bulkDeleteMembers()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"><i class="fas fa-trash mr-1"></i>선택 삭제</button>
+          <button onclick="clearMemberSelection()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm">취소</button>
+        </div>
+      </div>
+      <div class="card overflow-hidden">
+        <table class="w-full">
+          <thead><tr class="border-b border-slate-700">
+            <th class="px-4 py-3 w-10"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" class="w-4 h-4 accent-indigo-500 cursor-pointer"></th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">회원</th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">이메일</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">구독</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">FCM</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">상태</th>
+            <th class="text-left px-4 py-3 text-slate-400 font-medium">가입일</th>
+            <th class="text-center px-4 py-3 text-slate-400 font-medium">관리</th>
+          </tr></thead>
+          <tbody id="membersTable"></tbody>
+        </table>
+        <div id="memberPagination" class="px-5 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400"></div>
+      </div>
+    </div>
+
+    <!-- ===== 관리자 알람발송 ===== -->
+    <div id="page-admin-alarm" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center"><i class="fas fa-satellite-dish text-red-400"></i></div>
+          <div><h2 class="text-xl font-bold text-white">관리자 알람발송</h2><p class="text-slate-400 text-sm">관리자 채널을 통해 직접 알람을 발송합니다</p></div>
+        </div>
+        <div class="flex gap-2 border-b border-slate-700 pb-0">
+          <button id="admin-tab-channel" onclick="adminShowTab('channel')" class="admin-tab active px-4 py-2 text-sm font-semibold text-white border-b-2 border-indigo-500 -mb-px"><i class="fas fa-layer-group mr-1.5"></i>채널 관리</button>
+          <button id="admin-tab-members" onclick="adminShowTab('members')" class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white"><i class="fas fa-users mr-1.5"></i>구독자 관리</button>
+          <button id="admin-tab-send" onclick="adminShowTab('send')" class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white"><i class="fas fa-paper-plane mr-1.5"></i>알람 발송</button>
+          <button id="admin-tab-list" onclick="adminShowTab('list')" class="admin-tab px-4 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent -mb-px hover:text-white"><i class="fas fa-calendar-check mr-1.5"></i>예약 알람</button>
+        </div>
+        <div id="admin-tab-content-channel">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-white font-semibold">관리자 채널 목록</h3>
+            <button onclick="adminOpenCreateChannel()" class="btn-primary text-white px-4 py-2 rounded-xl text-sm font-semibold"><i class="fas fa-plus mr-1.5"></i>채널 생성</button>
+          </div>
+          <div id="admin-channel-list" class="space-y-3"><div class="text-slate-500 text-sm text-center py-8"><i class="fas fa-spinner spin mr-2"></i>불러오는 중...</div></div>
+        </div>
+        <div id="admin-tab-content-members" class="hidden">
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">관리할 채널 선택</label>
+            <select id="admin-member-channel-select" onchange="adminLoadMemberPanels()" class="input-field text-sm"><option value="">채널을 선택하세요</option></select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="card rounded-xl overflow-hidden">
+              <div class="card-header p-3 flex items-center justify-between">
+                <span class="text-white text-sm font-semibold"><i class="fas fa-users mr-1.5 text-blue-300"></i>전체 회원</span>
+                <span id="admin-left-count" class="text-slate-400 text-xs">0명</span>
+              </div>
+              <div class="p-3 border-b border-slate-700 space-y-2">
+                <select id="admin-left-filter" onchange="adminLoadLeftMembers(1)" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs">
+                  <option value="">전체 회원</option>
+                  <option value="fcm">FCM 있는 회원만</option>
+                </select>
+                <input id="admin-left-search" type="text" placeholder="이름/이메일 검색..." oninput="adminLeftSearchDebounce()" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
+              </div>
+              <div id="admin-left-list" class="overflow-y-auto" style="max-height:360px;"><div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div></div>
+              <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer"><input type="checkbox" id="admin-left-all" onchange="adminToggleAllLeft(this.checked)" class="w-3.5 h-3.5 accent-indigo-500"> 전체선택</label>
+                <button onclick="adminForceSubscribe()" class="btn-success text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1"><i class="fas fa-arrow-right mr-1"></i>가입</button>
+              </div>
+              <div id="admin-left-pagination" class="flex justify-center gap-1 p-2 border-t border-slate-700"></div>
+            </div>
+            <div class="card rounded-xl overflow-hidden">
+              <div class="card-header p-3 flex items-center justify-between">
+                <span class="text-white text-sm font-semibold"><i class="fas fa-check-circle mr-1.5 text-emerald-300"></i>채널 구독자</span>
+                <span id="admin-right-count" class="text-slate-400 text-xs">0명</span>
+              </div>
+              <div class="p-3 border-b border-slate-700">
+                <input id="admin-right-search" type="text" placeholder="이름/이메일 검색..." oninput="adminRightSearchDebounce()" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs placeholder-slate-500">
+              </div>
+              <div id="admin-right-list" class="overflow-y-auto" style="max-height:360px;"><div class="text-slate-500 text-xs text-center py-6">채널을 선택하세요</div></div>
+              <div class="p-3 border-t border-slate-700 flex items-center justify-between gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer"><input type="checkbox" id="admin-right-all" onchange="adminToggleAllRight(this.checked)" class="w-3.5 h-3.5 accent-indigo-500"> 전체선택</label>
+                <button onclick="adminForceUnsubscribe()" class="btn-danger text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex-1"><i class="fas fa-arrow-left mr-1"></i>채널 나가기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="admin-tab-content-send" class="hidden">
+          <div class="card rounded-xl p-5 space-y-4">
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 채널 *</label>
+              <select id="admin-send-channel" class="input-field text-sm"><option value="">채널을 선택하세요</option></select>
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 block">컨텐츠 타입 *</label>
+              <div class="grid grid-cols-4 gap-2">
+                <button onclick="adminSelectMsgType('youtube')" id="admin-type-youtube" class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 text-white text-xs font-semibold cursor-pointer"><i class="fab fa-youtube text-red-400 text-lg"></i>YouTube</button>
+                <button onclick="adminSelectMsgType('audio')" id="admin-type-audio" class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer"><i class="fas fa-music text-purple-400 text-lg"></i>오디오</button>
+                <button onclick="adminSelectMsgType('video')" id="admin-type-video" class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer"><i class="fas fa-video text-blue-400 text-lg"></i>비디오</button>
+                <button onclick="adminSelectMsgType('file')" id="admin-type-file" class="admin-type-btn flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-slate-600 bg-slate-700/50 text-slate-400 text-xs font-semibold cursor-pointer"><i class="fas fa-file text-orange-400 text-lg"></i>파일</button>
+              </div>
+            </div>
+            <div>
+              <label id="admin-send-url-label" class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">YouTube URL *</label>
+              <input id="admin-send-url" type="url" class="input-field text-sm" placeholder="https://youtu.be/...">
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">링크 URL <span class="text-slate-500 normal-case font-normal">(선택)</span></label>
+              <input id="admin-send-link-url" type="url" class="input-field text-sm" placeholder="https://...">
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">발송 시간 *</label>
+              <div class="grid grid-cols-2 gap-2">
+                <div><label class="text-slate-500 text-xs mb-1 block">날짜</label><input id="admin-send-date" type="date" class="input-field text-sm w-full" onchange="adminUpdateTimePreview()"></div>
+                <div><label class="text-slate-500 text-xs mb-1 block">시간</label><select id="admin-send-hour" class="input-field text-sm w-full" onchange="adminUpdateTimePreview()"></select></div>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-slate-500 text-xs mb-1 block">분</label>
+                  <select id="admin-send-minute" class="input-field text-sm w-full" onchange="adminUpdateTimePreview()">
+                    ${Array.from({length:60},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}분</option>`).join('')}
+                  </select>
+                </div>
+                <div class="flex items-end">
+                  <div id="admin-send-time-preview" class="w-full text-center py-2 rounded-xl bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 text-sm font-semibold">-</div>
+                </div>
+              </div>
+            </div>
+            <button onclick="adminSendAlarm()" class="w-full btn-primary text-white py-3 rounded-xl font-bold text-sm"><i class="fas fa-satellite-dish mr-2"></i>알람 발송</button>
+          </div>
+        </div>
+        <div id="admin-tab-content-list" class="hidden">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-white font-semibold">예약된 알람 목록</h3>
+            <button onclick="adminLoadReservationList()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold"><i class="fas fa-sync-alt mr-1"></i>새로고침</button>
+          </div>
+          <div id="admin-reservation-list" class="space-y-3"><div class="text-slate-500 text-sm text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== 각종 모달 ===== -->
+<div id="memberModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+  <div class="card w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+    <div class="card-header px-6 py-4 flex items-center justify-between sticky top-0">
+      <h3 class="text-white font-semibold"><i class="fas fa-user mr-2"></i>회원 상세</h3>
+      <button onclick="closeModal('memberModal')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="memberModalContent" class="p-6"></div>
+  </div>
+</div>
+
+<div id="channelModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+  <div class="card w-full max-w-md mx-4">
+    <div class="card-header px-6 py-4 flex items-center justify-between">
+      <h3 id="channelModalTitle" class="text-white font-semibold">채널 추가</h3>
+      <button onclick="closeModal('channelModal')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="channelId">
+      <div class="bg-amber-900/20 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-300"><i class="fas fa-lock mr-1"></i> 채널은 외부에 비공개입니다.</div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="channelName" type="text" class="input-field" placeholder="힐링 뮤직 채널"></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">설명</label><textarea id="channelDescription" class="input-field" rows="2" placeholder="채널 설명"></textarea></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지 URL</label><input id="channelImageUrl" type="url" class="input-field" placeholder="https://..."></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">Owner ID *</label><input id="channelOwnerId" type="text" class="input-field" value="admin"></div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="closeModal('channelModal')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm font-semibold">취소</button>
+        <button onclick="saveChannel()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-semibold">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="inviteModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+  <div class="card w-full max-w-md mx-4">
+    <div class="card-header px-6 py-4 flex items-center justify-between">
+      <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-link text-amber-400"></i> 초대 링크 생성</h3>
+      <button onclick="closeModal('inviteModal')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널 *</label><select id="inviteChannelId" class="input-field"><option value="">채널 선택...</option></select></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">링크 이름</label><input id="inviteLabel" type="text" class="input-field" placeholder="예: 카카오톡 공유용"></div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">최대 사용 횟수</label><input id="inviteMaxUses" type="number" min="1" class="input-field" placeholder="무제한"><p class="text-slate-500 text-xs mt-1">비워두면 무제한</p></div>
+        <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">만료 (일)</label><input id="inviteExpiresDays" type="number" min="1" class="input-field" placeholder="무기한"><p class="text-slate-500 text-xs mt-1">비워두면 무기한</p></div>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="closeModal('inviteModal')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm font-semibold">취소</button>
+        <button onclick="saveInvite()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-semibold"><i class="fas fa-link mr-1"></i>링크 생성</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="contentModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+  <div class="card w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="card-header px-6 py-4 flex items-center justify-between sticky top-0">
+      <h3 class="text-white font-semibold">콘텐츠 등록</h3>
+      <button onclick="closeModal('contentModal')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널 *</label><select id="contentChannelId" class="input-field"></select></div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">타입 *</label><select id="contentType" class="input-field" onchange="onContentTypeChange()"><option value="audio">🎵 오디오</option><option value="video">🎬 비디오</option><option value="youtube">📺 유튜브</option></select></div>
+        <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">재생 시간(초)</label><input id="contentDuration" type="number" class="input-field" placeholder="245"></div>
+      </div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">제목 *</label><input id="contentTitle" type="text" class="input-field" placeholder="콘텐츠 제목"></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">설명</label><textarea id="contentDescription" class="input-field" rows="2"></textarea></div>
+      <div><label id="contentUrlLabel" class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">콘텐츠 URL *</label><input id="contentUrl" type="url" class="input-field" placeholder="https://..."></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">썸네일 URL</label><input id="contentThumbnail" type="url" class="input-field" placeholder="https://..."></div>
+      <div class="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="sendAfterCreate" class="w-4 h-4 accent-indigo-500">
+          <div><span class="text-amber-300 text-sm font-semibold">등록 후 즉시 푸시 알림 발송</span><p class="text-slate-400 text-xs mt-0.5">채널 구독자 전체에게 즉시 발송</p></div>
+        </label>
+        <div id="notifSettingsDiv" class="hidden mt-3 space-y-2">
+          <input id="autoNotifTitle" type="text" class="input-field text-sm" placeholder="알림 제목">
+          <textarea id="autoNotifBody" class="input-field text-sm" rows="2" placeholder="알림 내용"></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="closeModal('contentModal')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm font-semibold">취소</button>
+        <button onclick="saveContent()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-semibold"><i class="fas fa-cloud-arrow-up mr-2"></i>등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="adminChannelModal" class="modal-overlay hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="card rounded-2xl p-6 w-full max-w-md mx-4 space-y-4">
+    <h3 id="adminChannelModalTitle" class="text-white font-bold text-lg">채널 생성</h3>
+    <input type="hidden" id="adminChannelId">
+    <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="adminChannelName" type="text" class="input-field text-sm" placeholder="채널명"></div>
+    <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널 설명</label><textarea id="adminChannelDesc" class="input-field text-sm" rows="2" placeholder="채널 설명"></textarea></div>
+    <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">홈페이지 URL</label><input id="adminChannelHomepage" type="text" class="input-field text-sm" placeholder="https://..."></div>
+    <div>
+      <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">대표 이미지</label>
+      <div class="flex items-center gap-2 mb-2">
+        <label class="cursor-pointer btn-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold"><i class="fas fa-upload mr-1.5"></i>파일 선택<input type="file" id="adminChannelImageFile" accept="image/*" class="hidden" onchange="adminPreviewChannelImage(this)"></label>
+        <span class="text-slate-500 text-xs">또는</span>
+        <input id="adminChannelImageUrl" type="url" class="input-field text-sm flex-1" placeholder="이미지 URL 직접 입력">
+      </div>
+      <div id="adminChannelImagePreview" class="mt-2 hidden">
+        <img id="adminChannelImgTag" src="" class="w-16 h-16 rounded-xl object-cover border border-slate-600">
+        <button onclick="adminClearChannelImage()" class="mt-1 text-xs text-red-400 hover:text-red-300"><i class="fas fa-times mr-1"></i>이미지 제거</button>
+      </div>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button onclick="closeAdminChannelModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-sm font-semibold">취소</button>
+      <button onclick="adminSaveChannel()" class="flex-1 btn-primary text-white py-2.5 rounded-xl text-sm font-semibold"><i class="fas fa-save mr-1.5"></i>저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 관리자 설정 모달 ===== -->
+<div class="settings-modal" id="settingsModal" onclick="closeSettingsModalOutside(event)">
+  <div class="card w-full max-w-md mx-4 rounded-2xl p-8" style="background:#1f2937;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h3 style="font-size:18px;font-weight:700;color:white;">⚙️ 관리자 설정</h3>
+      <button onclick="closeSettingsModal()" style="background:none;border:none;color:#9ca3af;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <h4 style="font-size:15px;font-weight:600;color:#f9fafb;margin-bottom:20px;">🔐 비밀번호 변경</h4>
+    <div id="settingsError" style="display:none;background:#450a0a;border:1px solid #ef4444;color:#fca5a5;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px;"></div>
+    <div id="settingsSuccess" style="display:none;background:#052e16;border:1px solid #22c55e;color:#86efac;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px;"></div>
+    <form id="settingsForm" onsubmit="submitChangePassword(event)">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;color:#d1d5db;font-size:14px;font-weight:500;margin-bottom:6px;">현재 비밀번호</label>
+        <input type="password" id="settingsCurrent" required style="width:100%;padding:12px 16px;background:#374151;border:1px solid #4b5563;border-radius:10px;color:white;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;color:#d1d5db;font-size:14px;font-weight:500;margin-bottom:6px;">새 비밀번호</label>
+        <input type="password" id="settingsNew" required style="width:100%;padding:12px 16px;background:#374151;border:1px solid #4b5563;border-radius:10px;color:white;font-size:15px;outline:none;box-sizing:border-box;">
+        <p style="color:#6b7280;font-size:12px;margin-top:6px;">최소 4자 이상</p>
+      </div>
+      <div style="margin-bottom:24px;">
+        <label style="display:block;color:#d1d5db;font-size:14px;font-weight:500;margin-bottom:6px;">새 비밀번호 확인</label>
+        <input type="password" id="settingsConfirm" required style="width:100%;padding:12px 16px;background:#374151;border:1px solid #4b5563;border-radius:10px;color:white;font-size:15px;outline:none;box-sizing:border-box;">
+      </div>
+      <button type="submit" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);border:none;border-radius:10px;color:white;font-size:15px;font-weight:600;cursor:pointer;">변경하기</button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+// 관리자 설정 모달 제어
+function openSettingsModal() {
+  document.getElementById('settingsModal').classList.add('open')
+  document.getElementById('settingsCurrent').value = ''
+  document.getElementById('settingsNew').value = ''
+  document.getElementById('settingsConfirm').value = ''
+  document.getElementById('settingsError').style.display = 'none'
+  document.getElementById('settingsSuccess').style.display = 'none'
+  setTimeout(() => document.getElementById('settingsCurrent').focus(), 100)
+}
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.remove('open')
+}
+function closeSettingsModalOutside(e) {
+  if (e.target === document.getElementById('settingsModal')) closeSettingsModal()
+}
+async function submitChangePassword(e) {
+  e.preventDefault()
+  const current = document.getElementById('settingsCurrent').value
+  const newPw = document.getElementById('settingsNew').value
+  const confirm = document.getElementById('settingsConfirm').value
+  const errEl = document.getElementById('settingsError')
+  const sucEl = document.getElementById('settingsSuccess')
+  errEl.style.display = 'none'
+  sucEl.style.display = 'none'
+  if (newPw !== confirm) { errEl.textContent = '⚠️ 새 비밀번호가 일치하지 않습니다.'; errEl.style.display = 'block'; return }
+  if (newPw.length < 4) { errEl.textContent = '⚠️ 비밀번호는 최소 4자 이상이어야 합니다.'; errEl.style.display = 'block'; return }
+  try {
+    const formData = new FormData()
+    formData.append('current_password', current)
+    formData.append('new_password', newPw)
+    formData.append('confirm_password', confirm)
+    const res = await fetch('/admin/change-password', { method: 'POST', body: formData })
+    const html = await res.text()
+    if (html.includes('성공적으로 변경')) {
+      sucEl.textContent = '✅ 비밀번호가 성공적으로 변경되었습니다!'
+      sucEl.style.display = 'block'
+      document.getElementById('settingsForm').reset()
+      setTimeout(() => closeSettingsModal(), 2000)
+    } else if (html.includes('현재 비밀번호가 틀렸습니다')) {
+      errEl.textContent = '⚠️ 현재 비밀번호가 틀렸습니다.'
+      errEl.style.display = 'block'
+    } else {
+      errEl.textContent = '⚠️ 오류가 발생했습니다.'
+      errEl.style.display = 'block'
+    }
+  } catch(err) {
+    errEl.textContent = '⚠️ 네트워크 오류가 발생했습니다.'
+    errEl.style.display = 'block'
+  }
+}
+</script>
+</body>
+</html>`
 }
 
-// ── HTML: 관리자 설정 ────────────────────────────────
+// ── HTML: 관리자 설정 페이지 (비밀번호 변경 POST 응답용) ─
 function adminSettingsHTML(error = '', success = '') {
-  const content = `
-    <div class="page-title">관리자 설정</div>
-    <div style="background: #1f2937; border-radius: 12px; padding: 32px; max-width: 480px;">
-      <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 24px; color: #f9fafb;">🔐 비밀번호 변경</h3>
-      ${error ? `<div style="background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 16px;">⚠️ ${error}</div>` : ''}
-      ${success ? `<div style="background: #052e16; border: 1px solid #22c55e; color: #86efac; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 16px;">✅ ${success}</div>` : ''}
-      <form method="POST" action="/admin/change-password">
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">현재 비밀번호</label>
-          <input type="password" name="current_password" required autofocus
-            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
-                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
-        </div>
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">새 비밀번호</label>
-          <input type="password" name="new_password" required
-            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
-                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
-          <p style="color: #6b7280; font-size: 12px; margin-top: 6px;">최소 4자 이상</p>
-        </div>
-        <div style="margin-bottom: 24px;">
-          <label style="display: block; color: #d1d5db; font-size: 14px; font-weight: 500; margin-bottom: 6px;">새 비밀번호 확인</label>
-          <input type="password" name="confirm_password" required
-            style="width: 100%; padding: 12px 16px; background: #374151; border: 1px solid #4b5563;
-                   border-radius: 10px; color: white; font-size: 15px; outline: none;">
-        </div>
-        <button type="submit"
-          style="width: 100%; padding: 13px; background: linear-gradient(135deg, #f59e0b, #ef4444);
-                 border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600;
-                 cursor: pointer;">변경하기</button>
-      </form>
-    </div>
-  `
-  return layoutHTML('관리자 설정', 'settings', content)
+  // POST /admin/change-password 결과는 모달 JS에서 처리하므로
+  // 여기서는 간단히 대시보드로 리다이렉트 응답을 반환
+  // (실제로는 fetch로 호출하므로 HTML 응답 내용으로 판단)
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>비밀번호 변경</title></head>
+<body style="background:#111827;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+${error ? `<p style="color:#fca5a5;">⚠️ ${error}</p>` : ''}
+${success ? `<p style="color:#86efac;">✅ ${success}</p>` : ''}
+</body></html>`
 }
 
 export default admin
