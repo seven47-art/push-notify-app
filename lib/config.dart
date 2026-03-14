@@ -2,6 +2,6 @@
 // ⚠️ 서버 URL이 바뀌면 이 파일만 수정 후 GitHub Push → 자동 APK 빌드
 
 const String kBaseUrl =
-    'https://ringo-server.pages.dev';
+    'https://ringo.run';
 
 const String kAppUrl = '$kBaseUrl/app';

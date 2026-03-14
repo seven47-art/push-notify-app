@@ -178,7 +178,7 @@ alarms.post('/', async (c) => {
     const delaySeconds  = Math.max(0, Math.floor((notifyMs - nowMs) / 1000))
 
     // 콘텐츠 URL 생성
-    const webhookBase = (c.env as any).WEBHOOK_BASE_URL || 'https://ringo-server.pages.dev'
+    const webhookBase = (c.env as any).WEBHOOK_BASE_URL || 'https://ringo.run'
     let contentUrl = safeValue
     if (['audio', 'video', 'file'].includes(msg_type) && safeValue) {
       contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(safeValue)}`
