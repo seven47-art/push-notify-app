@@ -152,6 +152,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .form-textarea { min-height:80px; }
 .char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; margin-bottom:0; }
 .field-notice { font-size:11px; font-weight:600; margin-top:6px; margin-bottom:0; }
+.section-gap { height:20px; }
 .img-picker { display:flex; align-items:center; gap:14px; background:var(--bg3); border:1.5px dashed var(--border); border-radius:12px; padding:12px 14px; cursor:pointer; margin-top:6px; transition:border-color 0.18s; }
 .img-picker:active { border-color:var(--primary); }
 .img-picker.has-image { border-style:solid; border-color:var(--input-done-border); }
@@ -749,26 +750,34 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-handle"></div>
     <div class="modal-title">채널 만들기</div>
     <div class="modal-body">
+
+      <!-- 채널명 -->
       <label class="form-label">채널명 (필수)</label>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
       <div class="char-count" id="create-name-cnt">0/10</div>
 
+      <!-- 채널 소개 -->
+      <div class="section-gap"></div>
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
         oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
+      <!-- 비밀번호 -->
+      <div class="section-gap"></div>
       <label class="form-label">비밀번호</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
         <input type="checkbox" id="create-is-secret" onchange="App.toggleSecretCreate(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
         <span style="font-size:13px;color:var(--text2);">비밀채널로 설정 (가입 시 비밀번호 필요)</span>
       </div>
-      <div id="create-secret-wrap" style="display:none;">
+      <div id="create-secret-wrap" style="display:none;margin-top:8px;">
         <input class="form-input" id="create-password" type="password" placeholder="비밀번호를 입력하세요" autocomplete="new-password">
       </div>
 
+      <!-- 채널 대표이미지 -->
+      <div class="section-gap"></div>
       <label class="form-label">채널 대표이미지 선택</label>
       <div class="img-picker" id="create-img-picker" onclick="App.openImagePicker('create')">
         <div class="img-thumb" id="create-img-thumb">
@@ -783,6 +792,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         </div>
       </div>
 
+      <!-- 채널 홈페이지 -->
+      <div class="section-gap"></div>
       <label class="form-label">채널 홈페이지</label>
       <input class="form-input" id="create-homepage" type="url" placeholder="https://">
 
