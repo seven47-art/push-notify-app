@@ -145,13 +145,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .modal-title { font-size:17px; font-weight:700; padding:8px 16px 12px; }
 .modal-body { padding:8px 16px 12px; }
 .form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; margin-top:0; display:block; }
-.form-input { width:100%; background:var(--bg3); border:1.5px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; transition:border-color 0.18s, background 0.18s; }
+.form-input { width:100%; background:var(--bg3); border:1.5px solid var(--border); color:var(--text); border-radius:10px; padding:9px 12px; font-size:14px; outline:none; font-family:inherit; resize:none; transition:border-color 0.18s, background 0.18s; }
 .form-input:focus { border-color:var(--primary); background:var(--input-focus-bg); }
 .form-input:not(:placeholder-shown):not(:focus):not([readonly]):not([disabled]) { border-color:var(--input-done-border); }
 .form-input[readonly], .form-input[disabled], .form-input.readonly { background:var(--input-readonly-bg) !important; border-color:var(--input-readonly-border) !important; color:var(--input-readonly-text) !important; cursor:default; }
-.form-textarea { min-height:80px; }
+.form-textarea { min-height:64px; }
 .char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:2px; margin-bottom:0; }
-.field-notice { font-size:11px; font-weight:600; margin-top:6px; margin-bottom:0; }
+.field-notice { font-size:11px; font-weight:600; margin-top:1px; margin-bottom:0; }
 .section-gap { height:20px; }
 .img-picker { display:flex; align-items:center; gap:14px; background:var(--bg3); border:1.5px dashed var(--border); border-radius:12px; padding:12px 14px; cursor:pointer; margin-top:6px; transition:border-color 0.18s; }
 .img-picker:active { border-color:var(--primary); }
@@ -162,8 +162,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .img-thumb-empty i { font-size:20px; color:var(--text3); }
 .img-thumb-empty span { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.5px; }
 .img-hint { font-size:12px; color:var(--text3); line-height:1.5; }
-.btn-teal { width:100%; background:var(--teal); color:#fff; font-size:16px; font-weight:700; padding:15px; border:none; border-radius:12px; cursor:pointer; margin-top:14px; }
-.btn-ghost { width:100%; background:transparent; border:1px solid var(--border); color:var(--text2); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
+.btn-teal { width:100%; background:var(--teal); color:#fff; font-size:14px; font-weight:700; padding:11px; border:none; border-radius:12px; cursor:pointer; margin-top:0; }
+.btn-ghost { width:100%; background:transparent; border:1px solid var(--border); color:var(--text2); font-size:14px; padding:11px; border-radius:12px; cursor:pointer; margin-top:0; }
 .btn-danger-outline { width:100%; background:transparent; border:1px solid rgba(239,68,68,0.4); color:var(--danger); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
 .img-src-btn { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); cursor:pointer; color:var(--text); font-size:14px; }
 .img-src-btn:last-child { border-bottom:none; }
@@ -756,7 +756,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
-      <p class="field-notice" style="color:#FF6B6B;margin-top:3px;margin-bottom:0;">* 채널명은 변경할 수 없습니다.</p>
+      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
       <div style="height:16px;"></div>
@@ -798,10 +798,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
 
       <!-- 버튼 -->
-      <div style="height:20px;"></div>
+      <div style="height:28px;"></div>
       <div style="display:flex;gap:10px;">
-        <button class="btn-ghost" onclick="App.closeModal('modal-create')" style="flex:1;margin-top:0;">취소</button>
-        <button class="btn-teal" onclick="App.createChannel()" style="flex:2;margin-top:0;">확인</button>
+        <button class="btn-teal" onclick="App.createChannel()" style="flex:1;">확인</button>
+        <button class="btn-ghost" onclick="App.closeModal('modal-create')" style="flex:1;">취소</button>
       </div>
       <div style="height:8px;"></div>
     </div>
@@ -820,7 +820,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 채널명 -->
       <label class="form-label">채널명</label>
       <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
-      <p class="field-notice" style="color:#FF6B6B;margin-top:3px;margin-bottom:0;">* 채널명은 변경할 수 없습니다.</p>
+      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
       <div style="height:16px;"></div>
@@ -860,10 +860,10 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
 
       <!-- 버튼 -->
-      <div style="height:20px;"></div>
+      <div style="height:28px;"></div>
       <div style="display:flex;gap:10px;">
-        <button class="btn-ghost" onclick="App.closeModal('modal-edit')" style="flex:1;margin-top:0;">취소</button>
-        <button class="btn-teal" onclick="App.saveEditChannel()" style="flex:2;margin-top:0;">저장</button>
+        <button class="btn-teal" onclick="App.saveEditChannel()" style="flex:1;">저장</button>
+        <button class="btn-ghost" onclick="App.closeModal('modal-edit')" style="flex:1;">취소</button>
       </div>
       <div style="height:8px;"></div>
     </div>
