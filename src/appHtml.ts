@@ -746,7 +746,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
       <label class="form-label">채널명 (필수)</label>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
-        oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
+        oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
       <div class="char-count" id="create-name-cnt">0/10</div>
 

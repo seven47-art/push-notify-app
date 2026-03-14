@@ -251,6 +251,12 @@ channels.post('/', async (c) => {
     if (!name || !name.trim()) {
       return c.json({ success: false, error: '채널명은 필수입니다' }, 400)
     }
+
+    // 채널명 특수문자 검증 (모든 언어 허용, 특수문자만 차단)
+    const invalidChars = /[!@#$%^&*()+={}\[\]|\\/<>?~`"';:]/
+    if (invalidChars.test(name.trim())) {
+      return c.json({ success: false, error: '채널명에 특수문자를 사용할 수 없습니다' }, 400)
+    }
     if (!description || !description.trim()) {
       return c.json({ success: false, error: '채널 소개는 필수입니다' }, 400)
     }
