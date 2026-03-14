@@ -335,7 +335,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
-      ..clearCache()
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {
@@ -634,6 +633,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             final token2 = prefs2.getString('fcm_token') ?? '';
             _sendToWeb(callback, {'fcm_token': token2, 'platform': token2.isNotEmpty ? 'android' : 'web'});
             debugPrint('[FlutterBridge] get_fcm_token → ${token2.isNotEmpty ? "토큰 전달" : "토큰 없음"}');
+          }
+          break;
+        case 'needLogin':
+          // 웹뷰에서 세션 없음 신호 → Flutter 이메일 선택 화면으로 이동
+          debugPrint('[FlutterBridge] needLogin → /auth 이동');
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
           }
           break;
         case 'logout':
