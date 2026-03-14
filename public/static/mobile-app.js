@@ -2682,25 +2682,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → Flutter 이메일 선택 화면 ──
   // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 단계적으로 재확인 (최대 1500ms)
+  // 토큰이 있으면 바로 진행, 없으면 400ms 대기 후 재확인
   if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // 1차: 400ms 후 재확인
     setTimeout(() => {
       if (Store.isLoggedIn()) {
         _doLogin()
       } else {
-        // 2차: 추가 1100ms(총 1500ms) 후 재확인 → 그래도 없으면 로그인 화면
-        setTimeout(() => {
-          if (Store.isLoggedIn()) {
-            _doLogin()
-          } else {
-            Auth.show()  // 로그인 화면 표시
-          }
-        }, 1100)
+        // 세션 없음 → Flutter에 로그인 요청 (이메일 선택 화면)
+        try {
+          FlutterBridge.postMessage(JSON.stringify({ action: 'needLogin' }))
+        } catch(e) {
+          // FlutterBridge 없는 환경(웹 브라우저)에서만 fallback
+          Auth.show()
+        }
       }
     }, 400)
   }
