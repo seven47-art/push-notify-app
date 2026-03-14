@@ -598,7 +598,6 @@ const App = {
     const cnt      = ch.subscriber_count || 0
     const id       = ch.id
     const hasAlarm = (ch.pending_alarm_count || 0) > 0
-    const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
     const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
@@ -608,10 +607,7 @@ const App = {
         <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
         <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.description || '채널 운영자'}</div>
       </div>
-      <div class="ch-actions">
-        <button class="${alarmCls}"        onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="알람설정"><i class="fas fa-clock"></i></button>
-        <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
-      </div>
+      ${hasAlarm ? `<div class="ch-actions"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기"><i class="fas fa-clock"></i></button></div>` : ''}
     </div>`
   },
 
