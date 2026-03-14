@@ -143,14 +143,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .modal-sheet { background:var(--bg2); border-radius:20px 20px 0 0; width:100%; max-height:88vh; overflow-y:auto; padding-bottom:env(safe-area-inset-bottom,16px); }
 .modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:10px auto 4px; }
 .modal-title { font-size:17px; font-weight:700; padding:8px 16px 12px; }
-.modal-body { padding:0 16px 12px; }
-.form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; margin-top:12px; display:block; }
+.modal-body { padding:8px 16px 12px; }
+.form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; margin-top:0; display:block; }
 .form-input { width:100%; background:var(--bg3); border:1.5px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; transition:border-color 0.18s, background 0.18s; }
 .form-input:focus { border-color:var(--primary); background:var(--input-focus-bg); }
 .form-input:not(:placeholder-shown):not(:focus):not([readonly]):not([disabled]) { border-color:var(--input-done-border); }
 .form-input[readonly], .form-input[disabled], .form-input.readonly { background:var(--input-readonly-bg) !important; border-color:var(--input-readonly-border) !important; color:var(--input-readonly-text) !important; cursor:default; }
 .form-textarea { min-height:80px; }
-.char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; margin-bottom:0; }
+.char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:2px; margin-bottom:0; }
 .field-notice { font-size:11px; font-weight:600; margin-top:6px; margin-bottom:0; }
 .section-gap { height:20px; }
 .img-picker { display:flex; align-items:center; gap:14px; background:var(--bg3); border:1.5px dashed var(--border); border-radius:12px; padding:12px 14px; cursor:pointer; margin-top:6px; transition:border-color 0.18s; }
@@ -756,17 +756,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
-      <p class="field-notice" style="color:#FF6B6B;margin-top:4px;">* 채널명은 변경할 수 없습니다.</p>
+      <p class="field-notice" style="color:#FF6B6B;margin-top:3px;margin-bottom:0;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
-      <div style="height:10px;"></div>
+      <div style="height:16px;"></div>
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
         oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
       <!-- 채널 홈페이지 -->
-      <div style="height:10px;"></div>
+      <div style="height:16px;"></div>
       <label class="form-label">채널 홈페이지</label>
       <input class="form-input" id="create-homepage" type="url" placeholder="https://">
 
@@ -820,15 +820,15 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 채널명 -->
       <label class="form-label">채널명</label>
       <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
-      <p class="field-notice" style="color:#FF6B6B;margin-top:4px;">* 채널명은 변경할 수 없습니다.</p>
+      <p class="field-notice" style="color:#FF6B6B;margin-top:3px;margin-bottom:0;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
-      <div style="height:10px;"></div>
+      <div style="height:16px;"></div>
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
 
       <!-- 채널 홈페이지 -->
-      <div style="height:10px;"></div>
+      <div style="height:16px;"></div>
       <label class="form-label">채널 홈페이지</label>
       <div style="position:relative;display:flex;align-items:center;">
         <input class="form-input" id="edit-homepage" type="text" placeholder="https://"
