@@ -755,29 +755,23 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <label class="form-label">채널명 (필수)</label>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
-      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
       <div class="char-count" id="create-name-cnt">0/10</div>
+      <p class="field-notice" style="color:#FF6B6B;margin-top:4px;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
-      <div class="section-gap"></div>
+      <div style="height:10px;"></div>
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
         oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
-      <!-- 비밀번호 -->
-      <div class="section-gap"></div>
-      <label class="form-label">비밀번호</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <input type="checkbox" id="create-is-secret" onchange="App.toggleSecretCreate(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
-        <span style="font-size:13px;color:var(--text2);">비밀채널로 설정 (가입 시 비밀번호 필요)</span>
-      </div>
-      <div id="create-secret-wrap" style="display:none;margin-top:8px;">
-        <input class="form-input" id="create-password" type="password" placeholder="비밀번호를 입력하세요" autocomplete="new-password">
-      </div>
+      <!-- 채널 홈페이지 -->
+      <div style="height:10px;"></div>
+      <label class="form-label">채널 홈페이지</label>
+      <input class="form-input" id="create-homepage" type="url" placeholder="https://">
 
       <!-- 채널 대표이미지 -->
-      <div class="section-gap"></div>
+      <div style="height:20px;"></div>
       <label class="form-label">채널 대표이미지 선택</label>
       <div class="img-picker" id="create-img-picker" onclick="App.openImagePicker('create')">
         <div class="img-thumb" id="create-img-thumb">
@@ -792,17 +786,28 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         </div>
       </div>
 
-      <!-- 채널 홈페이지 -->
-      <div class="section-gap"></div>
-      <label class="form-label">채널 홈페이지</label>
-      <input class="form-input" id="create-homepage" type="url" placeholder="https://">
+      <!-- 비밀번호 -->
+      <div style="height:20px;"></div>
+      <label class="form-label">비밀번호</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <input type="checkbox" id="create-is-secret" onchange="App.toggleSecretCreate(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+        <span style="font-size:13px;color:var(--text2);">비밀채널로 설정 (가입 시 비밀번호 필요)</span>
+      </div>
+      <div id="create-secret-wrap" style="display:none;margin-top:8px;">
+        <input class="form-input" id="create-password" type="password" placeholder="비밀번호를 입력하세요" autocomplete="new-password">
+      </div>
 
-      <button class="btn-teal" onclick="App.createChannel()">확인</button>
-      <button class="btn-ghost" onclick="App.closeModal('modal-create')">취소</button>
+      <!-- 버튼 -->
+      <div style="height:20px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-ghost" onclick="App.closeModal('modal-create')" style="flex:1;margin-top:0;">취소</button>
+        <button class="btn-teal" onclick="App.createChannel()" style="flex:2;margin-top:0;">확인</button>
+      </div>
       <div style="height:8px;"></div>
     </div>
   </div>
 </div>
+
 
 <!-- ══ 모달: 채널 수정 ══ -->
 <div class="modal-overlay" id="modal-edit" style="z-index:400;">
@@ -811,21 +816,19 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-title">채널 설정</div>
     <div class="modal-body">
       <input type="hidden" id="edit-channel-id">
+
+      <!-- 채널명 -->
       <label class="form-label">채널명</label>
       <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
-      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
+      <p class="field-notice" style="color:#FF6B6B;margin-top:4px;">* 채널명은 변경할 수 없습니다.</p>
 
+      <!-- 채널 소개 -->
+      <div style="height:10px;"></div>
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
 
-      <label class="form-label">채널 대표이미지</label>
-      <div class="img-picker" onclick="App.openImagePicker('edit')">
-        <div class="img-thumb" id="edit-img-thumb">
-          <i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>
-        </div>
-        <span class="img-hint">탭하여 변경</span>
-      </div>
-
+      <!-- 채널 홈페이지 -->
+      <div style="height:10px;"></div>
       <label class="form-label">채널 홈페이지</label>
       <div style="position:relative;display:flex;align-items:center;">
         <input class="form-input" id="edit-homepage" type="text" placeholder="https://"
@@ -834,18 +837,34 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
                 style="position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:var(--text3);font-size:16px;">✕</button>
       </div>
 
+      <!-- 채널 대표이미지 -->
+      <div style="height:20px;"></div>
+      <label class="form-label">채널 대표이미지</label>
+      <div class="img-picker" onclick="App.openImagePicker('edit')">
+        <div class="img-thumb" id="edit-img-thumb">
+          <i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>
+        </div>
+        <span class="img-hint">탭하여 변경</span>
+      </div>
+
+      <!-- 비밀번호 -->
+      <div style="height:20px;"></div>
       <label class="form-label">비밀번호 설정</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
         <input type="checkbox" id="edit-is-secret" onchange="App.toggleSecretEdit(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
         <span style="font-size:13px;color:var(--text2);">비밀채널로 설정</span>
       </div>
-      <div id="edit-secret-wrap" style="display:none;">
+      <div id="edit-secret-wrap" style="display:none;margin-top:8px;">
         <input class="form-input" id="edit-password" type="password" placeholder="새 비밀번호 (변경 시에만 입력)" autocomplete="new-password">
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">비워두면 기존 비밀번호 유지</div>
       </div>
 
-      <button class="btn-teal" onclick="App.saveEditChannel()">저장</button>
-      <button class="btn-ghost" onclick="App.closeModal('modal-edit')">취소</button>
+      <!-- 버튼 -->
+      <div style="height:20px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-ghost" onclick="App.closeModal('modal-edit')" style="flex:1;margin-top:0;">취소</button>
+        <button class="btn-teal" onclick="App.saveEditChannel()" style="flex:2;margin-top:0;">저장</button>
+      </div>
       <div style="height:8px;"></div>
     </div>
   </div>
