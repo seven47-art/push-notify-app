@@ -1237,6 +1237,8 @@ const App = {
     const isSecret = document.getElementById('create-is-secret').checked
     const password = document.getElementById('create-password').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
+    const invalidChars = /[!@#$%^&*()+={}\[\]|\\/<>?~`"';:]/
+    if (invalidChars.test(name)) { toast('채널명에 특수문자를 사용할 수 없습니다'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
     if (isSecret && !password) { toast('비밀채널은 비밀번호를 입력하세요'); return }
 
