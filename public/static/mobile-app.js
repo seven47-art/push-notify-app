@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v17
+// public/static/mobile-app.js  v18
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -225,6 +225,35 @@ let calYear      = 0
 let calMonth     = 0           // 0-based
 
 // ─────────────────────────────────────────────
+// 캐시 (30초 TTL, 메모리 기반 - 가볍게)
+// ─────────────────────────────────────────────
+const Cache = {
+  _store: {},
+  TTL: 30000, // 30초
+  set(key, data) {
+    this._store[key] = { data, ts: Date.now() }
+  },
+  get(key) {
+    const item = this._store[key]
+    if (!item) return null
+    if (Date.now() - item.ts > this.TTL) { delete this._store[key]; return null }
+    return item.data
+  },
+  del(key) { delete this._store[key] },
+  clear()  { this._store = {} }
+}
+
+// ─────────────────────────────────────────────
+// API 타임아웃 래퍼 (10초)
+// ─────────────────────────────────────────────
+function apiWithTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ])
+}
+
+// ─────────────────────────────────────────────
 // 유틸
 // ─────────────────────────────────────────────
 function toast(msg, dur = 2500) {
@@ -377,6 +406,31 @@ const App = {
     document.getElementById('drawer').classList.remove('open')
   },
 
+  // ── 스켈레톤 HTML 헬퍼 ───────────────────────
+  _skeletonChannel(n = 3) {
+    return Array(n).fill(0).map(() =>
+      `<div class="skel-row">
+        <div class="skel-avatar"></div>
+        <div class="skel-lines">
+          <div class="skel-line skel-line-lg"></div>
+          <div class="skel-line skel-line-sm"></div>
+        </div>
+      </div>`
+    ).join('')
+  },
+  _skeletonAlarm(n = 4) {
+    return Array(n).fill(0).map(() =>
+      `<div class="skel-row">
+        <div class="skel-avatar skel-avatar-sm"></div>
+        <div class="skel-lines">
+          <div class="skel-line skel-line-lg"></div>
+          <div class="skel-line skel-line-md"></div>
+        </div>
+        <div class="skel-badge"></div>
+      </div>`
+    ).join('')
+  },
+
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
     // 앱 로드 시 공지 뱃지 체크
@@ -392,21 +446,35 @@ const App = {
     const nameEl = document.getElementById('home-username')
     if (nameEl) nameEl.textContent = Store.getDisplayName() || Store.getEmail() || '사용자'
 
-    document.getElementById('owned-list').innerHTML  = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-    document.getElementById('joined-list').innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-    document.getElementById('owned-more').style.display  = 'none'
-    document.getElementById('joined-more').style.display = 'none'
+    // 캐시 확인 → 있으면 즉시 표시 후 백그라운드 갱신
+    const cacheKey = 'home_' + uid
+    const cached = Cache.get(cacheKey)
+    if (cached) {
+      ownedChannels  = cached.owned
+      joinedChannels = cached.joined
+      this._renderOwned()
+      this._renderJoined()
+    } else {
+      // 캐시 없을 때만 스켈레톤 표시
+      document.getElementById('owned-list').innerHTML  = this._skeletonChannel(3)
+      document.getElementById('joined-list').innerHTML = this._skeletonChannel(3)
+      document.getElementById('owned-more').style.display  = 'none'
+      document.getElementById('joined-more').style.display = 'none'
+    }
 
     try {
-      const [oRes, jRes] = await Promise.all([
+      const [oRes, jRes] = await apiWithTimeout(Promise.all([
         API.get('/channels?owner_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } })),
         API.get('/subscribers?user_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } }))
-      ])
+      ]))
       ownedChannels  = oRes.data?.data || []
-      // 내가 운영하는 채널은 가입채널에서 제외
       const ownedIds = new Set(ownedChannels.map(c => c.id))
       joinedChannels = (jRes.data?.data || []).filter(s => !ownedIds.has(s.channel_id))
-    } catch { ownedChannels = []; joinedChannels = [] }
+      Cache.set(cacheKey, { owned: ownedChannels, joined: joinedChannels })
+    } catch(e) {
+      if (!cached) { ownedChannels = []; joinedChannels = [] }
+      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+    }
 
     this._renderOwned()
     this._renderJoined()
@@ -596,38 +664,46 @@ const App = {
     if (popularSec) popularSec.style.display = 'block'
     if (bestSec)    bestSec.style.display    = 'block'
 
-    // 인기채널 · 베스트채널 동시 로드
     const popularEl = document.getElementById('channel-list-popular')
     const bestEl    = document.getElementById('channel-list-best')
-    const spinner   = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-    if (popularEl) popularEl.innerHTML = spinner
-    if (bestEl)    bestEl.innerHTML    = spinner
+
+    // 캐시 확인
+    const cached = Cache.get('channels')
+    if (cached) {
+      if (popularEl) popularEl.innerHTML = cached.popularHtml
+      if (bestEl)    bestEl.innerHTML    = cached.bestHtml
+      window._allChannelList = cached.allList
+    } else {
+      if (popularEl) popularEl.innerHTML = this._skeletonChannel(3)
+      if (bestEl)    bestEl.innerHTML    = this._skeletonChannel(3)
+    }
 
     try {
-      const [popRes, bestRes, allRes] = await Promise.all([
+      const [popRes, bestRes, allRes] = await apiWithTimeout(Promise.all([
         API.get('/channels/popular'),
         API.get('/channels/best'),
         API.get('/channels')
-      ])
+      ]))
       const popList  = popRes.data?.data  || []
       const bestList = bestRes.data?.data || []
-
-      // 전역 캐시 (검색용 — 전체 채널)
       window._allChannelList = allRes.data?.data || []
 
-      if (popularEl) {
-        popularEl.innerHTML = popList.length
-          ? `<div class="ch-all-list-wrap">${popList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
-          : '<div class="empty-box" style="margin:4px 14px;">인기 채널이 없습니다.</div>'
+      const popularHtml = popList.length
+        ? `<div class="ch-all-list-wrap">${popList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
+        : '<div class="empty-box" style="margin:4px 14px;">인기 채널이 없습니다.</div>'
+      const bestHtml = bestList.length
+        ? `<div class="ch-all-list-wrap">${bestList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
+        : '<div class="empty-box" style="margin:4px 14px;">베스트 채널이 없습니다.</div>'
+
+      if (popularEl) popularEl.innerHTML = popularHtml
+      if (bestEl)    bestEl.innerHTML    = bestHtml
+      Cache.set('channels', { popularHtml, bestHtml, allList: window._allChannelList })
+    } catch(e) {
+      if (!cached) {
+        if (popularEl) popularEl.innerHTML = '<div class="empty-box">채널 목록을 불러올 수 없습니다.</div>'
+        if (bestEl)    bestEl.innerHTML    = ''
       }
-      if (bestEl) {
-        bestEl.innerHTML = bestList.length
-          ? `<div class="ch-all-list-wrap">${bestList.map(ch => this._channelTileHtml(ch)).join('')}</div>`
-          : '<div class="empty-box" style="margin:4px 14px;">베스트 채널이 없습니다.</div>'
-      }
-    } catch {
-      if (popularEl) popularEl.innerHTML = '<div class="empty-box">채널 목록을 불러올 수 없습니다.</div>'
-      if (bestEl)    bestEl.innerHTML    = ''
+      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
 
@@ -710,10 +786,19 @@ const App = {
     if (!channelEl) return
     channelEl.style.display = 'block'
     if (detailView) detailView.style.display = 'none'
-    channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
+
+    // 캐시 확인 (채널 필터 없을 때만 캐시 사용)
+    const cacheKey = 'inbox_' + (channelId || 'all')
+    const cached = Cache.get(cacheKey)
+    if (cached) {
+      channelEl.innerHTML = cached
+    } else {
+      channelEl.innerHTML = this._skeletonAlarm(4)
+    }
+
     try {
       const url = channelId ? `/alarms/inbox?channel_id=${channelId}` : '/alarms/inbox'
-      const res = await API.get(url)
+      const res = await apiWithTimeout(API.get(url))
       const resData = res.data
       if (!resData.success) throw new Error()
       const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadInbox')
@@ -745,9 +830,12 @@ const App = {
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
-      channelEl.innerHTML = filterHtml + items
+      const html = filterHtml + items
+      channelEl.innerHTML = html
+      Cache.set(cacheKey, html)
     } catch(e) {
-      channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (!cached) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
 
@@ -766,10 +854,19 @@ const App = {
     if (!channelEl) return
     channelEl.style.display = 'block'
     if (detailView) detailView.style.display = 'none'
-    channelEl.innerHTML = '<div class="empty-box" style="padding:30px 0;"><i class="fas fa-spinner fa-spin"></i></div>'
+
+    // 캐시 확인
+    const cacheKey = 'outbox_' + (channelId || 'all')
+    const cached = Cache.get(cacheKey)
+    if (cached) {
+      channelEl.innerHTML = cached
+    } else {
+      channelEl.innerHTML = this._skeletonAlarm(4)
+    }
+
     try {
       const url = channelId ? `/alarms/outbox?channel_id=${channelId}` : '/alarms/outbox'
-      const res = await API.get(url)
+      const res = await apiWithTimeout(API.get(url))
       const resData = res.data
       if (!resData.success) throw new Error()
       const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadSend')
@@ -785,7 +882,6 @@ const App = {
       }
       const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
       const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-      // alarm_id 기준 중복 제거
       const seenIds = new Set()
       const dedupedData = resData.data.filter(item => {
         const key = item.alarm_id || ('log_' + item.id)
@@ -809,9 +905,12 @@ const App = {
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
-      channelEl.innerHTML = filterHtml + items
+      const html = filterHtml + items
+      channelEl.innerHTML = html
+      Cache.set(cacheKey, html)
     } catch(e) {
-      channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (!cached) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
 
@@ -1027,6 +1126,7 @@ const App = {
       await API.post('/auth/logout')
     } catch {}
     Store.clearSession()
+    Cache.clear()  // 캐시 초기화
     // Flutter 앱에 로그아웃 알림 → 네이티브 로그인 화면으로 이동
     if (window.FlutterBridge) {
       window.FlutterBridge.postMessage(JSON.stringify({ action: 'logout' }))

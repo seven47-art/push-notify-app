@@ -117,6 +117,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 @keyframes spin { to { transform:rotate(360deg); } }
 .spin { animation:spin 0.8s linear infinite; display:inline-block; }
 
+/* ── 스켈레톤 로딩 ── */
+@keyframes skel-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+.skel-row { display:flex; align-items:center; gap:12px; padding:12px 14px; }
+.skel-avatar { width:44px; height:44px; border-radius:50%; flex-shrink:0; background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%); background-size:200% 100%; animation:skel-shimmer 1.4s infinite; }
+.skel-avatar-sm { width:32px; height:32px; }
+.skel-lines { flex:1; display:flex; flex-direction:column; gap:8px; }
+.skel-line { border-radius:6px; background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%); background-size:200% 100%; animation:skel-shimmer 1.4s infinite; }
+.skel-line-lg { height:14px; width:70%; }
+.skel-line-md { height:12px; width:50%; }
+.skel-line-sm { height:11px; width:40%; }
+.skel-badge { width:36px; height:20px; border-radius:10px; background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%); background-size:200% 100%; animation:skel-shimmer 1.4s infinite; flex-shrink:0; }
+
 /* ── 사이드 드로어 ── */
 .drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; opacity:0; pointer-events:none; transition:opacity 0.25s; }
 .drawer-overlay.open { opacity:1; pointer-events:all; }
@@ -1144,6 +1156,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603131600"></script>
+<script src="/static/mobile-app.js?v=202603141800"></script>
 </body>
 </html>`;
