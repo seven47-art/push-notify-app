@@ -83,6 +83,7 @@ app.get('/download', async (c) => {
 </head>
 <body class="bg-gray-950 min-h-screen flex items-center justify-center p-4">
   <div class="bg-gray-900 border border-indigo-500/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+    <p class="text-gray-400 text-sm mb-5 leading-relaxed">전화방식의 새로운 알람앱 링고</p>
     <div class="flex items-center justify-center mx-auto mb-6">
       <img src="/static/ringo-logo.png" alt="RinGo" class="h-20 object-contain" />
     </div>
