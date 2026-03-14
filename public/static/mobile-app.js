@@ -2684,16 +2684,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
   // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
+  // 토큰이 있으면 바로 진행, 없으면 단계적으로 재확인 (최대 1500ms)
   if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
+    // 1차: 400ms 후 재확인
     setTimeout(() => {
       if (Store.isLoggedIn()) {
         _doLogin()
       } else {
-        Auth.show()  // 로그인 화면 표시
+        // 2차: 추가 1100ms(총 1500ms) 후 재확인 → 그래도 없으면 로그인 화면
+        setTimeout(() => {
+          if (Store.isLoggedIn()) {
+            _doLogin()
+          } else {
+            Auth.show()  // 로그인 화면 표시
+          }
+        }, 1100)
       }
     }, 400)
   }
