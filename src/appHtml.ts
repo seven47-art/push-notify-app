@@ -150,12 +150,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .form-input:not(:placeholder-shown):not(:focus):not([readonly]):not([disabled]) { border-color:var(--input-done-border); }
 .form-input[readonly], .form-input[disabled], .form-input.readonly { background:var(--input-readonly-bg) !important; border-color:var(--input-readonly-border) !important; color:var(--input-readonly-text) !important; cursor:default; }
 .form-textarea { min-height:80px; }
-.char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; }
-.field-notice { font-size:11px; font-weight:600; margin-top:5px; margin-bottom:4px; }
-.img-picker { display:flex; align-items:center; gap:12px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px 14px; cursor:pointer; margin-top:4px; }
-.img-thumb { width:52px; height:52px; border-radius:8px; background:var(--bg2); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
+.char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; margin-bottom:0; }
+.field-notice { font-size:11px; font-weight:600; margin-top:6px; margin-bottom:0; }
+.img-picker { display:flex; align-items:center; gap:14px; background:var(--bg3); border:1.5px dashed var(--border); border-radius:12px; padding:12px 14px; cursor:pointer; margin-top:6px; transition:border-color 0.18s; }
+.img-picker:active { border-color:var(--primary); }
+.img-picker.has-image { border-style:solid; border-color:var(--input-done-border); }
+.img-thumb { width:56px; height:56px; border-radius:10px; background:var(--bg2); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
 .img-thumb img { width:100%; height:100%; object-fit:cover; }
-.img-hint { font-size:12px; color:var(--text3); }
+.img-thumb-empty { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+.img-thumb-empty i { font-size:20px; color:var(--text3); }
+.img-thumb-empty span { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.5px; }
+.img-hint { font-size:12px; color:var(--text3); line-height:1.5; }
 .btn-teal { width:100%; background:var(--teal); color:#fff; font-size:16px; font-weight:700; padding:15px; border:none; border-radius:12px; cursor:pointer; margin-top:14px; }
 .btn-ghost { width:100%; background:transparent; border:1px solid var(--border); color:var(--text2); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
 .btn-danger-outline { width:100%; background:transparent; border:1px solid rgba(239,68,68,0.4); color:var(--danger); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
@@ -765,11 +770,17 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
 
       <label class="form-label">채널 대표이미지 선택</label>
-      <div class="img-picker" onclick="App.openImagePicker('create')">
+      <div class="img-picker" id="create-img-picker" onclick="App.openImagePicker('create')">
         <div class="img-thumb" id="create-img-thumb">
-          <i class="fas fa-microphone" style="color:var(--primary);font-size:26px;"></i>
+          <div class="img-thumb-empty">
+            <i class="fas fa-camera"></i>
+            <span>IMAGE</span>
+          </div>
         </div>
-        <span class="img-hint">미선택시 기본 이미지 적용</span>
+        <div>
+          <span class="img-hint">탭하여 이미지 선택</span><br>
+          <span style="font-size:11px;color:var(--text3);">미선택시 기본 이미지 적용</span>
+        </div>
       </div>
 
       <label class="form-label">채널 홈페이지</label>

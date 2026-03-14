@@ -1205,6 +1205,9 @@ const App = {
   },
 
   // ── 채널 만들기 ──────────────────────────
+  _emptyImgThumbHtml() {
+    return '<div class="img-thumb-empty"><i class="fas fa-camera"></i><span>IMAGE</span></div>'
+  },
   openCreateChannel() {
     selectedImg = null
     document.getElementById('create-name').value     = ''
@@ -1215,8 +1218,9 @@ const App = {
     document.getElementById('create-secret-wrap').style.display = 'none'
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
-    document.getElementById('create-img-thumb').innerHTML =
-      '<img src="/static/ringo-icon.png" style="width:100%;height:100%;object-fit:cover;">'
+    document.getElementById('create-img-thumb').innerHTML = this._emptyImgThumbHtml()
+    const picker = document.getElementById('create-img-picker')
+    if (picker) picker.classList.remove('has-image')
     this.openModal('modal-create')
     setTimeout(() => document.getElementById('create-name').focus(), 300)
   },
@@ -2382,6 +2386,10 @@ const App = {
         selectedImg = canvas.toDataURL('image/jpeg', 0.7)
         const thumbId = imgPickerMode === 'edit' ? 'edit-img-thumb' : 'create-img-thumb'
         document.getElementById(thumbId).innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
+        if (imgPickerMode === 'create') {
+          const picker = document.getElementById('create-img-picker')
+          if (picker) picker.classList.add('has-image')
+        }
       }
       img.src = e.target.result
     }
@@ -2547,11 +2555,21 @@ window._flutterImageCallback = function(data) {
   if (thumb) {
     thumb.innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
   }
+  if (imgPickerMode === 'create') {
+    const picker = document.getElementById('create-img-picker')
+    if (picker) picker.classList.add('has-image')
+  }
   toast('✅ 이미지 선택 완료', 2000)
 }
 
 window._flutterImageCancelled = function() {
-  // 취소 시 아무것도 안 함
+  // 취소 시: create 모드이고 selectedImg 없으면 빈 상태 복원
+  if (imgPickerMode === 'create' && !selectedImg) {
+    const thumb = document.getElementById('create-img-thumb')
+    if (thumb) thumb.innerHTML = '<div class="img-thumb-empty"><i class="fas fa-camera"></i><span>IMAGE</span></div>'
+    const picker = document.getElementById('create-img-picker')
+    if (picker) picker.classList.remove('has-image')
+  }
 }
 
 window._flutterImageError = function(data) {
