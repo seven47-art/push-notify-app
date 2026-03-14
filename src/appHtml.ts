@@ -162,6 +162,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .img-thumb-empty i { font-size:20px; color:var(--text3); }
 .img-thumb-empty span { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.5px; }
 .img-hint { font-size:12px; color:var(--text3); line-height:1.5; }
+/* ── 자물쇠 비밀채널 토글 ── */
+.lock-toggle { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; border:1.5px solid var(--border); background:var(--bg3); cursor:pointer; margin-top:6px; transition:border-color 0.2s, background 0.2s; user-select:none; }
+.lock-toggle.locked { border-color:var(--primary); background:var(--input-focus-bg); }
+.lock-icon { font-size:22px; width:28px; text-align:center; transition:color 0.2s; }
+.lock-icon.unlocked { color:var(--text3); }
+.lock-icon.locked   { color:var(--primary); }
+.lock-label { font-size:13px; font-weight:600; flex:1; transition:color 0.2s; }
+.lock-label.unlocked { color:var(--text3); }
+.lock-label.locked   { color:var(--primary); }
+.lock-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; transition:all 0.2s; }
+.lock-badge.unlocked { background:var(--bg2); color:var(--text3); border:1px solid var(--border); }
+.lock-badge.locked   { background:var(--primary); color:#fff; border:1px solid var(--primary); }
 .btn-teal { width:100%; background:var(--teal); color:#fff; font-size:14px; font-weight:700; padding:11px; border:none; border-radius:12px; cursor:pointer; margin-top:0; }
 .btn-ghost { width:100%; background:transparent; border:1px solid var(--border); color:var(--text2); font-size:14px; padding:11px; border-radius:12px; cursor:pointer; margin-top:0; }
 .btn-danger-outline { width:100%; background:transparent; border:1px solid rgba(239,68,68,0.4); color:var(--danger); font-size:14px; padding:12px; border-radius:12px; cursor:pointer; margin-top:8px; }
@@ -752,11 +764,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
 
       <!-- 채널명 -->
-      <label class="form-label">채널명 (필수)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <label class="form-label" style="margin-bottom:0;">채널명 (필수)</label>
+        <span style="font-size:10px;font-weight:600;color:#FF6B6B;">* 변경 불가</span>
+      </div>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
-      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
       <div style="height:16px;"></div>
@@ -789,10 +803,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 비밀번호 -->
       <div style="height:20px;"></div>
       <label class="form-label">비밀번호</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <input type="checkbox" id="create-is-secret" onchange="App.toggleSecretCreate(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
-        <span style="font-size:13px;color:var(--text2);">비밀채널로 설정 (가입 시 비밀번호 필요)</span>
+      <div class="lock-toggle" id="create-lock-toggle" onclick="App.toggleSecretCreate(!document.getElementById('create-is-secret').checked)">
+        <i class="fas fa-lock-open lock-icon unlocked" id="create-lock-icon"></i>
+        <span class="lock-label unlocked" id="create-lock-label">비밀채널 미설정</span>
+        <span class="lock-badge unlocked" id="create-lock-badge">OFF</span>
       </div>
+      <input type="hidden" id="create-is-secret" value="0">
       <div id="create-secret-wrap" style="display:none;margin-top:8px;">
         <input class="form-input" id="create-password" type="password" placeholder="비밀번호를 입력하세요" autocomplete="new-password">
       </div>
@@ -818,9 +834,11 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input type="hidden" id="edit-channel-id">
 
       <!-- 채널명 -->
-      <label class="form-label">채널명</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <label class="form-label" style="margin-bottom:0;">채널명</label>
+        <span style="font-size:10px;font-weight:600;color:#FF6B6B;">* 변경 불가</span>
+      </div>
       <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
-      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
 
       <!-- 채널 소개 -->
       <div style="height:16px;"></div>
@@ -850,10 +868,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 비밀번호 -->
       <div style="height:20px;"></div>
       <label class="form-label">비밀번호 설정</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <input type="checkbox" id="edit-is-secret" onchange="App.toggleSecretEdit(this.checked)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
-        <span style="font-size:13px;color:var(--text2);">비밀채널로 설정</span>
+      <div class="lock-toggle" id="edit-lock-toggle" onclick="App.toggleSecretEdit(!document.getElementById('edit-is-secret').checked)">
+        <i class="fas fa-lock-open lock-icon unlocked" id="edit-lock-icon"></i>
+        <span class="lock-label unlocked" id="edit-lock-label">비밀채널 미설정</span>
+        <span class="lock-badge unlocked" id="edit-lock-badge">OFF</span>
       </div>
+      <input type="hidden" id="edit-is-secret" value="0">
       <div id="edit-secret-wrap" style="display:none;margin-top:8px;">
         <input class="form-input" id="edit-password" type="password" placeholder="새 비밀번호 (변경 시에만 입력)" autocomplete="new-password">
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">비워두면 기존 비밀번호 유지</div>
