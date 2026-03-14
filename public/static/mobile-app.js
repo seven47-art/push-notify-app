@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v18
+// public/static/mobile-app.js  v19
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -228,19 +228,53 @@ let calMonth     = 0           // 0-based
 // 캐시 (30초 TTL, 메모리 기반 - 가볍게)
 // ─────────────────────────────────────────────
 const Cache = {
-  _store: {},
-  TTL: 30000, // 30초
+  _mem: {},          // 메모리 캐시 (앱 실행 중)
+  TTL: 30000,        // 30초 (메모리)
+  LS_TTL: 300000,    // 5분 (localStorage)
+  LS_PREFIX: 'ringo_cache_',
+
   set(key, data) {
-    this._store[key] = { data, ts: Date.now() }
+    const ts = Date.now()
+    // 메모리 저장
+    this._mem[key] = { data, ts }
+    // localStorage 저장 (직렬화 가능한 데이터만)
+    try {
+      localStorage.setItem(this.LS_PREFIX + key, JSON.stringify({ data, ts }))
+    } catch {}
   },
   get(key) {
-    const item = this._store[key]
-    if (!item) return null
-    if (Date.now() - item.ts > this.TTL) { delete this._store[key]; return null }
-    return item.data
+    const now = Date.now()
+    // 메모리 먼저 확인 (30초 TTL)
+    const mem = this._mem[key]
+    if (mem && now - mem.ts < this.TTL) return mem.data
+    // localStorage 확인 (5분 TTL)
+    try {
+      const raw = localStorage.getItem(this.LS_PREFIX + key)
+      if (raw) {
+        const item = JSON.parse(raw)
+        if (now - item.ts < this.LS_TTL) {
+          this._mem[key] = item  // 메모리에도 복원
+          return item.data
+        } else {
+          localStorage.removeItem(this.LS_PREFIX + key)
+        }
+      }
+    } catch {}
+    return null
   },
-  del(key) { delete this._store[key] },
-  clear()  { this._store = {} }
+  del(key) {
+    delete this._mem[key]
+    try { localStorage.removeItem(this.LS_PREFIX + key) } catch {}
+  },
+  clear() {
+    this._mem = {}
+    // ringo_cache_ prefix 키만 삭제 (다른 localStorage 건드리지 않음)
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(this.LS_PREFIX))
+        .forEach(k => localStorage.removeItem(k))
+    } catch {}
+  }
 }
 
 // ─────────────────────────────────────────────
