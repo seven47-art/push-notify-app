@@ -827,7 +827,7 @@ const App = {
     if (cached) {
       channelEl.innerHTML = cached
     } else {
-      channelEl.innerHTML = this._skeletonAlarm(4)
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     try {
@@ -895,7 +895,7 @@ const App = {
     if (cached) {
       channelEl.innerHTML = cached
     } else {
-      channelEl.innerHTML = this._skeletonAlarm(4)
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     try {
