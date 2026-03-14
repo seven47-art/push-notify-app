@@ -1229,14 +1229,28 @@ const App = {
   toggleSecretCreate(checked) {
     document.getElementById('create-is-secret').value = checked ? '1' : '0'
     document.getElementById('create-secret-wrap').style.display = checked ? 'block' : 'none'
-    if (!checked) document.getElementById('create-password').value = ''
+    if (!checked) {
+      document.getElementById('create-password').value = ''
+    } else {
+      setTimeout(() => {
+        const pw = document.getElementById('create-password')
+        if (pw) { pw.focus(); pw.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+      }, 80)
+    }
     this._setLockUI('create', checked)
   },
 
   toggleSecretEdit(checked) {
     document.getElementById('edit-is-secret').value = checked ? '1' : '0'
     document.getElementById('edit-secret-wrap').style.display = checked ? 'block' : 'none'
-    if (!checked) document.getElementById('edit-password').value = ''
+    if (!checked) {
+      document.getElementById('edit-password').value = ''
+    } else {
+      setTimeout(() => {
+        const pw = document.getElementById('edit-password')
+        if (pw) { pw.focus(); pw.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+      }, 80)
+    }
     this._setLockUI('edit', checked)
   },
   _setLockUI(prefix, locked) {

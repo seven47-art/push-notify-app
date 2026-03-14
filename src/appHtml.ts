@@ -773,14 +773,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <div class="char-count" id="create-name-cnt">0/10</div>
 
       <!-- 채널 소개 -->
-      <div style="height:16px;"></div>
+      <div style="height:6px;"></div>
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
         oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
       <!-- 채널 홈페이지 -->
-      <div style="height:16px;"></div>
+      <div style="height:6px;"></div>
       <label class="form-label">채널 홈페이지</label>
       <input class="form-input" id="create-homepage" type="url" placeholder="https://">
 
@@ -841,12 +841,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
 
       <!-- 채널 소개 -->
-      <div style="height:16px;"></div>
+      <div style="height:10px;"></div>
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
 
       <!-- 채널 홈페이지 -->
-      <div style="height:16px;"></div>
+      <div style="height:10px;"></div>
       <label class="form-label">채널 홈페이지</label>
       <div style="position:relative;display:flex;align-items:center;">
         <input class="form-input" id="edit-homepage" type="text" placeholder="https://"
