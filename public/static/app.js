@@ -99,7 +99,7 @@ function showPage(page) {
     contents: '콘텐츠 관리', subscribers: '구독자 관리',
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
-    'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그'
+    'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그', 'download-mgmt': '다운로드 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -118,6 +118,7 @@ function showPage(page) {
   else if (page === 'logs') loadLogBatches()
   else if (page === 'members') loadMembers()
   else if (page === 'admin-alarm') adminAlarmPageInit()
+  else if (page === 'download-mgmt') loadCurrentApkInfo()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }
