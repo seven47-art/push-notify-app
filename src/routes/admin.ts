@@ -1006,6 +1006,44 @@ function adminDashboardHTML() {
       </div>
     </div>
 
+    <!-- 다운로드 관리 페이지 -->
+    <div id="page-download-mgmt" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600/20 flex items-center justify-center"><i class="fas fa-download text-emerald-400"></i></div>
+          <div><h2 class="text-xl font-bold text-white">다운로드 관리</h2><p class="text-slate-400 text-sm">APK 다운로드 URL을 설정하면 다운로드 페이지에 자동 반영됩니다</p></div>
+        </div>
+
+        <!-- 현재 설정된 URL -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-link mr-2 text-blue-400"></i>현재 다운로드 URL</h3>
+          <div id="current-apk-url-display" class="text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>
+        </div>
+
+        <!-- URL 입력 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-edit mr-2 text-emerald-400"></i>APK 다운로드 URL 설정</h3>
+          
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">버전명 (예: v2.3.19)</label>
+            <input type="text" id="apkVersionInput" class="input-field text-sm" placeholder="v2.3.19">
+          </div>
+
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">APK 다운로드 URL</label>
+            <input type="url" id="apkUrlInput" class="input-field text-sm" placeholder="https://github.com/.../releases/download/v2.3.19/RinGo-v2.3.19.apk">
+            <p class="text-slate-500 text-xs mt-1.5">GitHub Releases, Google Drive 직접 링크 등 사용 가능</p>
+          </div>
+
+          <div id="apk-url-result" class="mb-4 hidden"></div>
+
+          <button onclick="saveApkUrl()" class="w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold">
+            <i class="fas fa-save mr-2"></i>저장
+          </button>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1151,43 +1189,6 @@ function adminDashboardHTML() {
   </div>
 </div>
 
-    <!-- 다운로드 관리 페이지 -->
-    <div id="page-download-mgmt" class="page">
-      <div class="space-y-6">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-emerald-600/20 flex items-center justify-center"><i class="fas fa-download text-emerald-400"></i></div>
-          <div><h2 class="text-xl font-bold text-white">다운로드 관리</h2><p class="text-slate-400 text-sm">APK 다운로드 URL을 설정하면 다운로드 페이지에 자동 반영됩니다</p></div>
-        </div>
-
-        <!-- 현재 설정된 URL -->
-        <div class="card rounded-xl p-5">
-          <h3 class="text-white font-semibold mb-4"><i class="fas fa-link mr-2 text-blue-400"></i>현재 다운로드 URL</h3>
-          <div id="current-apk-url-display" class="text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>
-        </div>
-
-        <!-- URL 입력 -->
-        <div class="card rounded-xl p-5">
-          <h3 class="text-white font-semibold mb-4"><i class="fas fa-edit mr-2 text-emerald-400"></i>APK 다운로드 URL 설정</h3>
-          
-          <div class="mb-4">
-            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">버전명 (예: v2.3.19)</label>
-            <input type="text" id="apkVersionInput" class="input-field text-sm" placeholder="v2.3.19">
-          </div>
-
-          <div class="mb-4">
-            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">APK 다운로드 URL</label>
-            <input type="url" id="apkUrlInput" class="input-field text-sm" placeholder="https://github.com/.../releases/download/v2.3.19/RinGo-v2.3.19.apk">
-            <p class="text-slate-500 text-xs mt-1.5">GitHub Releases, Google Drive 직접 링크 등 사용 가능</p>
-          </div>
-
-          <div id="apk-url-result" class="mb-4 hidden"></div>
-
-          <button onclick="saveApkUrl()" class="w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold">
-            <i class="fas fa-save mr-2"></i>저장
-          </button>
-        </div>
-      </div>
-    </div>
 
 <script src="/static/app.js"></script>
 <script>
