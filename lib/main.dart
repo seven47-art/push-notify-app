@@ -19,7 +19,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
-// gif 패키지 제거 - Flutter 기본 Image.asset으로 GIF 재생
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
 
@@ -163,7 +162,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-
   @override
   void initState() {
     super.initState();
@@ -220,12 +218,40 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF222222),
-      body: SizedBox.expand(
-        child: Image.asset(
-          'assets/images/splash_animation.gif',
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
+      backgroundColor: const Color(0xFF0F0C29),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 90, height: 90,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6C63FF).withOpacity(0.5),
+                    blurRadius: 30, offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset('assets/images/ringo_icon.png', width: 90, height: 90, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text('RinGo',
+              style: TextStyle(color: Colors.white, fontSize: 28,
+                fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const SizedBox(height: 40),
+            const SizedBox(
+              width: 28, height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -635,13 +661,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             debugPrint('[FlutterBridge] get_fcm_token → ${token2.isNotEmpty ? "토큰 전달" : "토큰 없음"}');
           }
           break;
-        case 'needLogin':
-          // 웹뷰에서 세션 없음 신호 → Flutter 이메일 선택 화면으로 이동
-          debugPrint('[FlutterBridge] needLogin → /auth 이동');
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-          }
-          break;
         case 'logout':
           // 웹뷰에서 로그아웃 요청 → 세션 삭제 + 로그인 화면으로 이동
           final prefs = await SharedPreferences.getInstance();
@@ -790,9 +809,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 300,
+        maxHeight: 300,
+        imageQuality: 70,
       );
       if (image == null) {
         _sendToWeb('window._flutterImageCancelled', {});
@@ -1158,7 +1177,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
                   ),
                 ),
               if (_loading && _loadingProgress < 10)
-                Container(color: const Color(0xFF222222)),
+                Container(
+                  color: const Color(0xFF121212),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _AppLogo(),
+                        SizedBox(height: 24),
+                        SizedBox(
+                          width: 32, height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3, color: Color(0xFF6C63FF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

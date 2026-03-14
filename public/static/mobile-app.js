@@ -597,9 +597,9 @@ const App = {
     const name     = ch.name || '채널'
     const cnt      = ch.subscriber_count || 0
     const id       = ch.id
-    const alarmCnt = ch.pending_alarm_count || 0
-    const hasAlarm  = alarmCnt > 0
-    const lockIcon  = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
+    const hasAlarm = (ch.pending_alarm_count || 0) > 0
+    const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
+    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         ${avatar(name, ch.image_url, 44)}
@@ -608,9 +608,12 @@ const App = {
         <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
         <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.description || '채널 운영자'}</div>
       </div>
-      ${hasAlarm ? `<div class="ch-actions"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기"><i class="fas fa-clock"></i></button></div>` : ''}
+      <div class="ch-actions">
+        <button class="${alarmCls}"        onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="알람설정"><i class="fas fa-clock"></i></button>
+        <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
+      </div>
     </div>`
-      ${hasAlarm ? `<div class="ch-actions"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기" style="position:relative;"><i class="fas fa-clock"></i><span style="position:absolute;top:-5px;right:-5px;background:#EF4444;color:#fff;font-size:10px;font-weight:700;border-radius:50%;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1;padding:0 2px;">${alarmCnt}</span></button></div>` : ''}
+  },
 
   _renderJoined() {
     const el   = document.getElementById('joined-list')
@@ -1420,23 +1423,24 @@ const App = {
     this._renderTimeLabel()
     this.openModal('modal-alarm')
 
-    // 기존 알람 목록 로드 후 UI 상태 결정
-    this._loadAlarmList(chId, true)
+    // 기존 알람 목록 로드
+    this._loadAlarmList(chId)
   },
 
   // 알람 목록 로드 및 표시
-  // fromOpen=true: 모달 처음 열릴 때 (알람 있으면 설정폼 숨김)
-  // fromOpen=false: 삭제 후 재로드 (알람 없으면 설정폼 표시)
-  async _loadAlarmList(chId, fromOpen = false) {
+  async _loadAlarmList(chId) {
     const section   = document.getElementById('alarm-list-section')
     const body      = document.getElementById('alarm-list-body')
     const addArea   = document.getElementById('alarm-add-area')
     if (!section || !body) return
     try {
       const res  = await API.get('/alarms?channel_id=' + chId)
+      // 서버에서 이미 지난 알람을 자동 삭제해서 반환하지만,
+      // 혹시 남아있는 경우를 대비해 프론트에서도 과거 알람 필터링
       const now  = new Date()
       const list = (res.data?.data || []).filter(a => {
         if (a.status !== 'pending' && a.status !== 'triggered') return false
+        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget)
         if (new Date(a.scheduled_at) < now) {
           API.delete('/alarms/' + a.id).catch(() => {})
           return false
@@ -1444,24 +1448,30 @@ const App = {
         return true
       })
 
-      if (list.length === 0) {
-        // 알람 없음: 설정 섹션 숨기고 추가 영역 표시
-        section.style.display = 'none'
-        if (addArea) {
-          addArea.style.display = ''
+      // ⚠️ 채널당 알람 1개 제한
+      if (addArea) {
+        if (list.length >= 1) {
+          addArea.style.opacity = '0.35'
+          addArea.style.pointerEvents = 'none'
+          if (!addArea.querySelector('.alarm-limit-msg')) {
+            const msg = document.createElement('div')
+            msg.className = 'alarm-limit-msg'
+            msg.style.cssText = 'font-size:12px;color:#FF9800;padding:4px 0 10px;'
+            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 1개만 설정 가능합니다. 기존 알람을 삭제하세요.'
+            addArea.prepend(msg)
+          }
+        } else {
           addArea.style.opacity = '1'
           addArea.style.pointerEvents = ''
+          addArea.querySelector('.alarm-limit-msg')?.remove()
         }
-        return
       }
 
-      // 알람 있음: 설정된 알람 섹션 표시
+      if (list.length === 0) {
+        section.style.display = 'none'
+        return
+      }
       section.style.display = 'block'
-      // 추가 영역 숨김 (새 알람 추가 버튼으로 대체)
-      if (addArea) addArea.style.display = 'none'
-
-      const MAX_ALARM = 3
-      const canAdd = list.length < MAX_ALARM
       const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
       body.innerHTML = list.map(alarm => {
         const dt = new Date(alarm.scheduled_at)
@@ -1477,48 +1487,18 @@ const App = {
           </button>
         </div>`
       }).join('')
-
-      // 새 알람 추가 버튼 (3개 미만이면 표시, 3개면 숨김)
-      const existingAddBtn = section.querySelector('.alarm-add-new-btn')
-      if (existingAddBtn) existingAddBtn.remove()
-      if (canAdd) {
-        const addBtn = document.createElement('button')
-        addBtn.className = 'alarm-add-new-btn'
-        addBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:1.5px dashed var(--teal);border-radius:10px;background:transparent;color:var(--teal);font-size:14px;font-weight:600;cursor:pointer;'
-        addBtn.innerHTML = '<i class="fas fa-plus"></i> 새 알람 추가하기'
-        addBtn.onclick = () => App._showAlarmAddForm()
-        section.appendChild(addBtn)
-      }
     } catch(e) {
       section.style.display = 'none'
     }
   },
 
-  // 새 알람 추가 폼 표시
-  _showAlarmAddForm() {
-    const section = document.getElementById('alarm-list-section')
-    const addArea = document.getElementById('alarm-add-area')
-    if (section) section.style.display = 'none'
-    if (addArea) {
-      addArea.style.display = ''
-      addArea.style.opacity = '1'
-      addArea.style.pointerEvents = ''
-    }
-  },
-
-  // 알람 취소 후 → 새 알람 설정 폼으로 전환
+  // 알람 취소
   async _cancelAlarm(alarmId) {
     if (!confirm('이 알람을 삭제하시겠습니까?')) return
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
-      // ownedChannels 메모리 업데이트 → 타일 즉시 재렌더
-      const cancelCh = ownedChannels.find(c => c.id === currentAlarmChId)
-      if (cancelCh) cancelCh.pending_alarm_count = Math.max(0, (cancelCh.pending_alarm_count || 1) - 1)
-      Cache.del('home_' + Store.getUserId())
-      this._renderOwned()
-      // 삭제 후 목록 새로고침
-      this._loadAlarmList(currentAlarmChId, false)
+      this._loadAlarmList(currentAlarmChId)
     } catch(e) {
       toast('삭제 실패: ' + e.message, 3000)
     }
@@ -1990,12 +1970,6 @@ const App = {
     const userId = Store.getUserId()
     if (!userId) { toast('로그인이 필요합니다'); return }
 
-    // 3개 제한 클라이언트 검증
-    const curCh = ownedChannels.find(c => c.id === currentAlarmChId)
-    if ((curCh?.pending_alarm_count || 0) >= 3) {
-      toast('채널당 알람은 최대 3개까지 설정 가능합니다', 3000); return
-    }
-
     // 로딩 표시
     const doneBtn = document.querySelector('.btn-alarm-done')
     if (doneBtn) { doneBtn.disabled = true; doneBtn.textContent = '저장 중...' }
@@ -2017,13 +1991,10 @@ const App = {
         const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
-        // ownedChannels 메모리 업데이트 → 타일 즉시 재렌더 (아이콘 표시)
-        const alarmCh = ownedChannels.find(c => c.id === currentAlarmChId)
-        if (alarmCh) alarmCh.pending_alarm_count = (alarmCh.pending_alarm_count || 0) + 1
-        Cache.del('home_' + Store.getUserId())
-        this._renderOwned()
-        // 알람 목록 갱신 (모달 유지 → 설정된 알람 섹션 표시)
-        await this._loadAlarmList(currentAlarmChId, true)
+        this._refreshAlarmBtn(currentAlarmChId)
+        // 알람 목록 갱신 후 모달 닫기
+        await this._loadAlarmList(currentAlarmChId)
+        this.closeModal('modal-alarm')
       } else {
         toast(res.data?.error || '알람 저장 실패', 3000)
       }
@@ -2682,31 +2653,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 후 Flutter 이메일 선택 화면 ──
-  // clearCache()가 있는 APK는 페이지 로드 시 localStorage가 비어있음
-  // Flutter _injectSession()이 onPageFinished 후 실행되므로 충분히 기다려야 함
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
+  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
+  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
   if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // 최대 3000ms 동안 200ms 간격으로 재확인 (Flutter 세션 주입 대기)
-    let _loginCheckCount = 0
-    const _loginCheckMax = 15  // 200ms × 15 = 3000ms
-    const _loginCheckTimer = setInterval(() => {
-      _loginCheckCount++
+    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
+    setTimeout(() => {
       if (Store.isLoggedIn()) {
-        clearInterval(_loginCheckTimer)
         _doLogin()
-      } else if (_loginCheckCount >= _loginCheckMax) {
-        clearInterval(_loginCheckTimer)
-        // 3초 후에도 세션 없음 → Flutter에 로그인 요청
-        try {
-          FlutterBridge.postMessage(JSON.stringify({ action: 'needLogin' }))
-        } catch(e) {
-          // 웹 브라우저 환경 fallback
-          Auth.show()
-        }
+      } else {
+        Auth.show()  // 로그인 화면 표시
       }
-    }, 200)
+    }, 400)
   }
 
   // 샘플 알림 (첫 방문)
