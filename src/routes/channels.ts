@@ -182,7 +182,7 @@ channels.get('/:id/image', async (c) => {
     ).bind(id).first()
 
     if (!channel || !channel.image_url) {
-      return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+      return c.redirect('https://ringo.run/static/og-default.png', 302)
     }
 
     const imageUrl = channel.image_url as string
@@ -190,7 +190,7 @@ channels.get('/:id/image', async (c) => {
     // base64 데이터 URI인 경우 → 실제 이미지로 변환
     if (imageUrl.startsWith('data:')) {
       const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/)
-      if (!match) return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+      if (!match) return c.redirect('https://ringo.run/static/og-default.png', 302)
       const mimeType = match[1]
       const base64Data = match[2]
       const binary = Uint8Array.from(atob(base64Data), ch => ch.charCodeAt(0))
@@ -205,7 +205,7 @@ channels.get('/:id/image', async (c) => {
     // 일반 URL인 경우 → 그대로 리다이렉트
     return c.redirect(imageUrl, 302)
   } catch (e: any) {
-    return c.redirect('https://ringo-server.pages.dev/static/og-default.png', 302)
+    return c.redirect('https://ringo.run/static/og-default.png', 302)
   }
 })
 

@@ -220,9 +220,9 @@ app.get('/join/:token', async (c) => {
     ? (channelDesc || '여기를 눌러 링크를 확인하세요.')
     : '유효하지 않은 초대 링크입니다.'
   const ogImage = (isValid && channelId)
-    ? 'https://ringo-server.pages.dev/api/channels/' + channelId + '/image'
-    : 'https://ringo-server.pages.dev/static/og-default.png'
-  const ogUrl   = 'https://ringo-server.pages.dev/join/' + token
+    ? 'https://ringo.run/api/channels/' + channelId + '/image'
+    : 'https://ringo.run/static/og-default.png'
+  const ogUrl   = 'https://ringo.run/join/' + token
 
   return c.html(
     '<!DOCTYPE html>' +
