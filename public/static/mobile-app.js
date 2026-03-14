@@ -2682,25 +2682,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → Flutter 이메일 선택 화면 ──
-  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 400ms 대기 후 재확인
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 후 Flutter 이메일 선택 화면 ──
+  // clearCache()가 있는 APK는 페이지 로드 시 localStorage가 비어있음
+  // Flutter _injectSession()이 onPageFinished 후 실행되므로 충분히 기다려야 함
   if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    setTimeout(() => {
+    // 최대 3000ms 동안 200ms 간격으로 재확인 (Flutter 세션 주입 대기)
+    let _loginCheckCount = 0
+    const _loginCheckMax = 15  // 200ms × 15 = 3000ms
+    const _loginCheckTimer = setInterval(() => {
+      _loginCheckCount++
       if (Store.isLoggedIn()) {
+        clearInterval(_loginCheckTimer)
         _doLogin()
-      } else {
-        // 세션 없음 → Flutter에 로그인 요청 (이메일 선택 화면)
+      } else if (_loginCheckCount >= _loginCheckMax) {
+        clearInterval(_loginCheckTimer)
+        // 3초 후에도 세션 없음 → Flutter에 로그인 요청
         try {
           FlutterBridge.postMessage(JSON.stringify({ action: 'needLogin' }))
         } catch(e) {
-          // FlutterBridge 없는 환경(웹 브라우저)에서만 fallback
+          // 웹 브라우저 환경 fallback
           Auth.show()
         }
       }
-    }, 400)
+    }, 200)
   }
 
   // 샘플 알림 (첫 방문)
