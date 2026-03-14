@@ -339,30 +339,41 @@ async function openChannelModal(id) {
   document.getElementById('channelOwnerId').value = 'admin'
   document.getElementById('channelModalTitle').textContent = '채널 추가'
 
+  const nameNotice = document.getElementById('channelNameNotice')
+  const nameInput = document.getElementById('channelName')
+  const nameNotice = document.getElementById('channelNameNotice')
   if (id) {
     try {
       const { data } = await API.get(`/channels/${id}`)
       const ch = data.data
       document.getElementById('channelId').value = ch.id
-      document.getElementById('channelName').value = ch.name
+      nameInput.value = ch.name
+      nameInput.readOnly = true
+      nameInput.classList.add('opacity-50', 'cursor-not-allowed')
+      if (nameNotice) nameNotice.classList.remove('hidden')
       document.getElementById('channelDescription').value = ch.description || ''
       document.getElementById('channelImageUrl').value = ch.image_url || ''
       document.getElementById('channelOwnerId').value = ch.owner_id
       document.getElementById('channelModalTitle').textContent = '채널 수정'
     } catch { showToast('채널 정보 로드 오류', 'error'); return }
+  } else {
+    nameInput.readOnly = false
+    nameInput.classList.remove('opacity-50', 'cursor-not-allowed')
+    if (nameNotice) nameNotice.classList.add('hidden')
   }
   openModal('channelModal')
 }
 
 async function saveChannel() {
   const id = document.getElementById('channelId').value
+  const name = document.getElementById('channelName').value.trim()
   const payload = {
-    name: document.getElementById('channelName').value.trim(),
     description: document.getElementById('channelDescription').value.trim(),
     image_url: document.getElementById('channelImageUrl').value.trim(),
     owner_id: document.getElementById('channelOwnerId').value.trim()
   }
-  if (!payload.name || !payload.owner_id) { showToast('채널명과 Owner ID는 필수입니다', 'error'); return }
+  if (!id) payload.name = name  // 신규 생성 시만 채널명 포함
+  if (!name || !payload.owner_id) { showToast('채널명과 Owner ID는 필수입니다', 'error'); return }
   try {
     if (id) await API.put(`/channels/${id}`, payload)
     else await API.post('/channels', payload)
@@ -1920,7 +1931,7 @@ async function adminSaveChannel() {
   if (!name) { showToast('채널명을 입력하세요', 'error'); return }
   try {
     if (id) {
-      await API.put('/channels/' + id, { name, description: desc, homepage_url: homepage || null, image_url: imageUrl })
+      await API.put('/channels/' + id, { description: desc, homepage_url: homepage || null, image_url: imageUrl })
       showToast('채널이 수정됐습니다 ✅')
     } else {
       await API.post('/channels', { name, description: desc, homepage_url: homepage || null, image_url: imageUrl, owner_id: 'admin' })
