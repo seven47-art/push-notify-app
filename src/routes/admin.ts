@@ -108,65 +108,28 @@ admin.get('/apk-info', async (c) => {
   }
 })
 
-// ── POST /admin/upload-apk ────────────────────────────
-admin.post('/upload-apk', async (c) => {
+// ── POST /admin/save-apk-url ──────────────────────────
+admin.post('/save-apk-url', async (c) => {
   const isLoggedIn = await verifySession(c)
   if (!isLoggedIn) return c.json({ success: false, message: '로그인이 필요합니다.' }, 401)
-
   try {
     const formData = await c.req.formData()
-    const file = formData.get('apk') as File | null
     const version = (formData.get('version') as string || '').trim()
-
-    if (!file) return c.json({ success: false, message: 'APK 파일이 없습니다.' })
-    if (!file.name.endsWith('.apk')) return c.json({ success: false, message: 'APK 파일만 업로드 가능합니다.' })
+    const url = (formData.get('url') as string || '').trim()
     if (!version) return c.json({ success: false, message: '버전명을 입력하세요.' })
-
-    const arrayBuffer = await file.arrayBuffer()
-    const uint8 = new Uint8Array(arrayBuffer)
-
-    // Cloudflare Workers에서는 파일시스템이 없으므로 R2 또는 KV에 저장
-    // 여기서는 파일을 저장하는 대신 DB에 메타정보 + base64로 저장 (소용량) 또는
-    // 파일명 정보만 DB에 저장하고 실제 파일은 /static/ 경로에서 서빙
-    // → Workers 환경: 파일을 KV에 저장 후 /static/apk/:filename 라우트로 서빙
-    const filename = file.name
-
-    // KV 바인딩 존재 여부 확인
-    if (c.env.KV) {
-      await c.env.KV.put(`apk:${filename}`, uint8, {
-        metadata: { version, uploadedAt: new Date().toISOString() }
-      })
-    } else {
-      // KV 없으면 파일 데이터를 base64로 DB에 저장 (소형 APK용)
-      const base64 = btoa(String.fromCharCode(...uint8))
-      await c.env.DB.prepare(
-        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('apk_data', ?)"
-      ).bind(base64).run()
-    }
-
-    // APK 메타정보 DB에 저장
+    if (!url) return c.json({ success: false, message: 'URL을 입력하세요.' })
     const apkInfo = JSON.stringify({
-      filename,
       version,
-      uploaded_at: new Date().toISOString(),
-      size: uint8.length
+      url,
+      updated_at: new Date().toISOString()
     })
     await c.env.DB.prepare(
       "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('apk_info', ?)"
     ).bind(apkInfo).run()
-
-    return c.json({ success: true, message: `${filename} 업로드 완료! 다운로드 페이지에 반영됐습니다.` })
+    return c.json({ success: true, message: `${version} 다운로드 URL이 저장됐습니다!` })
   } catch (err: any) {
-    return c.json({ success: false, message: '업로드 실패: ' + err.message })
+    return c.json({ success: false, message: '저장 실패: ' + err.message })
   }
-})
-
-// ── GET /static/apk/:filename (KV에서 APK 서빙) ───────
-admin.get('/serve-apk', async (c) => {
-  const isLoggedIn = await verifySession(c)
-  if (!isLoggedIn) return c.redirect('/admin/login')
-  // 실제 서빙은 index.tsx의 /download-apk 라우트에서 처리
-  return c.redirect('/admin/apk-info')
 })
 
 // ── POST /admin/change-password ───────────────────────
@@ -1193,39 +1156,34 @@ function adminDashboardHTML() {
       <div class="space-y-6">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-emerald-600/20 flex items-center justify-center"><i class="fas fa-download text-emerald-400"></i></div>
-          <div><h2 class="text-xl font-bold text-white">다운로드 관리</h2><p class="text-slate-400 text-sm">APK 파일을 업로드하면 다운로드 페이지에 자동 반영됩니다</p></div>
+          <div><h2 class="text-xl font-bold text-white">다운로드 관리</h2><p class="text-slate-400 text-sm">APK 다운로드 URL을 설정하면 다운로드 페이지에 자동 반영됩니다</p></div>
         </div>
 
-        <!-- APK 업로드 -->
+        <!-- 현재 설정된 URL -->
         <div class="card rounded-xl p-5">
-          <h3 class="text-white font-semibold mb-4"><i class="fas fa-upload mr-2 text-emerald-400"></i>새 APK 업로드</h3>
-          <div id="apk-upload-area" class="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-500 transition-colors" onclick="document.getElementById('apkFileInput').click()">
-            <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3 block"></i>
-            <p class="text-slate-300 font-semibold mb-1">APK 파일을 선택하세요</p>
-            <p class="text-slate-500 text-sm">클릭하여 파일 탐색기 열기</p>
-            <p id="apk-selected-name" class="text-emerald-400 text-sm mt-2 hidden"></p>
-          </div>
-          <input type="file" id="apkFileInput" accept=".apk" class="hidden" onchange="apkFileSelected(this)">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-link mr-2 text-blue-400"></i>현재 다운로드 URL</h3>
+          <div id="current-apk-url-display" class="text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>
+        </div>
+
+        <!-- URL 입력 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-edit mr-2 text-emerald-400"></i>APK 다운로드 URL 설정</h3>
           
-          <div id="apk-version-row" class="mt-4 hidden">
+          <div class="mb-4">
             <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">버전명 (예: v2.3.19)</label>
             <input type="text" id="apkVersionInput" class="input-field text-sm" placeholder="v2.3.19">
           </div>
 
-          <div id="apk-upload-progress" class="mt-4 hidden">
-            <div class="flex items-center justify-between text-sm text-slate-400 mb-1">
-              <span>업로드 중...</span>
-              <span id="apk-progress-pct">0%</span>
-            </div>
-            <div class="w-full bg-slate-700 rounded-full h-2">
-              <div id="apk-progress-bar" class="bg-emerald-500 h-2 rounded-full transition-all" style="width:0%"></div>
-            </div>
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">APK 다운로드 URL</label>
+            <input type="url" id="apkUrlInput" class="input-field text-sm" placeholder="https://github.com/.../releases/download/v2.3.19/RinGo-v2.3.19.apk">
+            <p class="text-slate-500 text-xs mt-1.5">GitHub Releases, Google Drive 직접 링크 등 사용 가능</p>
           </div>
 
-          <div id="apk-upload-result" class="mt-4 hidden"></div>
+          <div id="apk-url-result" class="mb-4 hidden"></div>
 
-          <button id="apk-upload-btn" onclick="uploadApk()" class="mt-4 w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold hidden">
-            <i class="fas fa-upload mr-2"></i>업로드
+          <button onclick="saveApkUrl()" class="w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold">
+            <i class="fas fa-save mr-2"></i>저장
           </button>
         </div>
       </div>
@@ -1254,100 +1212,46 @@ async function loadCurrentApkInfo() {
   try {
     const res = await fetch('/admin/apk-info')
     const data = await res.json()
-    const el = document.getElementById('current-apk-info')
-    if (data.filename) {
-      const uploadedAt = data.uploaded_at ? new Date(data.uploaded_at).toLocaleString('ko-KR') : '-'
+    const el = document.getElementById('current-apk-url-display')
+    if (data.url) {
       el.innerHTML =
-        '<div class="flex items-center justify-between flex-wrap gap-3">' +
-          '<div>' +
-            '<p class="text-white font-semibold text-base"><i class="fas fa-file-alt mr-2 text-emerald-400"></i>' + data.filename + '</p>' +
-            '<p class="text-slate-500 text-xs mt-1">버전: ' + (data.version || '-') + ' · 업로드: ' + uploadedAt + '</p>' +
-          '</div>' +
-          '<a href="/download-apk" download="' + data.filename + '" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-semibold">' +
-            '<i class="fas fa-download mr-1"></i>다운로드 확인' +
-          '</a>' +
+        '<div class="space-y-2">' +
+          '<p class="text-white font-semibold text-sm"><i class="fas fa-tag mr-2 text-emerald-400"></i>버전: ' + (data.version || '-') + '</p>' +
+          '<p class="text-slate-400 text-xs break-all"><i class="fas fa-link mr-2"></i>' + data.url + '</p>' +
+          '<p class="text-slate-500 text-xs">업데이트: ' + (data.updated_at ? new Date(data.updated_at).toLocaleString('ko-KR') : '-') + '</p>' +
         '</div>'
+      // 입력란에 기존 값 채우기
+      document.getElementById('apkVersionInput').value = data.version || ''
+      document.getElementById('apkUrlInput').value = data.url || ''
     } else {
-      el.innerHTML = '<p class="text-slate-500"><i class="fas fa-exclamation-circle mr-2"></i>업로드된 APK가 없습니다.</p>'
+      el.innerHTML = '<p class="text-slate-500"><i class="fas fa-exclamation-circle mr-2"></i>설정된 URL이 없습니다.</p>'
     }
   } catch(e) {
-    document.getElementById('current-apk-info').innerHTML = '<p class="text-red-400">불러오기 실패</p>'
+    document.getElementById('current-apk-url-display').innerHTML = '<p class="text-red-400">불러오기 실패</p>'
   }
 }
 
-function apkFileSelected(input) {
-  const file = input.files[0]
-  if (!file) return
-  const nameEl = document.getElementById('apk-selected-name')
-  nameEl.textContent = '선택됨: ' + file.name
-  nameEl.classList.remove('hidden')
-  document.getElementById('apk-version-row').classList.remove('hidden')
-  document.getElementById('apk-upload-btn').classList.remove('hidden')
-  // 파일명에서 버전 자동 추출 (예: RinGo-v2.3.19.apk)
-  const match = file.name.match(/v[\d.]+/)
-  if (match) document.getElementById('apkVersionInput').value = match[0]
-}
-
-async function uploadApk() {
-  const fileInput = document.getElementById('apkFileInput')
-  const file = fileInput.files[0]
+async function saveApkUrl() {
   const version = document.getElementById('apkVersionInput').value.trim()
-  if (!file) { alert('파일을 선택하세요.'); return }
+  const url = document.getElementById('apkUrlInput').value.trim()
+  const resultEl = document.getElementById('apk-url-result')
   if (!version) { alert('버전명을 입력하세요.'); return }
-
-  const progressArea = document.getElementById('apk-upload-progress')
-  const progressBar = document.getElementById('apk-progress-bar')
-  const progressPct = document.getElementById('apk-progress-pct')
-  const resultEl = document.getElementById('apk-upload-result')
-  const uploadBtn = document.getElementById('apk-upload-btn')
-
-  progressArea.classList.remove('hidden')
-  uploadBtn.disabled = true
-  uploadBtn.textContent = '업로드 중...'
-  resultEl.classList.add('hidden')
-
-  const formData = new FormData()
-  formData.append('apk', file)
-  formData.append('version', version)
-
+  if (!url) { alert('다운로드 URL을 입력하세요.'); return }
   try {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', '/admin/upload-apk')
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100)
-        progressBar.style.width = pct + '%'
-        progressPct.textContent = pct + '%'
-      }
-    }
-    xhr.onload = () => {
-      uploadBtn.disabled = false
-      uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>업로드'
-      progressArea.classList.add('hidden')
-      const res = JSON.parse(xhr.responseText)
-      if (res.success) {
-        resultEl.innerHTML = '<div class="bg-emerald-900/30 border border-emerald-600/30 text-emerald-300 px-4 py-3 rounded-xl text-sm"><i class="fas fa-check-circle mr-2"></i>' + res.message + '</div>'
-        resultEl.classList.remove('hidden')
-        loadCurrentApkInfo()
-        fileInput.value = ''
-        document.getElementById('apk-selected-name').classList.add('hidden')
-        document.getElementById('apk-version-row').classList.add('hidden')
-        document.getElementById('apk-upload-btn').classList.add('hidden')
-      } else {
-        resultEl.innerHTML = '<div class="bg-red-900/30 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl text-sm"><i class="fas fa-exclamation-circle mr-2"></i>' + res.message + '</div>'
-        resultEl.classList.remove('hidden')
-      }
-    }
-    xhr.onerror = () => {
-      uploadBtn.disabled = false
-      uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>업로드'
-      resultEl.innerHTML = '<div class="bg-red-900/30 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl text-sm"><i class="fas fa-exclamation-circle mr-2"></i>업로드 실패</div>'
+    const formData = new FormData()
+    formData.append('version', version)
+    formData.append('url', url)
+    const res = await fetch('/admin/save-apk-url', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (data.success) {
+      resultEl.innerHTML = '<div class="bg-emerald-900/30 border border-emerald-600/30 text-emerald-300 px-4 py-3 rounded-xl text-sm"><i class="fas fa-check-circle mr-2"></i>' + data.message + '</div>'
+      resultEl.classList.remove('hidden')
+      loadCurrentApkInfo()
+    } else {
+      resultEl.innerHTML = '<div class="bg-red-900/30 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl text-sm"><i class="fas fa-exclamation-circle mr-2"></i>' + data.message + '</div>'
       resultEl.classList.remove('hidden')
     }
-    xhr.send(formData)
   } catch(err) {
-    uploadBtn.disabled = false
-    uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>업로드'
     resultEl.innerHTML = '<div class="bg-red-900/30 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl text-sm">오류: ' + err.message + '</div>'
     resultEl.classList.remove('hidden')
   }
