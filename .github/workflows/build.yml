@@ -67,17 +67,8 @@ jobs:
           mv build/app/outputs/flutter-apk/app-debug.apk \
              build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}.apk
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: RinGo v${{ steps.version.outputs.version }}
-          body: |
-            ## RinGo v${{ steps.version.outputs.version }}
-            - Android arm64 debug build
-            - 다운로드: https://ringo.run/download
-          files: build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}.apk
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: RinGo-v${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}.apk
+          retention-days: 30
