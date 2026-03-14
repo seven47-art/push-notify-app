@@ -769,14 +769,14 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
         <span style="font-size:10px;font-weight:600;color:#FF6B6B;">* 변경 불가</span>
       </div>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
-        oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,''); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
+        oninput="this.value=this.value.replace(/[!@#$%^&*()+={}\[\]|\\/<>?~\`&quot;';:]/g,'').slice(0,10); document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
 
       <!-- 채널 소개 -->
       <div style="height:6px;"></div>
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
-        oninput="document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
+        oninput="if(this.value.length>50)this.value=this.value.slice(0,50); document.getElementById('create-desc-cnt').textContent=this.value.length+'/50'"></textarea>
       <div class="char-count" id="create-desc-cnt">0/50</div>
 
       <!-- 채널 홈페이지 -->
@@ -843,7 +843,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 채널 소개 -->
       <div style="height:10px;"></div>
       <label class="form-label">채널 소개</label>
-      <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
+      <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3" oninput="if(this.value.length>50)this.value=this.value.slice(0,50);"></textarea>
 
       <!-- 채널 홈페이지 -->
       <div style="height:10px;"></div>
