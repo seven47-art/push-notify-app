@@ -1214,31 +1214,59 @@ const App = {
     document.getElementById('create-desc').value     = ''
     document.getElementById('create-homepage').value = ''
     document.getElementById('create-password').value = ''
-    document.getElementById('create-is-secret').checked = false
+    document.getElementById('create-is-secret').value = '0'
     document.getElementById('create-secret-wrap').style.display = 'none'
     document.getElementById('create-name-cnt').textContent = '0/10'
     document.getElementById('create-desc-cnt').textContent = '0/50'
     document.getElementById('create-img-thumb').innerHTML = this._emptyImgThumbHtml()
     const picker = document.getElementById('create-img-picker')
     if (picker) picker.classList.remove('has-image')
+    this._setLockUI('create', false)
     this.openModal('modal-create')
     setTimeout(() => document.getElementById('create-name').focus(), 300)
   },
 
   toggleSecretCreate(checked) {
+    document.getElementById('create-is-secret').value = checked ? '1' : '0'
     document.getElementById('create-secret-wrap').style.display = checked ? 'block' : 'none'
     if (!checked) document.getElementById('create-password').value = ''
+    this._setLockUI('create', checked)
   },
 
   toggleSecretEdit(checked) {
+    document.getElementById('edit-is-secret').value = checked ? '1' : '0'
     document.getElementById('edit-secret-wrap').style.display = checked ? 'block' : 'none'
     if (!checked) document.getElementById('edit-password').value = ''
+    this._setLockUI('edit', checked)
   },
+  _setLockUI(prefix, locked) {
+    const toggle = document.getElementById(prefix + '-lock-toggle')
+    const icon   = document.getElementById(prefix + '-lock-icon')
+    const label  = document.getElementById(prefix + '-lock-label')
+    const badge  = document.getElementById(prefix + '-lock-badge')
+    if (!toggle) return
+    if (locked) {
+      toggle.classList.add('locked')
+      icon.className   = 'fas fa-lock lock-icon locked'
+      label.className  = 'lock-label locked'
+      label.textContent = '비밀채널 설정됨'
+      badge.className  = 'lock-badge locked'
+      badge.textContent = 'ON'
+    } else {
+      toggle.classList.remove('locked')
+      icon.className   = 'fas fa-lock-open lock-icon unlocked'
+      label.className  = 'lock-label unlocked'
+      label.textContent = '비밀채널 미설정'
+      badge.className  = 'lock-badge unlocked'
+      badge.textContent = 'OFF'
+    }
+  },
+
 
   async createChannel() {
     const name = document.getElementById('create-name').value.trim()
     const desc = document.getElementById('create-desc').value.trim()
-    const isSecret = document.getElementById('create-is-secret').checked
+    const isSecret = document.getElementById('create-is-secret').value === '1'
     const password = document.getElementById('create-password').value.trim()
     if (!name) { toast('채널명을 입력하세요'); return }
     const invalidChars = /[!@#$%^&*()+={}\[\]|\\/<>?~`"';:]/
@@ -1291,8 +1319,9 @@ const App = {
     document.getElementById('edit-desc').value         = ch.description || ''
     document.getElementById('edit-homepage').value     = ch.homepage_url || ''
     document.getElementById('edit-password').value     = ''
-    document.getElementById('edit-is-secret').checked  = !!ch.is_secret
+    document.getElementById('edit-is-secret').value = ch.is_secret ? '1' : '0'
     document.getElementById('edit-secret-wrap').style.display = ch.is_secret ? 'block' : 'none'
+    this._setLockUI('edit', !!ch.is_secret)
 
     const thumb = document.getElementById('edit-img-thumb')
     if (ch.image_url) {
@@ -1307,7 +1336,7 @@ const App = {
 
   async saveEditChannel() {
     const id       = document.getElementById('edit-channel-id').value
-    const isSecret = document.getElementById('edit-is-secret').checked
+    const isSecret = document.getElementById('edit-is-secret').value === '1'
     const password = document.getElementById('edit-password').value.trim()
 
     try {
