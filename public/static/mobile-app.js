@@ -598,7 +598,6 @@ const App = {
     const cnt      = ch.subscriber_count || 0
     const id       = ch.id
     const hasAlarm = (ch.pending_alarm_count || 0) > 0
-    const alarmCls = hasAlarm ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
     const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
@@ -608,10 +607,7 @@ const App = {
         <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
         <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.description || '채널 운영자'}</div>
       </div>
-      <div class="ch-actions">
-        <button class="${alarmCls}"        onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="알람설정"><i class="fas fa-clock"></i></button>
-        <button class="ch-action-btn btn-invite"  onclick="App.openInviteModal(${id},'${name.replace(/'/g,"\\'")}');" title="초대코드"><i class="fas fa-share-alt"></i></button>
-      </div>
+      ${hasAlarm ? `<div class="ch-actions"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기"><i class="fas fa-clock"></i></button></div>` : ''}
     </div>`
   },
 
@@ -1423,24 +1419,23 @@ const App = {
     this._renderTimeLabel()
     this.openModal('modal-alarm')
 
-    // 기존 알람 목록 로드
-    this._loadAlarmList(chId)
+    // 기존 알람 목록 로드 후 UI 상태 결정
+    this._loadAlarmList(chId, true)
   },
 
   // 알람 목록 로드 및 표시
-  async _loadAlarmList(chId) {
+  // fromOpen=true: 모달 처음 열릴 때 (알람 있으면 설정폼 숨김)
+  // fromOpen=false: 삭제 후 재로드 (알람 없으면 설정폼 표시)
+  async _loadAlarmList(chId, fromOpen = false) {
     const section   = document.getElementById('alarm-list-section')
     const body      = document.getElementById('alarm-list-body')
     const addArea   = document.getElementById('alarm-add-area')
     if (!section || !body) return
     try {
       const res  = await API.get('/alarms?channel_id=' + chId)
-      // 서버에서 이미 지난 알람을 자동 삭제해서 반환하지만,
-      // 혹시 남아있는 경우를 대비해 프론트에서도 과거 알람 필터링
       const now  = new Date()
       const list = (res.data?.data || []).filter(a => {
         if (a.status !== 'pending' && a.status !== 'triggered') return false
-        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget)
         if (new Date(a.scheduled_at) < now) {
           API.delete('/alarms/' + a.id).catch(() => {})
           return false
@@ -1448,30 +1443,25 @@ const App = {
         return true
       })
 
-      // ⚠️ 채널당 알람 1개 제한
-      if (addArea) {
-        if (list.length >= 1) {
-          addArea.style.opacity = '0.35'
-          addArea.style.pointerEvents = 'none'
-          if (!addArea.querySelector('.alarm-limit-msg')) {
-            const msg = document.createElement('div')
-            msg.className = 'alarm-limit-msg'
-            msg.style.cssText = 'font-size:12px;color:#FF9800;padding:4px 0 10px;'
-            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 1개만 설정 가능합니다. 기존 알람을 삭제하세요.'
-            addArea.prepend(msg)
-          }
-        } else {
+      if (list.length === 0) {
+        // 알람 없음: 설정 섹션 숨기고 추가 영역 표시
+        section.style.display = 'none'
+        if (addArea) {
+          addArea.style.display = ''
           addArea.style.opacity = '1'
           addArea.style.pointerEvents = ''
           addArea.querySelector('.alarm-limit-msg')?.remove()
         }
-      }
-
-      if (list.length === 0) {
-        section.style.display = 'none'
         return
       }
+
+      // 알람 있음: 설정된 알람 섹션 표시
       section.style.display = 'block'
+      // 처음 열릴 때 or 알람 있을 때는 추가 영역 숨김
+      if (addArea) {
+        addArea.style.display = 'none'
+      }
+
       const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
       body.innerHTML = list.map(alarm => {
         const dt = new Date(alarm.scheduled_at)
@@ -1492,13 +1482,14 @@ const App = {
     }
   },
 
-  // 알람 취소
+  // 알람 취소 후 → 새 알람 설정 폼으로 전환
   async _cancelAlarm(alarmId) {
     if (!confirm('이 알람을 삭제하시겠습니까?')) return
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
-      this._loadAlarmList(currentAlarmChId)
+      // 삭제 후 재로드: 알람 없으면 자동으로 설정 폼 표시
+      this._loadAlarmList(currentAlarmChId, false)
     } catch(e) {
       toast('삭제 실패: ' + e.message, 3000)
     }
