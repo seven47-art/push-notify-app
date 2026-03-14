@@ -1488,6 +1488,11 @@ const App = {
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
+      // ownedChannels 메모리 업데이트 → 타일 즉시 재렌더 (아이콘 숨김)
+      const cancelCh = ownedChannels.find(c => c.id === currentAlarmChId)
+      if (cancelCh) cancelCh.pending_alarm_count = 0
+      Cache.del('home_' + Store.getUserId())
+      this._renderOwned()
       // 삭제 후 재로드: 알람 없으면 자동으로 설정 폼 표시
       this._loadAlarmList(currentAlarmChId, false)
     } catch(e) {
@@ -1982,7 +1987,11 @@ const App = {
         const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
-        this._refreshAlarmBtn(currentAlarmChId)
+        // ownedChannels 메모리 업데이트 → 타일 즉시 재렌더 (아이콘 표시)
+        const alarmCh = ownedChannels.find(c => c.id === currentAlarmChId)
+        if (alarmCh) alarmCh.pending_alarm_count = 1
+        Cache.del('home_' + Store.getUserId())
+        this._renderOwned()
         // 알람 목록 갱신 후 모달 닫기
         await this._loadAlarmList(currentAlarmChId)
         this.closeModal('modal-alarm')
