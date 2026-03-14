@@ -290,10 +290,203 @@ app.get('/join/:token', async (c) => {
   )
 })
 
-// 루트 접근 → 관리자 로그인 페이지로 리다이렉트
+// =============================================
+// ringo.run 홈페이지
 // =============================================
 app.get('/', (c) => {
-  return c.redirect('/admin/login')
+  return c.html(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RinGo - 폐쇄형 채널 구독 앱</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f0f;
+    color: #ffffff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-size: 24px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #a78bfa, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .icon-wrap {
+    width: 96px;
+    height: 96px;
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 32px;
+    box-shadow: 0 20px 60px rgba(124, 58, 237, 0.4);
+  }
+  .icon-wrap svg {
+    width: 48px;
+    height: 48px;
+    fill: white;
+  }
+  h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #ffffff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    font-size: 18px;
+    color: #9ca3af;
+    margin-bottom: 48px;
+    line-height: 1.6;
+  }
+  .btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    color: white;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 18px 40px;
+    border-radius: 16px;
+    transition: all 0.2s;
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.4);
+  }
+  .btn-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.6);
+  }
+  .btn-download svg {
+    width: 24px;
+    height: 24px;
+  }
+  .features {
+    display: flex;
+    gap: 24px;
+    margin-top: 64px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .feature-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 16px;
+    padding: 24px;
+    width: 200px;
+    text-align: center;
+  }
+  .feature-card .emoji {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+  .feature-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e5e7eb;
+    margin-bottom: 6px;
+  }
+  .feature-card p {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+  .info-badge {
+    display: inline-block;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #6b7280;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    margin-top: 24px;
+  }
+  footer {
+    padding: 24px;
+    text-align: center;
+    color: #374151;
+    font-size: 13px;
+  }
+  @media (max-width: 480px) {
+    h1 { font-size: 36px; }
+    .subtitle { font-size: 16px; }
+    .btn-download { font-size: 16px; padding: 16px 32px; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">RinGo</div>
+  </header>
+
+  <main>
+    <div class="icon-wrap">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+      </svg>
+    </div>
+
+    <h1>RinGo</h1>
+    <p class="subtitle">폐쇄형 채널 구독 앱<br>초대받은 사람만 입장할 수 있는 알림 채널</p>
+
+    <a href="/download" class="btn-download">
+      <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+      </svg>
+      앱 다운로드
+    </a>
+
+    <div class="info-badge">Android · arm64 · APK</div>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="emoji">🔒</div>
+        <h3>폐쇄형 채널</h3>
+        <p>초대 링크로만 입장 가능한 비공개 채널</p>
+      </div>
+      <div class="feature-card">
+        <div class="emoji">🔔</div>
+        <h3>푸시 알림</h3>
+        <p>채널 소식을 실시간 푸시로 받아보세요</p>
+      </div>
+      <div class="feature-card">
+        <div class="emoji">📱</div>
+        <h3>Android 앱</h3>
+        <p>Android 5.0 이상 기기에서 사용 가능</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2025 RinGo. All rights reserved.
+  </footer>
+</body>
+</html>`)
 })
 
 // 기존 관리자 대시보드 (하위 호환용 - 직접 접근 불가)
