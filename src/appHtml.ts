@@ -803,7 +803,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 비밀번호 -->
       <div style="height:20px;"></div>
       <label class="form-label">비밀번호</label>
-      <div class="lock-toggle" id="create-lock-toggle" onclick="App.toggleSecretCreate(!document.getElementById('create-is-secret').checked)">
+      <div class="lock-toggle" id="create-lock-toggle" onclick="App.toggleSecretCreate(document.getElementById('create-is-secret').value !== '1')">
         <i class="fas fa-lock-open lock-icon unlocked" id="create-lock-icon"></i>
         <span class="lock-label unlocked" id="create-lock-label">비밀채널 미설정</span>
         <span class="lock-badge unlocked" id="create-lock-badge">OFF</span>
@@ -868,7 +868,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <!-- 비밀번호 -->
       <div style="height:20px;"></div>
       <label class="form-label">비밀번호 설정</label>
-      <div class="lock-toggle" id="edit-lock-toggle" onclick="App.toggleSecretEdit(!document.getElementById('edit-is-secret').checked)">
+      <div class="lock-toggle" id="edit-lock-toggle" onclick="App.toggleSecretEdit(document.getElementById('edit-is-secret').value !== '1')">
         <i class="fas fa-lock-open lock-icon unlocked" id="edit-lock-icon"></i>
         <span class="lock-label unlocked" id="edit-lock-label">비밀채널 미설정</span>
         <span class="lock-badge unlocked" id="edit-lock-badge">OFF</span>
