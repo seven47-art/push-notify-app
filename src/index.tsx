@@ -58,9 +58,9 @@ app.get('/api/health', (c) => {
 // APK 다운로드 페이지
 app.get('/download', async (c) => {
   // DB에서 최신 APK 정보 읽기
-  let apkFilename = 'RinGo-v2.3.19.apk'
   let apkVersion = 'v2.3.19'
-  let apkDownloadUrl = '/download-apk'
+  let apkUrl = ''
+  let apkLabel = 'RinGo-v2.3.19'
 
   try {
     const row = await c.env.DB.prepare(
@@ -68,10 +68,15 @@ app.get('/download', async (c) => {
     ).first() as { value: string } | null
     if (row) {
       const info = JSON.parse(row.value)
-      apkFilename = info.filename || apkFilename
       apkVersion = info.version || apkVersion
+      apkUrl = info.url || ''
+      apkLabel = 'RinGo-' + apkVersion
     }
   } catch {}
+
+  const downloadBtn = apkUrl
+    ? `<a href="${apkUrl}" download class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
+    : `<button disabled class="block w-full bg-gray-700 text-gray-500 font-bold py-4 px-6 rounded-xl text-lg mb-4 cursor-not-allowed">준비 중...</button>`
 
   return c.html(`<!DOCTYPE html>
 <html lang="ko">
@@ -89,11 +94,7 @@ app.get('/download', async (c) => {
     </div>
     <p class="text-gray-500 text-xs mb-6">Android arm64 · ${apkVersion}</p>
 
-    <a href="/download-apk"
-       download="${apkFilename}"
-       class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">
-      ⬇️ ${apkFilename.replace('.apk', '')}
-    </a>
+    ${downloadBtn}
 
     <div class="bg-yellow-900/30 border border-yellow-600/30 rounded-xl p-4 text-left text-xs text-yellow-300 space-y-1">
       <p class="font-bold text-yellow-200 mb-2">📋 설치 방법</p>
@@ -106,50 +107,6 @@ app.get('/download', async (c) => {
   </div>
 </body>
 </html>`)
-})
-
-// APK 파일 다운로드 라우트 (KV 또는 DB에서 서빙)
-app.get('/download-apk', async (c) => {
-  try {
-    const row = await c.env.DB.prepare(
-      "SELECT value FROM app_settings WHERE key = 'apk_info'"
-    ).first() as { value: string } | null
-    if (!row) return c.text('APK 파일이 없습니다. 관리자에게 문의하세요.', 404)
-
-    const info = JSON.parse(row.value)
-    const filename = info.filename
-
-    // KV에서 파일 가져오기
-    if (c.env.KV) {
-      const { value: apkData, metadata } = await c.env.KV.getWithMetadata(`apk:${filename}`, 'arrayBuffer')
-      if (!apkData) return c.text('APK 파일을 찾을 수 없습니다.', 404)
-      return new Response(apkData as ArrayBuffer, {
-        headers: {
-          'Content-Type': 'application/vnd.android.package-archive',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        }
-      })
-    }
-
-    // KV 없으면 DB base64에서 서빙
-    const dataRow = await c.env.DB.prepare(
-      "SELECT value FROM app_settings WHERE key = 'apk_data'"
-    ).first() as { value: string } | null
-    if (!dataRow) return c.text('APK 파일을 찾을 수 없습니다.', 404)
-
-    const binary = atob(dataRow.value)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-
-    return new Response(bytes.buffer, {
-      headers: {
-        'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      }
-    })
-  } catch (err: any) {
-    return c.text('오류: ' + err.message, 500)
-  }
 })
 
 // =============================================
