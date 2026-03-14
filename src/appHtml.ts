@@ -783,7 +783,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
       <input type="hidden" id="edit-channel-id">
       <label class="form-label">채널명</label>
-      <input class="form-input" id="edit-name" maxlength="10">
+      <input class="form-input" id="edit-name" maxlength="10" style="pointer-events:none;">
+      <p style="font-size:11px;color:var(--text-sub);margin-top:4px;margin-bottom:8px;">채널명은 변경할 수 없습니다.</p>
 
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>

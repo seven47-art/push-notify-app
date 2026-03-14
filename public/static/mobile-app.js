@@ -1280,7 +1280,10 @@ const App = {
     if (!ch) { toast('채널 정보를 불러올 수 없습니다'); return }
 
     document.getElementById('edit-channel-id').value  = ch.id
-    document.getElementById('edit-name').value         = ch.name || ''
+    const editNameEl = document.getElementById('edit-name')
+    editNameEl.value    = ch.name || ''
+    editNameEl.readOnly = true
+    editNameEl.classList.add('opacity-50', 'cursor-not-allowed')
     document.getElementById('edit-desc').value         = ch.description || ''
     document.getElementById('edit-homepage').value     = ch.homepage_url || ''
     document.getElementById('edit-password').value     = ''
@@ -1300,14 +1303,11 @@ const App = {
 
   async saveEditChannel() {
     const id       = document.getElementById('edit-channel-id').value
-    const name     = document.getElementById('edit-name').value.trim()
     const isSecret = document.getElementById('edit-is-secret').checked
     const password = document.getElementById('edit-password').value.trim()
-    if (!name) { toast('채널명을 입력하세요'); return }
 
     try {
       await API.put('/channels/' + id, {
-        name,
         description:   document.getElementById('edit-desc').value.trim(),
         homepage_url:  document.getElementById('edit-homepage').value.trim() || null,
         is_secret:     isSecret ? 1 : 0,

@@ -332,15 +332,22 @@ channels.put('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { description, image_url, is_active, homepage_url, is_secret, password, remove_password } = body
-    // name은 수정 불가 - 무시
+    const { name, description, image_url, is_active, homepage_url, is_secret, password, remove_password } = body
 
     // image_url이 너무 크면 에러 반환 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
     if (image_url && image_url.length > 819200) {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
     }
 
-    // 채널명 변경 불가 - 중복 체크 제거
+    // 채널명 중복 체크 (변경하는 경우에만)
+    if (name && name.trim()) {
+      const existing = await c.env.DB.prepare(
+        'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND id != ? AND is_active = 1'
+      ).bind(name.trim(), id).first()
+      if (existing) {
+        return c.json({ success: false, error: '이미 사용 중인 채널명입니다' }, 409)
+      }
+    }
 
     // 비밀번호 처리
     let passwordHash: string | null | undefined = undefined // undefined = 변경 안 함
@@ -374,6 +381,7 @@ channels.put('/:id', async (c) => {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
+      name?.trim() || null,
       description || null,
       image_url || null,
       hasHomepage ? 1 : 0,
