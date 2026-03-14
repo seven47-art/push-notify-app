@@ -1208,7 +1208,6 @@ const App = {
   openCreateChannel() {
     selectedImg = null
     document.getElementById('create-name').value     = ''
-    document.getElementById('create-phone').value    = ''
     document.getElementById('create-desc').value     = ''
     document.getElementById('create-homepage').value = ''
     document.getElementById('create-password').value = ''
@@ -1244,7 +1243,6 @@ const App = {
     try {
       const res = await API.post('/channels', {
         name, description: desc,
-        phone_number:  document.getElementById('create-phone').value.trim() || null,
         homepage_url:  document.getElementById('create-homepage').value.trim() || null,
         image_url:     selectedImg || null,
         owner_id:      Store.getUserId(),

@@ -16,6 +16,9 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
   --text3: #707080; --border: #2E2E42;
   --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
   --appbar-bg: #000000;
+  --input-focus-bg: #1f1f30;
+  --input-done-border: #5a54cc;
+  --input-readonly-bg: #1a1a28; --input-readonly-border: #2E2E42; --input-readonly-text: #555568;
 }
 [data-theme="light"] {
   --bg: #FFFFFF; --bg2: #FFFFFF; --bg3: #F2F2F7;
@@ -24,6 +27,9 @@ export const APP_HTML = String.raw`<!DOCTYPE html>
   --text3: #8E8E93; --border: #D1D1D6;
   --danger: #EF4444; --success: #4CAF50; --nav-h: 62px;
   --appbar-bg: #FFFFFF;
+  --input-focus-bg: #FAFAFF;
+  --input-done-border: #7c75e8;
+  --input-readonly-bg: #E8E8EE; --input-readonly-border: #C8C8D0; --input-readonly-text: #AAAABC;
 }
 body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto Sans KR',sans-serif; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
 
@@ -139,10 +145,13 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .modal-title { font-size:17px; font-weight:700; padding:8px 16px 12px; }
 .modal-body { padding:0 16px 12px; }
 .form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; margin-top:12px; display:block; }
-.form-input { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; }
-.form-input:focus { border-color:var(--primary); }
+.form-input { width:100%; background:var(--bg3); border:1.5px solid var(--border); color:var(--text); border-radius:10px; padding:11px 13px; font-size:14px; outline:none; font-family:inherit; resize:none; transition:border-color 0.18s, background 0.18s; }
+.form-input:focus { border-color:var(--primary); background:var(--input-focus-bg); }
+.form-input:not(:placeholder-shown):not(:focus):not([readonly]):not([disabled]) { border-color:var(--input-done-border); }
+.form-input[readonly], .form-input[disabled], .form-input.readonly { background:var(--input-readonly-bg) !important; border-color:var(--input-readonly-border) !important; color:var(--input-readonly-text) !important; cursor:default; }
 .form-textarea { min-height:80px; }
 .char-count { font-size:11px; color:var(--text3); text-align:right; margin-top:3px; }
+.field-notice { font-size:11px; font-weight:600; margin-top:5px; margin-bottom:4px; }
 .img-picker { display:flex; align-items:center; gap:12px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px 14px; cursor:pointer; margin-top:4px; }
 .img-thumb { width:52px; height:52px; border-radius:8px; background:var(--bg2); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
 .img-thumb img { width:100%; height:100%; object-fit:cover; }
@@ -738,11 +747,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <label class="form-label">채널명 (필수)</label>
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
+      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
       <div class="char-count" id="create-name-cnt">0/10</div>
-      <p style="font-size:11px;color:var(--text-sub);margin-top:4px;margin-bottom:4px;">채널명은 변경할 수 없습니다.</p>
-
-      <label class="form-label">채널 전화번호</label>
-      <input class="form-input" id="create-phone" type="tel" placeholder="010-0000-0000">
 
       <label class="form-label">채널 소개 (필수)</label>
       <textarea class="form-input form-textarea" id="create-desc" placeholder="50자 내로 적어주세요" rows="3" maxlength="50"
@@ -784,8 +790,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="modal-body">
       <input type="hidden" id="edit-channel-id">
       <label class="form-label">채널명</label>
-      <input class="form-input" id="edit-name" maxlength="10" style="pointer-events:none;">
-      <p style="font-size:11px;color:var(--text-sub);margin-top:4px;margin-bottom:8px;">채널명은 변경할 수 없습니다.</p>
+      <input class="form-input readonly" id="edit-name" maxlength="10" style="pointer-events:none;">
+      <p class="field-notice" style="color:#FF6B6B;">* 채널명은 변경할 수 없습니다.</p>
 
       <label class="form-label">채널 소개</label>
       <textarea class="form-input form-textarea" id="edit-desc" maxlength="50" rows="3"></textarea>
