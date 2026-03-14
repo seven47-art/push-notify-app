@@ -739,6 +739,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <input class="form-input" id="create-name" placeholder="10자 내로 적어주세요" maxlength="10"
         oninput="document.getElementById('create-name-cnt').textContent=this.value.length+'/10'">
       <div class="char-count" id="create-name-cnt">0/10</div>
+      <p style="font-size:11px;color:var(--text-sub);margin-top:4px;margin-bottom:4px;">채널명은 변경할 수 없습니다.</p>
 
       <label class="form-label">채널 전화번호</label>
       <input class="form-input" id="create-phone" type="tel" placeholder="010-0000-0000">
