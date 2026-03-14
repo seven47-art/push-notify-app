@@ -5,6 +5,7 @@ export type Bindings = {
   FCM_PROJECT_ID: string
   FCM_SERVICE_ACCOUNT_JSON: string   // Firebase 서비스 계정 JSON (FCM V1 API용)
   ADMIN_SECRET: string
+  KV?: KVNamespace  // APK 파일 저장용 (optional)
 }
 
 export interface Channel {
