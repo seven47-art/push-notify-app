@@ -1196,12 +1196,6 @@ function adminDashboardHTML() {
           <div><h2 class="text-xl font-bold text-white">다운로드 관리</h2><p class="text-slate-400 text-sm">APK 파일을 업로드하면 다운로드 페이지에 자동 반영됩니다</p></div>
         </div>
 
-        <!-- 현재 APK 정보 -->
-        <div class="card rounded-xl p-5">
-          <h3 class="text-white font-semibold mb-4"><i class="fas fa-info-circle mr-2 text-blue-400"></i>현재 배포 중인 APK</h3>
-          <div id="current-apk-info" class="text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>
-        </div>
-
         <!-- APK 업로드 -->
         <div class="card rounded-xl p-5">
           <h3 class="text-white font-semibold mb-4"><i class="fas fa-upload mr-2 text-emerald-400"></i>새 APK 업로드</h3>
