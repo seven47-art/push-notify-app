@@ -418,14 +418,14 @@ const App = {
   // ── 신홈화면 메뉴 기본 목록 ──────────────
   _defaultMenuItems() {
     return [
-      { id:'channel',   label:'채널검색',       sub:'채널 찾기',      icon:'fa-search',          bg:'#4A6FA5', color:'#fff' },
-      { id:'owned-all', label:'내 채널',         sub:'운영 채널 관리', icon:'fa-satellite-dish',  bg:'#3A8F7D', color:'#fff' },
-      { id:'joined-all',label:'구독 채널',       sub:'가입한 채널',    icon:'fa-list',            bg:'#7B5EA7', color:'#fff' },
-      { id:'notices',   label:'공지사항',        sub:'공지 확인',      icon:'fa-bullhorn',        bg:'#D4763B', color:'#fff' },
-      { id:'inbox',     label:'수신함',          sub:'받은 메시지',    icon:'fa-inbox',           bg:'#3A7D44', color:'#fff' },
-      { id:'send',      label:'발신함',          sub:'보낸 메시지',    icon:'fa-paper-plane',     bg:'#2C6E9E', color:'#fff' },
-      { id:'join-code', label:'초대코드 가입',   sub:'코드로 채널 참여',icon:'fa-ticket-alt',      bg:'#A0527A', color:'#fff' },
-      { id:'settings',  label:'설정',            sub:'앱 환경설정',    icon:'fa-cog',             bg:'#5A6472', color:'#fff' },
+      { id:'channel',   label:'채널검색',     sub:'채널 찾기',       icon:'fa-search',         iconColor:'#4A6FA5', iconBg:'rgba(74,111,165,0.12)' },
+      { id:'owned-all', label:'내 채널',       sub:'운영 채널 관리',  icon:'fa-satellite-dish', iconColor:'#3A8F7D', iconBg:'rgba(58,143,125,0.12)' },
+      { id:'joined-all',label:'구독 채널',     sub:'가입한 채널',     icon:'fa-list',           iconColor:'#7B5EA7', iconBg:'rgba(123,94,167,0.12)' },
+      { id:'notices',   label:'공지사항',      sub:'공지 확인',       icon:'fa-bullhorn',       iconColor:'#D4763B', iconBg:'rgba(212,118,59,0.12)'  },
+      { id:'inbox',     label:'수신함',        sub:'받은 메시지',     icon:'fa-inbox',          iconColor:'#3A7D44', iconBg:'rgba(58,125,68,0.12)'   },
+      { id:'send',      label:'발신함',        sub:'보낸 메시지',     icon:'fa-paper-plane',    iconColor:'#2C6E9E', iconBg:'rgba(44,110,158,0.12)'  },
+      { id:'join-code', label:'초대코드 가입', sub:'코드로 채널 참여', icon:'fa-ticket-alt',     iconColor:'#A0527A', iconBg:'rgba(160,82,122,0.12)'  },
+      { id:'settings',  label:'설정',          sub:'앱 환경설정',     icon:'fa-cog',            iconColor:'#5A6472', iconBg:'rgba(90,100,114,0.12)'  },
     ]
   },
 
@@ -455,10 +455,11 @@ const App = {
       <div class="new-home-card${isEdit ? ' drag-mode' : ''}"
            data-menu-id="${item.id}"
            data-index="${idx}"
-           style="background:${item.bg};color:${item.color};"
            onclick="${isEdit ? '' : `App._newHomeCardClick('${item.id}')`}"
            draggable="${isEdit ? 'true' : 'false'}">
-        <i class="fas ${item.icon} new-home-card-icon"></i>
+        <div class="new-home-card-icon-wrap" style="background:${item.iconBg};">
+          <i class="fas ${item.icon} new-home-card-icon" style="color:${item.iconColor};"></i>
+        </div>
         <div class="new-home-card-label">${item.label}</div>
         <div class="new-home-card-sub">${item.sub}</div>
         <i class="fas fa-grip-lines drag-handle"></i>
