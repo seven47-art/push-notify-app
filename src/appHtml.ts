@@ -502,53 +502,25 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div class="auth-app-title">RinGo</div>
     <div class="auth-app-sub">채널 알림 구독 서비스</div>
   </div>
-
-  <!-- 탭 -->
-  <div class="auth-tab-bar">
-    <button class="auth-tab active" id="tab-login"  onclick="Auth.switchTab('login')">로그인</button>
-    <button class="auth-tab"        id="tab-signup" onclick="Auth.switchTab('signup')">회원가입</button>
+  <!-- 로딩 스피너 -->
+  <div style="margin-top:32px;">
+    <i class="fas fa-spinner spin" style="font-size:28px;color:rgba(255,255,255,0.5);"></i>
   </div>
-
-  <!-- 로그인 폼 -->
-  <div class="auth-form" id="form-login">
-    <div class="auth-input-wrap">
-      <i class="fas fa-envelope"></i>
-      <input type="email" id="login-email" placeholder="example@email.com" autocomplete="email">
-    </div>
-    <div class="auth-input-wrap">
-      <i class="fas fa-lock"></i>
-      <input type="password" id="login-pw" placeholder="비밀번호 입력" autocomplete="current-password">
-      <button class="auth-eye-btn" onclick="Auth.togglePw('login-pw',this)"><i class="fas fa-eye-slash"></i></button>
-    </div>
-    <div class="auth-error" id="login-error"></div>
-    <button class="auth-submit-btn" id="login-btn" onclick="Auth.login()">로그인</button>
+  <!-- 숨겨진 폼 입력 (JS 참조용, 표시 안 됨) -->
+  <div style="display:none;">
+    <input type="email"    id="login-email">
+    <input type="password" id="login-pw">
+    <input type="text"     id="signup-name">
+    <input type="email"    id="signup-email">
+    <input type="password" id="signup-pw">
+    <input type="password" id="signup-pw2">
+    <div id="login-error"></div>
+    <div id="signup-error"></div>
+    <button id="login-btn"></button>
+    <button id="signup-btn"></button>
+    <button id="tab-login"></button>
+    <button id="tab-signup"></button>
   </div>
-
-  <!-- 회원가입 폼 -->
-  <div class="auth-form" id="form-signup" style="display:none;">
-    <div style="font-size:12px;color:var(--text3);margin-bottom:-4px;">닉네임 <span style="color:var(--danger);">*</span></div>
-    <div class="auth-input-wrap">
-      <i class="fas fa-user"></i>
-      <input type="text" id="signup-name" placeholder="표시될 이름" autocomplete="nickname">
-    </div>
-    <div class="auth-input-wrap">
-      <i class="fas fa-envelope"></i>
-      <input type="email" id="signup-email" placeholder="example@email.com" autocomplete="email">
-    </div>
-    <div class="auth-input-wrap">
-      <i class="fas fa-lock"></i>
-      <input type="password" id="signup-pw" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
-      <button class="auth-eye-btn" onclick="Auth.togglePw('signup-pw',this)"><i class="fas fa-eye-slash"></i></button>
-    </div>
-    <div class="auth-input-wrap">
-      <i class="fas fa-lock"></i>
-      <input type="password" id="signup-pw2" placeholder="비밀번호 확인" autocomplete="new-password">
-    </div>
-    <div class="auth-error" id="signup-error"></div>
-    <button class="auth-submit-btn" id="signup-btn" onclick="Auth.signup()">회원가입</button>
-  </div>
-
-  <div style="height:40px;"></div>
 </div>
 
 <!-- ══ 앱바 ══ -->
