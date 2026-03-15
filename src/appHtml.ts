@@ -648,6 +648,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <span class="section-title" style="flex:1;">공지사항</span>
     </div>
     <div id="notices-list" style="padding:8px 16px;"></div>
+    <div id="notices-sentinel" style="height:1px;"></div>
   </div>
 
   <div class="screen" id="screen-owned-all">
@@ -704,6 +705,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
     <!-- 채널 목록 뷰 -->
     <div id="inbox-channel-list"></div>
+    <div id="inbox-sentinel" style="height:1px;"></div>
     <!-- 채널 상세 뷰 (뒤로가기 포함) -->
     <div id="inbox-detail-view" style="display:none; flex-direction:column; flex:1;">
       <div class="sub-header">
@@ -722,6 +724,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
     <!-- 채널 목록 뷰 -->
     <div id="outbox-channel-list"></div>
+    <div id="outbox-sentinel" style="height:1px;"></div>
     <!-- 채널 상세 뷰 -->
     <div id="outbox-detail-view" style="display:none; flex-direction:column; flex:1;">
       <div class="sub-header">

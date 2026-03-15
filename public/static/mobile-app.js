@@ -700,19 +700,36 @@ const App = {
   },
 
   // ── 공지사항 전체 페이지 ──────────────────────────
-  async loadNotices() {
+  async loadNotices(offset = 0) {
     const el = document.getElementById('notices-list')
     if (!el) return
-    el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+    const LIMIT = 20
+    const isFirst = offset === 0
+
+    if (isFirst) {
+      el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      this._noticesOffset = 0
+      this._noticesHasMore = true
+      this._noticesLoading = false
+      this._setupInfiniteScroll('notices')
+    }
+
+    if (this._noticesLoading) return
+    this._noticesLoading = true
+
     try {
-      const res = await API.get('/notices')
+      const res = await API.get(`/notices?limit=${LIMIT}&offset=${offset}`)
       const list = res.data?.data || []
-      if (!list.length) {
+      this._noticesHasMore = res.data?.hasMore ?? false
+      this._noticesOffset = offset + list.length
+
+      if (isFirst && !list.length) {
         el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
         return
       }
+
       const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
-      el.innerHTML = list.map(n => {
+      const items = list.map(n => {
         const isUnread = !seen.includes(n.id)
         return `
         <div class="channel-tile" style="flex-direction:column;align-items:flex-start;padding:14px 16px;cursor:pointer;"
@@ -727,8 +744,16 @@ const App = {
           <div class="notice-content" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap;width:100%;">${n.content.replace(/</g,'&lt;')}</div>
         </div>
       `}).join('')
+
+      if (isFirst) {
+        el.innerHTML = '<div id="notices-items"></div>'
+      }
+      const itemsEl = document.getElementById('notices-items')
+      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
     } catch (e) {
-      el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
+      if (isFirst) el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
+    } finally {
+      this._noticesLoading = false
     }
   },
 
@@ -961,32 +986,49 @@ const App = {
   },
 
   // ── 수신함 ──────────────────────────────
-  async loadInbox(channelId = '') {
+  async loadInbox(channelId = '', offset = 0) {
     const channelEl = document.getElementById('inbox-channel-list')
     const detailView = document.getElementById('inbox-detail-view')
     if (!channelEl) return
     channelEl.style.display = 'block'
     if (detailView) detailView.style.display = 'none'
 
-    // 캐시 확인 (채널 필터 없을 때만 캐시 사용)
-    const cacheKey = 'inbox_' + (channelId || 'all')
-    const cached = Cache.get(cacheKey)
-    if (cached) {
-      channelEl.innerHTML = cached
-    } else {
-      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+    const LIMIT = 20
+    const isFirst = offset === 0
+
+    if (isFirst) {
+      // 첫 로드: 캐시 확인
+      const cacheKey = 'inbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        channelEl.innerHTML = cached
+      } else {
+        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      }
+      // 상태 초기화
+      this._inboxOffset = 0
+      this._inboxChannelId = channelId
+      this._inboxHasMore = true
+      this._inboxLoading = false
+      this._inboxChannels = null
+      // 무한스크롤 옵저버 설정
+      this._setupInfiniteScroll('inbox')
     }
 
+    if (this._inboxLoading) return
+    this._inboxLoading = true
+
     try {
-      const url = channelId ? `/alarms/inbox?channel_id=${channelId}` : '/alarms/inbox'
-      const res = await apiWithTimeout(API.get(url))
+      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
+      const res = await apiWithTimeout(API.get(`/alarms/inbox?${params}`))
       const resData = res.data
       if (!resData.success) throw new Error()
-      const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadInbox')
-      if (!resData.data || !resData.data.length) {
-        channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
-        return
-      }
+
+      // 채널 필터는 첫 로드 때만 저장
+      if (isFirst && resData.channels) this._inboxChannels = resData.channels
+      this._inboxHasMore = resData.hasMore ?? false
+      this._inboxOffset = offset + resData.data.length
+
       const iconMap = {
         youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
         audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
@@ -995,13 +1037,21 @@ const App = {
       }
       const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
       const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
+
+      const filterHtml = isFirst ? this._buildChannelFilter(this._inboxChannels || [], channelId, 'App.loadInbox') : ''
+
+      if (isFirst && (!resData.data || !resData.data.length)) {
+        channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
+        return
+      }
+
       const items = resData.data.map(item => {
         const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
         const chImg = item.channel_image
-          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` 
+          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
           : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
@@ -1011,13 +1061,38 @@ const App = {
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
-      const html = filterHtml + items
-      channelEl.innerHTML = html
-      Cache.set(cacheKey, html)
+
+      if (isFirst) {
+        channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div>'
+      }
+      const itemsEl = document.getElementById('inbox-items')
+      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+
+      // 첫 로드 캐시 저장
+      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), channelEl.innerHTML)
     } catch(e) {
-      if (!cached) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+    } finally {
+      this._inboxLoading = false
     }
+  },
+
+  _setupInfiniteScroll(type) {
+    const sentinelId = `${type}-sentinel`
+    const sentinel = document.getElementById(sentinelId)
+    if (!sentinel) return
+    // 기존 옵저버 해제
+    if (this[`_${type}Observer`]) this[`_${type}Observer`].disconnect()
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        if (type === 'inbox'   && this._inboxHasMore   && !this._inboxLoading)   this.loadInbox(this._inboxChannelId, this._inboxOffset)
+        if (type === 'outbox'  && this._outboxHasMore  && !this._outboxLoading)  this.loadSend(this._outboxChannelId, this._outboxOffset)
+        if (type === 'notices' && this._noticesHasMore && !this._noticesLoading) this.loadNotices(this._noticesOffset)
+      }
+    }, { threshold: 0.1 })
+    observer.observe(sentinel)
+    this[`_${type}Observer`] = observer
   },
 
   inboxOpenChannel(group) {},
@@ -1029,32 +1104,45 @@ const App = {
   },
 
   // ── 발신함 ──────────────────────────────
-  async loadSend(channelId = '') {
+  async loadSend(channelId = '', offset = 0) {
     const channelEl = document.getElementById('outbox-channel-list')
     const detailView = document.getElementById('outbox-detail-view')
     if (!channelEl) return
     channelEl.style.display = 'block'
     if (detailView) detailView.style.display = 'none'
 
-    // 캐시 확인
-    const cacheKey = 'outbox_' + (channelId || 'all')
-    const cached = Cache.get(cacheKey)
-    if (cached) {
-      channelEl.innerHTML = cached
-    } else {
-      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+    const LIMIT = 20
+    const isFirst = offset === 0
+
+    if (isFirst) {
+      const cacheKey = 'outbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        channelEl.innerHTML = cached
+      } else {
+        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      }
+      this._outboxOffset = 0
+      this._outboxChannelId = channelId
+      this._outboxHasMore = true
+      this._outboxLoading = false
+      this._outboxChannels = null
+      this._setupInfiniteScroll('outbox')
     }
 
+    if (this._outboxLoading) return
+    this._outboxLoading = true
+
     try {
-      const url = channelId ? `/alarms/outbox?channel_id=${channelId}` : '/alarms/outbox'
-      const res = await apiWithTimeout(API.get(url))
+      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
+      const res = await apiWithTimeout(API.get(`/alarms/outbox?${params}`))
       const resData = res.data
       if (!resData.success) throw new Error()
-      const filterHtml = this._buildChannelFilter(resData.channels || [], channelId, 'App.loadSend')
-      if (!resData.data || !resData.data.length) {
-        channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
-        return
-      }
+
+      if (isFirst && resData.channels) this._outboxChannels = resData.channels
+      this._outboxHasMore = resData.hasMore ?? false
+      this._outboxOffset = offset + resData.data.length
+
       const iconMap = {
         youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
         audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
@@ -1063,6 +1151,9 @@ const App = {
       }
       const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
       const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
+
+      const filterHtml = isFirst ? this._buildChannelFilter(this._outboxChannels || [], channelId, 'App.loadSend') : ''
+
       const seenIds = new Set()
       const dedupedData = resData.data.filter(item => {
         const key = item.alarm_id || ('log_' + item.id)
@@ -1070,13 +1161,19 @@ const App = {
         seenIds.add(key)
         return true
       })
+
+      if (isFirst && (!dedupedData || !dedupedData.length)) {
+        channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
+        return
+      }
+
       const items = dedupedData.map(item => {
         const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
         const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
         const stLabel = statusMap[item.status] || item.status
         const stColor = statusColor[item.status] || '#90A4AE'
         const chImg = item.channel_image
-          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` 
+          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
           : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
         return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
@@ -1086,12 +1183,19 @@ const App = {
           <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>`
       }).join('')
-      const html = filterHtml + items
-      channelEl.innerHTML = html
-      Cache.set(cacheKey, html)
+
+      if (isFirst) {
+        channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div>'
+      }
+      const itemsEl = document.getElementById('outbox-items')
+      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+
+      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), channelEl.innerHTML)
     } catch(e) {
-      if (!cached) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+    } finally {
+      this._outboxLoading = false
     }
   },
 
