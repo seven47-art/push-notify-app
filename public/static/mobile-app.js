@@ -415,11 +415,6 @@ const App = {
   },
 
   // ── 홈 모드 전환 ─────────────────────────
-  toggleHomeMode(isNew) {
-    localStorage.setItem('homeMode', isNew ? 'new' : 'old')
-    this.goto('home')
-  },
-
   // ── 신홈화면 메뉴 기본 목록 ──────────────
   _defaultMenuItems() {
     return [
@@ -449,9 +444,51 @@ const App = {
     return this._defaultMenuItems()
   },
 
-  _loadNewHome() {
+  async _loadNewHome() {
     const grid = document.getElementById('new-home-grid')
     if (!grid) return
+
+    // 배너 API 호출 (캐시 활용)
+    try {
+      const bannerWrap = document.getElementById('new-home-banner-wrap')
+      const bannerEl   = document.getElementById('new-home-banner')
+      const cached = localStorage.getItem('bannerCache')
+      let banner = null
+      try { if (cached) banner = JSON.parse(cached) } catch {}
+
+      const applyBanner = (b) => {
+        if (!bannerWrap || !bannerEl) return
+        if (!b || b.enabled === false) {
+          bannerWrap.style.display = 'none'
+          return
+        }
+        bannerWrap.style.display = ''
+        // 이미지 타입인 경우 배너 교체
+        if (b.type === 'image' && b.image_url) {
+          bannerEl.innerHTML = `<img src="${b.image_url}" style="width:100%;height:120px;object-fit:cover;" onerror="this.parentElement.parentElement.style.display='none'">`
+          bannerEl.style.padding = '0'
+          bannerEl.style.minHeight = 'auto'
+        }
+        // 링크 저장
+        bannerEl.dataset.linkUrl = b.link_url || ''
+      }
+
+      if (banner) applyBanner(banner)
+
+      // 백그라운드 갱신
+      API.get('/settings/banner').then(res => {
+        try {
+          const val = res.data?.data
+          if (val) {
+            const b = JSON.parse(val)
+            localStorage.setItem('bannerCache', JSON.stringify(b))
+            applyBanner(b)
+          }
+        } catch {}
+      }).catch(() => {})
+    } catch {}
+
+    // 메뉴 카드 렌더링
     const items = this._getMenuOrder()
     const isEdit = grid.dataset.editMode === '1'
     grid.innerHTML = items.map((item, idx) => `
@@ -468,6 +505,18 @@ const App = {
       </div>
     `).join('')
     if (isEdit) this._bindDragEvents(grid)
+  },
+
+  _newHomeBannerClick() {
+    const bannerEl = document.getElementById('new-home-banner')
+    const link = bannerEl?.dataset.linkUrl
+    if (link) {
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler('openUrl', link)
+      } else {
+        window.open(link, '_blank')
+      }
+    }
   },
 
   _newHomeCardClick(menuId) {
@@ -591,21 +640,15 @@ const App = {
 
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
-    // 홈 모드 분기: 신홈 / 구홈
-    const homeMode = localStorage.getItem('homeMode') || 'old'
+    // 신홈화면 고정
     const screenOld = document.getElementById('screen-home')
     const screenNew = document.getElementById('screen-home-new')
-    if (homeMode === 'new') {
-      if (screenOld) { screenOld.classList.remove('active'); screenOld.style.display = 'none' }
-      if (screenNew) { screenNew.style.display = ''; screenNew.classList.add('active') }
-      this._loadNewHome()
-      return
-    } else {
-      if (screenNew) { screenNew.classList.remove('active'); screenNew.style.display = 'none' }
-      if (screenOld) { screenOld.style.display = ''; screenOld.classList.add('active') }
-    }
+    if (screenOld) { screenOld.classList.remove('active'); screenOld.style.display = 'none' }
+    if (screenNew) { screenNew.style.display = ''; screenNew.classList.add('active') }
+    this._loadNewHome()
+    return
 
-    // 앱 로드 시 공지 뱃지 체크
+    // 앱 로드 시 공지 뱃지 체크 (구홈 코드 보존)
     this.checkNoticesBadge()
     const uid = Store.getUserId()
     if (!uid) {
@@ -1263,10 +1306,6 @@ const App = {
     const labelEl  = document.getElementById('theme-label')
     if (toggleEl) toggleEl.checked = isDark
     if (labelEl)  labelEl.textContent = isDark ? '다크' : '라이트'
-
-    // 홈 모드 토글 상태 반영
-    const homeModeToggle = document.getElementById('home-mode-toggle')
-    if (homeModeToggle) homeModeToggle.checked = (localStorage.getItem('homeMode') === 'new')
 
     // 계정 정보 표시
     const emailEl = document.getElementById('settings-email')
