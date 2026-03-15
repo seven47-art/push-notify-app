@@ -1444,16 +1444,16 @@ const App = {
         return true
       })
 
-      // ⚠️ 채널당 알람 1개 제한
+      // ⚠️ 채널당 알람 3개 제한
       if (addArea) {
-        if (list.length >= 1) {
+        if (list.length >= 3) {
           addArea.style.opacity = '0.35'
           addArea.style.pointerEvents = 'none'
           if (!addArea.querySelector('.alarm-limit-msg')) {
             const msg = document.createElement('div')
             msg.className = 'alarm-limit-msg'
             msg.style.cssText = 'font-size:12px;color:#FF9800;padding:4px 0 10px;'
-            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 1개만 설정 가능합니다. 기존 알람을 삭제하세요.'
+            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 최대 3개까지 설정 가능합니다. 기존 알람을 삭제하세요.'
             addArea.prepend(msg)
           }
         } else {
@@ -1937,6 +1937,16 @@ const App = {
     if (!alarmDate) { toast('날짜를 선택하세요'); return }
     const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
     if (dt <= new Date()) { toast('현재 시각 이후를 선택하세요', 2500); return }
+
+    // 채널당 알람 3개 제한 사전 체크
+    try {
+      const alarmListRes = await API.get('/alarms?channel_id=' + currentAlarmChId)
+      const currentAlarms = (alarmListRes.data?.data || []).filter(a => a.status === 'pending')
+      if (currentAlarms.length >= 3) {
+        toast('채널당 최대 3개까지 알람을 예약할 수 있습니다. 기존 알람을 삭제 후 다시 시도해 주세요.', 3500)
+        return
+      }
+    } catch (_) {}
 
     // URL 입력값 또는 파일 선택 여부로 소스 자동 판단
     const urlInputVal = document.getElementById('alarm-youtube-url')?.value.trim() || ''

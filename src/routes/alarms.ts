@@ -127,6 +127,15 @@ alarms.post('/', async (c) => {
     const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
 
+    // 채널당 pending 알람 최대 3개 제한
+    const MAX_ALARMS_PER_CHANNEL = 3
+    const alarmCount: any = await c.env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM alarm_schedules WHERE channel_id = ? AND status = 'pending'"
+    ).bind(channel_id).first()
+    if ((alarmCount?.cnt || 0) >= MAX_ALARMS_PER_CHANNEL) {
+      return c.json({ success: false, error: `채널당 최대 ${MAX_ALARMS_PER_CHANNEL}개까지 알람을 예약할 수 있습니다. 기존 알람을 삭제 후 다시 시도해 주세요.` }, 400)
+    }
+
     // 구독자 수 조회
     const subCount: any = await c.env.DB.prepare(
       'SELECT COUNT(*) as cnt FROM subscribers WHERE channel_id = ? AND is_active = 1'
