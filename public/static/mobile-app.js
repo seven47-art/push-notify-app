@@ -448,46 +448,6 @@ const App = {
     const grid = document.getElementById('new-home-grid')
     if (!grid) return
 
-    // 배너 API 호출 (캐시 활용)
-    try {
-      const bannerWrap = document.getElementById('new-home-banner-wrap')
-      const bannerEl   = document.getElementById('new-home-banner')
-      const cached = localStorage.getItem('bannerCache')
-      let banner = null
-      try { if (cached) banner = JSON.parse(cached) } catch {}
-
-      const applyBanner = (b) => {
-        if (!bannerWrap || !bannerEl) return
-        if (!b || b.enabled === false) {
-          bannerWrap.style.display = 'none'
-          return
-        }
-        bannerWrap.style.display = ''
-        // 이미지 타입인 경우 배너 교체
-        if (b.type === 'image' && b.image_url) {
-          bannerEl.innerHTML = `<img src="${b.image_url}" style="width:100%;height:120px;object-fit:cover;" onerror="this.parentElement.parentElement.style.display='none'">`
-          bannerEl.style.padding = '0'
-          bannerEl.style.minHeight = 'auto'
-        }
-        // 링크 저장
-        bannerEl.dataset.linkUrl = b.link_url || ''
-      }
-
-      if (banner) applyBanner(banner)
-
-      // 백그라운드 갱신
-      API.get('/settings/banner').then(res => {
-        try {
-          const val = res.data?.data
-          if (val) {
-            const b = JSON.parse(val)
-            localStorage.setItem('bannerCache', JSON.stringify(b))
-            applyBanner(b)
-          }
-        } catch {}
-      }).catch(() => {})
-    } catch {}
-
     // 메뉴 카드 렌더링
     const items = this._getMenuOrder()
     const isEdit = grid.dataset.editMode === '1'
@@ -645,51 +605,49 @@ const App = {
     const screenNew = document.getElementById('screen-home-new')
     if (screenOld) { screenOld.classList.remove('active'); screenOld.style.display = 'none' }
     if (screenNew) { screenNew.style.display = ''; screenNew.classList.add('active') }
-    this._loadNewHome()
-    return
 
-    // 앱 로드 시 공지 뱃지 체크 (구홈 코드 보존)
+    // 공지 뱃지 체크
     this.checkNoticesBadge()
+
     const uid = Store.getUserId()
     if (!uid) {
-      document.getElementById('owned-list').innerHTML  = '<div class="empty-box">로그인이 필요합니다.</div>'
-      document.getElementById('joined-list').innerHTML = ''
+      this._loadNewHome()
       return
     }
 
-    // 헤더 사용자 이름 표시
-    const nameEl = document.getElementById('home-username')
-    if (nameEl) nameEl.textContent = Store.getDisplayName() || Store.getEmail() || '사용자'
-
-    // 캐시 확인 → 있으면 즉시 표시 후 백그라운드 갱신
+    // 캐시 확인 → 있으면 즉시 렌더 후 백그라운드 갱신
     const cacheKey = 'home_' + uid
     const cached = Cache.get(cacheKey)
     if (cached) {
       ownedChannels  = cached.owned
       joinedChannels = cached.joined
-      this._renderOwned()
-      this._renderJoined()
+    }
+
+    // 채널 데이터 fetch (캐시 없으면 await, 있으면 백그라운드)
+    const fetchData = async () => {
+      try {
+        const [oRes, jRes] = await apiWithTimeout(Promise.all([
+          API.get('/channels?owner_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } })),
+          API.get('/subscribers?user_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } }))
+        ]))
+        ownedChannels  = oRes.data?.data || []
+        const ownedIds = new Set(ownedChannels.map(c => c.id))
+        joinedChannels = (jRes.data?.data || []).filter(s => !ownedIds.has(s.channel_id))
+        Cache.set(cacheKey, { owned: ownedChannels, joined: joinedChannels })
+      } catch(e) {
+        if (!cached) { ownedChannels = []; joinedChannels = [] }
+        if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+      }
+    }
+
+    if (!cached) {
+      await fetchData()
     } else {
-      document.getElementById('owned-more').style.display  = 'none'
-      document.getElementById('joined-more').style.display = 'none'
+      fetchData() // 백그라운드 갱신
     }
 
-    try {
-      const [oRes, jRes] = await apiWithTimeout(Promise.all([
-        API.get('/channels?owner_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } })),
-        API.get('/subscribers?user_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } }))
-      ]))
-      ownedChannels  = oRes.data?.data || []
-      const ownedIds = new Set(ownedChannels.map(c => c.id))
-      joinedChannels = (jRes.data?.data || []).filter(s => !ownedIds.has(s.channel_id))
-      Cache.set(cacheKey, { owned: ownedChannels, joined: joinedChannels })
-    } catch(e) {
-      if (!cached) { ownedChannels = []; joinedChannels = [] }
-      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
-    }
-
-    this._renderOwned()
-    this._renderJoined()
+    // 신홈 메뉴 카드 렌더링
+    this._loadNewHome()
   },
 
   _renderOwned() {
