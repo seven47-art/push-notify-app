@@ -910,6 +910,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     </div>
 
     <!-- 콘텐츠 선택 -->
+    <div id="alarm-setting-wrap">
     <div class="alarm-section-card">
       <div class="alarm-section-title">콘텐츠 선택</div>
       <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;">
@@ -1023,6 +1024,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       </div>
     </div>
 
+  </div><!-- /alarm-setting-wrap -->
+
   </div><!-- /스크롤 -->
 
   <!-- 날짜/시간 통합 팝업 (modal-alarm 내부, 절대위치) -->
@@ -1090,7 +1093,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 
   <!-- 하단 고정 버튼 -->
-  <div class="alarm-bottom-btns" style="flex-shrink:0;">
+  <div class="alarm-bottom-btns" id="alarm-bottom-btns" style="flex-shrink:0;">
     <button class="btn-alarm-cancel" onclick="App.closeModal('modal-alarm')">취소</button>
     <button class="btn-alarm-done"   onclick="App.saveAlarmSetting()">확인</button>
   </div>
