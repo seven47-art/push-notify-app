@@ -2540,7 +2540,7 @@ window._flutterFileCallback = async function(data) {
 
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('session_token', Store.getToken() || '')
+      formData.append('session_token', Store.getSessionToken() || '')
 
       const res = await fetch('/api/uploads/alarm-file', { method: 'POST', body: formData })
       const result = await res.json()
