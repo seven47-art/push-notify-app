@@ -219,12 +219,14 @@ channels.get('/:id', async (c) => {
         COUNT(DISTINCT s.id) as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
         COUNT(DISTINCT il.id) as invite_link_count,
-        COUNT(DISTINCT nb.id) as batch_count
+        COUNT(DISTINCT nb.id) as batch_count,
+        COUNT(DISTINCT CASE WHEN a.scheduled_at > datetime('now') AND a.status = 'pending' THEN a.id END) as pending_alarm_count
       FROM channels ch
       LEFT JOIN subscribers s ON ch.id = s.channel_id AND s.is_active = 1
       LEFT JOIN contents ct ON ch.id = ct.channel_id
       LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
       LEFT JOIN notification_batches nb ON ch.id = nb.channel_id
+      LEFT JOIN alarm_schedules a ON ch.id = a.channel_id
       WHERE ch.id = ?
       GROUP BY ch.id
     `).bind(id).first()

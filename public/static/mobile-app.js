@@ -1514,10 +1514,26 @@ const App = {
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
-      // 홈 캐시 + 채널 상세 캐시 무효화 → 아이콘 즉시 반영
+      // 홈 캐시 + 채널 상세 캐시 무효화
       Cache.del('home_' + Store.getUserId())
       Cache.del('ch_detail_' + currentAlarmChId)
+      // 알람 목록 재렌더
       this._loadAlarmList(currentAlarmChId)
+      // 채널 소개 모달이 열려있으면 즉시 재렌더 (아이콘 즉시 반영)
+      const detailModal = document.getElementById('modal-channel-detail')
+      if (detailModal && detailModal.classList.contains('active')) {
+        const scroll = document.getElementById('ch-detail-scroll')
+        if (scroll) {
+          try {
+            const res = await API.get('/channels/' + currentAlarmChId)
+            const ch  = res.data?.data
+            if (ch) {
+              Cache.set('ch_detail_' + currentAlarmChId, ch)
+              this._renderChannelDetail(scroll, ch)
+            }
+          } catch (_) {}
+        }
+      }
     } catch(e) {
       toast('삭제 실패: ' + e.message, 3000)
     }
