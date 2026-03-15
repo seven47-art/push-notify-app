@@ -353,6 +353,9 @@ function adminDashboardHTML() {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('download-mgmt')">
       <i class="fas fa-download w-4 text-center text-emerald-400"></i> 다운로드 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('banner-mgmt')">
+      <i class="fas fa-image w-4 text-center text-pink-400"></i> 배너 관리
+    </a>
   </nav>
 
   <!-- 하단: 관리자 설정 + 로그아웃 -->
@@ -1047,6 +1050,75 @@ function adminDashboardHTML() {
   </main>
 </div>
 
+<!-- ===== 배너 관리 페이지 (별도 div) ===== -->
+<div id="page-banner-mgmt" class="page" style="display:none;">
+  <div class="space-y-6">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-pink-600/20 flex items-center justify-center"><i class="fas fa-image text-pink-400"></i></div>
+      <div><h2 class="text-xl font-bold text-white">배너 관리</h2><p class="text-slate-400 text-sm">홈 화면 상단 배너를 설정합니다</p></div>
+    </div>
+
+    <!-- 현재 배너 상태 -->
+    <div class="card rounded-xl p-5">
+      <h3 class="text-white font-semibold mb-4"><i class="fas fa-eye mr-2 text-pink-400"></i>현재 배너 상태</h3>
+      <div id="banner-current-status" class="text-slate-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>
+    </div>
+
+    <!-- 배너 설정 -->
+    <div class="card rounded-xl p-5 space-y-5">
+      <h3 class="text-white font-semibold"><i class="fas fa-edit mr-2 text-pink-400"></i>배너 설정</h3>
+
+      <!-- ON/OFF 토글 -->
+      <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+        <div>
+          <div class="text-white text-sm font-semibold">배너 표시</div>
+          <div class="text-slate-400 text-xs mt-0.5">홈 화면 상단에 배너 노출 여부</div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="banner-enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+        </label>
+      </div>
+
+      <!-- 배너 타입 -->
+      <div>
+        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">배너 타입</label>
+        <select id="banner-type" class="input-field text-sm" onchange="toggleBannerType()">
+          <option value="svg">기본 SVG 배너 (내장)</option>
+          <option value="image">이미지 URL 배너</option>
+        </select>
+      </div>
+
+      <!-- 이미지 URL (이미지 타입일 때만 표시) -->
+      <div id="banner-image-url-wrap">
+        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지 URL</label>
+        <input type="url" id="banner-image-url" class="input-field text-sm" placeholder="https://example.com/banner.jpg">
+        <p class="text-slate-500 text-xs mt-1.5">권장 사이즈: 가로 전체 × 높이 120px (3:1 비율)</p>
+      </div>
+
+      <!-- 링크 URL -->
+      <div>
+        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">클릭 링크 URL <span class="text-slate-500 font-normal normal-case">(선택사항)</span></label>
+        <input type="url" id="banner-link-url" class="input-field text-sm" placeholder="https://example.com (없으면 비워두세요)">
+        <p class="text-slate-500 text-xs mt-1.5">배너 클릭 시 이동할 URL. 비워두면 클릭해도 아무 동작 안 함</p>
+      </div>
+
+      <!-- 저장 버튼 -->
+      <button onclick="saveBannerSettings()" class="w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+        <i class="fas fa-save"></i> 배너 설정 저장
+      </button>
+    </div>
+
+    <!-- 미리보기 -->
+    <div class="card rounded-xl p-5">
+      <h3 class="text-white font-semibold mb-4"><i class="fas fa-mobile-alt mr-2 text-blue-400"></i>배너 미리보기</h3>
+      <div id="banner-preview" class="rounded-2xl overflow-hidden" style="max-width:380px;min-height:120px;background:linear-gradient(135deg,#1a1040,#2d1b6e,#0f4c75);display:flex;align-items:center;padding:20px;">
+        <span class="text-white text-sm opacity-60">미리보기 영역</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 각종 모달 ===== -->
 <div id="memberModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
   <div class="card w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
@@ -1258,6 +1330,82 @@ async function saveApkUrl() {
   }
 }
 
+// ── 배너 관리 함수 ──────────────────────────────────
+async function loadBannerSettings() {
+  try {
+    const res = await fetch('/api/settings/banner')
+    const data = await res.json()
+    const banner = data?.data ? JSON.parse(data.data) : null
+    const statusEl = document.getElementById('banner-current-status')
+    if (banner) {
+      const enabledBadge = banner.enabled
+        ? '<span class="badge" style="background:rgba(16,185,129,0.2);color:#6ee7b7;border:1px solid rgba(16,185,129,0.3);">ON</span>'
+        : '<span class="badge" style="background:rgba(100,116,139,0.2);color:#94a3b8;border:1px solid rgba(100,116,139,0.3);">OFF</span>'
+      statusEl.innerHTML = \`
+        <div class="space-y-1.5 text-sm">
+          <div class="flex items-center gap-2">표시 상태: \${enabledBadge}</div>
+          <div class="text-slate-400">타입: \${banner.type === 'image' ? '이미지 URL' : '기본 SVG'}</div>
+          \${banner.image_url ? \`<div class="text-slate-400 break-all">이미지: \${banner.image_url}</div>\` : ''}
+          \${banner.link_url ? \`<div class="text-slate-400 break-all">링크: \${banner.link_url}</div>\` : '<div class="text-slate-500">링크: 없음</div>'}
+        </div>\`
+      document.getElementById('banner-enabled').checked = !!banner.enabled
+      document.getElementById('banner-type').value = banner.type || 'svg'
+      document.getElementById('banner-image-url').value = banner.image_url || ''
+      document.getElementById('banner-link-url').value = banner.link_url || ''
+      toggleBannerType()
+      updateBannerPreview(banner)
+    } else {
+      statusEl.innerHTML = '<p class="text-slate-500">설정된 배너가 없습니다. (기본 SVG 배너 표시 중)</p>'
+    }
+  } catch(e) {
+    document.getElementById('banner-current-status').innerHTML = '<p class="text-red-400">불러오기 실패</p>'
+  }
+}
+
+function toggleBannerType() {
+  const type = document.getElementById('banner-type').value
+  const wrap = document.getElementById('banner-image-url-wrap')
+  if (wrap) wrap.style.display = type === 'image' ? 'block' : 'none'
+}
+
+function updateBannerPreview(banner) {
+  const preview = document.getElementById('banner-preview')
+  if (!preview) return
+  if (banner?.type === 'image' && banner?.image_url) {
+    preview.innerHTML = \`<img src="\${banner.image_url}" style="width:100%;height:120px;object-fit:cover;border-radius:12px;" onerror="this.style.display='none'">\`
+  } else {
+    preview.innerHTML = \`<div style="padding:16px;color:#fff;">
+      <div style="font-size:16px;font-weight:800;">전화 방식의 새로운</div>
+      <div style="font-size:16px;font-weight:800;color:#7ee8fa;">알람 앱, RinGo</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:6px;">채널을 만들고, 구독하고 원하는 시간에 알람을 예약하세요.</div>
+    </div>\`
+  }
+}
+
+async function saveBannerSettings() {
+  const enabled = document.getElementById('banner-enabled').checked
+  const type = document.getElementById('banner-type').value
+  const image_url = document.getElementById('banner-image-url').value.trim()
+  const link_url = document.getElementById('banner-link-url').value.trim()
+  const payload = { enabled, type, image_url, link_url }
+  try {
+    const res = await fetch('/admin/banner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const data = await res.json()
+    if (data.success) {
+      alert('✅ 배너 설정이 저장되었습니다.')
+      loadBannerSettings()
+    } else {
+      alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
+    }
+  } catch(e) {
+    alert('❌ 오류: ' + e.message)
+  }
+}
+
 async function submitChangePassword(e) {
   e.preventDefault()
   const current = document.getElementById('settingsCurrent').value
@@ -1332,5 +1480,22 @@ ${error ? `<p style="color:#fca5a5;">⚠️ ${error}</p>` : ''}
 ${success ? `<p style="color:#86efac;">✅ ${success}</p>` : ''}
 </body></html>`
 }
+
+// ── POST /admin/banner ────────────────────────────────
+admin.post('/banner', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const body = await c.req.json()
+    const { enabled, type, image_url, link_url } = body
+    const value = JSON.stringify({ enabled: !!enabled, type: type || 'svg', image_url: image_url || '', link_url: link_url || '' })
+    await c.env.DB.prepare(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('banner', ?)"
+    ).bind(value).run()
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
 
 export default admin

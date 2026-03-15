@@ -246,15 +246,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .settings-menu-item .menu-arrow { margin-left:auto; color:var(--text3); font-size:12px; }
 
 /* ── 신홈화면 ── */
-.new-home-wrap { display:flex; flex-direction:column; height:100%; overflow-y:auto; }
-/* 배너 */
-.new-home-banner { margin:12px 14px 8px; border-radius:16px; overflow:hidden; background:linear-gradient(135deg,#1a1040 0%,#2d1b6e 40%,#0f4c75 100%); padding:0; display:flex; flex-direction:row; align-items:stretch; flex-shrink:0; position:relative; min-height:120px; }
+.new-home-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+/* 배너 (sticky 고정) */
+.new-home-banner-wrap { flex-shrink:0; }
+.new-home-banner { margin:12px 14px 8px; border-radius:16px; overflow:hidden; background:linear-gradient(135deg,#1a1040 0%,#2d1b6e 40%,#0f4c75 100%); padding:0; display:flex; flex-direction:row; align-items:stretch; flex-shrink:0; position:relative; min-height:120px; cursor:pointer; }
 .new-home-banner-content { flex:1; padding:18px 16px 16px; display:flex; flex-direction:column; gap:5px; justify-content:center; z-index:1; }
 .new-home-banner-title { font-size:18px; font-weight:800; color:#fff; letter-spacing:-0.5px; line-height:1.2; }
 .new-home-banner-sub { font-size:11px; color:rgba(255,255,255,0.75); font-weight:500; line-height:1.5; margin-top:2px; }
 .new-home-banner-badge { margin-top:8px; display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.15); border-radius:20px; padding:4px 10px; width:fit-content; border:1px solid rgba(255,255,255,0.2); }
 .new-home-banner-badge span { font-size:10px; color:#fff; font-weight:600; }
 .new-home-banner-visual { width:120px; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative; }
+/* 스크롤 영역 (메뉴만 스크롤) */
+.new-home-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
 /* 메뉴 헤더 */
 .new-home-menu-header { display:flex; align-items:center; justify-content:space-between; padding:4px 16px 6px; flex-shrink:0; }
 .new-home-menu-title { font-size:13px; font-weight:700; color:var(--text2); }
@@ -559,86 +562,82 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div style="height:12px;"></div>
   </div>
 
-  <!-- 신홈화면 (배너 + 메뉴 카드 그리드) -->
+  <!-- 신홈화면 (배너 고정 + 메뉴 카드 그리드 스크롤) -->
   <div class="screen" id="screen-home-new">
     <div class="new-home-wrap">
-      <!-- 배너 -->
-      <div class="new-home-banner">
-        <!-- 텍스트 영역 -->
-        <div class="new-home-banner-content">
-          <div class="new-home-banner-title">전화 방식의 새로운</div>
-          <div class="new-home-banner-title">알람 앱, <span style="color:#7ee8fa;font-weight:900;">RinGo</span></div>
-          <div class="new-home-banner-sub">채널을 만들고, 구독하고<br>원하는 시간에 알람을 예약하세요.</div>
-          <div class="new-home-banner-badge">
-            <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#7ee8fa"/></svg>
-            <span>스마트 알람 플랫폼</span>
+      <!-- 배너 (고정 영역) -->
+      <div class="new-home-banner-wrap" id="new-home-banner-wrap">
+        <div class="new-home-banner" id="new-home-banner" onclick="App._newHomeBannerClick()">
+          <!-- 텍스트 영역 -->
+          <div class="new-home-banner-content">
+            <div class="new-home-banner-title">전화 방식의 새로운</div>
+            <div class="new-home-banner-title">알람 앱, <span style="color:#7ee8fa;font-weight:900;">RinGo</span></div>
+            <div class="new-home-banner-sub">채널을 만들고, 구독하고<br>원하는 시간에 알람을 예약하세요.</div>
+            <div class="new-home-banner-badge">
+              <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#7ee8fa"/></svg>
+              <span>스마트 알람 플랫폼</span>
+            </div>
+          </div>
+          <!-- SVG 일러스트 영역 -->
+          <div class="new-home-banner-visual">
+            <svg width="110" height="110" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="55" cy="58" r="38" fill="rgba(126,232,250,0.07)"/>
+              <circle cx="55" cy="58" r="28" fill="rgba(126,232,250,0.09)"/>
+              <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.18)" stroke-width="1.5">
+                <animate attributeName="r" values="38;50;38" dur="2.5s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.12)" stroke-width="1">
+                <animate attributeName="r" values="30;46;30" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
+              </circle>
+              <path d="M55 22 C44 22 36 30 36 41 L36 54 L30 61 L30 65 L80 65 L80 61 L74 54 L74 41 C74 30 66 22 55 22 Z" fill="url(#bellGrad)" opacity="0.95"/>
+              <rect x="51" y="18" width="8" height="6" rx="4" fill="#7ee8fa" opacity="0.9"/>
+              <path d="M28 38 Q23 43 28 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
+                <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
+              </path>
+              <path d="M22 33 Q14 43 22 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
+                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+              </path>
+              <path d="M82 38 Q87 43 82 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
+                <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
+              </path>
+              <path d="M88 33 Q96 43 88 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
+                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
+              </path>
+              <ellipse cx="55" cy="67" rx="12" ry="5" fill="#7ee8fa" opacity="0.85"/>
+              <ellipse cx="49" cy="35" rx="5" ry="8" fill="rgba(255,255,255,0.15)" transform="rotate(-15 49 35)"/>
+              <circle cx="22" cy="24" r="2" fill="#7ee8fa" opacity="0.6">
+                <animate attributeName="opacity" values="0.6;0.1;0.6" dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="88" cy="20" r="1.5" fill="#fff" opacity="0.5">
+                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.3s" begin="1s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="18" cy="62" r="1.5" fill="#7ee8fa" opacity="0.4">
+                <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.8s" begin="0.5s" repeatCount="indefinite"/>
+              </circle>
+              <defs>
+                <linearGradient id="bellGrad" x1="36" y1="22" x2="74" y2="65" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#a78bfa"/>
+                  <stop offset="100%" stop-color="#7ee8fa"/>
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
         </div>
-        <!-- SVG 일러스트 영역 -->
-        <div class="new-home-banner-visual">
-          <svg width="110" height="110" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- 배경 원형 글로우 -->
-            <circle cx="55" cy="58" r="38" fill="rgba(126,232,250,0.07)"/>
-            <circle cx="55" cy="58" r="28" fill="rgba(126,232,250,0.09)"/>
-            <!-- 파동 애니메이션 -->
-            <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.18)" stroke-width="1.5">
-              <animate attributeName="r" values="38;50;38" dur="2.5s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite"/>
-            </circle>
-            <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.12)" stroke-width="1">
-              <animate attributeName="r" values="30;46;30" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
-            </circle>
-            <!-- 알람 벨 몸통 -->
-            <path d="M55 22 C44 22 36 30 36 41 L36 54 L30 61 L30 65 L80 65 L80 61 L74 54 L74 41 C74 30 66 22 55 22 Z" fill="url(#bellGrad)" opacity="0.95"/>
-            <!-- 벨 손잡이 -->
-            <rect x="51" y="18" width="8" height="6" rx="4" fill="#7ee8fa" opacity="0.9"/>
-            <!-- 벨 울림 표시 (좌) -->
-            <path d="M28 38 Q23 43 28 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
-              <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
-            </path>
-            <path d="M22 33 Q14 43 22 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
-              <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
-            </path>
-            <!-- 벨 울림 표시 (우) -->
-            <path d="M82 38 Q87 43 82 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
-              <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
-            </path>
-            <path d="M88 33 Q96 43 88 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
-              <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
-            </path>
-            <!-- 벨 클래퍼 (아랫부분) -->
-            <ellipse cx="55" cy="67" rx="12" ry="5" fill="#7ee8fa" opacity="0.85"/>
-            <!-- 벨 하이라이트 -->
-            <ellipse cx="49" cy="35" rx="5" ry="8" fill="rgba(255,255,255,0.15)" transform="rotate(-15 49 35)"/>
-            <!-- 별 장식 -->
-            <circle cx="22" cy="24" r="2" fill="#7ee8fa" opacity="0.6">
-              <animate attributeName="opacity" values="0.6;0.1;0.6" dur="3s" repeatCount="indefinite"/>
-            </circle>
-            <circle cx="88" cy="20" r="1.5" fill="#fff" opacity="0.5">
-              <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.3s" begin="1s" repeatCount="indefinite"/>
-            </circle>
-            <circle cx="18" cy="62" r="1.5" fill="#7ee8fa" opacity="0.4">
-              <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.8s" begin="0.5s" repeatCount="indefinite"/>
-            </circle>
-            <defs>
-              <linearGradient id="bellGrad" x1="36" y1="22" x2="74" y2="65" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#a78bfa"/>
-                <stop offset="100%" stop-color="#7ee8fa"/>
-              </linearGradient>
-            </defs>
-          </svg>
+      </div>
+      <!-- 스크롤 영역 (메뉴만 스크롤) -->
+      <div class="new-home-scroll">
+        <!-- 메뉴 헤더 -->
+        <div class="new-home-menu-header">
+          <span class="new-home-menu-title">자주쓰는 메뉴</span>
+          <button class="new-home-edit-btn" id="new-home-edit-btn" onclick="App.toggleHomeEditMode()">
+            <i class="fas fa-sort"></i> 순서 변경
+          </button>
         </div>
+        <!-- 카드 그리드 -->
+        <div class="new-home-grid" id="new-home-grid"></div>
       </div>
-      <!-- 메뉴 헤더 -->
-      <div class="new-home-menu-header">
-        <span class="new-home-menu-title">자주쓰는 메뉴</span>
-        <button class="new-home-edit-btn" id="new-home-edit-btn" onclick="App.toggleHomeEditMode()">
-          <i class="fas fa-sort"></i> 순서 변경
-        </button>
-      </div>
-      <!-- 카드 그리드 -->
-      <div class="new-home-grid" id="new-home-grid"></div>
     </div>
   </div>
 
@@ -772,18 +771,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <span class="section-title">설정</span>
     </div>
     <div class="settings-menu-label">메뉴</div>
-    <!-- 홈 화면 모드 토글 -->
-    <div class="settings-menu-item" style="cursor:default;">
-      <i class="fas fa-home"></i> 홈 화면
-      <div class="theme-toggle-wrap">
-        <span style="font-size:13px;color:var(--text2);">구홈</span>
-        <label class="toggle-switch" style="margin:0 4px;">
-          <input type="checkbox" id="home-mode-toggle" onchange="App.toggleHomeMode(this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
-        <span style="font-size:13px;color:var(--text2);">신홈</span>
-      </div>
-    </div>
     <!-- 다크/라이트 모드 토글 -->
     <div class="settings-menu-item" style="cursor:default;">
       <i class="fas fa-moon"></i> 모드 선택
