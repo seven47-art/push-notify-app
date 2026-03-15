@@ -595,10 +595,14 @@ const App = {
 
   _ownedTileHtml(ch) {
     const name     = ch.name || '채널'
-    const cnt      = ch.subscriber_count || 0
-    const id       = ch.id
-    const hasAlarm = (ch.pending_alarm_count || 0) > 0
-    const lockIcon = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
+    const cnt        = ch.subscriber_count || 0
+    const id         = ch.id
+    const alarmCount = ch.pending_alarm_count || 0
+    const hasAlarm   = alarmCount > 0
+    const lockIcon   = ch.is_secret ? '<i class="fas fa-lock" style="font-size:13px;color:#EF4444;margin-left:4px;"></i>' : ''
+    const alarmBadge = alarmCount > 0
+      ? `<span style="position:absolute;top:-4px;right:-4px;background:#FF3B30;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;pointer-events:none;">${alarmCount}</span>`
+      : ''
     return `<div class="channel-tile">
       <div onclick="App.openChannelDetail(${id},'${name.replace(/'/g,"\\'")}')">
         ${avatar(name, ch.image_url, 44)}
@@ -607,7 +611,7 @@ const App = {
         <div class="ch-name" style="display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;">${name} ${lockIcon} <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;white-space:nowrap;"><i class="fas fa-user" style="font-size:10px;"></i> ${cnt}</span></div>
         <div class="ch-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ch.description || '채널 운영자'}</div>
       </div>
-      ${hasAlarm ? `<div class="ch-actions"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기"><i class="fas fa-clock"></i></button></div>` : ''}
+      ${hasAlarm ? `<div class="ch-actions"><div style="position:relative;display:inline-block;"><button class="ch-action-btn btn-alarm has-alarm" onclick="App.openAlarmModal(${id},'${name.replace(/'/g,"\\'")}');" title="예약알람 보기"><i class="fas fa-clock"></i></button>${alarmBadge}</div></div>` : ''}
     </div>`
   },
 
@@ -1444,30 +1448,25 @@ const App = {
         return true
       })
 
-      // ⚠️ 채널당 알람 3개 제한
-      if (addArea) {
-        if (list.length >= 3) {
-          addArea.style.opacity = '0.35'
-          addArea.style.pointerEvents = 'none'
-          if (!addArea.querySelector('.alarm-limit-msg')) {
-            const msg = document.createElement('div')
-            msg.className = 'alarm-limit-msg'
-            msg.style.cssText = 'font-size:12px;color:#FF9800;padding:4px 0 10px;'
-            msg.innerHTML = '<i class="fas fa-exclamation-circle"></i> 채널당 알람은 최대 3개까지 설정 가능합니다. 기존 알람을 삭제하세요.'
-            addArea.prepend(msg)
-          }
-        } else {
+      // 기존 "+ 알람 추가하기" 버튼 제거 (재렌더 시 중복 방지)
+      document.getElementById('alarm-add-btn-wrap')?.remove()
+
+      if (list.length === 0) {
+        // 알람 없음 → 목록 숨기고 설정 섹션 바로 표시
+        section.style.display = 'none'
+        if (addArea) {
+          addArea.style.display = ''
           addArea.style.opacity = '1'
           addArea.style.pointerEvents = ''
           addArea.querySelector('.alarm-limit-msg')?.remove()
         }
-      }
-
-      if (list.length === 0) {
-        section.style.display = 'none'
         return
       }
+
+      // 알람 있음 → 목록 표시, 설정 섹션 숨김
       section.style.display = 'block'
+      if (addArea) addArea.style.display = 'none'
+
       const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
       body.innerHTML = list.map(alarm => {
         const dt = new Date(alarm.scheduled_at)
@@ -1483,9 +1482,32 @@ const App = {
           </button>
         </div>`
       }).join('')
+
+      // "+ 알람 추가하기" 버튼 삽입 (3개 미만일 때만)
+      if (list.length < 3) {
+        const btnWrap = document.createElement('div')
+        btnWrap.id = 'alarm-add-btn-wrap'
+        btnWrap.style.cssText = 'padding:14px 0 4px;'
+        btnWrap.innerHTML = `<button onclick="App._showAlarmAddArea()" style="width:100%;padding:12px;border:2px dashed var(--teal,#00BCD4);border-radius:12px;background:transparent;color:var(--teal,#00BCD4);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <i class="fas fa-plus-circle"></i> 알람 추가하기
+        </button>`
+        section.appendChild(btnWrap)
+      }
     } catch(e) {
       section.style.display = 'none'
     }
+  },
+
+  // "+ 알람 추가하기" 버튼 클릭 → 설정 섹션 표시
+  _showAlarmAddArea() {
+    const addArea = document.getElementById('alarm-add-area')
+    if (!addArea) return
+    addArea.style.display = ''
+    addArea.style.opacity = '1'
+    addArea.style.pointerEvents = ''
+    addArea.querySelector('.alarm-limit-msg')?.remove()
+    // 부드럽게 스크롤
+    setTimeout(() => addArea.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   },
 
   // 알람 취소
@@ -2195,12 +2217,16 @@ const App = {
     const avHtml = ch.image_url
       ? '<img src="' + ch.image_url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="App.showImageViewer(\'' + ch.image_url + '\', null, null)">'
       : '<span style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#fff;background:' + color + ';cursor:pointer;" onclick="App.showImageViewer(null, \'' + init + '\', \'' + color + '\')">' + init + '</span>'
-    const hasAlarmDetail = (ch.pending_alarm_count || 0) > 0
-    const alarmCls = hasAlarmDetail ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
+    const hasAlarmDetail  = (ch.pending_alarm_count || 0) > 0
+    const alarmCountDetail = ch.pending_alarm_count || 0
+    const alarmCls        = hasAlarmDetail ? 'ch-action-btn btn-alarm has-alarm' : 'ch-action-btn btn-alarm'
+    const alarmBadgeDetail = alarmCountDetail > 0
+      ? `<span style="position:absolute;top:-4px;right:-4px;background:#FF3B30;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;pointer-events:none;">${alarmCountDetail}</span>`
+      : ''
     let btns = ''
     if (isOwner) {
       btns =
-        '<button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' +
+        '<div style="position:relative;display:inline-block;"><button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' + alarmBadgeDetail + '</div>' +
         '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
         '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-pencil-alt"></i></button>' +
         '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._deleteChannelFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널삭제"><i class="fas fa-trash-alt"></i></button>'
