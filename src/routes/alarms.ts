@@ -3,6 +3,7 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { sendFCMDataMessage } from './fcm'
+import { deleteFromFirebaseStorage } from './uploads'
 
 const alarms = new Hono<{ Bindings: Bindings }>()
 
@@ -384,6 +385,27 @@ alarms.post('/trigger', async (c) => {
 
     // ── 3일 이전 알람 로그 자동 정리 ──────────────────────────────────
     try {
+      // file 타입 알람의 Firebase Storage 파일도 같이 삭제
+      const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+      if (serviceAccountJson) {
+        const sa = JSON.parse(serviceAccountJson)
+        const projectId = sa.project_id || c.env.FCM_PROJECT_ID
+        const bucket = `${projectId}.firebasestorage.app`
+        // 3일 이전 file 타입 알람 조회 (msg_value가 firebasestorage URL인 경우)
+        const { results: oldFileAlarms } = await c.env.DB.prepare(
+          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
+        ).all() as { results: any[] }
+        for (const row of oldFileAlarms) {
+          try {
+            // URL에서 filePath 추출: /o/{encodedPath}?alt=media
+            const match = (row.msg_value as string).match(/\/o\/([^?]+)/)
+            if (match) {
+              const filePath = decodeURIComponent(match[1])
+              await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
+            }
+          } catch (_) {}
+        }
+      }
       await c.env.DB.prepare(
         "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
       ).run()

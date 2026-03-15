@@ -18,6 +18,7 @@ import users from './routes/users'
 import notices from './routes/notices'
 import settings from './routes/settings'
 import admin from './routes/admin'
+import uploads from './routes/uploads'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -50,6 +51,7 @@ app.route('/api/fcm', fcm)
 app.route('/api/users', users)
 app.route('/api/notices', notices)
 app.route('/api/settings', settings)
+app.route('/api/uploads', uploads)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })

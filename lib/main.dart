@@ -748,10 +748,23 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickAudioFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: false, withReadStream: false);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        withData: true,   // base64 전달을 위해 데이터 읽기
+        withReadStream: false,
+      );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        final bytes = f.bytes;
+        String base64Str = '';
+        if (bytes != null) {
+          base64Str = 'data:audio/${f.extension ?? 'mpeg'};base64,${base64Encode(bytes)}';
+        } else if (f.path != null) {
+          // bytes가 없으면 path에서 직접 읽기
+          final fileBytes = await File(f.path!).readAsBytes();
+          base64Str = 'data:audio/${f.extension ?? 'mpeg'};base64,${base64Encode(fileBytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
@@ -762,10 +775,23 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickVideoFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: false, withReadStream: false);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.video,
+        withData: true,   // base64 전달을 위해 데이터 읽기
+        withReadStream: false,
+      );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        final bytes = f.bytes;
+        String base64Str = '';
+        if (bytes != null) {
+          base64Str = 'data:video/${f.extension ?? 'mp4'};base64,${base64Encode(bytes)}';
+        } else if (f.path != null) {
+          // bytes가 없으면 path에서 직접 읽기
+          final fileBytes = await File(f.path!).readAsBytes();
+          base64Str = 'data:video/${f.extension ?? 'mp4'};base64,${base64Encode(fileBytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
       }
@@ -805,12 +831,26 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['mp3','m4a','wav','aac','ogg','flac','wma','mp4','mov','mkv','avi','wmv','m4v','webm'],
-        withData: false,
+        withData: true,   // base64 전달을 위해 데이터 읽기
         withReadStream: false,
       );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        final bytes = f.bytes;
+        final ext = f.extension?.toLowerCase() ?? '';
+        final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
+        final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
+        final mimeType = audioExts.contains(ext)
+            ? 'audio/${ext == 'm4a' ? 'mp4' : ext}'
+            : (videoExts.contains(ext) ? 'video/${ext == 'mov' ? 'quicktime' : ext}' : 'application/octet-stream');
+        String base64Str = '';
+        if (bytes != null) {
+          base64Str = 'data:$mimeType;base64,${base64Encode(bytes)}';
+        } else if (f.path != null) {
+          final fileBytes = await File(f.path!).readAsBytes();
+          base64Str = 'data:$mimeType;base64,${base64Encode(fileBytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'file'});
       }
