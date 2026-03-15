@@ -2501,10 +2501,10 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // Flutter에서 파일 선택/취소/오류 결과를 웹으로 전달
 // ─────────────────────────────────────────────────────
 window._flutterFileCallback = async function(data) {
-  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', path:'/storage/...', size:12345, base64:'' }
-  const { type, name, path, size, base64 } = data
+  // data: { type, name, path, size, url(Firebase URL), base64(구버전 호환) }
+  const { type, name, path, size, url, base64 } = data
 
-  // 오디오 녹음 완료 시 버튼 상태 리셋 (하위 호환)
+  // 오디오 녹음 완료 시 버튼 상태 리셋
   if (type === 'audio' && App._audioRecording) {
     App._audioRecording = false
     const btn = document.getElementById('record-audio-btn')
@@ -2515,12 +2515,10 @@ window._flutterFileCallback = async function(data) {
     }
   }
 
-  // alarmMsgSrc 자동 판단
   const isAudio = ['mp3','m4a','wav','aac','ogg','flac','wma'].some(e => name.toLowerCase().endsWith('.'+e))
   const isVideo = ['mp4','mov','mkv','avi','wmv','m4v','webm'].some(e => name.toLowerCase().endsWith('.'+e))
   alarmMsgSrc = isAudio ? 'audio' : (isVideo ? 'video' : type)
 
-  // 새 UI: alarm-file-label / alarm-file-clear 업데이트
   const icon = isAudio ? '🎵' : (isVideo ? '🎬' : '📎')
   const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
   const label = document.getElementById('alarm-file-label')
@@ -2528,25 +2526,29 @@ window._flutterFileCallback = async function(data) {
   if (clearBtn) clearBtn.style.display = 'inline-flex'
   App._clearYoutubeUrl()
 
-  // base64가 있으면 Firebase Storage에 업로드
+  // ── 신규: Flutter가 Firebase Storage URL을 직접 전달한 경우 ──
+  if (url && url.startsWith('http')) {
+    window._selectedAlarmFile = url
+    window._selectedAlarmPath = path
+    if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
+    toast('✅ 업로드 완료: ' + name, 2000)
+    return
+  }
+
+  // ── 구버전 APK 호환: base64가 있으면 Cloudflare 경유 업로드 ──
   if (base64) {
     if (label) { label.textContent = icon + ' ' + name + ' (업로드 중...)'; label.style.color = 'var(--text3)' }
-
     try {
-      // base64 데이터URL → Blob → File
       const res64 = await fetch(base64)
       const blob = await res64.blob()
       const file = new File([blob], name, { type: blob.type })
-
       const formData = new FormData()
       formData.append('file', file)
       formData.append('session_token', Store.getSessionToken() || '')
-
       const res = await fetch('/api/uploads/alarm-file', { method: 'POST', body: formData })
       const result = await res.json()
-
       if (result.success && result.url) {
-        window._selectedAlarmFile = result.url  // Firebase Storage URL 저장
+        window._selectedAlarmFile = result.url
         window._selectedAlarmPath = path
         if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
         toast('✅ 파일 업로드 완료: ' + name, 2000)
@@ -2554,18 +2556,30 @@ window._flutterFileCallback = async function(data) {
         throw new Error(result.error || '업로드 실패')
       }
     } catch (e) {
-      // 업로드 실패 시 파일명으로 폴백 (구버전 APK 호환)
       window._selectedAlarmFile = name
       window._selectedAlarmPath = path
       if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
-      toast('⚠️ 업로드 실패, 파일명으로 저장: ' + e.message, 3000)
+      toast('⚠️ 업로드 실패: ' + e.message, 3000)
     }
   } else {
-    // base64 없음 (구버전 APK) → 파일명만 저장
+    // base64도 url도 없음 (구버전) → 파일명만 저장
     window._selectedAlarmFile = name
     window._selectedAlarmPath = path
     if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
     toast('✅ 파일 선택 완료: ' + name, 2000)
+  }
+}
+
+// 압축/업로드 진행 상태 표시
+window._flutterUploadProgress = function(data) {
+  const label = document.getElementById('alarm-file-label')
+  if (!label) return
+  if (data?.status === 'compressing') {
+    label.textContent = '⏳ 영상 압축 중...'
+    label.style.color = 'var(--text3)'
+  } else if (data?.status === 'uploading') {
+    label.textContent = '⬆️ 업로드 중...'
+    label.style.color = 'var(--text3)'
   }
 }
 

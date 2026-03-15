@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:video_compress/video_compress.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
@@ -722,17 +723,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
-  /// 비디오 파일을 480p(LowQuality)로 압축하는 헬퍼
+  // ─────────────────────────────────────────────────────────
+  // 파일 업로드 헬퍼: 세이투두 방식 (Firebase Storage SDK 직접)
+  // base64 변환 없음, Cloudflare 경유 없음 → 앱→Firebase 1단계
+  // ─────────────────────────────────────────────────────────
+
+  /// 비디오 파일을 480p(MediumQuality)로 압축
   /// 압축 실패 시 원본 경로 반환
   Future<String> _compressVideo(String sourcePath) async {
     try {
       final MediaInfo? info = await VideoCompress.compressVideo(
         sourcePath,
-        quality: VideoQuality.LowQuality,   // 480p 수준
+        quality: VideoQuality.MediumQuality, // 480p 수준
         deleteOrigin: false,
         includeAudio: true,
+        frameRate: 30,
       );
       if (info != null && info.path != null) {
+        debugPrint('[VideoCompress] 압축 완료: ${info.path} / ${info.filesize}bytes');
         return info.path!;
       }
     } catch (e) {
@@ -741,39 +749,59 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     return sourcePath;
   }
 
+  /// Firebase Storage에 파일 직접 업로드 (putFile)
+  /// [localPath] : 로컬 파일 경로
+  /// [storagePath] : Firebase Storage 경로 (예: alarm-files/uid/filename)
+  /// [contentType] : MIME 타입
+  /// 업로드 완료 후 download URL 반환
+  Future<String> _uploadToStorage(String localPath, String storagePath, String contentType) async {
+    final ref = FirebaseStorage.instance.ref().child(storagePath);
+    final metadata = SettableMetadata(contentType: contentType);
+    await ref.putFile(File(localPath), metadata);
+    return await ref.getDownloadURL();
+  }
+
+  /// 세션 토큰으로 userId를 SharedPreferences에서 가져오기
+  Future<String> _getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_id') ?? prefs.getString('userId') ?? 'unknown';
+  }
+
   Future<void> _launchVideoRecorder() async {
     try {
-      // ImagePicker 카메라 모드로 녹화 → 완료 후 파일 자동 첨부
       final picker = ImagePicker();
       final XFile? video = await picker.pickVideo(
         source: ImageSource.camera,
         maxDuration: const Duration(minutes: 10),
       );
-      if (video != null) {
-        // 480p 압축
-        final compressedPath = await _compressVideo(video.path);
-        final file = File(compressedPath);
-        final fileSize = await file.length();
-        // 10MB 초과 시 에러
-        if (fileSize > 10 * 1024 * 1024) {
-          _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 크기가 10MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). 더 짧은 영상을 선택해 주세요.'});
-          return;
-        }
-        final fileName = compressedPath.split('/').last;
-        final videoBytes = await file.readAsBytes();
-        final videoExt = fileName.split('.').last.toLowerCase();
-        final videoMime = videoExt == 'mov' ? 'video/quicktime' : 'video/$videoExt';
-        final videoBase64 = 'data:$videoMime;base64,${base64Encode(videoBytes)}';
-        _sendToWeb('window._flutterFileCallback', {
-          'type': 'video',
-          'name': fileName,
-          'path': compressedPath,
-          'size': fileSize,
-          'base64': videoBase64
-        });
-      } else {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
+      if (video == null) { _sendToWeb('window._flutterFileCancelled', {'type': 'video'}); return; }
+
+      // 1) 480p 압축
+      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'compressing'});
+      final compressedPath = await _compressVideo(video.path);
+      final file = File(compressedPath);
+      final fileSize = await file.length();
+
+      // 2) 10MB 초과 체크
+      if (fileSize > 10 * 1024 * 1024) {
+        _sendToWeb('window._flutterFileError', {'type': 'video',
+          'error': '압축 후에도 10MB 초과 (${(fileSize/1024/1024).toStringAsFixed(1)}MB). 더 짧은 영상을 사용해 주세요.'});
+        return;
       }
+
+      // 3) Firebase Storage 직접 업로드
+      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
+      final userId  = await _getUserId();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
+      final storagePath = 'alarm-files/$userId/$fileName';
+      final downloadUrl = await _uploadToStorage(compressedPath, storagePath, 'video/mp4');
+
+      _sendToWeb('window._flutterFileCallback', {
+        'type': 'video', 'name': fileName,
+        'path': compressedPath, 'size': fileSize,
+        'url': downloadUrl,   // base64 대신 URL 직접 전달
+        'base64': '',
+      });
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
     }
@@ -781,20 +809,39 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickAudioFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: false, withReadStream: false);
-      if (result != null && result.files.isNotEmpty) {
-        final f = result.files.first;
-        String base64Str = '';
-        if (f.path != null) {
-          final bytes = await File(f.path!).readAsBytes();
-          final ext = f.name.split('.').last.toLowerCase();
-          final mime = ['mp3','aac','ogg','flac','wma'].contains(ext) ? 'audio/$ext' : (ext == 'm4a' ? 'audio/mp4' : 'audio/$ext');
-          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
-      } else {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
+      final result = await FilePicker.platform.pickFiles(
+          type: FileType.audio, withData: false, withReadStream: false);
+      if (result == null || result.files.isEmpty) {
+        _sendToWeb('window._flutterFileCancelled', {'type': 'audio'}); return;
       }
+      final f = result.files.first;
+      if (f.path == null) {
+        _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': '파일 경로를 가져올 수 없습니다'}); return;
+      }
+
+      // 크기 체크
+      final fileSize = await File(f.path!).length();
+      if (fileSize > 10 * 1024 * 1024) {
+        _sendToWeb('window._flutterFileError', {'type': 'audio',
+          'error': '파일 크기가 10MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
+        return;
+      }
+
+      // Firebase Storage 직접 업로드
+      _sendToWeb('window._flutterUploadProgress', {'type': 'audio', 'status': 'uploading'});
+      final userId   = await _getUserId();
+      final ext      = f.name.split('.').last.toLowerCase();
+      final mime     = ext == 'mp3' ? 'audio/mpeg' : 'audio/$ext';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+      final storagePath = 'alarm-files/$userId/$fileName';
+      final downloadUrl = await _uploadToStorage(f.path!, storagePath, mime);
+
+      _sendToWeb('window._flutterFileCallback', {
+        'type': 'audio', 'name': f.name,
+        'path': f.path!, 'size': fileSize,
+        'url': downloadUrl,
+        'base64': '',
+      });
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
     }
@@ -802,34 +849,42 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickVideoFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: false, withReadStream: false);
-      if (result != null && result.files.isNotEmpty) {
-        final f = result.files.first;
-        String base64Str = '';
-        int fileSize = f.size;
-        String filePath = f.path ?? '';
-        String fileName = f.name;
-        if (f.path != null) {
-          // 480p 압축
-          final compressedPath = await _compressVideo(f.path!);
-          final compressedFile = File(compressedPath);
-          fileSize = await compressedFile.length();
-          // 10MB 초과 시 에러
-          if (fileSize > 10 * 1024 * 1024) {
-            _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 크기가 10MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). 더 짧은 영상을 선택해 주세요.'});
-            return;
-          }
-          filePath = compressedPath;
-          fileName = compressedPath.split('/').last;
-          final bytes = await compressedFile.readAsBytes();
-          final ext = fileName.split('.').last.toLowerCase();
-          final mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
-          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': fileName, 'path': filePath, 'size': fileSize, 'base64': base64Str});
-      } else {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
+      final result = await FilePicker.platform.pickFiles(
+          type: FileType.video, withData: false, withReadStream: false);
+      if (result == null || result.files.isEmpty) {
+        _sendToWeb('window._flutterFileCancelled', {'type': 'video'}); return;
       }
+      final f = result.files.first;
+      if (f.path == null) {
+        _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 경로를 가져올 수 없습니다'}); return;
+      }
+
+      // 1) 480p 압축
+      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'compressing'});
+      final compressedPath = await _compressVideo(f.path!);
+      final compressedFile = File(compressedPath);
+      final fileSize = await compressedFile.length();
+
+      // 2) 10MB 초과 체크
+      if (fileSize > 10 * 1024 * 1024) {
+        _sendToWeb('window._flutterFileError', {'type': 'video',
+          'error': '압축 후에도 10MB 초과 (${(fileSize/1024/1024).toStringAsFixed(1)}MB). 더 짧은 영상을 사용해 주세요.'});
+        return;
+      }
+
+      // 3) Firebase Storage 직접 업로드
+      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
+      final userId      = await _getUserId();
+      final fileName    = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
+      final storagePath = 'alarm-files/$userId/$fileName';
+      final downloadUrl = await _uploadToStorage(compressedPath, storagePath, 'video/mp4');
+
+      _sendToWeb('window._flutterFileCallback', {
+        'type': 'video', 'name': fileName,
+        'path': compressedPath, 'size': fileSize,
+        'url': downloadUrl,
+        'base64': '',
+      });
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
     }
