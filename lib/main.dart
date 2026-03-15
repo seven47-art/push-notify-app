@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:video_compress/video_compress.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
@@ -721,6 +722,25 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     }
   }
 
+  /// 비디오 파일을 480p(LowQuality)로 압축하는 헬퍼
+  /// 압축 실패 시 원본 경로 반환
+  Future<String> _compressVideo(String sourcePath) async {
+    try {
+      final MediaInfo? info = await VideoCompress.compressVideo(
+        sourcePath,
+        quality: VideoQuality.LowQuality,   // 480p 수준
+        deleteOrigin: false,
+        includeAudio: true,
+      );
+      if (info != null && info.path != null) {
+        return info.path!;
+      }
+    } catch (e) {
+      debugPrint('[VideoCompress] 압축 실패, 원본 사용: $e');
+    }
+    return sourcePath;
+  }
+
   Future<void> _launchVideoRecorder() async {
     try {
       // ImagePicker 카메라 모드로 녹화 → 완료 후 파일 자동 첨부
@@ -730,17 +750,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         maxDuration: const Duration(minutes: 10),
       );
       if (video != null) {
-        final file = File(video.path);
+        // 480p 압축
+        final compressedPath = await _compressVideo(video.path);
+        final file = File(compressedPath);
         final fileSize = await file.length();
-        final fileName = video.path.split('/').last;
-        final videoBytes = await File(video.path).readAsBytes();
+        // 10MB 초과 시 에러
+        if (fileSize > 10 * 1024 * 1024) {
+          _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 크기가 10MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). 더 짧은 영상을 선택해 주세요.'});
+          return;
+        }
+        final fileName = compressedPath.split('/').last;
+        final videoBytes = await file.readAsBytes();
         final videoExt = fileName.split('.').last.toLowerCase();
         final videoMime = videoExt == 'mov' ? 'video/quicktime' : 'video/$videoExt';
         final videoBase64 = 'data:$videoMime;base64,${base64Encode(videoBytes)}';
         _sendToWeb('window._flutterFileCallback', {
           'type': 'video',
           'name': fileName,
-          'path': video.path,
+          'path': compressedPath,
           'size': fileSize,
           'base64': videoBase64
         });
@@ -779,13 +806,27 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
         String base64Str = '';
+        int fileSize = f.size;
+        String filePath = f.path ?? '';
+        String fileName = f.name;
         if (f.path != null) {
-          final bytes = await File(f.path!).readAsBytes();
-          final ext = f.name.split('.').last.toLowerCase();
+          // 480p 압축
+          final compressedPath = await _compressVideo(f.path!);
+          final compressedFile = File(compressedPath);
+          fileSize = await compressedFile.length();
+          // 10MB 초과 시 에러
+          if (fileSize > 10 * 1024 * 1024) {
+            _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 크기가 10MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB). 더 짧은 영상을 선택해 주세요.'});
+            return;
+          }
+          filePath = compressedPath;
+          fileName = compressedPath.split('/').last;
+          final bytes = await compressedFile.readAsBytes();
+          final ext = fileName.split('.').last.toLowerCase();
           final mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
           base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
         }
-        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
+        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': fileName, 'path': filePath, 'size': fileSize, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
       }
