@@ -708,20 +708,20 @@ const App = {
 
     if (isFirst) {
       el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      this._noticesOffset = 0
-      this._noticesHasMore = true
-      this._noticesLoading = false
-      this._setupInfiniteScroll('notices')
     }
 
-    if (this._noticesLoading) return
-    this._noticesLoading = true
+    // 더보기 버튼 로딩 상태
+    const moreBtn = document.getElementById('notices-more-btn')
+    if (moreBtn && !isFirst) {
+      moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'
+      moreBtn.disabled = true
+    }
 
     try {
       const res = await API.get(`/notices?limit=${LIMIT}&offset=${offset}`)
       const list = res.data?.data || []
-      this._noticesHasMore = res.data?.hasMore ?? false
-      this._noticesOffset = offset + list.length
+      const hasMore = res.data?.hasMore ?? false
+      const nextOffset = offset + list.length
 
       if (isFirst && !list.length) {
         el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
@@ -746,14 +746,22 @@ const App = {
       `}).join('')
 
       if (isFirst) {
-        el.innerHTML = '<div id="notices-items"></div>'
+        el.innerHTML = '<div id="notices-items"></div><div id="notices-more-wrap" style="padding:12px 16px 4px;"></div>'
       }
       const itemsEl = document.getElementById('notices-items')
       if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+
+      // 더보기 버튼 업데이트
+      const moreWrap = document.getElementById('notices-more-wrap')
+      if (moreWrap) {
+        if (hasMore) {
+          moreWrap.innerHTML = `<button id="notices-more-btn" onclick="App.loadNotices(${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        } else {
+          moreWrap.innerHTML = ''
+        }
+      }
     } catch (e) {
       if (isFirst) el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
-    } finally {
-      this._noticesLoading = false
     }
   },
 
@@ -997,26 +1005,17 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      // 첫 로드: 캐시 확인
-      const cacheKey = 'inbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        channelEl.innerHTML = cached
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
-      // 상태 초기화
-      this._inboxOffset = 0
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
       this._inboxChannelId = channelId
-      this._inboxHasMore = true
-      this._inboxLoading = false
       this._inboxChannels = null
-      // 무한스크롤 옵저버 설정
-      this._setupInfiniteScroll('inbox')
     }
 
-    if (this._inboxLoading) return
-    this._inboxLoading = true
+    // 더보기 버튼 로딩 상태
+    const moreBtn = document.getElementById('inbox-more-btn')
+    if (moreBtn && !isFirst) {
+      moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'
+      moreBtn.disabled = true
+    }
 
     try {
       const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
@@ -1024,10 +1023,9 @@ const App = {
       const resData = res.data
       if (!resData.success) throw new Error()
 
-      // 채널 필터는 첫 로드 때만 저장
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
-      this._inboxHasMore = resData.hasMore ?? false
-      this._inboxOffset = offset + resData.data.length
+      const hasMore = resData.hasMore ?? false
+      const nextOffset = offset + resData.data.length
 
       const iconMap = {
         youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
@@ -1063,41 +1061,28 @@ const App = {
       }).join('')
 
       if (isFirst) {
-        channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div>'
+        channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
       }
       const itemsEl = document.getElementById('inbox-items')
       if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
 
-      // 첫 로드 캐시 저장
-      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), channelEl.innerHTML)
+      // 더보기 버튼 업데이트
+      const moreWrap = document.getElementById('inbox-more-wrap')
+      if (moreWrap) {
+        if (hasMore) {
+          moreWrap.innerHTML = `<button id="inbox-more-btn" onclick="App.loadInbox('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        } else {
+          moreWrap.innerHTML = ''
+        }
+      }
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
-    } finally {
-      this._inboxLoading = false
     }
   },
 
   _setupInfiniteScroll(type) {
-    const sentinelId = `${type}-sentinel`
-    const sentinel = document.getElementById(sentinelId)
-    if (!sentinel) return
-    // 기존 옵저버 해제
-    if (this[`_${type}Observer`]) this[`_${type}Observer`].disconnect()
-    // .screen이 스크롤 컨테이너이므로 root를 해당 screen으로 설정
-    const screenId = type === 'inbox' ? 'screen-inbox'
-                   : type === 'outbox' ? 'screen-send'
-                   : 'screen-notices'
-    const scrollRoot = document.getElementById(screenId)
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        if (type === 'inbox'   && this._inboxHasMore   && !this._inboxLoading)   this.loadInbox(this._inboxChannelId, this._inboxOffset)
-        if (type === 'outbox'  && this._outboxHasMore  && !this._outboxLoading)  this.loadSend(this._outboxChannelId, this._outboxOffset)
-        if (type === 'notices' && this._noticesHasMore && !this._noticesLoading) this.loadNotices(this._noticesOffset)
-      }
-    }, { root: scrollRoot, threshold: 0.1 })
-    observer.observe(sentinel)
-    this[`_${type}Observer`] = observer
+    // 더보기 버튼 방식으로 전환됨 - 빈 함수 유지 (하위 호환)
   },
 
   inboxOpenChannel(group) {},
@@ -1120,23 +1105,17 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      const cacheKey = 'outbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        channelEl.innerHTML = cached
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
-      this._outboxOffset = 0
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
       this._outboxChannelId = channelId
-      this._outboxHasMore = true
-      this._outboxLoading = false
       this._outboxChannels = null
-      this._setupInfiniteScroll('outbox')
     }
 
-    if (this._outboxLoading) return
-    this._outboxLoading = true
+    // 더보기 버튼 로딩 상태
+    const moreBtn = document.getElementById('outbox-more-btn')
+    if (moreBtn && !isFirst) {
+      moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'
+      moreBtn.disabled = true
+    }
 
     try {
       const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
@@ -1145,8 +1124,8 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
-      this._outboxHasMore = resData.hasMore ?? false
-      this._outboxOffset = offset + resData.data.length
+      const hasMore = resData.hasMore ?? false
+      const nextOffset = offset + resData.data.length
 
       const iconMap = {
         youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
@@ -1190,17 +1169,23 @@ const App = {
       }).join('')
 
       if (isFirst) {
-        channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div>'
+        channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
       }
       const itemsEl = document.getElementById('outbox-items')
       if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
 
-      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), channelEl.innerHTML)
+      // 더보기 버튼 업데이트
+      const moreWrap = document.getElementById('outbox-more-wrap')
+      if (moreWrap) {
+        if (hasMore) {
+          moreWrap.innerHTML = `<button id="outbox-more-btn" onclick="App.loadSend('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        } else {
+          moreWrap.innerHTML = ''
+        }
+      }
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
-    } finally {
-      this._outboxLoading = false
     }
   },
 
