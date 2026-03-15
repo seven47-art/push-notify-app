@@ -1540,6 +1540,46 @@ app.get('/app', (c) => {
 // 관리자 페이지
 app.route('/admin', admin)
 
+// =============================================
+// Cleanup API - cron-job.org 에서 매일 UTC 15:00 호출
+// Authorization: Bearer <ADMIN_SECRET> 헤더로 인증
+// =============================================
+app.post('/api/admin/cleanup', async (c) => {
+  // Bearer 토큰 인증
+  const authHeader = c.req.header('Authorization') || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+  if (!token || token !== c.env.ADMIN_SECRET) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  try {
+    // alarm_logs: 3일 초과 삭제
+    const logsResult = await c.env.DB.prepare(
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+    ).run()
+
+    // alarm_schedules: 3일 초과 완료/취소 삭제
+    const schedulesResult = await c.env.DB.prepare(
+      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+    ).run()
+
+    const now = new Date().toISOString()
+    console.log(`[Cleanup] ${now} - alarm_logs: ${logsResult.meta?.changes ?? 0}건, alarm_schedules: ${schedulesResult.meta?.changes ?? 0}건 삭제`)
+
+    return c.json({
+      ok: true,
+      timestamp: now,
+      deleted: {
+        alarm_logs: logsResult.meta?.changes ?? 0,
+        alarm_schedules: schedulesResult.meta?.changes ?? 0,
+      }
+    })
+  } catch (e: any) {
+    console.error('[Cleanup] 오류:', e)
+    return c.json({ error: e?.message ?? 'Unknown error' }, 500)
+  }
+})
+
 app.get('*', (c) => c.redirect('/'))
 
 // =============================================
