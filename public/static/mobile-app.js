@@ -472,7 +472,7 @@ const App = {
 
   _newHomeCardClick(menuId) {
     if (menuId === 'join-code') {
-      App.openJoinModal()
+      App.openJoinChannel()
     } else {
       App.goto(menuId)
     }
