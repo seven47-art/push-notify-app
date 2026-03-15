@@ -244,6 +244,33 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .settings-menu-item:active { background:var(--bg3); }
 .settings-menu-item i { width:22px; text-align:center; color:var(--primary); font-size:16px; }
 .settings-menu-item .menu-arrow { margin-left:auto; color:var(--text3); font-size:12px; }
+
+/* ── 신홈화면 ── */
+.new-home-wrap { display:flex; flex-direction:column; height:100%; overflow-y:auto; }
+/* 배너 */
+.new-home-banner { margin:12px 14px 8px; border-radius:16px; overflow:hidden; background:linear-gradient(135deg,#6C63FF 0%,#26D0CE 100%); padding:20px 20px; display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+.new-home-banner-title { font-size:17px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
+.new-home-banner-sub { font-size:12px; color:rgba(255,255,255,0.82); font-weight:500; }
+.new-home-banner-badge { margin-top:8px; display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.18); border-radius:20px; padding:4px 10px; width:fit-content; }
+.new-home-banner-badge span { font-size:11px; color:#fff; font-weight:600; }
+/* 메뉴 헤더 */
+.new-home-menu-header { display:flex; align-items:center; justify-content:space-between; padding:4px 16px 6px; flex-shrink:0; }
+.new-home-menu-title { font-size:13px; font-weight:700; color:var(--text2); }
+.new-home-edit-btn { background:none; border:1.5px solid var(--border); color:var(--text2); font-size:11px; font-weight:600; padding:4px 10px; border-radius:16px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:background 0.15s; }
+.new-home-edit-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+/* 그리드 */
+.new-home-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 14px 20px; }
+.new-home-card { border-radius:16px; padding:18px 14px 16px; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform 0.12s, opacity 0.12s; position:relative; user-select:none; min-height:100px; }
+.new-home-card:active { transform:scale(0.97); opacity:0.85; }
+.new-home-card.drag-mode { cursor:grab; }
+.new-home-card.drag-over { outline:2.5px dashed rgba(255,255,255,0.6); outline-offset:2px; }
+.new-home-card.dragging { opacity:0.45; transform:scale(0.96); }
+.new-home-card-icon { font-size:26px; }
+.new-home-card-label { font-size:14px; font-weight:700; line-height:1.3; }
+.new-home-card-sub { font-size:10px; font-weight:500; opacity:0.75; }
+.drag-handle { position:absolute; top:8px; right:8px; font-size:14px; opacity:0.55; display:none; }
+.new-home-card.drag-mode .drag-handle { display:block; }
+
 /* ── 테마 토글 스위치 ── */
 .theme-toggle-wrap { margin-left:auto; display:flex; align-items:center; gap:8px; }
 .theme-toggle-label { font-size:12px; color:var(--text3); }
@@ -530,6 +557,31 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
     <div style="height:12px;"></div>
   </div>
 
+  <!-- 신홈화면 (배너 + 메뉴 카드 그리드) -->
+  <div class="screen" id="screen-home-new">
+    <div class="new-home-wrap">
+      <!-- 배너 -->
+      <div class="new-home-banner">
+        <div class="new-home-banner-title">전화 방식의 새로운 알람 앱.</div>
+        <div class="new-home-banner-title" style="color:rgba(255,255,255,0.92);">링고 <span style="font-weight:400;font-size:15px;">RinGo</span></div>
+        <div class="new-home-banner-sub">채널을 만들고, 구독하고, 원하는 시간에 알람을 예약하세요.</div>
+        <div class="new-home-banner-badge">
+          <i class="fas fa-bell" style="color:#fff;font-size:11px;"></i>
+          <span>스마트 알람 플랫폼</span>
+        </div>
+      </div>
+      <!-- 메뉴 헤더 -->
+      <div class="new-home-menu-header">
+        <span class="new-home-menu-title">메뉴</span>
+        <button class="new-home-edit-btn" id="new-home-edit-btn" onclick="App.toggleHomeEditMode()">
+          <i class="fas fa-sort"></i> 순서 변경
+        </button>
+      </div>
+      <!-- 카드 그리드 -->
+      <div class="new-home-grid" id="new-home-grid"></div>
+    </div>
+  </div>
+
   <!-- 나의 운영채널 전체 페이지 -->
   <!-- 공지사항 전체 페이지 -->
   <div class="screen" id="screen-notices">
@@ -660,6 +712,18 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
       <span class="section-title">설정</span>
     </div>
     <div class="settings-menu-label">메뉴</div>
+    <!-- 홈 화면 모드 토글 -->
+    <div class="settings-menu-item" style="cursor:default;">
+      <i class="fas fa-home"></i> 홈 화면
+      <div class="theme-toggle-wrap">
+        <span style="font-size:13px;color:var(--text2);">구홈</span>
+        <label class="toggle-switch" style="margin:0 4px;">
+          <input type="checkbox" id="home-mode-toggle" onchange="App.toggleHomeMode(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:13px;color:var(--text2);">신홈</span>
+      </div>
+    </div>
     <!-- 다크/라이트 모드 토글 -->
     <div class="settings-menu-item" style="cursor:default;">
       <i class="fas fa-moon"></i> 모드 선택
