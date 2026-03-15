@@ -19,6 +19,7 @@ import notices from './routes/notices'
 import settings from './routes/settings'
 import admin from './routes/admin'
 import uploads from './routes/uploads'
+import { deleteFromFirebaseStorage } from './routes/uploads'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -1553,18 +1554,58 @@ app.post('/api/admin/cleanup', async (c) => {
   }
 
   try {
-    // alarm_logs: 3일 초과 삭제
+    const now = new Date().toISOString()
+    let firebaseDeleted = 0
+
+    // ── Firebase Storage 파일 삭제 (3일 초과 audio/video/file 타입) ──
+    try {
+      const serviceAccountJson = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+      if (serviceAccountJson) {
+        const sa = JSON.parse(serviceAccountJson)
+        const projectId = sa.project_id || (c.env as any).FCM_PROJECT_ID
+        const bucket = `${projectId}.firebasestorage.app`
+        // alarm_logs에서 3일 초과 Firebase URL 수집
+        const { results: oldFiles } = await c.env.DB.prepare(
+          `SELECT DISTINCT msg_value FROM alarm_logs
+           WHERE received_at < datetime('now', '-3 days')
+             AND msg_type IN ('audio','video','file')
+             AND msg_value LIKE 'https://firebasestorage%'`
+        ).all() as { results: any[] }
+        // alarm_schedules에서도 수집
+        const { results: oldSchedFiles } = await c.env.DB.prepare(
+          `SELECT DISTINCT msg_value FROM alarm_schedules
+           WHERE scheduled_at < datetime('now', '-3 days')
+             AND status IN ('triggered','cancelled')
+             AND msg_type IN ('audio','video','file')
+             AND msg_value LIKE 'https://firebasestorage%'`
+        ).all() as { results: any[] }
+        // 중복 제거 후 삭제
+        const allUrls = [...new Set([...oldFiles, ...oldSchedFiles].map((r: any) => r.msg_value))]
+        for (const url of allUrls) {
+          try {
+            const match = url.match(/\/o\/([^?]+)/)
+            if (match) {
+              const filePath = decodeURIComponent(match[1])
+              await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
+              firebaseDeleted++
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (fe) {
+      console.error('[Cleanup] Firebase 삭제 오류:', fe)
+    }
+
+    // ── DB 삭제 ──
     const logsResult = await c.env.DB.prepare(
       "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
     ).run()
 
-    // alarm_schedules: 3일 초과 완료/취소 삭제
     const schedulesResult = await c.env.DB.prepare(
       "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
     ).run()
 
-    const now = new Date().toISOString()
-    console.log(`[Cleanup] ${now} - alarm_logs: ${logsResult.meta?.changes ?? 0}건, alarm_schedules: ${schedulesResult.meta?.changes ?? 0}건 삭제`)
+    console.log(`[Cleanup] ${now} - alarm_logs: ${logsResult.meta?.changes ?? 0}건, alarm_schedules: ${schedulesResult.meta?.changes ?? 0}건, firebase: ${firebaseDeleted}건 삭제`)
 
     return c.json({
       ok: true,
@@ -1572,6 +1613,7 @@ app.post('/api/admin/cleanup', async (c) => {
       deleted: {
         alarm_logs: logsResult.meta?.changes ?? 0,
         alarm_schedules: schedulesResult.meta?.changes ?? 0,
+        firebase_files: firebaseDeleted,
       }
     })
   } catch (e: any) {
