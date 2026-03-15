@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.graphics.drawable.GradientDrawable
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -22,6 +20,11 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.webkit.*
 import android.widget.*
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -83,8 +86,7 @@ class ContentPlayerActivity : Activity() {
     }
 
     private var webView: WebView? = null
-    private var mediaPlayer: MediaPlayer? = null
-    private var videoView: VideoView? = null
+    private var exoPlayer: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -299,7 +301,7 @@ class ContentPlayerActivity : Activity() {
                 root.addView(webView)
             }
 
-            // ── 오디오 (MediaPlayer + 이퀄라이저 애니메이션) ──────────────────────────────
+            // ── 오디오 (ExoPlayer + 이퀄라이저 애니메이션) ──────────────────────────────
             "audio" -> {
                 val audioUrl = contentUrl.ifEmpty { msgValue }
 
@@ -342,7 +344,6 @@ class ContentPlayerActivity : Activity() {
                     "#7C3AED", "#A78BFA", "#8B5CF6", "#7C3AED",
                     "#A78BFA", "#8B5CF6", "#7C3AED", "#8B5CF6"
                 )
-                val barCount = barColors.size
                 val barWidth = dp(6)
                 val barMargin = dp(3)
                 val maxBarHeight = dp(50)
@@ -440,74 +441,102 @@ class ContentPlayerActivity : Activity() {
                     }
                 }
 
+                // ExoPlayer로 오디오 재생 (Firebase Storage URL 지원)
                 try {
-                    mediaPlayer = MediaPlayer().apply {
-                        setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                .setUsage(AudioAttributes.USAGE_MEDIA)
-                                .build()
-                        )
-                        setDataSource(audioUrl)
-                        setOnPreparedListener { mp ->
-                            statusText.text = "♪ 오디오 재생 중"
-                            mp.start()
-                            startEqualizer()
+                    val player = ExoPlayer.Builder(this).build().also { exoPlayer = it }
+                    player.setMediaItem(MediaItem.fromUri(Uri.parse(audioUrl)))
+                    player.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            when (state) {
+                                Player.STATE_BUFFERING -> {
+                                    statusText.text = "오디오 로딩 중..."
+                                }
+                                Player.STATE_READY -> {
+                                    statusText.text = "♪ 오디오 재생 중"
+                                    startEqualizer()
+                                }
+                                Player.STATE_ENDED -> {
+                                    statusText.text = "재생 완료"
+                                    playBtn.text = "▶ 다시 재생"
+                                    stopEqualizer()
+                                }
+                                else -> {}
+                            }
                         }
-                        setOnErrorListener { _, _, _ ->
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) {
+                                startEqualizer()
+                            } else if (player.playbackState != Player.STATE_ENDED) {
+                                stopEqualizer()
+                            }
+                        }
+                        override fun onPlayerError(error: PlaybackException) {
+                            Log.e(TAG, "ExoPlayer 오디오 오류: ${error.message}")
                             statusText.text = "재생 오류가 발생했습니다"
                             stopEqualizer()
-                            true
                         }
-                        setOnCompletionListener {
-                            statusText.text = "재생 완료"
-                            playBtn.text = "▶ 다시 재생"
-                            stopEqualizer()
-                        }
-                        prepareAsync()
-                    }
+                    })
+                    player.prepare()
+                    player.playWhenReady = true
+
                     playBtn.setOnClickListener {
-                        mediaPlayer?.let { mp ->
-                            if (mp.isPlaying) {
-                                mp.pause()
-                                playBtn.text = "▶ 재생"
-                                statusText.text = "일시정지"
-                                stopEqualizer()
-                            } else {
-                                mp.start()
-                                playBtn.text = "⏸ 일시정지"
-                                statusText.text = "♪ 오디오 재생 중"
-                                startEqualizer()
+                        if (player.isPlaying) {
+                            player.pause()
+                            playBtn.text = "▶ 재생"
+                            statusText.text = "일시정지"
+                        } else {
+                            if (player.playbackState == Player.STATE_ENDED) {
+                                player.seekTo(0)
                             }
+                            player.play()
+                            playBtn.text = "⏸ 일시정지"
+                            statusText.text = "♪ 오디오 재생 중"
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "MediaPlayer 오류: ${e.message}")
+                    Log.e(TAG, "ExoPlayer 오디오 초기화 오류: ${e.message}")
                     statusText.text = "오디오를 재생할 수 없습니다"
                     stopEqualizer()
                 }
             }
 
-            // ── 비디오 (VideoView) ────────────────────────────────
+            // ── 비디오 (ExoPlayer + PlayerView) ────────────────────────────────
             "video" -> {
                 val videoUrl = contentUrl.ifEmpty { msgValue }
+                Log.d(TAG, "ExoPlayer 비디오 URL: $videoUrl")
+
                 val videoContainer = FrameLayout(this).apply {
                     layoutParams = playerParams
                     setBackgroundColor(Color.BLACK)
                 }
-                videoView = VideoView(this).apply {
+
+                // ExoPlayer PlayerView (내장 컨트롤러 포함)
+                val playerView = PlayerView(this).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         Gravity.CENTER
                     )
-                    val mc = MediaController(context).apply { setAnchorView(this@apply) }
-                    setMediaController(mc)
-                    setVideoURI(Uri.parse(videoUrl))
-                    setOnPreparedListener { mp -> mp.start(); mc.show(3000) }
-                    setOnErrorListener { _, _, _ -> Log.e(TAG, "VideoView 재생 오류"); false }
+                    useController = true           // 재생/정지/탐색 컨트롤러 표시
+                    controllerAutoShow = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)  // 버퍼링 스피너 표시
                 }
-                videoContainer.addView(videoView)
+
+                val player = ExoPlayer.Builder(this).build().also { exoPlayer = it }
+                playerView.player = player
+                player.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
+                player.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        Log.d(TAG, "ExoPlayer 상태: $state")
+                    }
+                    override fun onPlayerError(error: PlaybackException) {
+                        Log.e(TAG, "ExoPlayer 비디오 오류: ${error.message}")
+                    }
+                })
+                player.prepare()
+                player.playWhenReady = true
+
+                videoContainer.addView(playerView)
                 root.addView(videoContainer)
             }
 
@@ -756,10 +785,8 @@ class ContentPlayerActivity : Activity() {
     private fun closePlayer() {
         webView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         webView = null
-        mediaPlayer?.apply { if (isPlaying) stop(); release() }
-        mediaPlayer = null
-        videoView?.stopPlayback()
-        videoView = null
+        exoPlayer?.release()
+        exoPlayer = null
         scope.cancel()
         finish()
     }
