@@ -986,14 +986,8 @@ const App = {
       try { const u = new URL(msgValue); videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || '' }
       catch(e) { videoId = msgValue }
       if (ytFrame) { ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`; ytFrame.style.display = 'block' }
-    } else if ((msgType === 'video' || msgType === 'file') && msgValue) {
-      // file 타입도 확장자로 오디오/비디오 판단
-      const isAudioFile = ['mp3','m4a','wav','aac','ogg','flac','wma'].some(e => msgValue.toLowerCase().includes('.'+e))
-      if (isAudioFile) {
-        if (audioEl && audioWrap) { audioEl.src = msgValue; audioWrap.classList.add('active'); audioEl.play?.().catch(()=>{}) }
-      } else {
-        if (videoEl) { videoEl.src = msgValue; videoEl.style.display = 'block'; videoEl.play?.().catch(()=>{}) }
-      }
+    } else if (msgType === 'video' && msgValue) {
+      if (videoEl) { videoEl.src = msgValue; videoEl.style.display = 'block'; videoEl.play?.().catch(()=>{}) }
     } else if (msgType === 'audio' && msgValue) {
       if (audioEl && audioWrap) { audioEl.src = msgValue; audioWrap.classList.add('active'); audioEl.play?.().catch(()=>{}) }
     }
@@ -1554,32 +1548,6 @@ const App = {
     if (clearBtn) clearBtn.style.display = 'none'
   },
 
-  // 파일 업로드 후 미디어 미리보기 (오디오/비디오 플레이어)
-  _showMediaPreview(mediaType, url, fileName) {
-    const preview = document.getElementById('alarm-file-preview')
-    if (!preview) return
-    preview.style.display = 'block'
-    if (mediaType === 'audio') {
-      preview.innerHTML = `
-        <div style="width:100%;padding:8px 0;">
-          <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">🎵 미리보기: ${fileName}</div>
-          <audio controls style="width:100%;height:36px;" src="${url}">
-            브라우저가 오디오 재생을 지원하지 않습니다.
-          </audio>
-        </div>
-      `
-    } else {
-      preview.innerHTML = `
-        <div style="width:100%;padding:8px 0;">
-          <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">🎬 미리보기: ${fileName}</div>
-          <video controls playsinline style="width:100%;max-height:200px;border-radius:8px;background:#000;" src="${url}">
-            브라우저가 비디오 재생을 지원하지 않습니다.
-          </video>
-        </div>
-      `
-    }
-  },
-
   _clearEditHomepage() {
     const input = document.getElementById('edit-homepage')
     if (input) { input.value = ''; input.focus() }
@@ -1637,7 +1605,6 @@ const App = {
   // 파일 표시 초기화 (X 없이 조용히)
   _clearFileDisplay() {
     window._selectedAlarmFile = null
-    window._selectedAlarmFileName = null
     alarmMsgSrc = ''
     const label = document.getElementById('alarm-file-label')
     if (label) { label.textContent = '파일을 선택하세요 (오디오/비디오)'; label.style.color = 'var(--text3)' }
@@ -1645,9 +1612,6 @@ const App = {
     if (clearBtn) clearBtn.style.display = 'none'
     const input = document.getElementById('alarm-attach-file')
     if (input) input.value = ''
-    // 미디어 프리뷰 숨김
-    const preview = document.getElementById('alarm-file-preview')
-    if (preview) { preview.style.display = 'none'; preview.innerHTML = '' }
   },
   onAlarmFileSelected(input, type) {
     const file = input.files?.[0]; if (!file) return
@@ -2536,9 +2500,9 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 // Flutter Bridge 콜백 함수들
 // Flutter에서 파일 선택/취소/오류 결과를 웹으로 전달
 // ─────────────────────────────────────────────────────
-window._flutterFileCallback = async function(data) {
-  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', path:'/storage/...', size:12345, base64:'data:...' }
-  const { type, name, path, size, base64 } = data
+window._flutterFileCallback = function(data) {
+  // data: { type:'audio'|'video'|'file', name:'xxx.mp3', path:'/storage/...', size:12345, base64:'' }
+  const { type, name, path, size } = data
 
   // 오디오 녹음 완료 시 버튼 상태 리셋 (하위 호환)
   if (type === 'audio' && App._audioRecording) {
@@ -2551,74 +2515,26 @@ window._flutterFileCallback = async function(data) {
     }
   }
 
+  // 파일명을 msg_value로 사용 (DB 저장용)
+  window._selectedAlarmFile = name  // 파일명만 저장
+  window._selectedAlarmPath = path  // 로컬 경로 (참고용)
+
   // alarmMsgSrc 자동 판단
   const isAudio = ['mp3','m4a','wav','aac','ogg','flac','wma'].some(e => name.toLowerCase().endsWith('.'+e))
   const isVideo = ['mp4','mov','mkv','avi','wmv','m4v','webm'].some(e => name.toLowerCase().endsWith('.'+e))
   alarmMsgSrc = isAudio ? 'audio' : (isVideo ? 'video' : type)
 
-  // UI 업데이트 - 업로드 중 표시
+  // 새 UI: alarm-file-label / alarm-file-clear 업데이트
   const icon = isAudio ? '🎵' : (isVideo ? '🎬' : '📎')
   const sizeStr = size > 1024*1024 ? (size/1024/1024).toFixed(2) + ' MB' : Math.round(size/1024) + ' KB'
   const label = document.getElementById('alarm-file-label')
-  if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ') 업로드 중...'; label.style.color = 'var(--text3)' }
-
+  if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
+  const clearBtn = document.getElementById('alarm-file-clear')
+  if (clearBtn) clearBtn.style.display = 'inline-flex'
   // YouTube URL 초기화
   App._clearYoutubeUrl()
 
-  // base64가 있으면 Firebase Storage에 업로드
-  if (base64 && base64.startsWith('data:')) {
-    try {
-      // base64 → Blob 변환
-      const byteStr = atob(base64.split(',')[1])
-      const mimeType = base64.split(',')[0].split(':')[1].split(';')[0]
-      const byteArr = new Uint8Array(byteStr.length)
-      for (let i = 0; i < byteStr.length; i++) byteArr[i] = byteStr.charCodeAt(i)
-      const blob = new Blob([byteArr], { type: mimeType })
-      const file = new File([blob], name, { type: mimeType })
-
-      // FormData 생성
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('session_token', Store.getToken() || '')
-
-      // 서버 업로드 API 호출
-      const res = await fetch('/api/uploads/alarm-file', {
-        method: 'POST',
-        body: formData,
-      })
-      const result = await res.json()
-      if (result.success && result.url) {
-        // 업로드 성공 → URL을 msg_value로 사용
-        window._selectedAlarmFile = result.url     // Firebase Storage URL
-        window._selectedAlarmPath = result.filePath || path
-        window._selectedAlarmFileName = name       // 원본 파일명 (표시용)
-
-        if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ')'; label.style.color = 'var(--text)' }
-        const clearBtn = document.getElementById('alarm-file-clear')
-        if (clearBtn) clearBtn.style.display = 'inline-flex'
-
-        // 미리보기 재생
-        App._showMediaPreview(isAudio ? 'audio' : 'video', result.url, name)
-        toast('✅ 파일 업로드 완료: ' + name, 2000)
-      } else {
-        if (label) { label.textContent = '❌ 업로드 실패'; label.style.color = '#ef4444' }
-        window._selectedAlarmFile = null
-        toast('파일 업로드 실패: ' + (result.error || '알 수 없는 오류'), 3000)
-      }
-    } catch(e) {
-      if (label) { label.textContent = '❌ 업로드 오류'; label.style.color = '#ef4444' }
-      window._selectedAlarmFile = null
-      toast('업로드 오류: ' + e.message, 3000)
-    }
-  } else {
-    // base64 없음 (구버전 APK) - 파일명만 저장 (업로드 불가)
-    window._selectedAlarmFile = null
-    window._selectedAlarmFileName = name
-    if (label) { label.textContent = icon + ' ' + name + ' (' + sizeStr + ') ⚠️ 최신 앱 설치 필요'; label.style.color = '#f59e0b' }
-    const clearBtn = document.getElementById('alarm-file-clear')
-    if (clearBtn) clearBtn.style.display = 'inline-flex'
-    toast('⚠️ 파일 업로드는 최신 앱에서 가능합니다', 3000)
-  }
+  toast('✅ 파일 선택 완료: ' + name, 2000)
 }
 
 window._flutterFileCancelled = function(data) {
@@ -2725,26 +2641,6 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
-  // ── [근본 해결] Flutter가 URL 파라미터로 토큰을 미리 전달 ──
-  // Flutter _loadWebViewWithToken()이 ?ft=토큰&fu=userId&fe=email&fd=displayName&fv=version 으로 로드
-  // DOMContentLoaded 시점에 이미 토큰이 URL에 있으므로 타이밍 문제 완전 해결
-  const _urlParams = new URLSearchParams(window.location.search)
-  const _ft = _urlParams.get('ft')  // flutter token
-  const _fu = _urlParams.get('fu')  // flutter userId
-  const _fe = _urlParams.get('fe')  // flutter email
-  const _fd = _urlParams.get('fd')  // flutter displayName
-  const _fv = _urlParams.get('fv')  // flutter appVersion
-  if (_ft) {
-    // URL 파라미터에 토큰이 있으면 localStorage에 즉시 저장
-    localStorage.setItem('session_token', _ft)
-    if (_fu) localStorage.setItem('user_id',       _fu)
-    if (_fe) localStorage.setItem('email',         _fe)
-    if (_fd) localStorage.setItem('display_name',  _fd)
-    if (_fv) localStorage.setItem('app_version',   _fv)
-    // URL에서 파라미터 제거 (보안 + 히스토리 정리)
-    window.history.replaceState({}, '', window.location.pathname)
-  }
-
   // 저장된 테마 적용 (기본값: light)
   const savedTheme = localStorage.getItem('theme') || 'light'
   App.applyTheme(savedTheme)
@@ -2753,17 +2649,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 로그인 화면 ──
-  // URL 파라미터 토큰이 이미 localStorage에 저장됐으므로 isLoggedIn()이 즉시 true 반환
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
+  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
+  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
   if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // Flutter WebView가 onPageFinished에서 토큰을 주입하는 구형 APK 대비 짧게 대기
+    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
     setTimeout(() => {
       if (Store.isLoggedIn()) {
         _doLogin()
       } else {
-        Auth.show()
+        Auth.show()  // 로그인 화면 표시
       }
     }, 400)
   }
@@ -2835,12 +2732,4 @@ window.flutterSetSession = function(token, userId, email, displayName) {
       setInterval(pollAlarmTrigger, 60 * 1000)
     }
   }
-}
-
-// Flutter에서 세션 없음 신호 수신 시 호출 (현재는 사용 안 함 - Flutter 네이티브에서 처리)
-// 혹시 모를 예외 상황 대비용
-window.flutterNeedLogin = function() {
-  // Flutter 앱에서는 로그인을 Flutter 네이티브(AuthScreen)에서 처리하므로
-  // 이 함수는 호출되지 않아야 정상. 만약 호출되면 로딩 상태만 유지.
-  console.log('[flutterNeedLogin] Flutter 네이티브에서 처리됨')
 }
