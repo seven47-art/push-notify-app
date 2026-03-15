@@ -875,12 +875,23 @@ alarms.get('/inbox', async (c) => {
       FROM alarm_logs l
       WHERE l.receiver_id = ?
     `
+    const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
+    const offset = Number(c.req.query('offset') || 0)
     const params: any[] = [user.id]
     if (channelId) {
       query += ` AND l.channel_id = ?`
       params.push(Number(channelId))
     }
-    query += ` ORDER BY l.received_at DESC LIMIT 200`
+    // 전체 카운트
+    const countQuery = query.replace(
+      'SELECT\n        l.id, l.alarm_id, l.channel_id, l.channel_name,\n        l.msg_type, l.msg_value, l.status, l.received_at,\n        l.scheduled_at, l.link_url\n      FROM alarm_logs l',
+      'SELECT COUNT(*) as total FROM alarm_logs l'
+    )
+    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first() as any
+    const total = countResult?.total || 0
+
+    query += ` ORDER BY l.received_at DESC LIMIT ? OFFSET ?`
+    params.push(limit, offset)
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
@@ -897,12 +908,12 @@ alarms.get('/inbox', async (c) => {
       }
     }
 
-    // 채널 목록 (필터용) - 최신 채널명 사용
-    const channels = channelIds.map(id => ({
+    // 채널 목록 (필터용) - offset=0일 때만 반환 (첫 로드 시)
+    const channels = offset === 0 ? channelIds.map(id => ({
       id: Number(id),
       name: channelInfoMap[String(id)]?.name || '',
       image_url: channelInfoMap[String(id)]?.image_url || ''
-    }))
+    })) : undefined
 
     // 결과에 최신 채널명/이미지 반영
     const data = results.map((r: any) => ({
@@ -911,7 +922,8 @@ alarms.get('/inbox', async (c) => {
       channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
     }))
 
-    return c.json({ success: true, data, channels })
+    const hasMore = offset + limit < total
+    return c.json({ success: true, data, channels, total, hasMore })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
@@ -962,7 +974,19 @@ alarms.get('/outbox', async (c) => {
       query += ` AND l.channel_id = ?`
       params.push(Number(channelId))
     }
-    query += ` ORDER BY l.received_at DESC LIMIT 200`
+    const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
+    const offset = Number(c.req.query('offset') || 0)
+
+    // 전체 카운트
+    const countQuery = query.replace(
+      'SELECT\n        l.id, l.alarm_id, l.channel_id, l.channel_name,\n        l.msg_type, l.msg_value, l.status, l.received_at,\n        l.scheduled_at, l.link_url\n      FROM alarm_logs l',
+      'SELECT COUNT(*) as total FROM alarm_logs l'
+    )
+    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first() as any
+    const total = countResult?.total || 0
+
+    query += ` ORDER BY l.received_at DESC LIMIT ? OFFSET ?`
+    params.push(limit, offset)
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
@@ -979,12 +1003,12 @@ alarms.get('/outbox', async (c) => {
       }
     }
 
-    // 채널 목록 (필터용) - 최신 채널명 사용
-    const channels = channelIds.map(id => ({
+    // 채널 목록 (필터용) - offset=0일 때만 반환
+    const channels = offset === 0 ? channelIds.map(id => ({
       id: Number(id),
       name: channelInfoMap[String(id)]?.name || '',
       image_url: channelInfoMap[String(id)]?.image_url || ''
-    }))
+    })) : undefined
 
     // 결과에 최신 채널명/이미지 반영
     const data = results.map((r: any) => ({
@@ -993,7 +1017,8 @@ alarms.get('/outbox', async (c) => {
       channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
     }))
 
-    return c.json({ success: true, data, channels })
+    const hasMore = offset + limit < total
+    return c.json({ success: true, data, channels, total, hasMore })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

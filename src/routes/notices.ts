@@ -7,12 +7,22 @@ const notices = new Hono<{ Bindings: Bindings }>()
 // GET /api/notices - 공지사항 목록 (앱용: is_active=1만)
 notices.get('/', async (c) => {
   try {
-    const all = c.req.query('all') === '1' // 관리자용: 전체 조회
+    const all    = c.req.query('all') === '1' // 관리자용: 전체 조회
+    const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
+    const offset = Number(c.req.query('offset') || 0)
+
+    const where = all ? '' : 'WHERE is_active = 1'
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM notices ${where}`
+    ).first() as any
+    const total = countResult?.total || 0
+
     const query = all
-      ? 'SELECT * FROM notices ORDER BY created_at DESC'
-      : 'SELECT * FROM notices WHERE is_active = 1 ORDER BY created_at DESC'
-    const { results } = await c.env.DB.prepare(query).all()
-    return c.json({ success: true, data: results })
+      ? `SELECT * FROM notices ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      : `SELECT * FROM notices WHERE is_active = 1 ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    const { results } = await c.env.DB.prepare(query).bind(limit, offset).all()
+    const hasMore = offset + limit < total
+    return c.json({ success: true, data: results, total, hasMore })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
