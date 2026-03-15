@@ -431,7 +431,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <body>
 
 <!-- ══ 로그인 / 회원가입 화면 ══ -->
-<div id="auth-screen">
+<div id="auth-screen" class="hidden">
   <!-- 로고 -->
   <div class="auth-logo-wrap">
     <div class="auth-logo-icon">
