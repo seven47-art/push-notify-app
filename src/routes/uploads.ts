@@ -166,18 +166,18 @@ uploads.post('/alarm-file', async (c) => {
       return c.json({ success: false, error: '세션 만료 또는 유효하지 않음' }, 401)
     }
 
-    // 파일 크기 제한 (50MB)
-    const MAX_SIZE = 50 * 1024 * 1024
+    // 파일 크기 제한 (10MB)
+    const MAX_SIZE = 10 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      return c.json({ success: false, error: `파일 크기 초과: 최대 50MB (현재 ${(file.size / 1024 / 1024).toFixed(1)}MB)` }, 400)
+      return c.json({ success: false, error: `파일 크기 초과: 최대 10MB (현재 ${(file.size / 1024 / 1024).toFixed(1)}MB). 영상은 480p로 압축되어 업로드됩니다.` }, 400)
     }
 
-    // 허용 파일 타입
-    const allowedExtensions = ['mp3','m4a','wav','aac','ogg','flac','wma','mp4','mov','mkv','avi','wmv','m4v','webm']
+    // 허용 파일 타입: mp3, mp4만 허용
+    const allowedExtensions = ['mp3', 'mp4']
     const fileName = file.name || 'unknown'
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
     if (!allowedExtensions.includes(ext)) {
-      return c.json({ success: false, error: `허용되지 않는 파일 형식: ${ext}` }, 400)
+      return c.json({ success: false, error: `허용되지 않는 파일 형식: ${ext}. mp3(오디오), mp4(영상)만 지원합니다.` }, 400)
     }
 
     // 파일 경로: alarm-files/{userId}/{timestamp}_{originalName}
@@ -186,12 +186,10 @@ uploads.post('/alarm-file', async (c) => {
     const filePath = `alarm-files/${sessionRow.user_id}/${timestamp}_${safeFileName}`
 
     // Content-Type 결정
-    const audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma']
-    const videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm']
     let contentType = file.type || 'application/octet-stream'
     if (!file.type) {
-      if (audioExts.includes(ext)) contentType = `audio/${ext === 'm4a' ? 'mp4' : ext}`
-      else if (videoExts.includes(ext)) contentType = `video/${ext === 'mov' ? 'quicktime' : ext}`
+      if (ext === 'mp3') contentType = 'audio/mp3'
+      else if (ext === 'mp4') contentType = 'video/mp4'
     }
 
     // 파일 데이터 읽기
