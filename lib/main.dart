@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,7 +18,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:video_compress/video_compress.dart';
 import 'config.dart';
 import 'fake_call_screen.dart';
@@ -749,16 +749,31 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     return sourcePath;
   }
 
-  /// Firebase Storage에 파일 직접 업로드 (putFile)
+  /// Cloudflare Worker에 파일 직접 업로드 (MultipartRequest, base64 없음)
   /// [localPath] : 로컬 파일 경로
-  /// [storagePath] : Firebase Storage 경로 (예: alarm-files/uid/filename)
+  /// [fileName]  : 저장 파일명
   /// [contentType] : MIME 타입
-  /// 업로드 완료 후 download URL 반환
-  Future<String> _uploadToStorage(String localPath, String storagePath, String contentType) async {
-    final ref = FirebaseStorage.instance.ref().child(storagePath);
-    final metadata = SettableMetadata(contentType: contentType);
-    await ref.putFile(File(localPath), metadata);
-    return await ref.getDownloadURL();
+  /// 업로드 완료 후 Firebase Storage download URL 반환
+  Future<String> _uploadToWorker(String localPath, String fileName, String contentType) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sessionToken = prefs.getString('session_token') ?? '';
+
+    final uri = Uri.parse('$_baseUrl/api/uploads/alarm-file');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['session_token'] = sessionToken;
+    request.files.add(await http.MultipartFile.fromPath(
+      'file', localPath,
+      filename: fileName,
+      contentType: MediaType.parse(contentType),
+    ));
+
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    if (json['success'] == true && json['url'] != null) {
+      return json['url'] as String;
+    }
+    throw Exception('업로드 실패: ${json['error'] ?? body}');
   }
 
   /// 세션 토큰으로 userId를 SharedPreferences에서 가져오기
@@ -789,17 +804,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         return;
       }
 
-      // 3) Firebase Storage 직접 업로드
+      // 3) Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
       _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
-      final userId  = await _getUserId();
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
-      final storagePath = 'alarm-files/$userId/$fileName';
-      final downloadUrl = await _uploadToStorage(compressedPath, storagePath, 'video/mp4');
+      final downloadUrl = await _uploadToWorker(compressedPath, fileName, 'video/mp4');
 
       _sendToWeb('window._flutterFileCallback', {
         'type': 'video', 'name': fileName,
         'path': compressedPath, 'size': fileSize,
-        'url': downloadUrl,   // base64 대신 URL 직접 전달
+        'url': downloadUrl,
         'base64': '',
       });
     } catch (e) {
@@ -827,14 +840,12 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         return;
       }
 
-      // Firebase Storage 직접 업로드
+      // Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
       _sendToWeb('window._flutterUploadProgress', {'type': 'audio', 'status': 'uploading'});
-      final userId   = await _getUserId();
       final ext      = f.name.split('.').last.toLowerCase();
       final mime     = ext == 'mp3' ? 'audio/mpeg' : 'audio/$ext';
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
-      final storagePath = 'alarm-files/$userId/$fileName';
-      final downloadUrl = await _uploadToStorage(f.path!, storagePath, mime);
+      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
 
       _sendToWeb('window._flutterFileCallback', {
         'type': 'audio', 'name': f.name,
@@ -872,12 +883,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         return;
       }
 
-      // 3) Firebase Storage 직접 업로드
+      // 3) Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
       _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
-      final userId      = await _getUserId();
       final fileName    = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
-      final storagePath = 'alarm-files/$userId/$fileName';
-      final downloadUrl = await _uploadToStorage(compressedPath, storagePath, 'video/mp4');
+      final downloadUrl = await _uploadToWorker(compressedPath, fileName, 'video/mp4');
 
       _sendToWeb('window._flutterFileCallback', {
         'type': 'video', 'name': fileName,
