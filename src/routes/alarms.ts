@@ -776,6 +776,34 @@ alarms.get('/logs', async (c) => {
 
     const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)
     const offset = Number(c.req.query('offset') || 0)
+    const dateFrom = c.req.query('date_from') || ''  // YYYY-MM-DD
+    const dateTo   = c.req.query('date_to')   || ''  // YYYY-MM-DD
+
+    // 날짜 필터 조건 생성
+    const dateConditions: string[] = []
+    const dateParams: string[] = []
+    if (dateFrom) {
+      dateConditions.push("MIN(l.received_at) >= ?")
+      dateParams.push(dateFrom + ' 00:00:00')
+    }
+    if (dateTo) {
+      dateConditions.push("MIN(l.received_at) <= ?")
+      dateParams.push(dateTo + ' 23:59:59')
+    }
+    const havingClause = dateConditions.length > 0 ? `HAVING ${dateConditions.join(' AND ')}` : ''
+
+    // 날짜 필터용 WHERE 조건 (COUNT용)
+    const whereConditions: string[] = []
+    const whereParams: string[] = []
+    if (dateFrom) {
+      whereConditions.push("l.received_at >= ?")
+      whereParams.push(dateFrom + ' 00:00:00')
+    }
+    if (dateTo) {
+      whereConditions.push("l.received_at <= ?")
+      whereParams.push(dateTo + ' 23:59:59')
+    }
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
     const { results } = await c.env.DB.prepare(`
       SELECT
@@ -790,13 +818,14 @@ alarms.get('/logs', async (c) => {
       FROM alarm_logs l
       LEFT JOIN users u ON u.user_id = l.sender_id
       GROUP BY l.alarm_id
+      ${havingClause}
       ORDER BY MIN(l.received_at) DESC
       LIMIT ? OFFSET ?
-    `).bind(limit, offset).all() as { results: any[] }
+    `).bind(...dateParams, limit, offset).all() as { results: any[] }
 
     const { results: countResult } = await c.env.DB.prepare(
-      'SELECT COUNT(DISTINCT alarm_id) as total FROM alarm_logs'
-    ).all() as { results: any[] }
+      `SELECT COUNT(DISTINCT alarm_id) as total FROM alarm_logs l ${whereClause}`
+    ).bind(...whereParams).all() as { results: any[] }
 
     return c.json({
       success: true,
