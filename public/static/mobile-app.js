@@ -2598,7 +2598,8 @@ window._flutterFileCallback = async function(data) {
         if (clearBtn) clearBtn.style.display = 'inline-flex'
 
         // 미리보기 재생
-        App._showMediaPreview(isAudio ? 'audio' : 'video', result.url, name)        toast('✅ 파일 업로드 완료: ' + name, 2000)
+        App._showMediaPreview(isAudio ? 'audio' : 'video', result.url, name)
+        toast('✅ 파일 업로드 완료: ' + name, 2000)
       } else {
         if (label) { label.textContent = '❌ 업로드 실패'; label.style.color = '#ef4444' }
         window._selectedAlarmFile = null
