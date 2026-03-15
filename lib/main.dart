@@ -870,27 +870,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 경로를 가져올 수 없습니다'}); return;
       }
 
-      // 1) 480p 압축
-      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'compressing'});
-      final compressedPath = await _compressVideo(f.path!);
-      final compressedFile = File(compressedPath);
-      final fileSize = await compressedFile.length();
-
-      // 2) 10MB 초과 체크
-      if (fileSize > 10 * 1024 * 1024) {
+      // 파일 크기 체크 (압축 없이 바로 업로드 - 파일 첨부는 이미 완성된 파일)
+      final fileSize = await File(f.path!).length();
+      if (fileSize > 50 * 1024 * 1024) {
         _sendToWeb('window._flutterFileError', {'type': 'video',
-          'error': '압축 후에도 10MB 초과 (${(fileSize/1024/1024).toStringAsFixed(1)}MB). 더 짧은 영상을 사용해 주세요.'});
+          'error': '파일 크기가 50MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
         return;
       }
 
-      // 3) Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
+      // Cloudflare Worker로 직접 업로드 (압축 없이, base64 없음)
       _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
-      final fileName    = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
-      final downloadUrl = await _uploadToWorker(compressedPath, fileName, 'video/mp4');
+      final ext = f.name.split('.').last.toLowerCase();
+      final mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
 
       _sendToWeb('window._flutterFileCallback', {
-        'type': 'video', 'name': fileName,
-        'path': compressedPath, 'size': fileSize,
+        'type': 'video', 'name': f.name,
+        'path': f.path!, 'size': fileSize,
         'url': downloadUrl,
         'base64': '',
       });
@@ -933,23 +930,47 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         withData: false,
         withReadStream: false,
       );
-      if (result != null && result.files.isNotEmpty) {
-        final f = result.files.first;
-        String base64Str = '';
-        if (f.path != null) {
-          final bytes = await File(f.path!).readAsBytes();
-          final ext = f.name.split('.').last.toLowerCase();
-          final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
-          final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
-          String mime = 'application/octet-stream';
-          if (audioExts.contains(ext)) mime = ext == 'm4a' ? 'audio/mp4' : 'audio/$ext';
-          else if (videoExts.contains(ext)) mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
-          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
-      } else {
+      if (result == null || result.files.isEmpty) {
         _sendToWeb('window._flutterFileCancelled', {'type': 'file'});
+        return;
       }
+
+      final f = result.files.first;
+      if (f.path == null) {
+        _sendToWeb('window._flutterFileError', {'type': 'file', 'error': '파일 경로를 가져올 수 없습니다'});
+        return;
+      }
+
+      // 1) 파일 크기 체크 (서버 전송 전에 미리)
+      final fileSize = await File(f.path!).length();
+      if (fileSize > 50 * 1024 * 1024) {
+        _sendToWeb('window._flutterFileError', {'type': 'file',
+          'error': '파일 크기가 50MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
+        return;
+      }
+
+      // 2) MIME 타입 결정
+      final ext = f.name.split('.').last.toLowerCase();
+      final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
+      final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
+      String mime = 'application/octet-stream';
+      if (audioExts.contains(ext)) mime = ext == 'm4a' ? 'audio/mp4' : 'audio/$ext';
+      else if (videoExts.contains(ext)) mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
+
+      // 3) Cloudflare Worker로 직접 업로드 (base64 없이 스트림 전송)
+      _sendToWeb('window._flutterUploadProgress', {'type': 'file', 'status': 'uploading'});
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
+
+      // 4) 업로드 완료 후 URL만 WebView로 전달 (base64 없음)
+      _sendToWeb('window._flutterFileCallback', {
+        'type': 'file',
+        'name': f.name,
+        'path': f.path!,
+        'size': fileSize,
+        'url': downloadUrl,
+        'base64': '',
+      });
     } catch (e) {
       _sendToWeb('window._flutterFileError', {'type': 'file', 'error': e.toString()});
     }
