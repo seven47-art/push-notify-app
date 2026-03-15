@@ -12,5 +12,8 @@
       "database_name": "webapp-production",
       "database_id": "307f82ce-7467-45dd-a6e9-11c819289778"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["0 15 * * *"]
+  }
 }

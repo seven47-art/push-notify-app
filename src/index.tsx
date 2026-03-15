@@ -1542,4 +1542,31 @@ app.route('/admin', admin)
 
 app.get('*', (c) => c.redirect('/'))
 
-export default app
+// =============================================
+// Cloudflare Cron Trigger - 매일 KST 00:00 (UTC 15:00) 실행
+// alarm_logs 3일 초과분 자동 삭제
+// =============================================
+const scheduled: ExportedHandlerScheduledHandler<{ DB: D1Database }> = async (event, env, ctx) => {
+  ctx.waitUntil((async () => {
+    try {
+      // alarm_logs: 3일 초과 삭제
+      await env.DB.prepare(
+        "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      ).run()
+
+      // alarm_schedules: 3일 초과된 완료/취소 삭제
+      await env.DB.prepare(
+        "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      ).run()
+
+      console.log('[Cron] alarm_logs / alarm_schedules 3일 초과분 삭제 완료 -', new Date().toISOString())
+    } catch (e) {
+      console.error('[Cron] 삭제 실패:', e)
+    }
+  })())
+}
+
+export default {
+  fetch: app.fetch,
+  scheduled,
+}

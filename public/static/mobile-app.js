@@ -2936,6 +2936,15 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  // localStorage 알림 3일 초과 항목 자동 삭제
+  ;(function cleanOldNotifs() {
+    try {
+      const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000
+      const list = Store.getNotifs().filter(n => n.id && n.id >= cutoff)
+      localStorage.setItem('notifications', JSON.stringify(list))
+    } catch(e) {}
+  })()
+
   // 저장된 테마 적용 (기본값: light)
   const savedTheme = localStorage.getItem('theme') || 'light'
   App.applyTheme(savedTheme)
