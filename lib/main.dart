@@ -280,17 +280,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   Future<void> _injectSession() async {
     final prefs       = await SharedPreferences.getInstance();
     final token       = prefs.getString('session_token') ?? '';
-
-    // 토큰 없으면 → Flutter 네이티브 AuthScreen으로 이동 (JS 로그인 화면 안 씀)
-    if (token.isEmpty) {
-      // WebView는 로딩 스피너 상태 유지 (JS는 FlutterBridge 있으면 대기 중)
-      // Flutter가 AuthScreen으로 이동해서 처리
-      debugPrint('[_injectSession] 토큰 없음 → AuthScreen으로 이동');
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/auth');
-      }
-      return;
-    }
+    if (token.isEmpty) return;
 
     final userId      = prefs.getString('user_id')      ?? '';
     final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
@@ -355,6 +345,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           onProgress:    (p) => setState(() => _loadingProgress = p),
           onPageFinished: (_) async {
             setState(() => _loading = false);
+            // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
+            await _injectSession();
           },
           onWebResourceError: (err) {
             if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
@@ -368,34 +360,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             return NavigationDecision.navigate;
           },
         ),
-      );
-    _loadWebViewWithToken();
-  }
-
-  // ── 토큰을 URL 파라미터에 포함해서 WebView 로드 (타이밍 문제 근본 해결) ──
-  Future<void> _loadWebViewWithToken() async {
-    final prefs       = await SharedPreferences.getInstance();
-    final token       = prefs.getString('session_token') ?? '';
-    final userId      = prefs.getString('user_id')      ?? '';
-    final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
-    final displayName = prefs.getString('display_name') ?? '';
-    const appVersion  = '2.1.2';
-
-    if (token.isEmpty) {
-      // 토큰 없으면 그냥 기본 URL 로드 (JS가 로그인 화면 표시)
-      _controller.loadRequest(Uri.parse(_appUrl));
-      return;
-    }
-
-    // 토큰을 URL 파라미터로 포함 → JS가 DOMContentLoaded 시점에 바로 읽음
-    final uri = Uri.parse(_appUrl).replace(queryParameters: {
-      'ft': token,
-      'fu': userId,
-      'fe': email,
-      'fd': displayName,
-      'fv': appVersion,
-    });
-    _controller.loadRequest(uri);
+      )
+      ..loadRequest(Uri.parse(_appUrl));
   }
 
   // ── 앱 포그라운드/백그라운드 감지 ──
@@ -782,23 +748,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickAudioFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.audio,
-        withData: true,   // base64 전달을 위해 데이터 읽기
-        withReadStream: false,
-      );
+      final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: false, withReadStream: false);
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        final bytes = f.bytes;
-        String base64Str = '';
-        if (bytes != null) {
-          base64Str = 'data:audio/${f.extension ?? 'mpeg'};base64,${base64Encode(bytes)}';
-        } else if (f.path != null) {
-          // bytes가 없으면 path에서 직접 읽기
-          final fileBytes = await File(f.path!).readAsBytes();
-          base64Str = 'data:audio/${f.extension ?? 'mpeg'};base64,${base64Encode(fileBytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
+        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
@@ -809,23 +762,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickVideoFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.video,
-        withData: true,   // base64 전달을 위해 데이터 읽기
-        withReadStream: false,
-      );
+      final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: false, withReadStream: false);
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        final bytes = f.bytes;
-        String base64Str = '';
-        if (bytes != null) {
-          base64Str = 'data:video/${f.extension ?? 'mp4'};base64,${base64Encode(bytes)}';
-        } else if (f.path != null) {
-          // bytes가 없으면 path에서 직접 읽기
-          final fileBytes = await File(f.path!).readAsBytes();
-          base64Str = 'data:video/${f.extension ?? 'mp4'};base64,${base64Encode(fileBytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
+        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
       }
@@ -865,26 +805,12 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['mp3','m4a','wav','aac','ogg','flac','wma','mp4','mov','mkv','avi','wmv','m4v','webm'],
-        withData: true,   // base64 전달을 위해 데이터 읽기
+        withData: false,
         withReadStream: false,
       );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        final bytes = f.bytes;
-        final ext = f.extension?.toLowerCase() ?? '';
-        final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
-        final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
-        final mimeType = audioExts.contains(ext)
-            ? 'audio/${ext == 'm4a' ? 'mp4' : ext}'
-            : (videoExts.contains(ext) ? 'video/${ext == 'mov' ? 'quicktime' : ext}' : 'application/octet-stream');
-        String base64Str = '';
-        if (bytes != null) {
-          base64Str = 'data:$mimeType;base64,${base64Encode(bytes)}';
-        } else if (f.path != null) {
-          final fileBytes = await File(f.path!).readAsBytes();
-          base64Str = 'data:$mimeType;base64,${base64Encode(fileBytes)}';
-        }
-        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
+        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'file'});
       }
