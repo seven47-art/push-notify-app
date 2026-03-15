@@ -355,8 +355,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           onProgress:    (p) => setState(() => _loadingProgress = p),
           onPageFinished: (_) async {
             setState(() => _loading = false);
-            // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
-            await _injectSession();
           },
           onWebResourceError: (err) {
             if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
@@ -370,8 +368,34 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_appUrl));
+      );
+    _loadWebViewWithToken();
+  }
+
+  // ── 토큰을 URL 파라미터에 포함해서 WebView 로드 (타이밍 문제 근본 해결) ──
+  Future<void> _loadWebViewWithToken() async {
+    final prefs       = await SharedPreferences.getInstance();
+    final token       = prefs.getString('session_token') ?? '';
+    final userId      = prefs.getString('user_id')      ?? '';
+    final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
+    final displayName = prefs.getString('display_name') ?? '';
+    const appVersion  = '2.1.2';
+
+    if (token.isEmpty) {
+      // 토큰 없으면 그냥 기본 URL 로드 (JS가 로그인 화면 표시)
+      _controller.loadRequest(Uri.parse(_appUrl));
+      return;
+    }
+
+    // 토큰을 URL 파라미터로 포함 → JS가 DOMContentLoaded 시점에 바로 읽음
+    final uri = Uri.parse(_appUrl).replace(queryParameters: {
+      'ft': token,
+      'fu': userId,
+      'fe': email,
+      'fd': displayName,
+      'fv': appVersion,
+    });
+    _controller.loadRequest(uri);
   }
 
   // ── 앱 포그라운드/백그라운드 감지 ──
