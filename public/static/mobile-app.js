@@ -1987,10 +1987,16 @@ const App = {
         const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }[alarmMsgSrc]
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
-        this._refreshAlarmBtn(currentAlarmChId)
-        // 알람 목록 갱신 후 모달 닫기
-        await this._loadAlarmList(currentAlarmChId)
+
+        // 홈 캐시 무효화 → 내 채널 목록 재조회 시 서버에서 최신 데이터(알람 아이콘 포함) 반영
+        Cache.del('home_' + Store.getUserId())
+
+        // 알람 모달 + 채널 상세 모달 닫기
         this.closeModal('modal-alarm')
+        this.closeModal('modal-channel-detail')
+
+        // 내 채널 전체 목록으로 이동 (새로고침)
+        this.goto('home')
       } else {
         toast(res.data?.error || '알람 저장 실패', 3000)
       }
