@@ -280,7 +280,17 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   Future<void> _injectSession() async {
     final prefs       = await SharedPreferences.getInstance();
     final token       = prefs.getString('session_token') ?? '';
-    if (token.isEmpty) return;
+
+    // 토큰 없으면 → Flutter 네이티브 AuthScreen으로 이동 (JS 로그인 화면 안 씀)
+    if (token.isEmpty) {
+      // WebView는 로딩 스피너 상태 유지 (JS는 FlutterBridge 있으면 대기 중)
+      // Flutter가 AuthScreen으로 이동해서 처리
+      debugPrint('[_injectSession] 토큰 없음 → AuthScreen으로 이동');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/auth');
+      }
+      return;
+    }
 
     final userId      = prefs.getString('user_id')      ?? '';
     final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';

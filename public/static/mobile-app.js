@@ -2732,20 +2732,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
-  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
-  if (Store.isLoggedIn()) {
-    _doLogin()
+  // ── Flutter WebView 전용: JS는 판단하지 않고 Flutter 신호만 대기 ──
+  // flutterSetSession() → 홈으로 이동
+  // flutterNeedLogin()  → 로그인 화면 (이메일 선택은 Flutter 네이티브에서 처리)
+  // 웹 브라우저 직접 접속 시에만 기존 방식으로 처리
+  if (window.FlutterBridge) {
+    // Flutter 앱 내: 로딩 스피너만 표시하고 Flutter 신호 대기
+    // _injectSession() 또는 flutterNeedLogin() 이 호출될 때까지 대기
+    // (아무것도 하지 않음 - flutterSetSession/flutterNeedLogin 이 알아서 처리)
   } else {
-    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
-    setTimeout(() => {
-      if (Store.isLoggedIn()) {
-        _doLogin()
-      } else {
-        Auth.show()  // 로그인 화면 표시
-      }
-    }, 400)
+    // 웹 브라우저 직접 접속: 기존 방식 유지
+    if (Store.isLoggedIn()) {
+      _doLogin()
+    } else {
+      Auth.show()
+    }
   }
 
   // 샘플 알림 (첫 방문)
@@ -2815,4 +2816,12 @@ window.flutterSetSession = function(token, userId, email, displayName) {
       setInterval(pollAlarmTrigger, 60 * 1000)
     }
   }
+}
+
+// Flutter에서 세션 없음 신호 수신 시 호출 (현재는 사용 안 함 - Flutter 네이티브에서 처리)
+// 혹시 모를 예외 상황 대비용
+window.flutterNeedLogin = function() {
+  // Flutter 앱에서는 로그인을 Flutter 네이티브(AuthScreen)에서 처리하므로
+  // 이 함수는 호출되지 않아야 정상. 만약 호출되면 로딩 상태만 유지.
+  console.log('[flutterNeedLogin] Flutter 네이티브에서 처리됨')
 }
