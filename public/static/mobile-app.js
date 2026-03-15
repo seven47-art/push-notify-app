@@ -1517,6 +1517,16 @@ const App = {
       // 홈 캐시 + 채널 상세 캐시 무효화
       Cache.del('home_' + Store.getUserId())
       Cache.del('ch_detail_' + currentAlarmChId)
+
+      // ownedChannels 배열의 pending_alarm_count 즉시 갱신 → loadOwnedAll() 재렌더 시 반영
+      const oc = ownedChannels.find(c => c.id === currentAlarmChId)
+      if (oc && oc.pending_alarm_count > 0) {
+        oc.pending_alarm_count = Math.max(0, oc.pending_alarm_count - 1)
+        if (currentTab === 'owned-all') this.loadOwnedAll()
+        // 홈 탭 채널 미리보기도 재렌더
+        this._renderOwned()
+      }
+
       // 알람 목록 재렌더
       this._loadAlarmList(currentAlarmChId)
       // 채널 소개 모달이 열려있으면 즉시 재렌더 (아이콘 즉시 반영)
@@ -1530,6 +1540,13 @@ const App = {
             if (ch) {
               Cache.set('ch_detail_' + currentAlarmChId, ch)
               this._renderChannelDetail(scroll, ch)
+              // ownedChannels 배열도 서버 값으로 정확히 동기화
+              const idx = ownedChannels.findIndex(c => c.id === currentAlarmChId)
+              if (idx !== -1) {
+                ownedChannels[idx] = { ...ownedChannels[idx], pending_alarm_count: ch.pending_alarm_count || 0 }
+                if (currentTab === 'owned-all') this.loadOwnedAll()
+                this._renderOwned()
+              }
             }
           } catch (_) {}
         }
@@ -2037,15 +2054,17 @@ const App = {
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
 
-        // 홈 캐시 무효화 → 내 채널 목록 재조회 시 서버에서 최신 데이터(알람 아이콘 포함) 반영
+        // 홈 캐시 무효화
         Cache.del('home_' + Store.getUserId())
 
-        // 알람 모달 + 채널 상세 모달 닫기
+        // ownedChannels 배열 서버에서 재조회 후 내 채널 전체보기로 이동
         this.closeModal('modal-alarm')
         this.closeModal('modal-channel-detail')
-
-        // 내 채널 전체 목록으로 이동 (새로고침)
-        this.goto('home')
+        try {
+          const oRes = await API.get('/channels?owner_id=' + Store.getUserId())
+          ownedChannels = oRes.data?.data || ownedChannels
+        } catch (_) {}
+        this.goto('owned-all')
       } else {
         toast(res.data?.error || '알람 저장 실패', 3000)
       }
