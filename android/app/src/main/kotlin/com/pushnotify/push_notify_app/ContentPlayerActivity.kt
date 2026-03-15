@@ -20,11 +20,6 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.webkit.*
 import android.widget.*
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -86,7 +81,7 @@ class ContentPlayerActivity : Activity() {
     }
 
     private var webView: WebView? = null
-    private var exoPlayer: ExoPlayer? = null
+    private var audioWebView: WebView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,21 +142,8 @@ class ContentPlayerActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         )
 
-        // file 타입: 확장자로 실제 타입 판별 (Firebase Storage URL은 ?alt=media&token=... 포함하므로 쿼리파라미터 제거 후 비교)
-        val effectiveType = if (msgType == "file" || msgType == "audio" || msgType == "video") {
-            val rawUrl = contentUrl.ifEmpty { msgValue }
-            val cleanUrl = rawUrl.substringBefore("?").lowercase()
-            val audioExts = listOf(".mp3", ".m4a", ".wav", ".aac", ".ogg", ".flac", ".wma")
-            val videoExts = listOf(".mp4", ".mov", ".mkv", ".avi", ".wmv", ".m4v", ".webm")
-            when {
-                audioExts.any { cleanUrl.endsWith(it) } -> "audio"
-                videoExts.any { cleanUrl.endsWith(it) } -> "video"
-                // 확장자 판별 불가 시 원래 msg_type 유지 (youtube 등 다른 타입 보호)
-                msgType == "audio" -> "audio"
-                msgType == "video" -> "video"
-                else -> "file"
-            }
-        } else msgType
+        // msg_type 기준으로 판별 (DB에 "audio"/"video" 정확히 저장됨)
+        val effectiveType = msgType
 
         when (effectiveType) {
 
@@ -301,11 +283,12 @@ class ContentPlayerActivity : Activity() {
                 root.addView(webView)
             }
 
-            // ── 오디오 (ExoPlayer + 이퀄라이저 애니메이션) ──────────────────────────────
+            // ── 오디오 (WebView 재생 + 이퀄라이저 애니메이션 UI) ─────────────────────
             "audio" -> {
                 val audioUrl = contentUrl.ifEmpty { msgValue }
+                Log.d(TAG, "오디오 WebView URL: $audioUrl")
 
-                // 배경: 딥 퍼플 그라디언트
+                // 배경: 딥 퍼플 그라디언트 컨테이너
                 val audioContainer = FrameLayout(this).apply {
                     layoutParams = playerParams
                     background = GradientDrawable().apply {
@@ -317,6 +300,21 @@ class ContentPlayerActivity : Activity() {
                         )
                     }
                 }
+
+                // 숨겨진 WebView (오디오만 재생, 화면 표시 없음 1x1dp)
+                audioWebView = WebView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(dp(1), dp(1))
+                    visibility = View.INVISIBLE
+                    settings.apply {
+                        javaScriptEnabled = true
+                        mediaPlaybackRequiresUserGesture = false
+                    }
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
+                    }
+                    loadUrl(audioUrl)
+                }
+                audioContainer.addView(audioWebView)
 
                 // 중앙 컨테이너 (이퀄라이저 + 상태 텍스트)
                 val centerLayout = LinearLayout(this).apply {
@@ -338,7 +336,6 @@ class ContentPlayerActivity : Activity() {
                     ).also { it.bottomMargin = dp(8) }
                 }
 
-                // 막대 색상 (보라 계열 그라디언트)
                 val barColors = listOf(
                     "#7C3AED", "#8B5CF6", "#A78BFA", "#8B5CF6",
                     "#7C3AED", "#A78BFA", "#8B5CF6", "#7C3AED",
@@ -348,8 +345,6 @@ class ContentPlayerActivity : Activity() {
                 val barMargin = dp(3)
                 val maxBarHeight = dp(50)
                 val minBarHeight = dp(6)
-
-                // 각 막대의 높이 애니메이터 저장 (재생/일시정지 제어용)
                 val barAnimators = mutableListOf<ValueAnimator>()
                 val barViews = mutableListOf<View>()
 
@@ -366,8 +361,6 @@ class ContentPlayerActivity : Activity() {
                     }
                     eqContainer.addView(bar)
                     barViews.add(bar)
-
-                    // 각 막대마다 다른 속도/진폭으로 위아래 애니메이션
                     val randomHeight = minBarHeight + (Math.random() * (maxBarHeight - minBarHeight)).toInt()
                     val duration = 300L + (index * 80L) + (Math.random() * 200).toLong()
                     val animator = ValueAnimator.ofInt(minBarHeight, randomHeight).apply {
@@ -377,9 +370,7 @@ class ContentPlayerActivity : Activity() {
                         interpolator = DecelerateInterpolator()
                         addUpdateListener { anim ->
                             val h = anim.animatedValue as Int
-                            bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp ->
-                                lp.height = h
-                            }
+                            bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = h }
                             bar.requestLayout()
                         }
                     }
@@ -387,9 +378,8 @@ class ContentPlayerActivity : Activity() {
                 }
                 centerLayout.addView(eqContainer)
 
-                // 상태 텍스트
                 val statusText = TextView(this).apply {
-                    text = "오디오 로딩 중..."
+                    text = "♪ 오디오 재생 중"
                     textSize = 14f
                     setTextColor(Color.parseColor("#A78BFA"))
                     gravity = Gravity.CENTER
@@ -401,7 +391,7 @@ class ContentPlayerActivity : Activity() {
                 centerLayout.addView(statusText)
                 audioContainer.addView(centerLayout)
 
-                // 재생/일시정지 버튼
+                // 재생/일시정지 버튼 (WebView JS로 제어)
                 val playBtn = TextView(this).apply {
                     text = "⏸ 일시정지"
                     textSize = 16f
@@ -421,123 +411,90 @@ class ContentPlayerActivity : Activity() {
                 audioContainer.addView(playBtn)
                 root.addView(audioContainer)
 
-                // 이퀄라이저 시작 함수
+                // 이퀄라이저 시작/정지
                 fun startEqualizer() {
                     barAnimators.forEachIndexed { i, anim ->
-                        if (!anim.isRunning) {
-                            anim.startDelay = (i * 40L)
-                            anim.start()
-                        }
+                        if (!anim.isRunning) { anim.startDelay = (i * 40L); anim.start() }
                     }
                 }
-                // 이퀄라이저 정지 함수 (막대를 최소 높이로)
                 fun stopEqualizer() {
                     barAnimators.forEach { it.cancel() }
                     barViews.forEach { bar ->
-                        bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp ->
-                            lp.height = minBarHeight
-                        }
+                        bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = minBarHeight }
                         bar.requestLayout()
                     }
                 }
 
-                // ExoPlayer로 오디오 재생 (Firebase Storage URL 지원)
-                try {
-                    val player = ExoPlayer.Builder(this).build().also { exoPlayer = it }
-                    player.setMediaItem(MediaItem.fromUri(Uri.parse(audioUrl)))
-                    player.addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(state: Int) {
-                            when (state) {
-                                Player.STATE_BUFFERING -> {
-                                    statusText.text = "오디오 로딩 중..."
-                                }
-                                Player.STATE_READY -> {
-                                    statusText.text = "♪ 오디오 재생 중"
-                                    startEqualizer()
-                                }
-                                Player.STATE_ENDED -> {
-                                    statusText.text = "재생 완료"
-                                    playBtn.text = "▶ 다시 재생"
-                                    stopEqualizer()
-                                }
-                                else -> {}
-                            }
-                        }
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            if (isPlaying) {
-                                startEqualizer()
-                            } else if (player.playbackState != Player.STATE_ENDED) {
-                                stopEqualizer()
-                            }
-                        }
-                        override fun onPlayerError(error: PlaybackException) {
-                            Log.e(TAG, "ExoPlayer 오디오 오류: ${error.message}")
-                            statusText.text = "재생 오류가 발생했습니다"
-                            stopEqualizer()
-                        }
-                    })
-                    player.prepare()
-                    player.playWhenReady = true
-
-                    playBtn.setOnClickListener {
-                        if (player.isPlaying) {
-                            player.pause()
-                            playBtn.text = "▶ 재생"
-                            statusText.text = "일시정지"
-                        } else {
-                            if (player.playbackState == Player.STATE_ENDED) {
-                                player.seekTo(0)
-                            }
-                            player.play()
-                            playBtn.text = "⏸ 일시정지"
-                            statusText.text = "♪ 오디오 재생 중"
-                        }
+                // 페이지 로드 완료 후 이퀄라이저 시작
+                audioWebView?.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        startEqualizer()
+                        statusText.text = "♪ 오디오 재생 중"
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "ExoPlayer 오디오 초기화 오류: ${e.message}")
-                    statusText.text = "오디오를 재생할 수 없습니다"
-                    stopEqualizer()
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
+                }
+
+                var isPlaying = true
+                playBtn.setOnClickListener {
+                    if (isPlaying) {
+                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.pause();})()")  
+                        playBtn.text = "▶ 재생"
+                        statusText.text = "일시정지"
+                        stopEqualizer()
+                        isPlaying = false
+                    } else {
+                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.play();})()")  
+                        playBtn.text = "⏸ 일시정지"
+                        statusText.text = "♪ 오디오 재생 중"
+                        startEqualizer()
+                        isPlaying = true
+                    }
                 }
             }
 
-            // ── 비디오 (ExoPlayer + PlayerView) ────────────────────────────────
+            // ── 비디오 (WebView로 직접 재생 - 세이투두 방식) ─────────────────────────
             "video" -> {
                 val videoUrl = contentUrl.ifEmpty { msgValue }
-                Log.d(TAG, "ExoPlayer 비디오 URL: $videoUrl")
+                Log.d(TAG, "비디오 WebView URL: $videoUrl")
 
-                val videoContainer = FrameLayout(this).apply {
+                webView = WebView(this).apply {
                     layoutParams = playerParams
                     setBackgroundColor(Color.BLACK)
-                }
-
-                // ExoPlayer PlayerView (내장 컨트롤러 포함)
-                val playerView = PlayerView(this).apply {
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        Gravity.CENTER
-                    )
-                    useController = true           // 재생/정지/탐색 컨트롤러 표시
-                    controllerAutoShow = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)  // 버퍼링 스피너 표시
-                }
-
-                val player = ExoPlayer.Builder(this).build().also { exoPlayer = it }
-                playerView.player = player
-                player.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
-                player.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(state: Int) {
-                        Log.d(TAG, "ExoPlayer 상태: $state")
+                    settings.apply {
+                        javaScriptEnabled = true
+                        @Suppress("DEPRECATION")
+                        pluginState = WebSettings.PluginState.ON
+                        javaScriptCanOpenWindowsAutomatically = true
+                        setSupportMultipleWindows(true)
+                        setSupportZoom(true)
+                        builtInZoomControls = true
+                        allowFileAccess = true
+                        mediaPlaybackRequiresUserGesture = false
                     }
-                    override fun onPlayerError(error: PlaybackException) {
-                        Log.e(TAG, "ExoPlayer 비디오 오류: ${error.message}")
+                    webChromeClient = object : WebChromeClient() {
+                        private var customView: View? = null
+                        private var customViewCallback: CustomViewCallback? = null
+                        override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                            customView?.let { root.removeView(it) }
+                            customView = view
+                            customViewCallback = callback
+                            root.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                            webView?.visibility = View.GONE
+                        }
+                        override fun onHideCustomView() {
+                            customView?.let { root.removeView(it) }
+                            customView = null
+                            customViewCallback?.onCustomViewHidden()
+                            customViewCallback = null
+                            webView?.visibility = View.VISIBLE
+                        }
                     }
-                })
-                player.prepare()
-                player.playWhenReady = true
-
-                videoContainer.addView(playerView)
-                root.addView(videoContainer)
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
+                    }
+                    loadUrl(videoUrl)
+                }
+                root.addView(webView)
             }
 
             // ── 기타 파일 (지원 불가 안내) ────────────────────────
@@ -785,8 +742,8 @@ class ContentPlayerActivity : Activity() {
     private fun closePlayer() {
         webView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         webView = null
-        exoPlayer?.release()
-        exoPlayer = null
+        audioWebView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
+        audioWebView = null
         scope.cancel()
         finish()
     }
