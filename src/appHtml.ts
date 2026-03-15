@@ -256,6 +256,33 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .new-home-banner-badge { margin-top:8px; display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.15); border-radius:20px; padding:4px 10px; width:fit-content; border:1px solid rgba(255,255,255,0.2); }
 .new-home-banner-badge span { font-size:10px; color:#fff; font-weight:600; }
 .new-home-banner-visual { width:120px; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative; }
+@keyframes bellSwing {
+  0%,100%    { transform: rotate(0deg); }
+  5%         { transform: rotate(14deg); }
+  10%        { transform: rotate(-12deg); }
+  15%        { transform: rotate(10deg); }
+  20%        { transform: rotate(-7deg); }
+  25%        { transform: rotate(4deg); }
+  30%        { transform: rotate(-2deg); }
+  35%,95%    { transform: rotate(0deg); }
+}
+@keyframes clapperSwing {
+  0%,100%    { transform: rotate(0deg); }
+  7%         { transform: rotate(-9deg); }
+  13%        { transform: rotate(8deg); }
+  18%        { transform: rotate(-6deg); }
+  23%        { transform: rotate(4deg); }
+  28%        { transform: rotate(-2deg); }
+  34%,95%    { transform: rotate(0deg); }
+}
+@keyframes waveFlash {
+  0%,30%,100% { opacity:0; }
+  8%,22%      { opacity:0.85; }
+}
+.bell-group { transform-origin:55px 22px; animation: bellSwing 4s ease-in-out infinite; }
+.clapper    { transform-origin:55px 62px; animation: clapperSwing 4s ease-in-out infinite; }
+.wave-left,.wave-right { animation: waveFlash 4s ease-in-out infinite; }
+.wave-left2,.wave-right2 { animation: waveFlash 4s ease-in-out infinite 0.15s; }
 /* 스크롤 영역 (메뉴만 스크롤) */
 .new-home-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
 /* 메뉴 헤더 */
@@ -583,48 +610,45 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
           </div>
           <!-- SVG 일러스트 영역 -->
           <div class="new-home-banner-visual">
-            <svg width="110" height="110" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="55" cy="58" r="38" fill="rgba(126,232,250,0.07)"/>
-              <circle cx="55" cy="58" r="28" fill="rgba(126,232,250,0.09)"/>
-              <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.18)" stroke-width="1.5">
-                <animate attributeName="r" values="38;50;38" dur="2.5s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite"/>
-              </circle>
-              <circle cx="55" cy="58" r="44" stroke="rgba(126,232,250,0.12)" stroke-width="1">
-                <animate attributeName="r" values="30;46;30" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" begin="0.8s" repeatCount="indefinite"/>
-              </circle>
-              <path d="M55 22 C44 22 36 30 36 41 L36 54 L30 61 L30 65 L80 65 L80 61 L74 54 L74 41 C74 30 66 22 55 22 Z" fill="url(#bellGrad)" opacity="0.95"/>
-              <rect x="51" y="18" width="8" height="6" rx="4" fill="#7ee8fa" opacity="0.9"/>
-              <path d="M28 38 Q23 43 28 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
-                <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
-              </path>
-              <path d="M22 33 Q14 43 22 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
-                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
-              </path>
-              <path d="M82 38 Q87 43 82 48" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7">
-                <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
-              </path>
-              <path d="M88 33 Q96 43 88 53" stroke="#7ee8fa" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5">
-                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" begin="0.3s" repeatCount="indefinite"/>
-              </path>
-              <ellipse cx="55" cy="67" rx="12" ry="5" fill="#7ee8fa" opacity="0.85"/>
-              <ellipse cx="49" cy="35" rx="5" ry="8" fill="rgba(255,255,255,0.15)" transform="rotate(-15 49 35)"/>
-              <circle cx="22" cy="24" r="2" fill="#7ee8fa" opacity="0.6">
-                <animate attributeName="opacity" values="0.6;0.1;0.6" dur="3s" repeatCount="indefinite"/>
-              </circle>
-              <circle cx="88" cy="20" r="1.5" fill="#fff" opacity="0.5">
-                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.3s" begin="1s" repeatCount="indefinite"/>
-              </circle>
-              <circle cx="18" cy="62" r="1.5" fill="#7ee8fa" opacity="0.4">
-                <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.8s" begin="0.5s" repeatCount="indefinite"/>
-              </circle>
+            <svg width="110" height="110" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
               <defs>
                 <linearGradient id="bellGrad" x1="36" y1="22" x2="74" y2="65" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="#a78bfa"/>
                   <stop offset="100%" stop-color="#7ee8fa"/>
                 </linearGradient>
               </defs>
+              <!-- 배경 광채 원 -->
+              <circle cx="55" cy="60" r="32" fill="rgba(126,232,250,0.07)"/>
+              <circle cx="55" cy="60" r="22" fill="rgba(126,232,250,0.09)"/>
+              <!-- 파동 (종 흔들릴 때만 표시) -->
+              <path class="wave-left"  d="M28 40 Q22 48 28 56" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0"/>
+              <path class="wave-left2" d="M20 34 Q11 48 20 62" stroke="#7ee8fa" stroke-width="2"   stroke-linecap="round" fill="none" opacity="0"/>
+              <path class="wave-right"  d="M82 40 Q88 48 82 56" stroke="#7ee8fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0"/>
+              <path class="wave-right2" d="M90 34 Q99 48 90 62" stroke="#7ee8fa" stroke-width="2"   stroke-linecap="round" fill="none" opacity="0"/>
+              <!-- 종 몸체 그룹 (손잡이 기준 회전) -->
+              <g class="bell-group">
+                <!-- 손잡이 -->
+                <rect x="51" y="17" width="8" height="7" rx="4" fill="#7ee8fa" opacity="0.95"/>
+                <!-- 종 몸체 -->
+                <path d="M55 22 C44 22 36 30 36 42 L36 56 L30 63 L30 67 L80 67 L80 63 L74 56 L74 42 C74 30 66 22 55 22 Z" fill="url(#bellGrad)" opacity="0.95"/>
+                <!-- 종 하이라이트 -->
+                <ellipse cx="47" cy="37" rx="5" ry="9" fill="rgba(255,255,255,0.13)" transform="rotate(-15 47 37)"/>
+                <!-- 클래퍼 (추) - 종과 반대 방향으로 흔들림 -->
+                <ellipse class="clapper" cx="55" cy="69" rx="6" ry="5" fill="#7ee8fa" opacity="0.9"/>
+              </g>
+              <!-- 반짝이는 별 파티클 -->
+              <circle cx="22" cy="24" r="2" fill="#7ee8fa" opacity="0.5">
+                <animate attributeName="opacity" values="0.5;0.1;0.5" dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="89" cy="20" r="1.5" fill="#fff" opacity="0.4">
+                <animate attributeName="opacity" values="0.4;0.05;0.4" dur="2.3s" begin="1s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="18" cy="72" r="1.5" fill="#7ee8fa" opacity="0.35">
+                <animate attributeName="opacity" values="0.35;0.05;0.35" dur="2.8s" begin="0.5s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="92" cy="68" r="1" fill="#a78bfa" opacity="0.4">
+                <animate attributeName="opacity" values="0.4;0.05;0.4" dur="3.5s" begin="1.5s" repeatCount="indefinite"/>
+              </circle>
             </svg>
           </div>
         </div>
