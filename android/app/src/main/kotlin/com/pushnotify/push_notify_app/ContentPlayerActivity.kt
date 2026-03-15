@@ -1,5 +1,6 @@
 package com.pushnotify.push_notify_app
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
@@ -18,6 +19,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.webkit.*
 import android.widget.*
 import kotlinx.coroutines.*
@@ -143,12 +145,18 @@ class ContentPlayerActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         )
 
-        // file 타입: 확장자로 실제 타입 판별
-        val effectiveType = if (msgType == "file") {
-            val url = contentUrl.ifEmpty { msgValue }
+        // file 타입: 확장자로 실제 타입 판별 (Firebase Storage URL은 ?alt=media&token=... 포함하므로 쿼리파라미터 제거 후 비교)
+        val effectiveType = if (msgType == "file" || msgType == "audio" || msgType == "video") {
+            val rawUrl = contentUrl.ifEmpty { msgValue }
+            val cleanUrl = rawUrl.substringBefore("?").lowercase()
+            val audioExts = listOf(".mp3", ".m4a", ".wav", ".aac", ".ogg", ".flac", ".wma")
+            val videoExts = listOf(".mp4", ".mov", ".mkv", ".avi", ".wmv", ".m4v", ".webm")
             when {
-                url.endsWith(".mp3", ignoreCase = true) -> "audio"
-                url.endsWith(".mp4", ignoreCase = true) -> "video"
+                audioExts.any { cleanUrl.endsWith(it) } -> "audio"
+                videoExts.any { cleanUrl.endsWith(it) } -> "video"
+                // 확장자 판별 불가 시 원래 msg_type 유지 (youtube 등 다른 타입 보호)
+                msgType == "audio" -> "audio"
+                msgType == "video" -> "video"
                 else -> "file"
             }
         } else msgType
@@ -291,26 +299,108 @@ class ContentPlayerActivity : Activity() {
                 root.addView(webView)
             }
 
-            // ── 오디오 (MediaPlayer) ──────────────────────────────
+            // ── 오디오 (MediaPlayer + 이퀄라이저 애니메이션) ──────────────────────────────
             "audio" -> {
                 val audioUrl = contentUrl.ifEmpty { msgValue }
+
+                // 배경: 딥 퍼플 그라디언트
                 val audioContainer = FrameLayout(this).apply {
                     layoutParams = playerParams
-                    setBackgroundColor(Color.parseColor("#0F0C29"))
+                    background = GradientDrawable().apply {
+                        gradientType = GradientDrawable.LINEAR_GRADIENT
+                        orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                        colors = intArrayOf(
+                            Color.parseColor("#1A0533"),
+                            Color.parseColor("#0F0C29")
+                        )
+                    }
                 }
-                val statusText = TextView(this).apply {
-                    text = "오디오 로딩 중..."
-                    textSize = 15f
-                    setTextColor(Color.parseColor("#94A3B8"))
+
+                // 중앙 컨테이너 (이퀄라이저 + 상태 텍스트)
+                val centerLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.CENTER
+                        FrameLayout.LayoutParams.MATCH_PARENT
                     )
                 }
-                audioContainer.addView(statusText)
 
+                // ── 이퀄라이저 막대 컨테이너 ──
+                val eqContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        dp(60)
+                    ).also { it.bottomMargin = dp(8) }
+                }
+
+                // 막대 색상 (보라 계열 그라디언트)
+                val barColors = listOf(
+                    "#7C3AED", "#8B5CF6", "#A78BFA", "#8B5CF6",
+                    "#7C3AED", "#A78BFA", "#8B5CF6", "#7C3AED",
+                    "#A78BFA", "#8B5CF6", "#7C3AED", "#8B5CF6"
+                )
+                val barCount = barColors.size
+                val barWidth = dp(6)
+                val barMargin = dp(3)
+                val maxBarHeight = dp(50)
+                val minBarHeight = dp(6)
+
+                // 각 막대의 높이 애니메이터 저장 (재생/일시정지 제어용)
+                val barAnimators = mutableListOf<ValueAnimator>()
+                val barViews = mutableListOf<View>()
+
+                barColors.forEachIndexed { index, colorHex ->
+                    val bar = View(this).apply {
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.RECTANGLE
+                            cornerRadius = dp(3).toFloat()
+                            setColor(Color.parseColor(colorHex))
+                        }
+                        layoutParams = LinearLayout.LayoutParams(barWidth, minBarHeight).also {
+                            it.marginStart = if (index == 0) 0 else barMargin
+                        }
+                    }
+                    eqContainer.addView(bar)
+                    barViews.add(bar)
+
+                    // 각 막대마다 다른 속도/진폭으로 위아래 애니메이션
+                    val randomHeight = minBarHeight + (Math.random() * (maxBarHeight - minBarHeight)).toInt()
+                    val duration = 300L + (index * 80L) + (Math.random() * 200).toLong()
+                    val animator = ValueAnimator.ofInt(minBarHeight, randomHeight).apply {
+                        this.duration = duration
+                        repeatCount = ValueAnimator.INFINITE
+                        repeatMode = ValueAnimator.REVERSE
+                        interpolator = DecelerateInterpolator()
+                        addUpdateListener { anim ->
+                            val h = anim.animatedValue as Int
+                            bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp ->
+                                lp.height = h
+                            }
+                            bar.requestLayout()
+                        }
+                    }
+                    barAnimators.add(animator)
+                }
+                centerLayout.addView(eqContainer)
+
+                // 상태 텍스트
+                val statusText = TextView(this).apply {
+                    text = "오디오 로딩 중..."
+                    textSize = 14f
+                    setTextColor(Color.parseColor("#A78BFA"))
+                    gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.topMargin = dp(12) }
+                }
+                centerLayout.addView(statusText)
+                audioContainer.addView(centerLayout)
+
+                // 재생/일시정지 버튼
                 val playBtn = TextView(this).apply {
                     text = "⏸ 일시정지"
                     textSize = 16f
@@ -319,16 +409,36 @@ class ContentPlayerActivity : Activity() {
                     setPadding(dp(32), dp(14), dp(32), dp(14))
                     background = GradientDrawable().apply {
                         cornerRadius = dp(30).toFloat()
-                        setColor(Color.parseColor("#6D28D9"))
+                        setColor(Color.parseColor("#7C3AED"))
                     }
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.WRAP_CONTENT,
                         FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.CENTER or Gravity.BOTTOM
-                    ).also { it.bottomMargin = dp(24) }
+                        Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    ).also { it.bottomMargin = dp(28) }
                 }
                 audioContainer.addView(playBtn)
                 root.addView(audioContainer)
+
+                // 이퀄라이저 시작 함수
+                fun startEqualizer() {
+                    barAnimators.forEachIndexed { i, anim ->
+                        if (!anim.isRunning) {
+                            anim.startDelay = (i * 40L)
+                            anim.start()
+                        }
+                    }
+                }
+                // 이퀄라이저 정지 함수 (막대를 최소 높이로)
+                fun stopEqualizer() {
+                    barAnimators.forEach { it.cancel() }
+                    barViews.forEach { bar ->
+                        bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp ->
+                            lp.height = minBarHeight
+                        }
+                        bar.requestLayout()
+                    }
+                }
 
                 try {
                     mediaPlayer = MediaPlayer().apply {
@@ -340,31 +450,41 @@ class ContentPlayerActivity : Activity() {
                         )
                         setDataSource(audioUrl)
                         setOnPreparedListener { mp ->
-                            statusText.text = "오디오 재생 중"
+                            statusText.text = "♪ 오디오 재생 중"
                             mp.start()
+                            startEqualizer()
                         }
                         setOnErrorListener { _, _, _ ->
                             statusText.text = "재생 오류가 발생했습니다"
+                            stopEqualizer()
                             true
                         }
                         setOnCompletionListener {
                             statusText.text = "재생 완료"
                             playBtn.text = "▶ 다시 재생"
+                            stopEqualizer()
                         }
                         prepareAsync()
                     }
                     playBtn.setOnClickListener {
                         mediaPlayer?.let { mp ->
                             if (mp.isPlaying) {
-                                mp.pause(); playBtn.text = "▶ 재생"; statusText.text = "일시정지"
+                                mp.pause()
+                                playBtn.text = "▶ 재생"
+                                statusText.text = "일시정지"
+                                stopEqualizer()
                             } else {
-                                mp.start(); playBtn.text = "⏸ 일시정지"; statusText.text = "오디오 재생 중"
+                                mp.start()
+                                playBtn.text = "⏸ 일시정지"
+                                statusText.text = "♪ 오디오 재생 중"
+                                startEqualizer()
                             }
                         }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "MediaPlayer 오류: ${e.message}")
                     statusText.text = "오디오를 재생할 수 없습니다"
+                    stopEqualizer()
                 }
             }
 
