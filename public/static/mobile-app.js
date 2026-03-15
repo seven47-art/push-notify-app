@@ -2724,6 +2724,26 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  // ── [근본 해결] Flutter가 URL 파라미터로 토큰을 미리 전달 ──
+  // Flutter _loadWebViewWithToken()이 ?ft=토큰&fu=userId&fe=email&fd=displayName&fv=version 으로 로드
+  // DOMContentLoaded 시점에 이미 토큰이 URL에 있으므로 타이밍 문제 완전 해결
+  const _urlParams = new URLSearchParams(window.location.search)
+  const _ft = _urlParams.get('ft')  // flutter token
+  const _fu = _urlParams.get('fu')  // flutter userId
+  const _fe = _urlParams.get('fe')  // flutter email
+  const _fd = _urlParams.get('fd')  // flutter displayName
+  const _fv = _urlParams.get('fv')  // flutter appVersion
+  if (_ft) {
+    // URL 파라미터에 토큰이 있으면 localStorage에 즉시 저장
+    localStorage.setItem('session_token', _ft)
+    if (_fu) localStorage.setItem('user_id',       _fu)
+    if (_fe) localStorage.setItem('email',         _fe)
+    if (_fd) localStorage.setItem('display_name',  _fd)
+    if (_fv) localStorage.setItem('app_version',   _fv)
+    // URL에서 파라미터 제거 (보안 + 히스토리 정리)
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
   // 저장된 테마 적용 (기본값: light)
   const savedTheme = localStorage.getItem('theme') || 'light'
   App.applyTheme(savedTheme)
@@ -2732,21 +2752,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── Flutter WebView 전용: JS는 판단하지 않고 Flutter 신호만 대기 ──
-  // flutterSetSession() → 홈으로 이동
-  // flutterNeedLogin()  → 로그인 화면 (이메일 선택은 Flutter 네이티브에서 처리)
-  // 웹 브라우저 직접 접속 시에만 기존 방식으로 처리
-  if (window.FlutterBridge) {
-    // Flutter 앱 내: 로딩 스피너만 표시하고 Flutter 신호 대기
-    // _injectSession() 또는 flutterNeedLogin() 이 호출될 때까지 대기
-    // (아무것도 하지 않음 - flutterSetSession/flutterNeedLogin 이 알아서 처리)
+  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 로그인 화면 ──
+  // URL 파라미터 토큰이 이미 localStorage에 저장됐으므로 isLoggedIn()이 즉시 true 반환
+  if (Store.isLoggedIn()) {
+    _doLogin()
   } else {
-    // 웹 브라우저 직접 접속: 기존 방식 유지
-    if (Store.isLoggedIn()) {
-      _doLogin()
-    } else {
-      Auth.show()
-    }
+    // Flutter WebView가 onPageFinished에서 토큰을 주입하는 구형 APK 대비 짧게 대기
+    setTimeout(() => {
+      if (Store.isLoggedIn()) {
+        _doLogin()
+      } else {
+        Auth.show()
+      }
+    }, 400)
   }
 
   // 샘플 알림 (첫 방문)
