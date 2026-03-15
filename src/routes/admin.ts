@@ -934,6 +934,19 @@ function adminDashboardHTML() {
             <button onclick="loadAlarmLogs()" class="btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-2"><i class="fas fa-sync-alt"></i> 새로고침</button>
           </div>
         </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 flex flex-wrap items-end gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-slate-400">시작일</label>
+            <input type="date" id="alarmLogsDateFrom" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') searchAlarmLogs()">
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-slate-400">종료일</label>
+            <input type="date" id="alarmLogsDateTo" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') searchAlarmLogs()">
+          </div>
+          <button onclick="searchAlarmLogs()" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm flex items-center gap-2"><i class="fas fa-search"></i> 검색</button>
+          <button onclick="resetAlarmLogsSearch()" class="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm">초기화</button>
+          <span id="alarmLogsSearchInfo" class="text-xs text-slate-400 ml-1"></span>
+        </div>
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">

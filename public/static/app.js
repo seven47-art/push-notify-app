@@ -1189,7 +1189,20 @@ async function loadAlarmLogs(offset = 0) {
   if (!tbody) return
   tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
   try {
-    const res = await API.get('/alarms/logs', { params: { limit: ALARM_LOGS_PAGE_SIZE, offset } })
+    const dateFrom = document.getElementById('alarmLogsDateFrom')?.value || ''
+    const dateTo   = document.getElementById('alarmLogsDateTo')?.value   || ''
+    const params = { limit: ALARM_LOGS_PAGE_SIZE, offset }
+    if (dateFrom) params.date_from = dateFrom
+    if (dateTo)   params.date_to   = dateTo
+    const infoEl = document.getElementById('alarmLogsSearchInfo')
+    if (infoEl) {
+      if (dateFrom || dateTo) {
+        infoEl.textContent = `검색 중: ${dateFrom || '~'} ~ ${dateTo || '~'}`
+      } else {
+        infoEl.textContent = ''
+      }
+    }
+    const res = await API.get('/alarms/logs', { params })
     const { data, total } = res.data
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
@@ -1230,10 +1243,43 @@ async function loadAlarmLogs(offset = 0) {
           <button onclick="loadAlarmLogs(${Math.max(0, offset - ALARM_LOGS_PAGE_SIZE)})" class="px-3 py-1 rounded bg-slate-700 text-slate-300 text-xs ${offset === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-600'}" ${offset === 0 ? 'disabled' : ''}>이전</button>
           <span class="px-3 py-1 text-slate-400 text-xs">${currentPage} / ${totalPages}</span>
           <button onclick="loadAlarmLogs(${offset + ALARM_LOGS_PAGE_SIZE})" class="px-3 py-1 rounded bg-slate-700 text-slate-300 text-xs ${offset + ALARM_LOGS_PAGE_SIZE >= total ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-600'}" ${offset + ALARM_LOGS_PAGE_SIZE >= total ? 'disabled' : ''}>다음</button>
+          <button onclick="deleteAllFilteredAlarmLogs()" class="px-3 py-1 rounded bg-red-700 hover:bg-red-600 text-white text-xs ml-2"><i class="fas fa-trash-alt"></i> 검색결과 전체삭제</button>
         </div>`
     }
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
+  }
+}
+
+function searchAlarmLogs() {
+  loadAlarmLogs(0)
+}
+function resetAlarmLogsSearch() {
+  const fromEl = document.getElementById('alarmLogsDateFrom')
+  const toEl   = document.getElementById('alarmLogsDateTo')
+  if (fromEl) fromEl.value = ''
+  if (toEl)   toEl.value   = ''
+  const infoEl = document.getElementById('alarmLogsSearchInfo')
+  if (infoEl) infoEl.textContent = ''
+  loadAlarmLogs(0)
+}
+async function deleteAllFilteredAlarmLogs() {
+  const dateFrom = document.getElementById('alarmLogsDateFrom')?.value || ''
+  const dateTo   = document.getElementById('alarmLogsDateTo')?.value   || ''
+  const label = (dateFrom || dateTo) ? `${dateFrom||'시작'} ~ ${dateTo||'종료'} 검색결과` : '전체'
+  if (!confirm(`${label} 알람로그를 모두 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return
+  try {
+    const params = { limit: 1000, offset: 0 }
+    if (dateFrom) params.date_from = dateFrom
+    if (dateTo)   params.date_to   = dateTo
+    const res = await API.get('/alarms/logs', { params })
+    const ids = (res.data?.data || []).map(r => r.id)
+    if (ids.length === 0) { alert('삭제할 항목이 없습니다.'); return }
+    await API.post('/alarms/logs/bulk-delete', { alarm_ids: ids })
+    alert(`${ids.length}건 삭제 완료!`)
+    loadAlarmLogs(0)
+  } catch(e) {
+    alert('삭제 오류: ' + e.message)
   }
 }
 
