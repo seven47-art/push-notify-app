@@ -700,12 +700,14 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         if (await file.exists()) {
           final fileSize = await file.length();
           final fileName = 'recording_${timestamp ?? DateTime.now().millisecondsSinceEpoch}.m4a';
+          final bytes = await file.readAsBytes();
+          final base64Str = 'data:audio/mp4;base64,${base64Encode(bytes)}';
           _sendToWeb('window._flutterFileCallback', {
             'type': 'audio',
             'name': fileName,
             'path': path,
             'size': fileSize,
-            'base64': ''
+            'base64': base64Str
           });
         } else {
           _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
@@ -731,12 +733,16 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         final file = File(video.path);
         final fileSize = await file.length();
         final fileName = video.path.split('/').last;
+        final videoBytes = await File(video.path).readAsBytes();
+        final videoExt = fileName.split('.').last.toLowerCase();
+        final videoMime = videoExt == 'mov' ? 'video/quicktime' : 'video/$videoExt';
+        final videoBase64 = 'data:$videoMime;base64,${base64Encode(videoBytes)}';
         _sendToWeb('window._flutterFileCallback', {
           'type': 'video',
           'name': fileName,
           'path': video.path,
           'size': fileSize,
-          'base64': ''
+          'base64': videoBase64
         });
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
@@ -751,7 +757,14 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: false, withReadStream: false);
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        String base64Str = '';
+        if (f.path != null) {
+          final bytes = await File(f.path!).readAsBytes();
+          final ext = f.name.split('.').last.toLowerCase();
+          final mime = ['mp3','aac','ogg','flac','wma'].contains(ext) ? 'audio/$ext' : (ext == 'm4a' ? 'audio/mp4' : 'audio/$ext');
+          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'audio', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
@@ -765,7 +778,14 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: false, withReadStream: false);
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        String base64Str = '';
+        if (f.path != null) {
+          final bytes = await File(f.path!).readAsBytes();
+          final ext = f.name.split('.').last.toLowerCase();
+          final mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
+          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'video', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'});
       }
@@ -810,7 +830,18 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       );
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.first;
-        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': ''});
+        String base64Str = '';
+        if (f.path != null) {
+          final bytes = await File(f.path!).readAsBytes();
+          final ext = f.name.split('.').last.toLowerCase();
+          final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
+          final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
+          String mime = 'application/octet-stream';
+          if (audioExts.contains(ext)) mime = ext == 'm4a' ? 'audio/mp4' : 'audio/$ext';
+          else if (videoExts.contains(ext)) mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
+          base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
+        }
+        _sendToWeb('window._flutterFileCallback', {'type': 'file', 'name': f.name, 'path': f.path ?? '', 'size': f.size, 'base64': base64Str});
       } else {
         _sendToWeb('window._flutterFileCancelled', {'type': 'file'});
       }
