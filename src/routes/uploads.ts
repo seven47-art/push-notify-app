@@ -166,18 +166,18 @@ uploads.post('/alarm-file', async (c) => {
       return c.json({ success: false, error: '세션 만료 또는 유효하지 않음' }, 401)
     }
 
-    // 파일 크기 제한 (10MB)
-    const MAX_SIZE = 10 * 1024 * 1024
+    // 파일 크기 제한 (50MB - Flutter에서 압축 후 업로드)
+    const MAX_SIZE = 50 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      return c.json({ success: false, error: `파일 크기 초과: 최대 10MB (현재 ${(file.size / 1024 / 1024).toFixed(1)}MB). 영상은 480p로 압축되어 업로드됩니다.` }, 400)
+      return c.json({ success: false, error: `파일 크기 초과: 최대 50MB (현재 ${(file.size / 1024 / 1024).toFixed(1)}MB)` }, 400)
     }
 
-    // 허용 파일 타입: mp3, mp4만 허용
-    const allowedExtensions = ['mp3', 'mp4']
+    // 허용 파일 타입: 오디오/비디오
+    const allowedExtensions = ['mp3', 'mp4', 'm4a', 'aac', 'wav', 'ogg', 'flac', 'wma', 'mov', 'mkv', 'avi', 'wmv', 'm4v', 'webm']
     const fileName = file.name || 'unknown'
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
     if (!allowedExtensions.includes(ext)) {
-      return c.json({ success: false, error: `허용되지 않는 파일 형식: ${ext}. mp3(오디오), mp4(영상)만 지원합니다.` }, 400)
+      return c.json({ success: false, error: `허용되지 않는 파일 형식: ${ext}` }, 400)
     }
 
     // 파일 경로: alarm-files/{userId}/{timestamp}_{originalName}
