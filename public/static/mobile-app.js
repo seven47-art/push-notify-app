@@ -1429,9 +1429,10 @@ const App = {
 
   // 알람 목록 로드 및 표시
   async _loadAlarmList(chId) {
-    const section   = document.getElementById('alarm-list-section')
-    const body      = document.getElementById('alarm-list-body')
-    const addArea   = document.getElementById('alarm-add-area')
+    const section    = document.getElementById('alarm-list-section')
+    const body       = document.getElementById('alarm-list-body')
+    const settingWrap = document.getElementById('alarm-setting-wrap')
+    const bottomBtns  = document.getElementById('alarm-bottom-btns')
     if (!section || !body) return
     try {
       const res  = await API.get('/alarms?channel_id=' + chId)
@@ -1452,20 +1453,17 @@ const App = {
       document.getElementById('alarm-add-btn-wrap')?.remove()
 
       if (list.length === 0) {
-        // 알람 없음 → 목록 숨기고 설정 섹션 바로 표시
+        // 알람 없음 → 목록 숨기고 설정 섹션 전체 표시
         section.style.display = 'none'
-        if (addArea) {
-          addArea.style.display = ''
-          addArea.style.opacity = '1'
-          addArea.style.pointerEvents = ''
-          addArea.querySelector('.alarm-limit-msg')?.remove()
-        }
+        if (settingWrap) settingWrap.style.display = ''
+        if (bottomBtns)  bottomBtns.style.display  = ''
         return
       }
 
-      // 알람 있음 → 목록 표시, 설정 섹션 숨김
+      // 알람 있음 → 목록 표시, 설정 섹션 전체(콘텐츠/연결URL/날짜시간/확인버튼) 숨김
       section.style.display = 'block'
-      if (addArea) addArea.style.display = 'none'
+      if (settingWrap) settingWrap.style.display = 'none'
+      if (bottomBtns)  bottomBtns.style.display  = 'none'
 
       const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
       body.innerHTML = list.map(alarm => {
@@ -1487,7 +1485,7 @@ const App = {
       if (list.length < 3) {
         const btnWrap = document.createElement('div')
         btnWrap.id = 'alarm-add-btn-wrap'
-        btnWrap.style.cssText = 'padding:14px 0 4px;'
+        btnWrap.style.cssText = 'padding:14px 14px 4px;'
         btnWrap.innerHTML = `<button onclick="App._showAlarmAddArea()" style="width:100%;padding:12px;border:2px dashed var(--teal,#00BCD4);border-radius:12px;background:transparent;color:var(--teal,#00BCD4);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
           <i class="fas fa-plus-circle"></i> 알람 추가하기
         </button>`
@@ -1498,16 +1496,16 @@ const App = {
     }
   },
 
-  // "+ 알람 추가하기" 버튼 클릭 → 설정 섹션 표시
+  // "+ 알람 추가하기" 버튼 클릭 → 설정 섹션 전체 표시
   _showAlarmAddArea() {
-    const addArea = document.getElementById('alarm-add-area')
-    if (!addArea) return
-    addArea.style.display = ''
-    addArea.style.opacity = '1'
-    addArea.style.pointerEvents = ''
-    addArea.querySelector('.alarm-limit-msg')?.remove()
+    const settingWrap = document.getElementById('alarm-setting-wrap')
+    const bottomBtns  = document.getElementById('alarm-bottom-btns')
+    if (settingWrap) settingWrap.style.display = ''
+    if (bottomBtns)  bottomBtns.style.display  = ''
+    // "+ 알람 추가하기" 버튼 제거
+    document.getElementById('alarm-add-btn-wrap')?.remove()
     // 부드럽게 스크롤
-    setTimeout(() => addArea.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+    setTimeout(() => settingWrap?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   },
 
   // 알람 취소
@@ -1516,6 +1514,9 @@ const App = {
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
+      // 홈 캐시 + 채널 상세 캐시 무효화 → 아이콘 즉시 반영
+      Cache.del('home_' + Store.getUserId())
+      Cache.del('ch_detail_' + currentAlarmChId)
       this._loadAlarmList(currentAlarmChId)
     } catch(e) {
       toast('삭제 실패: ' + e.message, 3000)
@@ -2282,29 +2283,23 @@ const App = {
       '</div>' +
       '<div style="flex:1;overflow-y:auto;" id="ch-detail-scroll"></div>'
 
-    // 1) 캐시 있으면 즉시 표시
+    // 항상 서버에서 최신 데이터 조회 (알람 아이콘 등 실시간 반영을 위해 캐시 미사용)
     const cacheKey = 'ch_detail_' + chId
-    const cached = Cache.get(cacheKey)
-    if (cached) {
-      this._renderChannelDetail(document.getElementById('ch-detail-scroll'), cached)
-    }
+    Cache.del(cacheKey)
     this.openModal('modal-channel-detail')
 
-    // 2) API 조회 (캐시 갱신)
     try {
       const res = await API.get('/channels/' + chId)
       const ch  = res.data?.data
       if (!ch) {
-        if (!cached) document.getElementById('ch-detail-scroll').innerHTML = '<div class="empty-box">채널 정보를 불러올 수 없습니다.</div>'
+        document.getElementById('ch-detail-scroll').innerHTML = '<div class="empty-box">채널 정보를 불러올 수 없습니다.</div>'
         return
       }
       Cache.set(cacheKey, ch)
       this._renderChannelDetail(document.getElementById('ch-detail-scroll'), ch)
     } catch (e) {
-      if (!cached) {
-        const sc = document.getElementById('ch-detail-scroll')
-        if (sc) sc.innerHTML = '<div class="empty-box">오류: ' + e.message + '</div>'
-      }
+      const sc = document.getElementById('ch-detail-scroll')
+      if (sc) sc.innerHTML = '<div class="empty-box">오류: ' + e.message + '</div>'
     }
   },
 
