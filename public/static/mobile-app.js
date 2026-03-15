@@ -732,11 +732,13 @@ const App = {
   },
 
   // 채널 목록 렌더링 (검색 결과용)
-  _renderChannelList(list) {
+  _renderChannelList(list, isCodeSearch = false) {
     const el = document.getElementById('channel-list-search')
     if (!el) return
     if (!list.length) {
-      el.innerHTML = '<div class="empty-box">검색 결과가 없습니다.</div>'
+      el.innerHTML = isCodeSearch
+        ? '<div class="empty-box">일치하는 채널 코드가 없습니다.</div>'
+        : '<div class="empty-box">검색 결과가 없습니다.</div>'
       return
     }
     el.innerHTML = `<div class="ch-all-list-wrap">${list.map(ch => this._channelTileHtml(ch)).join('')}</div>`
@@ -763,10 +765,21 @@ const App = {
     if (popularSec) popularSec.style.display = 'none'
     if (bestSec)    bestSec.style.display    = 'none'
 
-    const list     = window._allChannelList || []
-    const q        = value.trim().toLowerCase()
-    const filtered = list.filter(ch => (ch.name || '').toLowerCase().includes(q))
-    this._renderChannelList(filtered)
+    const list = window._allChannelList || []
+    const q    = value.trim()
+
+    // 코드 검색: public_id 완전 일치 (대소문자 무시)
+    const codeMatch = list.filter(ch =>
+      ch.public_id && ch.public_id.toLowerCase() === q.toLowerCase()
+    )
+    if (codeMatch.length) {
+      this._renderChannelList(codeMatch, true)
+      return
+    }
+
+    // 채널명 검색: 부분 일치
+    const filtered = list.filter(ch => (ch.name || '').toLowerCase().includes(q.toLowerCase()))
+    this._renderChannelList(filtered, false)
   },
 
   // 검색창 초기화 버튼

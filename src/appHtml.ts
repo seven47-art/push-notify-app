@@ -562,9 +562,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
   <!-- 채널 탭 -->
   <div class="screen" id="screen-channel">
-    <div class="section-header">
-      <span class="section-title">채널</span>
-    </div>
     <!-- 검색창 -->
     <div class="ch-search-wrap">
       <i class="fas fa-search ch-search-icon"></i>
@@ -573,12 +570,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
              oninput="App.onChannelSearch(this.value)">
       <button id="channel-search-clear" class="ch-search-clear" onclick="App.clearChannelSearch()" style="display:none;">
         <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <!-- 코드로 채널 참여하기 버튼 -->
-    <div style="padding:0 14px 10px;">
-      <button onclick="App.openJoinChannel()" style="width:100%;padding:11px;background:var(--bg3);border:1.5px dashed rgba(108,99,255,0.5);border-radius:12px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <i class="fas fa-plus-circle"></i> 코드로 채널 참여하기
       </button>
     </div>
     <!-- 검색 결과 (검색 중일 때만 표시) -->
