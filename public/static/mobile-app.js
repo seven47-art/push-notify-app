@@ -1084,13 +1084,18 @@ const App = {
     if (!sentinel) return
     // 기존 옵저버 해제
     if (this[`_${type}Observer`]) this[`_${type}Observer`].disconnect()
+    // .screen이 스크롤 컨테이너이므로 root를 해당 screen으로 설정
+    const screenId = type === 'inbox' ? 'screen-inbox'
+                   : type === 'outbox' ? 'screen-send'
+                   : 'screen-notices'
+    const scrollRoot = document.getElementById(screenId)
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
         if (type === 'inbox'   && this._inboxHasMore   && !this._inboxLoading)   this.loadInbox(this._inboxChannelId, this._inboxOffset)
         if (type === 'outbox'  && this._outboxHasMore  && !this._outboxLoading)  this.loadSend(this._outboxChannelId, this._outboxOffset)
         if (type === 'notices' && this._noticesHasMore && !this._noticesLoading) this.loadNotices(this._noticesOffset)
       }
-    }, { threshold: 0.1 })
+    }, { root: scrollRoot, threshold: 0.1 })
     observer.observe(sentinel)
     this[`_${type}Observer`] = observer
   },
