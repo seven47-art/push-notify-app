@@ -1067,7 +1067,7 @@ function adminDashboardHTML() {
     <div class="p-6 space-y-4">
       <input type="hidden" id="channelId">
       <div class="bg-amber-900/20 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-300"><i class="fas fa-lock mr-1"></i> 채널은 외부에 비공개입니다.</div>
-      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="channelName" type="text" class="input-field" placeholder="힐링 뮤직 채널"><p class="text-amber-400 text-xs mt-1.5"><i class="fas fa-exclamation-triangle mr-1"></i>채널명은 변경 불가합니다.</p></div>
+      <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="channelName" type="text" class="input-field" placeholder="힐링 뮤직 채널"></div>
       <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">설명</label><textarea id="channelDescription" class="input-field" rows="2" placeholder="채널 설명"></textarea></div>
       <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지 URL</label><input id="channelImageUrl" type="url" class="input-field" placeholder="https://..."></div>
       <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">Owner ID *</label><input id="channelOwnerId" type="text" class="input-field" value="admin"></div>
@@ -1138,7 +1138,7 @@ function adminDashboardHTML() {
   <div class="card rounded-2xl p-6 w-full max-w-md mx-4 space-y-4">
     <h3 id="adminChannelModalTitle" class="text-white font-bold text-lg">채널 생성</h3>
     <input type="hidden" id="adminChannelId">
-    <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="adminChannelName" type="text" class="input-field text-sm" placeholder="채널명"><p id="adminChannelNameNotice" class="text-amber-400 text-xs mt-1.5 hidden"><i class="fas fa-exclamation-triangle mr-1"></i>채널명은 변경 불가합니다.</p></div>
+    <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널명 *</label><input id="adminChannelName" type="text" class="input-field text-sm" placeholder="채널명"></div>
     <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">채널 설명</label><textarea id="adminChannelDesc" class="input-field text-sm" rows="2" placeholder="채널 설명"></textarea></div>
     <div><label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">홈페이지 URL</label><input id="adminChannelHomepage" type="text" class="input-field text-sm" placeholder="https://..."></div>
     <div>
@@ -1293,6 +1293,29 @@ async function submitChangePassword(e) {
     errEl.style.display = 'block'
   }
 }
+</script>
+<script>
+// ── 5분 비활동 자동 로그아웃 ──
+(function() {
+  const TIMEOUT_MS = 5 * 60 * 1000  // 5분
+  let _timer = null
+
+  function resetTimer() {
+    clearTimeout(_timer)
+    _timer = setTimeout(async () => {
+      try { await fetch('/admin/logout', { method: 'POST' }) } catch {}
+      alert('5분 동안 활동이 없어 자동 로그아웃됩니다.')
+      location.href = '/admin'
+    }, TIMEOUT_MS)
+  }
+
+  // 마우스, 키보드, 터치 활동 감지
+  ;['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(e => {
+    document.addEventListener(e, resetTimer, { passive: true })
+  })
+
+  resetTimer()
+})()
 </script>
 </body>
 </html>`
