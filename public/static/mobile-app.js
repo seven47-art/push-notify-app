@@ -328,8 +328,11 @@ const App = {
   goto(tab) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
+    // 신홈 화면도 초기화 (display 속성 충돌 방지)
+    const screenHomeNew = document.getElementById('screen-home-new')
+    if (screenHomeNew) screenHomeNew.style.display = ''
     const screen = document.getElementById('screen-' + tab)
-    const navBtn = document.getElementById('nav-' + tab)
+    const navBtn = document.getElementById('nav-' + (tab === 'home' ? 'home' : tab))
     if (screen) screen.classList.add('active')
     if (navBtn) navBtn.classList.add('active')
     currentTab = tab
@@ -411,6 +414,151 @@ const App = {
     this.applyTheme(isDark ? 'dark' : 'light')
   },
 
+  // ── 홈 모드 전환 ─────────────────────────
+  toggleHomeMode(isNew) {
+    localStorage.setItem('homeMode', isNew ? 'new' : 'old')
+    this.goto('home')
+  },
+
+  // ── 신홈화면 메뉴 기본 목록 ──────────────
+  _defaultMenuItems() {
+    return [
+      { id:'channel',   label:'채널검색',       sub:'채널 찾기',      icon:'fa-search',          bg:'#4A6FA5', color:'#fff' },
+      { id:'owned-all', label:'내 채널',         sub:'운영 채널 관리', icon:'fa-satellite-dish',  bg:'#3A8F7D', color:'#fff' },
+      { id:'joined-all',label:'구독 채널',       sub:'가입한 채널',    icon:'fa-list',            bg:'#7B5EA7', color:'#fff' },
+      { id:'notices',   label:'공지사항',        sub:'공지 확인',      icon:'fa-bullhorn',        bg:'#D4763B', color:'#fff' },
+      { id:'inbox',     label:'수신함',          sub:'받은 메시지',    icon:'fa-inbox',           bg:'#3A7D44', color:'#fff' },
+      { id:'send',      label:'발신함',          sub:'보낸 메시지',    icon:'fa-paper-plane',     bg:'#2C6E9E', color:'#fff' },
+      { id:'join-code', label:'초대코드 가입',   sub:'코드로 채널 참여',icon:'fa-ticket-alt',      bg:'#A0527A', color:'#fff' },
+      { id:'settings',  label:'설정',            sub:'앱 환경설정',    icon:'fa-cog',             bg:'#5A6472', color:'#fff' },
+    ]
+  },
+
+  _getMenuOrder() {
+    try {
+      const saved = localStorage.getItem('homeMenuOrder')
+      if (saved) {
+        const order = JSON.parse(saved)
+        const defaults = this._defaultMenuItems()
+        // 저장된 순서 기준으로 정렬, 없는 항목은 뒤에 추가
+        const mapped = order.map(id => defaults.find(d => d.id === id)).filter(Boolean)
+        const extra  = defaults.filter(d => !order.includes(d.id))
+        return [...mapped, ...extra]
+      }
+    } catch(e) {}
+    return this._defaultMenuItems()
+  },
+
+  _loadNewHome() {
+    const grid = document.getElementById('new-home-grid')
+    if (!grid) return
+    const items = this._getMenuOrder()
+    const isEdit = grid.dataset.editMode === '1'
+    grid.innerHTML = items.map((item, idx) => `
+      <div class="new-home-card${isEdit ? ' drag-mode' : ''}"
+           data-menu-id="${item.id}"
+           data-index="${idx}"
+           style="background:${item.bg};color:${item.color};"
+           onclick="${isEdit ? '' : `App._newHomeCardClick('${item.id}')`}"
+           draggable="${isEdit ? 'true' : 'false'}">
+        <i class="fas ${item.icon} new-home-card-icon"></i>
+        <div class="new-home-card-label">${item.label}</div>
+        <div class="new-home-card-sub">${item.sub}</div>
+        <i class="fas fa-grip-lines drag-handle"></i>
+      </div>
+    `).join('')
+    if (isEdit) this._bindDragEvents(grid)
+  },
+
+  _newHomeCardClick(menuId) {
+    if (menuId === 'join-code') {
+      App.openJoinModal()
+    } else {
+      App.goto(menuId)
+    }
+  },
+
+  toggleHomeEditMode() {
+    const grid = document.getElementById('new-home-grid')
+    const btn  = document.getElementById('new-home-edit-btn')
+    if (!grid) return
+    const isEdit = grid.dataset.editMode === '1'
+    if (isEdit) {
+      // 순서 저장 후 편집 모드 종료
+      const order = [...grid.querySelectorAll('.new-home-card')].map(c => c.dataset.menuId)
+      localStorage.setItem('homeMenuOrder', JSON.stringify(order))
+      grid.dataset.editMode = '0'
+      if (btn) { btn.classList.remove('active'); btn.innerHTML = '<i class="fas fa-sort"></i> 순서 변경' }
+    } else {
+      grid.dataset.editMode = '1'
+      if (btn) { btn.classList.add('active'); btn.innerHTML = '<i class="fas fa-check"></i> 완료' }
+    }
+    this._loadNewHome()
+  },
+
+  _bindDragEvents(grid) {
+    let dragSrc = null
+    grid.querySelectorAll('.new-home-card').forEach(card => {
+      card.addEventListener('dragstart', e => {
+        dragSrc = card
+        setTimeout(() => card.classList.add('dragging'), 0)
+        e.dataTransfer.effectAllowed = 'move'
+      })
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging')
+        grid.querySelectorAll('.new-home-card').forEach(c => c.classList.remove('drag-over'))
+      })
+      card.addEventListener('dragover', e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        grid.querySelectorAll('.new-home-card').forEach(c => c.classList.remove('drag-over'))
+        if (card !== dragSrc) card.classList.add('drag-over')
+      })
+      card.addEventListener('drop', e => {
+        e.preventDefault()
+        if (!dragSrc || dragSrc === card) return
+        card.classList.remove('drag-over')
+        // DOM 위치 교환
+        const allCards = [...grid.querySelectorAll('.new-home-card')]
+        const srcIdx  = allCards.indexOf(dragSrc)
+        const destIdx = allCards.indexOf(card)
+        if (srcIdx < destIdx) grid.insertBefore(dragSrc, card.nextSibling)
+        else                  grid.insertBefore(dragSrc, card)
+      })
+      // 터치 드래그 (모바일)
+      let touchStartY = 0, touchStartX = 0
+      card.addEventListener('touchstart', e => {
+        dragSrc = card
+        touchStartY = e.touches[0].clientY
+        touchStartX = e.touches[0].clientX
+        card.classList.add('dragging')
+      }, { passive: true })
+      card.addEventListener('touchmove', e => {
+        e.preventDefault()
+        const touch = e.touches[0]
+        const el = document.elementFromPoint(touch.clientX, touch.clientY)
+        const target = el?.closest('.new-home-card')
+        grid.querySelectorAll('.new-home-card').forEach(c => c.classList.remove('drag-over'))
+        if (target && target !== dragSrc) target.classList.add('drag-over')
+      }, { passive: false })
+      card.addEventListener('touchend', e => {
+        card.classList.remove('dragging')
+        const touch = e.changedTouches[0]
+        const el = document.elementFromPoint(touch.clientX, touch.clientY)
+        const target = el?.closest('.new-home-card')
+        grid.querySelectorAll('.new-home-card').forEach(c => c.classList.remove('drag-over'))
+        if (target && target !== dragSrc) {
+          const allCards = [...grid.querySelectorAll('.new-home-card')]
+          const srcIdx  = allCards.indexOf(dragSrc)
+          const destIdx = allCards.indexOf(target)
+          if (srcIdx < destIdx) grid.insertBefore(dragSrc, target.nextSibling)
+          else                  grid.insertBefore(dragSrc, target)
+        }
+        dragSrc = null
+      }, { passive: true })
+    })
+  },
+
   // ── 드로어 ───────────────────────────────
   openDrawer()  {
     document.getElementById('drawer-overlay').classList.add('open')
@@ -443,6 +591,20 @@ const App = {
 
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
+    // 홈 모드 분기: 신홈 / 구홈
+    const homeMode = localStorage.getItem('homeMode') || 'old'
+    const screenOld = document.getElementById('screen-home')
+    const screenNew = document.getElementById('screen-home-new')
+    if (homeMode === 'new') {
+      if (screenOld) { screenOld.classList.remove('active'); screenOld.style.display = 'none' }
+      if (screenNew) { screenNew.style.display = ''; screenNew.classList.add('active') }
+      this._loadNewHome()
+      return
+    } else {
+      if (screenNew) { screenNew.classList.remove('active'); screenNew.style.display = 'none' }
+      if (screenOld) { screenOld.style.display = ''; screenOld.classList.add('active') }
+    }
+
     // 앱 로드 시 공지 뱃지 체크
     this.checkNoticesBadge()
     const uid = Store.getUserId()
@@ -1101,6 +1263,10 @@ const App = {
     const labelEl  = document.getElementById('theme-label')
     if (toggleEl) toggleEl.checked = isDark
     if (labelEl)  labelEl.textContent = isDark ? '다크' : '라이트'
+
+    // 홈 모드 토글 상태 반영
+    const homeModeToggle = document.getElementById('home-mode-toggle')
+    if (homeModeToggle) homeModeToggle.checked = (localStorage.getItem('homeMode') === 'new')
 
     // 계정 정보 표시
     const emailEl = document.getElementById('settings-email')
