@@ -264,17 +264,20 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 .new-home-edit-btn { background:none; border:1.5px solid var(--border); color:var(--text2); font-size:11px; font-weight:600; padding:4px 10px; border-radius:16px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:background 0.15s; }
 .new-home-edit-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
 /* 그리드 */
-.new-home-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 14px 20px; }
-.new-home-card { border-radius:16px; padding:18px 14px 16px; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform 0.12s, opacity 0.12s; position:relative; user-select:none; min-height:100px; }
-.new-home-card:active { transform:scale(0.97); opacity:0.85; }
+.new-home-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:0 12px 20px; }
+.new-home-card { border-radius:14px; padding:14px 10px 12px; display:flex; flex-direction:column; align-items:flex-start; gap:6px; cursor:pointer; transition:transform 0.12s, box-shadow 0.12s; position:relative; user-select:none; min-height:82px; background:var(--bg2); border:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.07); }
+.new-home-card:active { transform:scale(0.96); box-shadow:none; }
 .new-home-card.drag-mode { cursor:grab; }
-.new-home-card.drag-over { outline:2.5px dashed rgba(255,255,255,0.6); outline-offset:2px; }
+.new-home-card.drag-over { outline:2.5px dashed var(--primary); outline-offset:2px; }
 .new-home-card.dragging { opacity:0.45; transform:scale(0.96); }
-.new-home-card-icon { font-size:26px; }
-.new-home-card-label { font-size:14px; font-weight:700; line-height:1.3; }
-.new-home-card-sub { font-size:10px; font-weight:500; opacity:0.75; }
-.drag-handle { position:absolute; top:8px; right:8px; font-size:14px; opacity:0.55; display:none; }
+.new-home-card-icon-wrap { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.new-home-card-icon { font-size:17px; }
+.new-home-card-label { font-size:12px; font-weight:700; color:var(--text); line-height:1.3; }
+.new-home-card-sub { font-size:9px; font-weight:500; color:var(--text3); }
+.drag-handle { position:absolute; top:6px; right:6px; font-size:12px; color:var(--text3); opacity:0.7; display:none; }
 .new-home-card.drag-mode .drag-handle { display:block; }
+[data-theme="light"] .new-home-card.drag-over { outline-color:var(--primary); }
+[data-theme="light"] .new-home-card.drag-mode { outline:1.5px dashed var(--border); }
 
 /* ── 테마 토글 스위치 ── */
 .theme-toggle-wrap { margin-left:auto; display:flex; align-items:center; gap:8px; }
