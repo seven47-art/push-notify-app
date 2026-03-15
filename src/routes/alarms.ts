@@ -180,10 +180,8 @@ alarms.post('/', async (c) => {
 
     // 콘텐츠 URL 생성
     const webhookBase = (c.env as any).WEBHOOK_BASE_URL || 'https://ringo.run'
+    // audio/video/file은 Firebase Storage URL(msg_value)을 직접 사용
     let contentUrl = safeValue
-    if (['audio', 'video', 'file'].includes(msg_type) && safeValue) {
-      contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(safeValue)}`
-    }
 
     // 구독자 + 채널 운영자 FCM 토큰 수집
     const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
@@ -492,10 +490,8 @@ alarms.post('/trigger', async (c) => {
       }
 
       // ── 3) 콘텐츠 URL 생성 ──────────────────────────────────────
+      // audio/video/file은 Firebase Storage URL(msg_value)을 직접 사용
       let contentUrl = alarm.msg_value || ''
-      if (['audio', 'video', 'file'].includes(alarm.msg_type) && alarm.msg_value) {
-        contentUrl = `${webhookBase}/api/contents/stream/${encodeURIComponent(alarm.msg_value)}`
-      }
 
       // ── 4) 수신자별 발송 ────────────────────────────────────────
       let sentCount = 0, failedCount = 0
