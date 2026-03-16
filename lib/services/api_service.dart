@@ -1,8 +1,45 @@
 // lib/services/api_service.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+
+// =============================================
+// 파일 업로드 상태 모델
+// =============================================
+class UploadedFileStatus {
+  final int fileId;
+  final String fileType;      // 'video' | 'audio'
+  final String status;        // 'uploading' | 'processing' | 'ready' | 'failed'
+  final String? processedUrl; // ready 상태일 때만 값 존재
+  final double? durationSec;
+  final String? errorMessage;
+
+  const UploadedFileStatus({
+    required this.fileId,
+    required this.fileType,
+    required this.status,
+    this.processedUrl,
+    this.durationSec,
+    this.errorMessage,
+  });
+
+  bool get isReady   => status == 'ready';
+  bool get isFailed  => status == 'failed';
+  bool get isPending => status == 'uploading' || status == 'processing';
+
+  factory UploadedFileStatus.fromJson(Map<String, dynamic> json) {
+    return UploadedFileStatus(
+      fileId:       json['file_id'] as int,
+      fileType:     json['file_type'] as String? ?? 'audio',
+      status:       json['status']   as String? ?? 'uploading',
+      processedUrl: json['processed_url'] as String?,
+      durationSec:  (json['duration_sec'] as num?)?.toDouble(),
+      errorMessage: json['error_message'] as String?,
+    );
+  }
+}
 
 class ApiService {
   // config.dart에서 중앙 관리 - 서버 URL 변경 시 config.dart만 수정
@@ -304,5 +341,138 @@ class ApiService {
     } catch (e) {
       return null;
     }
+  }
+
+  // =============================================
+  // 파일 업로드 — 업로드 준비 (Signed URL 발급)
+  // 반환: { file_id, upload_url, original_path, bucket, content_type }
+  // =============================================
+  static Future<Map<String, dynamic>> prepareFileUpload({
+    required String sessionToken,
+    required String fileName,
+    required int fileSize,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/uploads/prepare'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'session_token': sessionToken,
+          'file_name':     fileName,
+          'file_size':     fileSize,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // =============================================
+  // 파일 업로드 — Firebase Storage 직접 PUT 업로드
+  // uploadUrl: prepareFileUpload에서 받은 Resumable Upload URL
+  // =============================================
+  static Future<bool> uploadFileToStorage({
+    required String uploadUrl,
+    required File file,
+    required String contentType,
+    void Function(double progress)? onProgress,
+  }) async {
+    try {
+      final fileBytes = await file.readAsBytes();
+      final request   = http.Request('PUT', Uri.parse(uploadUrl));
+      request.headers['Content-Type']   = contentType;
+      request.headers['Content-Length'] = '${fileBytes.length}';
+      request.bodyBytes = fileBytes;
+
+      final streamedResponse = await request.send().timeout(const Duration(minutes: 2));
+      return streamedResponse.statusCode >= 200 && streamedResponse.statusCode < 300;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // =============================================
+  // 파일 업로드 — 업로드 완료 신호 (processing 상태로 변경)
+  // =============================================
+  static Future<Map<String, dynamic>> completeFileUpload({
+    required String sessionToken,
+    required int fileId,
+    required String originalUrl,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/uploads/complete'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'session_token': sessionToken,
+          'file_id':       fileId,
+          'original_url':  originalUrl,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // =============================================
+  // 파일 업로드 — 변환 상태 폴링
+  // status: 'uploading' | 'processing' | 'ready' | 'failed'
+  // =============================================
+  static Future<UploadedFileStatus?> pollFileStatus({
+    required String sessionToken,
+    required int fileId,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/uploads/$fileId?session_token=${Uri.encodeComponent(sessionToken)}'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return UploadedFileStatus.fromJson(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // =============================================
+  // 파일 업로드 — ready 될 때까지 폴링 (최대 timeoutSec 초)
+  // 2초 간격으로 폴링, ready or failed 또는 타임아웃 시 반환
+  // =============================================
+  static Future<UploadedFileStatus?> waitForFileReady({
+    required String sessionToken,
+    required int fileId,
+    int timeoutSec = 120,
+    void Function(String status)? onStatusChange,
+  }) async {
+    final deadline = DateTime.now().add(Duration(seconds: timeoutSec));
+    String? lastStatus;
+
+    while (DateTime.now().isBefore(deadline)) {
+      final status = await pollFileStatus(
+        sessionToken: sessionToken,
+        fileId:       fileId,
+      );
+
+      if (status != null) {
+        if (status.status != lastStatus) {
+          lastStatus = status.status;
+          onStatusChange?.call(status.status);
+        }
+        if (status.isReady || status.isFailed) return status;
+      }
+
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
+    // 타임아웃
+    return null;
   }
 }

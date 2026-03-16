@@ -61,11 +61,18 @@ contents.post('/', async (c) => {
       return c.json({ success: false, error: 'content_type must be audio, video, youtube, or file' }, 400)
     }
 
-    // ★ audio/video/file 타입은 mp3/mp4 확장자만 허용
-    if (['audio', 'video', 'file'].includes(content_type) && content_url) {
+    // ★ audio/video 타입은 변환된 파일(processed) URL만 허용
+    // 허용 확장자: mp4 (video 변환 결과), m4a (audio 변환 결과)
+    // 정책: 알람에서는 반드시 processed URL만 재생
+    if (['audio', 'video'].includes(content_type) && content_url) {
       const urlLower = content_url.toLowerCase().split('?')[0]
-      if (!urlLower.endsWith('.mp3') && !urlLower.endsWith('.mp4')) {
-        return c.json({ success: false, error: '파일은 mp3, mp4 형식만 허용됩니다' }, 400)
+      const isProcessed = urlLower.includes('/processed/')
+      const isAllowedExt = urlLower.endsWith('.mp4') || urlLower.endsWith('.m4a')
+      if (!isAllowedExt) {
+        return c.json({ success: false, error: '파일은 변환된 mp4(영상) 또는 m4a(오디오) 형식만 허용됩니다' }, 400)
+      }
+      if (!isProcessed) {
+        return c.json({ success: false, error: '변환이 완료된 파일(processed)만 등록할 수 있습니다' }, 400)
       }
     }
     
