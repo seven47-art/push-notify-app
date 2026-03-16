@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v27
+// public/static/mobile-app.js  v28
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1134,14 +1134,18 @@ const App = {
     const channelEl = document.getElementById('inbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터: 현재 items에 실제 존재하는 채널만 표시 (삭제 후 자동 재계산)
+    // 채널 필터: items가 있으면 실제 존재하는 채널만, 없으면 _inboxChannels 전체 표시
     const filterEl = document.getElementById('inbox-filter')
     if (filterEl) {
-      const activeChIds = new Set(this._inboxItems.map(it => String(it.channel_id)))
-      const visibleChannels = (this._inboxChannels || []).filter(ch => activeChIds.has(String(ch.id)))
-      // 현재 필터가 더 이상 items에 없으면 '전체'로 리셋
-      if (this._inboxChannelFilter && !activeChIds.has(String(this._inboxChannelFilter))) {
-        this._inboxChannelFilter = ''
+      let visibleChannels = this._inboxChannels || []
+      if (this._inboxItems.length > 0) {
+        // items가 있을 때만 items 기반으로 필터링 (삭제 후 자동 제거)
+        const activeChIds = new Set(this._inboxItems.map(it => String(it.channel_id)))
+        visibleChannels = visibleChannels.filter(ch => activeChIds.has(String(ch.id)))
+        // 현재 필터 채널이 items에 없으면 '전체'로 리셋
+        if (this._inboxChannelFilter && !activeChIds.has(String(this._inboxChannelFilter))) {
+          this._inboxChannelFilter = ''
+        }
       }
       filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._inboxChannelFilter, 'App.loadInbox')
     }
@@ -1198,15 +1202,17 @@ const App = {
 
     const LIMIT = 20
     const isFirst = offset === 0
+    // cacheKey를 함수 스코프로 선언 (try 블록에서도 접근 가능)
+    const cacheKey = 'inbox_' + (channelId || 'all')
 
     if (isFirst) {
       this._inboxChannelFilter = channelId
 
       // 캐시 확인 (stale-while-revalidate)
-      const cacheKey = 'inbox_' + (channelId || 'all')
+      const _cacheKey = cacheKey // 이미 위에서 선언됨
       const uid = Store.getUserId()
       const preloadCached = (!channelId) ? Cache.get('inbox_items_' + uid) : null
-      const cached = Cache.get(cacheKey) || (preloadCached
+      const cached = Cache.get(_cacheKey) || (preloadCached
         ? { data: preloadCached.items, channels: Cache.get('inbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset }
         : null)
 
@@ -1219,7 +1225,7 @@ const App = {
         this._inboxSelectedIds.clear()
         this._renderInbox()
         // 백그라운드 재검증
-        this._fetchInboxBg(channelId, cacheKey, channelEl)
+        this._fetchInboxBg(channelId, _cacheKey, channelEl)
         return
       }
       // 캐시 없으면 스피너
@@ -1232,10 +1238,14 @@ const App = {
     }
 
     try {
-      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
+      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${encodeURIComponent(channelId)}` : '')
+      console.log('[inbox] GET /alarms/inbox?' + params)
       const res = await apiWithTimeout(API.get(`/alarms/inbox?${params}`))
       const resData = res.data
-      if (!resData.success) throw new Error()
+      if (!resData.success) {
+        console.error('[inbox] API error:', resData.error)
+        throw new Error(resData.error || 'API error')
+      }
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
       if (isFirst) {
@@ -1244,7 +1254,7 @@ const App = {
         this._inboxHasMore    = resData.hasMore ?? false
         this._inboxNextOffset = (resData.data || []).length
         this._inboxSelectedIds.clear()
-        Cache.set(cacheKey || ('inbox_' + (channelId || 'all')), { ...resData })
+        Cache.set(cacheKey, { ...resData })
       } else {
         // 더보기: state에 append
         this._inboxItems      = [...this._inboxItems, ...(resData.data || [])]
@@ -1253,6 +1263,7 @@ const App = {
       }
       this._renderInbox()
     } catch(e) {
+      console.error('[inbox] load failed:', e)
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') toast('네트워크가 느립니다. 다시 시도해주세요.')
     }
@@ -1397,14 +1408,18 @@ const App = {
     const channelEl = document.getElementById('outbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터: 현재 items에 실제 존재하는 채널만 표시 (삭제 후 자동 재계산)
+    // 채널 필터: items가 있으면 실제 존재하는 채널만, 없으면 _outboxChannels 전체 표시
     const filterEl = document.getElementById('outbox-filter')
     if (filterEl) {
-      const activeChIds = new Set(this._outboxItems.map(it => String(it.channel_id)))
-      const visibleChannels = (this._outboxChannels || []).filter(ch => activeChIds.has(String(ch.id)))
-      // 현재 필터가 더 이상 items에 없으면 '전체'로 리셋
-      if (this._outboxChannelFilter && !activeChIds.has(String(this._outboxChannelFilter))) {
-        this._outboxChannelFilter = ''
+      let visibleChannels = this._outboxChannels || []
+      if (this._outboxItems.length > 0) {
+        // items가 있을 때만 items 기반으로 필터링 (삭제 후 자동 제거)
+        const activeChIds = new Set(this._outboxItems.map(it => String(it.channel_id)))
+        visibleChannels = visibleChannels.filter(ch => activeChIds.has(String(ch.id)))
+        // 현재 필터 채널이 items에 없으면 '전체'로 리셋
+        if (this._outboxChannelFilter && !activeChIds.has(String(this._outboxChannelFilter))) {
+          this._outboxChannelFilter = ''
+        }
       }
       filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._outboxChannelFilter, 'App.loadSend')
     }
@@ -1463,11 +1478,12 @@ const App = {
 
     const LIMIT = 20
     const isFirst = offset === 0
+    // cacheKey를 함수 스코프로 선언 (try 블록에서도 접근 가능)
+    const cacheKey = 'outbox_' + (channelId || 'all')
 
     if (isFirst) {
       this._outboxChannelFilter = channelId
 
-      const cacheKey = 'outbox_' + (channelId || 'all')
       const uid = Store.getUserId()
       const preloadCached = (!channelId) ? Cache.get('outbox_items_' + uid) : null
       const cached = Cache.get(cacheKey) || (preloadCached
@@ -1492,10 +1508,14 @@ const App = {
     }
 
     try {
-      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${channelId}` : '')
+      const params = `limit=${LIMIT}&offset=${offset}` + (channelId ? `&channel_id=${encodeURIComponent(channelId)}` : '')
+      console.log('[outbox] GET /alarms/outbox?' + params)
       const res = await apiWithTimeout(API.get(`/alarms/outbox?${params}`))
       const resData = res.data
-      if (!resData.success) throw new Error()
+      if (!resData.success) {
+        console.error('[outbox] API error:', resData.error)
+        throw new Error(resData.error || 'API error')
+      }
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
       if (isFirst) {
@@ -1503,7 +1523,7 @@ const App = {
         this._outboxHasMore    = resData.hasMore ?? false
         this._outboxNextOffset = (resData.data || []).length
         this._outboxSelectedIds.clear()
-        Cache.set('outbox_' + (channelId || 'all'), { ...resData })
+        Cache.set(cacheKey, { ...resData })
       } else {
         this._outboxItems      = [...this._outboxItems, ...(resData.data || [])]
         this._outboxHasMore    = resData.hasMore ?? false
@@ -1511,6 +1531,7 @@ const App = {
       }
       this._renderOutbox()
     } catch(e) {
+      console.error('[outbox] load failed:', e)
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') toast('네트워크가 느립니다. 다시 시도해주세요.')
     }
