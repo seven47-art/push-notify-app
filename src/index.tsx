@@ -148,7 +148,7 @@ app.get('/join/:token', async (c) => {
   const remaining   = linkData?.max_uses ? linkData.max_uses - linkData.use_count : null
 
   // APK 다운로드 URL
-  const INSTALL_URL = 'https://8080-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai/PushNotify-debug-arm64.apk'
+  const INSTALL_URL = 'https://ringo.run/download'
   const DEEP_LINK   = 'pushapp://join?token=' + token
 
   // 채널 이미지 HTML
