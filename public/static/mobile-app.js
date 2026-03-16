@@ -2962,7 +2962,7 @@ const App = {
       // ── 이미지 리사이즈 + 압축 (SQLITE_TOOBIG 방지) ──
       const img = new Image()
       img.onload = () => {
-        const MAX = 300  // 최대 300×300
+        const MAX = 600  // 최대 600×600
         let w = img.width, h = img.height
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX }
@@ -2972,7 +2972,7 @@ const App = {
         canvas.width = w; canvas.height = h
         canvas.getContext('2d').drawImage(img, 0, 0, w, h)
         // JPEG quality 0.7 → 보통 30~80KB 수준
-        selectedImg = canvas.toDataURL('image/jpeg', 0.7)
+        selectedImg = canvas.toDataURL('image/jpeg', 0.85)
         const thumbId = imgPickerMode === 'edit' ? 'edit-img-thumb' : 'create-img-thumb'
         document.getElementById(thumbId).innerHTML = `<img src="${selectedImg}" style="width:100%;height:100%;object-fit:cover;">`
         if (imgPickerMode === 'create') {
