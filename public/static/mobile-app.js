@@ -2045,10 +2045,11 @@ const App = {
       const now  = new Date()
       const list = (res.data?.data || []).filter(a => {
         if (a.status !== 'pending' && a.status !== 'triggered') return false
-        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget)
+        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget, 에러 무시)
         if (new Date(a.scheduled_at) < now) {
-          API.delete('/alarms/' + a.id).catch(() => {})
-          this._invalidateOutboxCache()  // 만료 알람 삭제 시 발신함 캐시 무효화
+          API.delete('/alarms/' + a.id).then(() => {
+            this._invalidateOutboxCache()  // 삭제 성공 시에만 캐시 무효화
+          }).catch(() => {})  // 404 등 이미 삭제된 경우 무시
           return false
         }
         return true
@@ -2133,8 +2134,10 @@ const App = {
         this._renderOwned()
       }
 
-      // 알람 목록 재렌더
-      this._loadAlarmList(currentAlarmChId)
+      // 알람 목록 재렌더 (null 안전하게 처리)
+      if (document.getElementById('alarm-list-section')) {
+        this._loadAlarmList(currentAlarmChId)
+      }
       // 채널 소개 모달이 열려있으면 즉시 재렌더 (아이콘 즉시 반영)
       const detailModal = document.getElementById('modal-channel-detail')
       if (detailModal && detailModal.classList.contains('active')) {
