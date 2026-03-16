@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v19
+// public/static/mobile-app.js  v20
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -335,8 +335,30 @@ const App = {
     currentTab = tab
     if (tab === 'home')          this.loadHome()
     else if (tab === 'channel')  this.loadChannel()
-    else if (tab === 'inbox')    { this._inboxEditMode = false; this._inboxChannels = null; const f = document.getElementById('inbox-filter'); if(f) f.innerHTML=''; const bar = document.getElementById('inbox-action-bar'); if(bar) bar.style.display='none'; this.loadInbox() }
-    else if (tab === 'send')     { this._outboxEditMode = false; this._outboxChannels = null; const f = document.getElementById('outbox-filter'); if(f) f.innerHTML=''; const bar = document.getElementById('outbox-action-bar'); if(bar) bar.style.display='none'; this.loadSend() }
+    else if (tab === 'inbox')    {
+      // 편집모드만 종료, _inboxChannels는 null 초기화하지 않음 (캐시 우선 표시)
+      if (this._inboxEditMode) {
+        this._inboxEditMode = false
+        const bar = document.getElementById('inbox-action-bar')
+        const btn = document.getElementById('inbox-edit-btn')
+        if (bar) bar.style.display = 'none'
+        if (btn) btn.style.color = 'var(--text3)'
+        document.querySelectorAll('.inbox-item-check').forEach(el => { el.style.display = 'none' })
+      }
+      this.loadInbox()
+    }
+    else if (tab === 'send')     {
+      // 편집모드만 종료, _outboxChannels는 null 초기화하지 않음 (캐시 우선 표시)
+      if (this._outboxEditMode) {
+        this._outboxEditMode = false
+        const bar = document.getElementById('outbox-action-bar')
+        const btn = document.getElementById('outbox-edit-btn')
+        if (bar) bar.style.display = 'none'
+        if (btn) btn.style.color = 'var(--text3)'
+        document.querySelectorAll('.outbox-item-check').forEach(el => { el.style.display = 'none' })
+      }
+      this.loadSend()
+    }
     else if (tab === 'settings') this.loadSettings()
     else if (tab === 'owned-all')  this.loadOwnedAll()
     else if (tab === 'joined-all') this.loadJoinedAll()
@@ -694,6 +716,16 @@ const App = {
     } catch(e) {
       if (!ownedChannels.length) el.innerHTML = '<div class="empty-box">불러오기 실패</div>'
     }
+  },
+
+  // 백그라운드 재검증 후 owned-all 화면이 열려있으면 조용히 갱신
+  _reRenderOwnedAll() {
+    if (currentTab !== 'owned-all') return
+    const el = document.getElementById('owned-all-list')
+    if (!el) return
+    el.innerHTML = ownedChannels.length
+      ? `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
+      : '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
   },
 
   // ── 나의 가입채널 전체 페이지 ──────────────────────────
@@ -1107,6 +1139,17 @@ const App = {
 
     if (isFirst) {
       this._inboxChannelId = channelId
+      // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
+      const cacheKey = 'inbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        if (cached.channels) this._inboxChannels = cached.channels
+        this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
+        // 백그라운드에서 최신 데이터로 갱신 (스피너 없음)
+        this._fetchInboxBg(channelId, cacheKey, channelEl)
+        return
+      }
+      // 캐시 없으면 스피너 표시 후 fetch
       this._inboxChannels = null
       channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
@@ -1125,11 +1168,31 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
+      // 첫 페이지는 캐시에 저장
+      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData })
       this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
+  },
+
+  // 백그라운드 inbox 갱신 (캐시 히트 후 조용히 최신화)
+  async _fetchInboxBg(channelId, cacheKey, channelEl) {
+    try {
+      const LIMIT = 20
+      const params = `limit=${LIMIT}&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
+      const res = await API.get(`/alarms/inbox?${params}`)
+      const resData = res.data
+      if (!resData.success) return
+      if (resData.channels) this._inboxChannels = resData.channels
+      Cache.set(cacheKey, { ...resData })
+      // 현재 탭이 inbox이고 상세뷰 닫혀있을 때만 UI 갱신
+      const dv = document.getElementById('inbox-detail-view')
+      if (currentTab === 'inbox' && (!dv || dv.style.display === 'none')) {
+        this._renderInboxItems({ ...resData, _offset: 0 }, channelEl, channelId, true)
+      }
+    } catch(e) { /* 백그라운드 실패는 무시 */ }
   },
 
   _setupInfiniteScroll(type) {
@@ -1204,7 +1267,7 @@ const App = {
   },
 
   _invalidateInboxCache() {
-    // 모든 inbox 캐시 키 무효화
+    // 모든 inbox 캐시 키 무효화 (localStorage + 메모리)
     const keys = Object.keys(localStorage).filter(k => k.startsWith('ringo_cache_inbox_'))
     keys.forEach(k => localStorage.removeItem(k))
     Cache._mem && Object.keys(Cache._mem).filter(k => k.startsWith('inbox_')).forEach(k => delete Cache._mem[k])
@@ -1377,6 +1440,17 @@ const App = {
 
     if (isFirst) {
       this._outboxChannelId = channelId
+      // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
+      const cacheKey = 'outbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        if (cached.channels) this._outboxChannels = cached.channels
+        this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
+        // 백그라운드에서 최신 데이터로 갱신 (스피너 없음)
+        this._fetchOutboxBg(channelId, cacheKey, channelEl)
+        return
+      }
+      // 캐시 없으면 스피너 표시 후 fetch
       this._outboxChannels = null
       channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
@@ -1395,11 +1469,31 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
+      // 첫 페이지는 캐시에 저장
+      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), { ...resData })
       this._renderOutboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
+  },
+
+  // 백그라운드 outbox 갱신 (캐시 히트 후 조용히 최신화)
+  async _fetchOutboxBg(channelId, cacheKey, channelEl) {
+    try {
+      const LIMIT = 20
+      const params = `limit=${LIMIT}&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
+      const res = await API.get(`/alarms/outbox?${params}`)
+      const resData = res.data
+      if (!resData.success) return
+      if (resData.channels) this._outboxChannels = resData.channels
+      Cache.set(cacheKey, { ...resData })
+      // 현재 탭이 send이고 상세뷰 닫혀있을 때만 UI 갱신
+      const dv = document.getElementById('outbox-detail-view')
+      if (currentTab === 'send' && (!dv || dv.style.display === 'none')) {
+        this._renderOutboxItems({ ...resData, _offset: 0 }, channelEl, channelId, true)
+      }
+    } catch(e) { /* 백그라운드 실패는 무시 */ }
   },
 
   outboxOpenChannel(group) {},
@@ -1423,9 +1517,11 @@ const App = {
       if (ch && ch.image_url) currentImage = ch.image_url
     } catch(e) {}
 
-    // 2. 상태 업데이트 (수신함만)
+    // 2. 상태 업데이트 (수신함만) + 캐시 무효화
     if (logId && source === 'inbox') {
       try { await API.post(`/alarms/inbox/${logId}/status`, { status: 'accepted' }) } catch(e) {}
+      // 열람으로 상태 변경됐으므로 inbox 캐시 무효화
+      this._invalidateInboxCache()
     }
 
     // 3. Flutter 앱이면 ContentPlayerActivity 실행
@@ -1509,10 +1605,15 @@ const App = {
 
     screen.classList.remove('active')
 
-    // 돌아갈 탭 새로고침
+    // 돌아갈 탭 새로고침 (캐시 먼저 invalidate → 최신 상태 표시)
     const source = screen.dataset.source
-    if (source === 'inbox') this.loadInbox()
-    else if (source === 'outbox') this.loadSend()
+    if (source === 'inbox') {
+      this._invalidateInboxCache()
+      this.loadInbox()
+    } else if (source === 'outbox') {
+      this._invalidateOutboxCache()
+      this.loadSend()
+    }
   },
 
   _buildChannelFilter(channels, selectedId, callbackFn) {
@@ -1637,6 +1738,7 @@ const App = {
       return
     }
     Store.clearSession()
+    Cache.clear()  // 탈퇴 시 캐시 전체 초기화
     // Flutter 앱에 탈퇴 알림 → 계정 선택 화면으로 이동
     if (window.FlutterBridge) {
       window.FlutterBridge.postMessage(JSON.stringify({ action: 'logout' }))
@@ -1753,12 +1855,21 @@ const App = {
       })
       if (res.data?.success || res.data?.data) {
         toast('채널이 생성되었습니다!')
+        const newCh = res.data?.data
+        // Optimistic update: 새 채널을 즉시 목록 앞에 추가
+        if (newCh) {
+          ownedChannels = [newCh, ...ownedChannels.filter(c => c.id !== newCh.id)]
+        }
+        // 캐시 무효화 (home + channels)
         Cache.del('home_' + Store.getUserId())
         Cache.del('channels')
         this.closeModal('modal-create')
-        // 내 채널 목록 갱신 후 내 채널 화면으로 이동
-        try { const r = await API.get('/channels?owner_id=' + Store.getUserId()); ownedChannels = r.data?.data || [] } catch {}
+        // 내 채널 화면으로 먼저 이동 (즉시 반영)
         this.goto('owned-all')
+        // 백그라운드에서 서버 최신 목록으로 재검증
+        API.get('/channels?owner_id=' + Store.getUserId())
+          .then(r => { ownedChannels = r.data?.data || ownedChannels; this._reRenderOwnedAll() })
+          .catch(() => {})
       } else {
         toast(res.data?.error || '채널 생성에 실패했습니다', 3500)
       }
@@ -1824,6 +1935,9 @@ const App = {
       Cache.del('ch_detail_' + id)
       Cache.del('home_' + Store.getUserId())
       Cache.del('channels')
+      // 채널 수정 시 수신함/발신함에도 채널 정보 표시되므로 함께 무효화
+      this._invalidateInboxCache()
+      this._invalidateOutboxCache()
       this.closeModal('modal-edit')
       this.loadHome()
       // 채널 소개 모달이 열려있으면 즉시 갱신
@@ -1934,6 +2048,7 @@ const App = {
         // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget)
         if (new Date(a.scheduled_at) < now) {
           API.delete('/alarms/' + a.id).catch(() => {})
+          this._invalidateOutboxCache()  // 만료 알람 삭제 시 발신함 캐시 무효화
           return false
         }
         return true
@@ -2004,9 +2119,10 @@ const App = {
     try {
       await API.delete('/alarms/' + alarmId)
       toast('알람이 삭제됐습니다')
-      // 홈 캐시 + 채널 상세 캐시 무효화
+      // 홈 캐시 + 채널 상세 캐시 + 발신함 캐시 무효화
       Cache.del('home_' + Store.getUserId())
       Cache.del('ch_detail_' + currentAlarmChId)
+      this._invalidateOutboxCache()
 
       // ownedChannels 배열의 pending_alarm_count 즉시 갱신 → loadOwnedAll() 재렌더 시 반영
       const oc = ownedChannels.find(c => c.id === currentAlarmChId)
@@ -2544,8 +2660,9 @@ const App = {
         const targets = res.data.data?.total_targets || 0
         toast(`⏰ 알람 설정 완료 · ${dateStr} ${timeStr} · ${srcLabel} · 대상 ${targets}명`, 3500)
 
-        // 홈 캐시 무효화
+        // 홈 + 발신함 캐시 무효화 (알람 설정 시 발신함 목록도 변경됨)
         Cache.del('home_' + Store.getUserId())
+        this._invalidateOutboxCache()
 
         // ownedChannels 배열 서버에서 재조회 후 내 채널 전체보기로 이동
         this.closeModal('modal-alarm')
@@ -2926,6 +3043,8 @@ const App = {
       })
       if (join.data?.success) {
         toast(name + ' 채널에 참여했습니다! 🎉')
+        // 채널 가입 시 joined 목록 + inbox 캐시 무효화
+        this._invalidateAllFeedCache()
         this.closeModal('modal-channel-detail')
         await this.loadHome()
         this.goto('joined-all')
