@@ -670,25 +670,61 @@ const App = {
   },
 
   // ── 나의 운영채널 전체 페이지 ──────────────────────────
-  loadOwnedAll() {
+  async loadOwnedAll() {
     const el = document.getElementById('owned-all-list')
     if (!el) return
-    if (!ownedChannels.length) {
-      el.innerHTML = '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
-      return
+    // 캐시 있으면 즉시 표시
+    if (ownedChannels.length) {
+      el.innerHTML = `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
+    } else {
+      el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
-    el.innerHTML = `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
+    // 항상 API 재호출해서 최신 데이터로 갱신
+    try {
+      const uid = Store.getUserId()
+      if (!uid) return
+      const res = await API.get('/channels?owner_id=' + encodeURIComponent(uid))
+      ownedChannels = res.data?.data || []
+      const cacheKey = 'home_' + uid
+      const cached = Cache.get(cacheKey)
+      if (cached) Cache.set(cacheKey, { ...cached, owned: ownedChannels })
+      el.innerHTML = ownedChannels.length
+        ? `<div class="channel-list-wrap">${ownedChannels.map(ch => this._ownedTileHtml(ch)).join('')}</div>`
+        : '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
+    } catch(e) {
+      if (!ownedChannels.length) el.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+    }
   },
 
   // ── 나의 가입채널 전체 페이지 ──────────────────────────
-  loadJoinedAll() {
+  async loadJoinedAll() {
     const el = document.getElementById('joined-all-list')
     if (!el) return
-    if (!joinedChannels.length) {
-      el.innerHTML = '<div class="empty-box">가입한 채널이 없습니다.<br>초대 링크로 참여해 보세요!</div>'
-      return
+    // 캐시 있으면 즉시 표시
+    if (joinedChannels.length) {
+      el.innerHTML = `<div class="joined-list-wrap">${joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
+    } else {
+      el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
-    el.innerHTML = `<div class="joined-list-wrap">${joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
+    // 항상 API 재호출해서 최신 데이터로 갱신
+    try {
+      const uid = Store.getUserId()
+      if (!uid) return
+      const [oRes, jRes] = await Promise.all([
+        API.get('/channels?owner_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } })),
+        API.get('/subscribers?user_id=' + encodeURIComponent(uid)).catch(() => ({ data: { data: [] } }))
+      ])
+      ownedChannels = oRes.data?.data || []
+      const ownedIds = new Set(ownedChannels.map(c => c.id))
+      joinedChannels = (jRes.data?.data || []).filter(s => !ownedIds.has(s.channel_id))
+      const cacheKey = 'home_' + uid
+      Cache.set(cacheKey, { owned: ownedChannels, joined: joinedChannels })
+      el.innerHTML = joinedChannels.length
+        ? `<div class="joined-list-wrap">${joinedChannels.map(ch => this._joinedTileHtml(ch)).join('')}</div>`
+        : '<div class="empty-box">가입한 채널이 없습니다.<br>초대 링크로 참여해 보세요!</div>'
+    } catch(e) {
+      if (!joinedChannels.length) el.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+    }
   },
 
   // ── 공지사항 전체 페이지 ──────────────────────────
