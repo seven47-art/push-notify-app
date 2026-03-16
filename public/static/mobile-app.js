@@ -1012,7 +1012,10 @@ const App = {
     const hasMore = resData.hasMore ?? false
     const nextOffset = resData._offset + resData.data.length
     if (isFirst && (!resData.data || !resData.data.length)) {
-      channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
+      // 필터는 고정 영역에, 빈 메시지는 리스트 영역에
+      const filterEl = document.getElementById('inbox-filter')
+      if (filterEl) filterEl.innerHTML = filterHtml
+      channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
       return
     }
     const items = resData.data.map(item => {
@@ -1032,7 +1035,10 @@ const App = {
       </div>`
     }).join('')
     if (isFirst) {
-      channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
+      // 필터는 고정 영역에 렌더링
+      const filterEl = document.getElementById('inbox-filter')
+      if (filterEl) filterEl.innerHTML = filterHtml
+      channelEl.innerHTML = '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
     }
     const itemsEl = document.getElementById('inbox-items')
     if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
@@ -1125,7 +1131,9 @@ const App = {
       return true
     })
     if (isFirst && (!dedupedData || !dedupedData.length)) {
-      channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
+      const filterEl = document.getElementById('outbox-filter')
+      if (filterEl) filterEl.innerHTML = filterHtml
+      channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
       return
     }
     const items = dedupedData.map(item => {
@@ -1145,7 +1153,10 @@ const App = {
       </div>`
     }).join('')
     if (isFirst) {
-      channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
+      // 필터는 고정 영역에 렌더링
+      const filterEl = document.getElementById('outbox-filter')
+      if (filterEl) filterEl.innerHTML = filterHtml
+      channelEl.innerHTML = '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
     }
     const itemsEl = document.getElementById('outbox-items')
     if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
