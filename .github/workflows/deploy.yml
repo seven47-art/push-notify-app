@@ -30,6 +30,9 @@ jobs:
         run: npm run build
 
       - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy dist --project-name ringo-server
+        run: |
+          SAFE_MSG=$(echo "${{ github.event.head_commit.message }}" | iconv -c -f utf-8 -t ascii//TRANSLIT | tr -dc '[:print:]' | cut -c1-200)
+          if [ -z "$SAFE_MSG" ]; then SAFE_MSG="deploy: ${{ github.sha }}"; fi
+          npx wrangler pages deploy dist --project-name ringo-server --commit-message "$SAFE_MSG"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
