@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v29
+// public/static/mobile-app.js  v30
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1134,20 +1134,11 @@ const App = {
     const channelEl = document.getElementById('inbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터: items가 있으면 실제 존재하는 채널만, 없으면 _inboxChannels 전체 표시
+    // 채널 필터: _inboxChannels 기반으로 항상 표시
+    // (삭제 시에만 deleteSelectedInbox에서 _inboxChannels를 직접 제거)
     const filterEl = document.getElementById('inbox-filter')
     if (filterEl) {
-      let visibleChannels = this._inboxChannels || []
-      if (this._inboxItems.length > 0) {
-        // items가 있을 때만 items 기반으로 필터링 (삭제 후 자동 제거)
-        const activeChIds = new Set(this._inboxItems.map(it => String(it.channel_id)))
-        visibleChannels = visibleChannels.filter(ch => activeChIds.has(String(ch.id)))
-        // 현재 필터 채널이 items에 없으면 '전체'로 리셋
-        if (this._inboxChannelFilter && !activeChIds.has(String(this._inboxChannelFilter))) {
-          this._inboxChannelFilter = ''
-        }
-      }
-      filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._inboxChannelFilter, 'App.loadInbox')
+      filterEl.innerHTML = this._buildChannelFilter(this._inboxChannels || [], this._inboxChannelFilter, 'App.loadInbox')
     }
 
     const items = this._inboxItems
@@ -1306,6 +1297,16 @@ const App = {
       this._inboxItems = this._inboxItems.filter(item => !delSet.has(item.id))
       this._inboxSelectedIds.clear()
 
+      // ① 삭제 후 _inboxChannels에서도 더 이상 items가 없는 채널 제거
+      if (this._inboxChannels) {
+        const remainChIds = new Set(this._inboxItems.map(it => String(it.channel_id)))
+        this._inboxChannels = this._inboxChannels.filter(ch => remainChIds.has(String(ch.id)))
+        // 현재 필터 채널이 완전히 삭제됐으면 전체로 리셋
+        if (this._inboxChannelFilter && !remainChIds.has(String(this._inboxChannelFilter))) {
+          this._inboxChannelFilter = ''
+        }
+      }
+
       // ② 선택 모드 종료
       this._inboxEditMode = false
       const bar = document.getElementById('inbox-action-bar')
@@ -1412,20 +1413,10 @@ const App = {
     const channelEl = document.getElementById('outbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터: items가 있으면 실제 존재하는 채널만, 없으면 _outboxChannels 전체 표시
+    // 채널 필터: _outboxChannels 기반으로 항상 표시
     const filterEl = document.getElementById('outbox-filter')
     if (filterEl) {
-      let visibleChannels = this._outboxChannels || []
-      if (this._outboxItems.length > 0) {
-        // items가 있을 때만 items 기반으로 필터링 (삭제 후 자동 제거)
-        const activeChIds = new Set(this._outboxItems.map(it => String(it.channel_id)))
-        visibleChannels = visibleChannels.filter(ch => activeChIds.has(String(ch.id)))
-        // 현재 필터 채널이 items에 없으면 '전체'로 리셋
-        if (this._outboxChannelFilter && !activeChIds.has(String(this._outboxChannelFilter))) {
-          this._outboxChannelFilter = ''
-        }
-      }
-      filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._outboxChannelFilter, 'App.loadSend')
+      filterEl.innerHTML = this._buildChannelFilter(this._outboxChannels || [], this._outboxChannelFilter, 'App.loadSend')
     }
 
     const items = this._outboxItems
@@ -1575,6 +1566,15 @@ const App = {
       const delSet = new Set(log_ids)
       this._outboxItems = this._outboxItems.filter(item => !delSet.has(item.id))
       this._outboxSelectedIds.clear()
+
+      // ① 삭제 후 _outboxChannels에서도 더 이상 items가 없는 채널 제거
+      if (this._outboxChannels) {
+        const remainChIds = new Set(this._outboxItems.map(it => String(it.channel_id)))
+        this._outboxChannels = this._outboxChannels.filter(ch => remainChIds.has(String(ch.id)))
+        if (this._outboxChannelFilter && !remainChIds.has(String(this._outboxChannelFilter))) {
+          this._outboxChannelFilter = ''
+        }
+      }
 
       // ② 선택 모드 종료
       this._outboxEditMode = false
