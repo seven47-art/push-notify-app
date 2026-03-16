@@ -471,12 +471,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   // ── 딥링크 채널 초기화 ──────────────────────────────────────
   // Kotlin에서 pushapp://join?token=xxx 수신 시 Flutter로 전달
   void _initDeepLink() {
+    debugPrint('[DeepLink][3] _initDeepLink() 시작');
     // Kotlin → Flutter: onDeepLink(token) 수신
     _deepLinkChannel.setMethodCallHandler((call) async {
       if (call.method == 'onDeepLink') {
         final token = call.arguments as String?;
+        debugPrint('[DeepLink][3-A] onDeepLink 수신: $token');
         if (token != null && token.isNotEmpty) {
-          debugPrint('[DeepLink] onDeepLink 수신: $token');
           await Future.delayed(const Duration(milliseconds: 800));
           if (mounted) _showChannelJoinScreen(token);
         }
@@ -486,14 +487,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     // 콜드스타트 시 Kotlin에 pending 토큰 요청
     Future.delayed(const Duration(milliseconds: 1000), () async {
       try {
+        debugPrint('[DeepLink][3-B] getInitialToken 요청 (1초 후)');
         final token = await _deepLinkChannel.invokeMethod<String?>('getInitialToken');
+        debugPrint('[DeepLink][3-B] getInitialToken 응답: $token');
         if (token != null && token.isNotEmpty) {
-          debugPrint('[DeepLink] getInitialToken: $token');
           await Future.delayed(const Duration(milliseconds: 500));
           if (mounted) _showChannelJoinScreen(token);
         }
       } catch (e) {
-        debugPrint('[DeepLink] getInitialToken 오류: $e');
+        debugPrint('[DeepLink][3-B] getInitialToken 오류: $e');
       }
     });
   }
@@ -1017,7 +1019,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   // 채널 소개 화면 표시 (서버에서 채널 정보 조회 후)
   Future<void> _showChannelJoinScreen(String token) async {
-    // 로딩 다이얼로그 표시
+    debugPrint('[DeepLink][4] _showChannelJoinScreen() 호출 - token=$token');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1036,12 +1038,16 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
+        debugPrint('[DeepLink][4] API 응답 status=${res.statusCode} body=${res.body.substring(0, res.body.length.clamp(0, 200))}');
         if (body['success'] == true && body['valid'] == true) {
           channelData = body['data'] as Map<String, dynamic>?;
+          debugPrint('[DeepLink][4] 채널 정보 조회 성공: channelId=${channelData?['channel_id']}');
+        } else {
+          debugPrint('[DeepLink][4] API 응답 실패: ${res.body}');
         }
       }
     } catch (e) {
-      debugPrint('[DeepLink] 채널 정보 조회 실패: $e');
+      debugPrint('[DeepLink][4] 채널 정보 조회 실패: $e');
     }
 
     // 로딩 다이얼로그 닫기
