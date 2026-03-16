@@ -700,6 +700,40 @@ const App = {
   },
 
   // ── 공지사항 전체 페이지 ──────────────────────────
+  _renderNoticeItems(list, hasMore, nextOffset, el, isFirst) {
+    if (isFirst && !list.length) {
+      el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
+      return
+    }
+    const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
+    const items = list.map(n => {
+      const isUnread = !seen.includes(n.id)
+      return `
+      <div class="channel-tile" style="flex-direction:column;align-items:flex-start;padding:14px 16px;cursor:pointer;"
+        onclick="App._toggleNotice(this, ${n.id})">
+        <div style="display:flex;align-items:center;width:100%;gap:8px;">
+          <i class="fas fa-bullhorn" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
+          <span style="font-size:14px;font-weight:600;color:var(--text);flex:1;">${n.title.replace(/</g,'&lt;')}</span>
+          ${isUnread ? '<span style="width:8px;height:8px;background:#EF4444;border-radius:50%;flex-shrink:0;display:inline-block;"></span>' : ''}
+          <span style="font-size:11px;color:var(--text3);">${n.created_at?.slice(0,10) || ''}</span>
+          <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text3);transition:transform 0.2s;"></i>
+        </div>
+        <div class="notice-content" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap;width:100%;">${n.content.replace(/</g,'&lt;')}</div>
+      </div>
+    `}).join('')
+    if (isFirst) {
+      el.innerHTML = '<div id="notices-items"></div><div id="notices-more-wrap" style="padding:12px 16px 4px;"></div>'
+    }
+    const itemsEl = document.getElementById('notices-items')
+    if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+    const moreWrap = document.getElementById('notices-more-wrap')
+    if (moreWrap) {
+      moreWrap.innerHTML = hasMore
+        ? `<button id="notices-more-btn" onclick="App.loadNotices(${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        : ''
+    }
+  },
+
   async loadNotices(offset = 0) {
     const el = document.getElementById('notices-list')
     if (!el) return
@@ -707,7 +741,13 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      // 캐시 즉시 표시
+      const cached = Cache.get('notices')
+      if (cached) {
+        this._renderNoticeItems(cached.data, cached.hasMore, cached.nextOffset, el, true)
+      } else {
+        el.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      }
     }
 
     // 더보기 버튼 로딩 상태
@@ -722,46 +762,11 @@ const App = {
       const list = res.data?.data || []
       const hasMore = res.data?.hasMore ?? false
       const nextOffset = offset + list.length
-
-      if (isFirst && !list.length) {
-        el.innerHTML = '<div class="empty-box">등록된 공지사항이 없습니다.</div>'
-        return
-      }
-
-      const seen = JSON.parse(localStorage.getItem('seen_notices') || '[]')
-      const items = list.map(n => {
-        const isUnread = !seen.includes(n.id)
-        return `
-        <div class="channel-tile" style="flex-direction:column;align-items:flex-start;padding:14px 16px;cursor:pointer;"
-          onclick="App._toggleNotice(this, ${n.id})">
-          <div style="display:flex;align-items:center;width:100%;gap:8px;">
-            <i class="fas fa-bullhorn" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
-            <span style="font-size:14px;font-weight:600;color:var(--text);flex:1;">${n.title.replace(/</g,'&lt;')}</span>
-            ${isUnread ? '<span style="width:8px;height:8px;background:#EF4444;border-radius:50%;flex-shrink:0;display:inline-block;"></span>' : ''}
-            <span style="font-size:11px;color:var(--text3);">${n.created_at?.slice(0,10) || ''}</span>
-            <i class="fas fa-chevron-down" style="font-size:11px;color:var(--text3);transition:transform 0.2s;"></i>
-          </div>
-          <div class="notice-content" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap;width:100%;">${n.content.replace(/</g,'&lt;')}</div>
-        </div>
-      `}).join('')
-
-      if (isFirst) {
-        el.innerHTML = '<div id="notices-items"></div><div id="notices-more-wrap" style="padding:12px 16px 4px;"></div>'
-      }
-      const itemsEl = document.getElementById('notices-items')
-      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
-
-      // 더보기 버튼 업데이트
-      const moreWrap = document.getElementById('notices-more-wrap')
-      if (moreWrap) {
-        if (hasMore) {
-          moreWrap.innerHTML = `<button id="notices-more-btn" onclick="App.loadNotices(${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
-        } else {
-          moreWrap.innerHTML = ''
-        }
-      }
+      // 첫 페이지 결과 캐시 저장
+      if (isFirst) Cache.set('notices', { data: list, hasMore, nextOffset })
+      this._renderNoticeItems(list, hasMore, nextOffset, el, isFirst)
     } catch (e) {
-      if (isFirst) el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
+      if (isFirst && !Cache.get('notices')) el.innerHTML = '<div class="empty-box">공지사항을 불러올 수 없습니다.</div>'
     }
   },
 
@@ -994,6 +999,51 @@ const App = {
   },
 
   // ── 수신함 ──────────────────────────────
+  _renderInboxItems(resData, channelEl, channelId, isFirst) {
+    const iconMap = {
+      youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
+      audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
+      video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+      file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+    }
+    const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
+    const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
+    const filterHtml = isFirst ? this._buildChannelFilter(this._inboxChannels || [], channelId, 'App.loadInbox') : ''
+    const hasMore = resData.hasMore ?? false
+    const nextOffset = resData._offset + resData.data.length
+    if (isFirst && (!resData.data || !resData.data.length)) {
+      channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
+      return
+    }
+    const items = resData.data.map(item => {
+      const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+      const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
+      const stLabel = statusMap[item.status] || item.status
+      const stColor = statusColor[item.status] || '#90A4AE'
+      const chImg = item.channel_image
+        ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+        : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
+      return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
+        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
+        <span class="alarm-list-channel">${item.channel_name}</span>
+        <span class="alarm-list-time">${timeStr}</span>
+        <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+      </div>`
+    }).join('')
+    if (isFirst) {
+      channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
+    }
+    const itemsEl = document.getElementById('inbox-items')
+    if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+    const moreWrap = document.getElementById('inbox-more-wrap')
+    if (moreWrap) {
+      moreWrap.innerHTML = hasMore
+        ? `<button id="inbox-more-btn" onclick="App.loadInbox('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        : ''
+    }
+  },
+
   async loadInbox(channelId = '', offset = 0) {
     const channelEl = document.getElementById('inbox-channel-list')
     const detailView = document.getElementById('inbox-detail-view')
@@ -1005,9 +1055,17 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
       this._inboxChannelId = channelId
       this._inboxChannels = null
+      // 캐시 즉시 표시
+      const cacheKey = 'inbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        this._inboxChannels = cached.channels || null
+        this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
+      } else {
+        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      }
     }
 
     // 더보기 버튼 로딩 상태
@@ -1024,59 +1082,12 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
-      const hasMore = resData.hasMore ?? false
-      const nextOffset = offset + resData.data.length
+      // 첫 페이지 결과 캐시 저장
+      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData, channels: this._inboxChannels })
 
-      const iconMap = {
-        youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-        audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-        video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
-        file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
-      }
-      const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
-      const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-
-      const filterHtml = isFirst ? this._buildChannelFilter(this._inboxChannels || [], channelId, 'App.loadInbox') : ''
-
-      if (isFirst && (!resData.data || !resData.data.length)) {
-        channelEl.innerHTML = filterHtml + '<div class="empty-box">받은 알람이 없습니다.</div>'
-        return
-      }
-
-      const items = resData.data.map(item => {
-        const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
-        const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
-        const stLabel = statusMap[item.status] || item.status
-        const stColor = statusColor[item.status] || '#90A4AE'
-        const chImg = item.channel_image
-          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-          : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
-          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
-          <span class="alarm-list-channel">${item.channel_name}</span>
-          <span class="alarm-list-time">${timeStr}</span>
-          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
-        </div>`
-      }).join('')
-
-      if (isFirst) {
-        channelEl.innerHTML = filterHtml + '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
-      }
-      const itemsEl = document.getElementById('inbox-items')
-      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
-
-      // 더보기 버튼 업데이트
-      const moreWrap = document.getElementById('inbox-more-wrap')
-      if (moreWrap) {
-        if (hasMore) {
-          moreWrap.innerHTML = `<button id="inbox-more-btn" onclick="App.loadInbox('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
-        } else {
-          moreWrap.innerHTML = ''
-        }
-      }
+      this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst && !Cache.get('inbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
@@ -1094,6 +1105,58 @@ const App = {
   },
 
   // ── 발신함 ──────────────────────────────
+  _renderOutboxItems(resData, channelEl, channelId, isFirst) {
+    const iconMap = {
+      youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
+      audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
+      video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+      file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+    }
+    const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
+    const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
+    const filterHtml = isFirst ? this._buildChannelFilter(this._outboxChannels || [], channelId, 'App.loadSend') : ''
+    const hasMore = resData.hasMore ?? false
+    const nextOffset = resData._offset + resData.data.length
+    const seenIds = new Set()
+    const dedupedData = resData.data.filter(item => {
+      const key = item.alarm_id || ('log_' + item.id)
+      if (seenIds.has(key)) return false
+      seenIds.add(key)
+      return true
+    })
+    if (isFirst && (!dedupedData || !dedupedData.length)) {
+      channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
+      return
+    }
+    const items = dedupedData.map(item => {
+      const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+      const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
+      const stLabel = statusMap[item.status] || item.status
+      const stColor = statusColor[item.status] || '#90A4AE'
+      const chImg = item.channel_image
+        ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+        : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
+      return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
+        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
+        <span class="alarm-list-channel">${item.channel_name}</span>
+        <span class="alarm-list-time">${timeStr}</span>
+        <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+      </div>`
+    }).join('')
+    if (isFirst) {
+      channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
+    }
+    const itemsEl = document.getElementById('outbox-items')
+    if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
+    const moreWrap = document.getElementById('outbox-more-wrap')
+    if (moreWrap) {
+      moreWrap.innerHTML = hasMore
+        ? `<button id="outbox-more-btn" onclick="App.loadSend('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+        : ''
+    }
+  },
+
   async loadSend(channelId = '', offset = 0) {
     const channelEl = document.getElementById('outbox-channel-list')
     const detailView = document.getElementById('outbox-detail-view')
@@ -1105,9 +1168,17 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
       this._outboxChannelId = channelId
       this._outboxChannels = null
+      // 캐시 즉시 표시
+      const cacheKey = 'outbox_' + (channelId || 'all')
+      const cached = Cache.get(cacheKey)
+      if (cached) {
+        this._outboxChannels = cached.channels || null
+        this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
+      } else {
+        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      }
     }
 
     // 더보기 버튼 로딩 상태
@@ -1124,67 +1195,12 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
-      const hasMore = resData.hasMore ?? false
-      const nextOffset = offset + resData.data.length
+      // 첫 페이지 결과 캐시 저장
+      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), { ...resData, channels: this._outboxChannels })
 
-      const iconMap = {
-        youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-        audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-        video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
-        file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
-      }
-      const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
-      const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-
-      const filterHtml = isFirst ? this._buildChannelFilter(this._outboxChannels || [], channelId, 'App.loadSend') : ''
-
-      const seenIds = new Set()
-      const dedupedData = resData.data.filter(item => {
-        const key = item.alarm_id || ('log_' + item.id)
-        if (seenIds.has(key)) return false
-        seenIds.add(key)
-        return true
-      })
-
-      if (isFirst && (!dedupedData || !dedupedData.length)) {
-        channelEl.innerHTML = filterHtml + '<div class="empty-box">발신한 알람이 없습니다.</div>'
-        return
-      }
-
-      const items = dedupedData.map(item => {
-        const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
-        const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
-        const stLabel = statusMap[item.status] || item.status
-        const stColor = statusColor[item.status] || '#90A4AE'
-        const chImg = item.channel_image
-          ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-          : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-        return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
-          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
-          <span class="alarm-list-channel">${item.channel_name}</span>
-          <span class="alarm-list-time">${timeStr}</span>
-          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
-        </div>`
-      }).join('')
-
-      if (isFirst) {
-        channelEl.innerHTML = filterHtml + '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
-      }
-      const itemsEl = document.getElementById('outbox-items')
-      if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
-
-      // 더보기 버튼 업데이트
-      const moreWrap = document.getElementById('outbox-more-wrap')
-      if (moreWrap) {
-        if (hasMore) {
-          moreWrap.innerHTML = `<button id="outbox-more-btn" onclick="App.loadSend('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
-        } else {
-          moreWrap.innerHTML = ''
-        }
-      }
+      this._renderOutboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst && !Cache.get('outbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
