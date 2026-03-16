@@ -328,9 +328,6 @@ const App = {
   goto(tab) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
-    // 신홈 화면도 초기화 (display 속성 충돌 방지)
-    const screenHomeNew = document.getElementById('screen-home-new')
-    if (screenHomeNew) screenHomeNew.style.display = ''
     const screen = document.getElementById('screen-' + tab)
     const navBtn = document.getElementById('nav-' + (tab === 'home' ? 'home' : tab))
     if (screen) screen.classList.add('active')
@@ -601,11 +598,6 @@ const App = {
 
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
-    // 신홈화면 고정
-    const screenOld = document.getElementById('screen-home')
-    const screenNew = document.getElementById('screen-home-new')
-    if (screenOld) { screenOld.classList.remove('active'); screenOld.style.display = 'none' }
-    if (screenNew) { screenNew.style.display = ''; screenNew.classList.add('active') }
 
     // 공지 뱃지 체크
     this.checkNoticesBadge()
