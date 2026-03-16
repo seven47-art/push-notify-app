@@ -1543,7 +1543,9 @@ const App = {
         Cache.del('home_' + Store.getUserId())
         Cache.del('channels')
         this.closeModal('modal-create')
-        this.loadHome()
+        // 내 채널 목록 갱신 후 내 채널 화면으로 이동
+        try { const r = await API.get('/channels?owner_id=' + Store.getUserId()); ownedChannels = r.data?.data || [] } catch {}
+        this.goto('owned-all')
       } else {
         toast(res.data?.error || '채널 생성에 실패했습니다', 3500)
       }
