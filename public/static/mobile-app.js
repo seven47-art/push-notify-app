@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v22
+// public/static/mobile-app.js  v23
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1278,26 +1278,55 @@ const App = {
     const checked = document.querySelectorAll('.inbox-item-check input:checked')
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
+    const deletedIdSet = new Set(log_ids)
+
     try {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
+
+      // ① 성공 토스트
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      this._invalidateInboxCache()
+
+      // ② 선택모드 즉시 종료
       this._inboxEditMode = false
-      this._inboxChannels = null
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      const f = document.getElementById('inbox-filter')
-      if (f) f.innerHTML = ''
-      const channelEl = document.getElementById('inbox-channel-list')
-      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      const apiRes = await API.get('/alarms/inbox?limit=20&offset=0')
-      if (apiRes.data?.success) {
-        if (apiRes.data.channels) this._inboxChannels = apiRes.data.channels
-        this._renderInboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+
+      // ③ DOM에서 삭제된 항목 즉시 제거 (API 재호출 없이 화면 즉시 갱신)
+      deletedIdSet.forEach(id => {
+        const cb = document.querySelector(`.inbox-item-check input[data-id="${id}"]`)
+        const row = cb?.closest('.alarm-list-row')
+        if (row) row.remove()
+      })
+
+      // ④ 남은 항목이 없으면 빈 상태 표시
+      const itemsEl = document.getElementById('inbox-items')
+      if (itemsEl && !itemsEl.querySelector('.alarm-list-row')) {
+        const channelEl = document.getElementById('inbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
       }
+
+      // ⑤ 체크박스 표시 숨김 초기화
+      document.querySelectorAll('.inbox-item-check').forEach(el => { el.style.display = 'none' })
+      const checkAll = document.getElementById('inbox-check-all')
+      if (checkAll) checkAll.checked = false
+      this._updateInboxSelectedCount()
+
+      // ⑥ 캐시 무효화
+      this._invalidateInboxCache()
+
+      // ⑦ 백그라운드에서 서버 최신 데이터로 재검증 (스피너 없음)
+      API.get('/alarms/inbox?limit=20&offset=0').then(apiRes => {
+        if (!apiRes.data?.success) return
+        const channelEl = document.getElementById('inbox-channel-list')
+        if (!channelEl) return
+        if (apiRes.data.channels) this._inboxChannels = apiRes.data.channels
+        Cache.set('inbox_all', { ...apiRes.data })
+        this._renderInboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+      }).catch(() => {})
+
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1365,26 +1394,55 @@ const App = {
     const checked = document.querySelectorAll('.outbox-item-check input:checked')
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
+    const deletedIdSet = new Set(log_ids)
+
     try {
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
+
+      // ① 성공 토스트
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      this._invalidateOutboxCache()
+
+      // ② 선택모드 즉시 종료
       this._outboxEditMode = false
-      this._outboxChannels = null
       const bar = document.getElementById('outbox-action-bar')
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      const f = document.getElementById('outbox-filter')
-      if (f) f.innerHTML = ''
-      const channelEl = document.getElementById('outbox-channel-list')
-      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      const apiRes = await API.get('/alarms/outbox?limit=20&offset=0')
-      if (apiRes.data?.success) {
-        if (apiRes.data.channels) this._outboxChannels = apiRes.data.channels
-        this._renderOutboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+
+      // ③ DOM에서 삭제된 항목 즉시 제거 (API 재호출 없이 화면 즉시 갱신)
+      deletedIdSet.forEach(id => {
+        const cb = document.querySelector(`.outbox-item-check input[data-id="${id}"]`)
+        const row = cb?.closest('.alarm-list-row')
+        if (row) row.remove()
+      })
+
+      // ④ 남은 항목이 없으면 빈 상태 표시
+      const itemsEl = document.getElementById('outbox-items')
+      if (itemsEl && !itemsEl.querySelector('.alarm-list-row')) {
+        const channelEl = document.getElementById('outbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
       }
+
+      // ⑤ 체크박스 표시 숨김 초기화
+      document.querySelectorAll('.outbox-item-check').forEach(el => { el.style.display = 'none' })
+      const checkAll = document.getElementById('outbox-check-all')
+      if (checkAll) checkAll.checked = false
+      this._updateOutboxSelectedCount()
+
+      // ⑥ 캐시 무효화
+      this._invalidateOutboxCache()
+
+      // ⑦ 백그라운드에서 서버 최신 데이터로 재검증 (스피너 없음)
+      API.get('/alarms/outbox?limit=20&offset=0').then(apiRes => {
+        if (!apiRes.data?.success) return
+        const channelEl = document.getElementById('outbox-channel-list')
+        if (!channelEl) return
+        if (apiRes.data.channels) this._outboxChannels = apiRes.data.channels
+        Cache.set('outbox_all', { ...apiRes.data })
+        this._renderOutboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+      }).catch(() => {})
+
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
