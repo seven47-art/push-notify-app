@@ -1173,22 +1173,60 @@ const App = {
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
-      if (!res.data?.success) throw new Error()
+      if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 캐시 삭제 후 목록 새로고침
-      Cache.del('inbox_' + (this._inboxChannelId || 'all'))
-      Cache.del('inbox_all')
-      this._inboxChannels = null
-      const f = document.getElementById('inbox-filter'); if (f) f.innerHTML = ''
+      // 선택된 아이템 DOM에서 즉시 제거
+      checked.forEach(cb => {
+        const row = cb.closest('.alarm-list-row')
+        if (row) row.remove()
+      })
+      // 캐시 무효화
+      this._invalidateInboxCache()
+      // 편집모드 종료
       this._inboxEditMode = false
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      this.loadInbox(this._inboxChannelId || '')
+      document.querySelectorAll('.inbox-item-check').forEach(el => { el.style.display = 'none' })
+      // 남은 아이템 없으면 빈 메시지 표시
+      const itemsEl = document.getElementById('inbox-items')
+      if (itemsEl && !itemsEl.querySelectorAll('.alarm-list-row').length) {
+        const channelEl = document.getElementById('inbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
+      }
     } catch(e) {
-      App.showToast('삭제 실패. 다시 시도해주세요.', 'error')
+      const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
+      App.showToast('삭제 실패: ' + msg, 'error')
     }
+  },
+
+  _invalidateInboxCache() {
+    // 모든 inbox 캐시 키 무효화
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('ringo_cache_inbox_'))
+    keys.forEach(k => localStorage.removeItem(k))
+    Cache._mem && Object.keys(Cache._mem).filter(k => k.startsWith('inbox_')).forEach(k => delete Cache._mem[k])
+  },
+
+  _invalidateOutboxCache() {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('ringo_cache_outbox_'))
+    keys.forEach(k => localStorage.removeItem(k))
+    Cache._mem && Object.keys(Cache._mem).filter(k => k.startsWith('outbox_')).forEach(k => delete Cache._mem[k])
+  },
+
+  _invalidateAllFeedCache() {
+    // inbox + outbox + home + channels 캐시 전부 무효화 (채널 삭제/구독변경 등 큰 변경 시)
+    this._invalidateInboxCache()
+    this._invalidateOutboxCache()
+    const keys = Object.keys(localStorage).filter(k =>
+      k.startsWith('ringo_cache_home_') ||
+      k.startsWith('ringo_cache_channels') ||
+      k.startsWith('ringo_cache_notices')
+    )
+    keys.forEach(k => localStorage.removeItem(k))
+    Cache._mem && Object.keys(Cache._mem).filter(k =>
+      k.startsWith('home_') || k.startsWith('channels') || k.startsWith('notices')
+    ).forEach(k => delete Cache._mem[k])
   },
 
   // ── 발신함 편집 모드 ──────────────────────────────
@@ -1227,20 +1265,31 @@ const App = {
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
-      if (!res.data?.success) throw new Error()
+      if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      Cache.del('outbox_' + (this._outboxChannelId || 'all'))
-      Cache.del('outbox_all')
-      this._outboxChannels = null
-      const f = document.getElementById('outbox-filter'); if (f) f.innerHTML = ''
+      // 선택된 아이템 DOM에서 즉시 제거
+      checked.forEach(cb => {
+        const row = cb.closest('.alarm-list-row')
+        if (row) row.remove()
+      })
+      // 캐시 무효화
+      this._invalidateOutboxCache()
+      // 편집모드 종료
       this._outboxEditMode = false
       const bar = document.getElementById('outbox-action-bar')
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      this.loadSend(this._outboxChannelId || '')
+      document.querySelectorAll('.outbox-item-check').forEach(el => { el.style.display = 'none' })
+      // 남은 아이템 없으면 빈 메시지 표시
+      const itemsEl = document.getElementById('outbox-items')
+      if (itemsEl && !itemsEl.querySelectorAll('.alarm-list-row').length) {
+        const channelEl = document.getElementById('outbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">보낸 알람이 없습니다.</div>'
+      }
     } catch(e) {
-      App.showToast('삭제 실패. 다시 시도해주세요.', 'error')
+      const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
+      App.showToast('삭제 실패: ' + msg, 'error')
     }
   },
 
@@ -1792,6 +1841,7 @@ const App = {
       toast('채널이 수정됐습니다')
       Cache.del('ch_detail_' + id)
       Cache.del('home_' + Store.getUserId())
+      Cache.del('channels')
       this.closeModal('modal-edit')
       this.loadHome()
       // 채널 소개 모달이 열려있으면 즉시 갱신
@@ -1815,6 +1865,9 @@ const App = {
     API.delete('/channels/' + chId)
       .then(() => {
         toast('삭제됐습니다')
+        // 채널 삭제 시 모든 관련 캐시 무효화 (내채널/구독채널/수신함/발신함 반영)
+        this._invalidateAllFeedCache()
+        Cache.del('ch_detail_' + chId)
         this.closeModal('modal-channel-detail')
         if (currentTab === 'owned-all') this.loadOwnedAll()
         else this.loadHome()
@@ -2690,6 +2743,8 @@ const App = {
         toast('채널에 참여했습니다!')
         this.closeModal('modal-join')
         Store.addNotif({ title:'채널 참여 완료', body:'새 채널에 성공적으로 참여했습니다.', channel_name: res.data?.data?.channel_name || '채널', content_type:'default' })
+        // 구독 채널 목록 캐시 무효화
+        this._invalidateAllFeedCache()
         await this.loadHome()
         this.goto('joined-all')
       } else {
@@ -2806,6 +2861,8 @@ const App = {
       const res = await API.delete('/subscribers/leave?user_id=' + encodeURIComponent(uid) + '&channel_id=' + chId)
       if (res.data?.success) {
         toast('"' + name + '" 채널에서 나갔습니다.')
+        // 채널 나가기 시 관련 캐시 무효화
+        this._invalidateAllFeedCache()
         this.closeModal('modal-channel-detail')
         this.loadHome()
       } else {
