@@ -1198,22 +1198,29 @@ const App = {
   async deleteSelectedInbox() {
     const checked = document.querySelectorAll('.inbox-item-check input:checked')
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
+    // DOM 참조 미리 저장 (API 응답 대기 중 변경 방지)
+    const rows = Array.from(checked).map(cb => cb.closest('.alarm-list-row')).filter(Boolean)
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 캐시 무효화
-      this._invalidateInboxCache()
-      // 편집모드 종료
+      // 편집모드 즉시 종료
       this._inboxEditMode = false
-      this._inboxChannels = null
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 목록 새로 불러오기
-      this.loadInbox(this._inboxChannelId || '')
+      // 선택된 row 즉시 DOM에서 제거 → 화면 바로 반영
+      rows.forEach(row => row.remove())
+      // 남은 아이템 없으면 빈 메시지
+      const itemsEl = document.getElementById('inbox-items')
+      if (itemsEl && !itemsEl.querySelectorAll('.alarm-list-row').length) {
+        const channelEl = document.getElementById('inbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
+      }
+      // 캐시 무효화 후 백그라운드 갱신
+      this._invalidateInboxCache()
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1281,22 +1288,29 @@ const App = {
   async deleteSelectedOutbox() {
     const checked = document.querySelectorAll('.outbox-item-check input:checked')
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
+    // DOM 참조 미리 저장 (API 응답 대기 중 변경 방지)
+    const rows = Array.from(checked).map(cb => cb.closest('.alarm-list-row')).filter(Boolean)
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 캐시 무효화
-      this._invalidateOutboxCache()
-      // 편집모드 종료
+      // 편집모드 즉시 종료
       this._outboxEditMode = false
-      this._outboxChannels = null
       const bar = document.getElementById('outbox-action-bar')
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 목록 새로 불러오기
-      this.loadSend(this._outboxChannelId || '')
+      // 선택된 row 즉시 DOM에서 제거 → 화면 바로 반영
+      rows.forEach(row => row.remove())
+      // 남은 아이템 없으면 빈 메시지
+      const itemsEl = document.getElementById('outbox-items')
+      if (itemsEl && !itemsEl.querySelectorAll('.alarm-list-row').length) {
+        const channelEl = document.getElementById('outbox-channel-list')
+        if (channelEl) channelEl.innerHTML = '<div class="empty-box">보낸 알람이 없습니다.</div>'
+      }
+      // 캐시 무효화 후 백그라운드 갱신
+      this._invalidateOutboxCache()
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
