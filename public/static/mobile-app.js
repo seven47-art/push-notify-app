@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v21
+// public/static/mobile-app.js  v22
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -728,6 +728,21 @@ const App = {
       : '<div class="empty-box">운영 중인 채널이 없습니다.<br>채널을 만들어 보세요!</div>'
   },
 
+  // ── 항목 7: fetchMyChannels() ─────────────────────────────
+  // channel_created / channel_deleted / channel_updated 이벤트 수신 시 호출
+  // 전체 페이지 reload 없이 ownedChannels 리스트만 서버 재조회 후 재렌더
+  async fetchMyChannels() {
+    try {
+      const uid = Store.getUserId()
+      if (!uid) return
+      const r = await API.get('/channels?owner_id=' + encodeURIComponent(uid))
+      ownedChannels = r.data?.data || ownedChannels
+      this._reRenderOwnedAll()
+      // 홈 탭 미리보기도 갱신
+      this._renderOwned()
+    } catch(_) {}
+  },
+
   // ── 나의 가입채널 전체 페이지 ──────────────────────────
   async loadJoinedAll() {
     const el = document.getElementById('joined-all-list')
@@ -973,6 +988,26 @@ const App = {
     }
   },
 
+  // ── 항목 10: 채널 탭 백그라운드 preload 헬퍼 ────────────
+  async _preloadChannels() {
+    if (Cache.get('channels')) return  // 이미 캐시 있으면 스킵
+    try {
+      const [popRes, bestRes, allRes] = await Promise.all([
+        API.get('/channels/popular'),
+        API.get('/channels/best'),
+        API.get('/channels')
+      ])
+      const popList  = popRes.data?.data  || []
+      const bestList = bestRes.data?.data || []
+      const allList  = allRes.data?.data  || []
+      window._allChannelList = allList
+      const popularHtml = popList.map(ch => this._channelTileHtml(ch)).join('')
+      const bestHtml    = bestList.map(ch => this._channelTileHtml(ch)).join('')
+      Cache.set('channels', { popularHtml, bestHtml, allList })
+      console.log('[Preload] channels done, all:', allList.length)
+    } catch(_) {}
+  },
+
   // 채널 타일 HTML 생성 (공통)
   _channelTileHtml(ch) {
     const name     = ch.name || '채널'
@@ -1141,7 +1176,10 @@ const App = {
       this._inboxChannelId = channelId
       // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
       const cacheKey = 'inbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
+      // preload 캐시(inbox_items_uid)도 확인 (채널 필터 없는 전체 목록)
+      const uid = Store.getUserId()
+      const preloadCached = (!channelId) ? Cache.get('inbox_items_' + uid) : null
+      const cached = Cache.get(cacheKey) || (preloadCached ? { data: preloadCached.items, channels: Cache.get('inbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset } : null)
       if (cached) {
         if (cached.channels) this._inboxChannels = cached.channels
         this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
@@ -1442,7 +1480,10 @@ const App = {
       this._outboxChannelId = channelId
       // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
       const cacheKey = 'outbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
+      // preload 캐시(outbox_items_uid)도 확인 (채널 필터 없는 전체 목록)
+      const uid = Store.getUserId()
+      const preloadCached = (!channelId) ? Cache.get('outbox_items_' + uid) : null
+      const cached = Cache.get(cacheKey) || (preloadCached ? { data: preloadCached.items, channels: Cache.get('outbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset } : null)
       if (cached) {
         if (cached.channels) this._outboxChannels = cached.channels
         this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
@@ -1864,12 +1905,12 @@ const App = {
         Cache.del('home_' + Store.getUserId())
         Cache.del('channels')
         this.closeModal('modal-create')
+        // ── 항목 6: channel_created 이벤트 발송 ──────────────
+        document.dispatchEvent(new CustomEvent('channel_created', { detail: { channel: newCh } }))
         // 내 채널 화면으로 먼저 이동 (즉시 반영)
         this.goto('owned-all')
-        // 백그라운드에서 서버 최신 목록으로 재검증
-        API.get('/channels?owner_id=' + Store.getUserId())
-          .then(r => { ownedChannels = r.data?.data || ownedChannels; this._reRenderOwnedAll() })
-          .catch(() => {})
+        // 백그라운드에서 서버 최신 목록으로 재검증 (항목 7: fetchMyChannels)
+        this.fetchMyChannels()
       } else {
         toast(res.data?.error || '채널 생성에 실패했습니다', 3500)
       }
@@ -3459,6 +3500,52 @@ function _doLogin() {
   pollAlarmTrigger()
   setInterval(pollAlarmTrigger, 60 * 1000)
 
+  // ── 항목 6: channel_created 이벤트 리스너 등록 (중복 방지) ──
+  if (!window._channelEventsBound) {
+    window._channelEventsBound = true
+    document.addEventListener('channel_created', (e) => {
+      console.log('[channel_created] 이벤트 수신, 리스트 갱신', e.detail)
+      App.fetchMyChannels()
+    })
+  }
+
+  // ── 항목 10: 하단 탭 백그라운드 preload ──────────────────
+  // 홈 로딩 후 1초 뒤, 수신함·발신함·채널 탭 데이터를 캐시에 미리 채움
+  // → 탭 첫 진입 시 스피너 없이 즉시 표시
+  if (!window._preloadDone) {
+    window._preloadDone = true
+    setTimeout(() => {
+      if (!Store.isLoggedIn()) return
+      console.log('[Preload] 수신함·발신함·채널·내채널 백그라운드 preload 시작')
+      // 수신함 preload (loadInbox는 stale-while-revalidate 패턴이므로 직접 API 호출)
+      const uid = Store.getUserId()
+      Promise.allSettled([
+        // 수신함 채널 목록 + 첫 페이지
+        API.get('/alarms/inbox?limit=20&offset=0').then(r => {
+          if (r.data?.data) {
+            const items = r.data.data
+            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
+            Cache.set('inbox_channels_' + uid, channels)
+            Cache.set('inbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
+            console.log('[Preload] inbox done, items:', items.length)
+          }
+        }),
+        // 발신함 채널 목록 + 첫 페이지
+        API.get('/alarms/outbox?limit=20&offset=0').then(r => {
+          if (r.data?.data) {
+            const items = r.data.data
+            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
+            Cache.set('outbox_channels_' + uid, channels)
+            Cache.set('outbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
+            console.log('[Preload] outbox done, items:', items.length)
+          }
+        }),
+        // 채널 탐색 탭 (인기/추천 채널)
+        App.loadChannel && App._preloadChannels ? App._preloadChannels() : Promise.resolve(),
+      ]).then(() => console.log('[Preload] 전체 완료'))
+    }, 1200)
+  }
+
   // join_token URL 파라미터 처리 - 해당 채널 소개 페이지 열기
   const urlParams = new URLSearchParams(window.location.search)
   const joinToken = urlParams.get('join_token')
@@ -3506,5 +3593,41 @@ window.flutterSetSession = function(token, userId, email, displayName) {
       pollAlarmTrigger()
       setInterval(pollAlarmTrigger, 60 * 1000)
     }
+  }
+  // ── 항목 6: channel_created 이벤트 리스너 등록 (중복 방지) ──
+  if (!window._channelEventsBound) {
+    window._channelEventsBound = true
+    document.addEventListener('channel_created', (e) => {
+      console.log('[channel_created] 이벤트 수신, 리스트 갱신', e.detail)
+      App.fetchMyChannels()
+    })
+  }
+  // ── 항목 10: 하단 탭 백그라운드 preload (Flutter 앱 경로) ──
+  if (!window._preloadDone) {
+    window._preloadDone = true
+    setTimeout(() => {
+      if (!Store.isLoggedIn()) return
+      console.log('[Preload] Flutter 경로 - 수신함·발신함·채널 preload 시작')
+      const uid = Store.getUserId()
+      Promise.allSettled([
+        API.get('/alarms/inbox?limit=20&offset=0').then(r => {
+          if (r.data?.data) {
+            const items = r.data.data
+            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
+            Cache.set('inbox_channels_' + uid, channels)
+            Cache.set('inbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
+          }
+        }),
+        API.get('/alarms/outbox?limit=20&offset=0').then(r => {
+          if (r.data?.data) {
+            const items = r.data.data
+            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
+            Cache.set('outbox_channels_' + uid, channels)
+            Cache.set('outbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
+          }
+        }),
+        App._preloadChannels(),
+      ]).then(() => console.log('[Preload] Flutter 경로 완료'))
+    }, 1200)
   }
 }
