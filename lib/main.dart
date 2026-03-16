@@ -250,6 +250,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   // ── 오디오 녹음 상태 (Kotlin MethodChannel 방식) ──
   static const _audioChannel   = MethodChannel('com.pushnotify.push_notify_app/audio_recorder');
   static const _scheduleChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
+  static const _deepLinkChannel = MethodChannel('com.pushnotify.push_notify_app/deeplink');
   bool _isAudioRecording = false;
   String? _pendingAudioPath;
   int? _pendingAudioTimestamp;
@@ -268,6 +269,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
     _initFCM();                     // FCM 초기화 + 토큰 서버 등록
     _schedulePendingAlarms();       // v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약
+    _initDeepLink();               // 딥링크 수신 채널 초기화
     // v1.0.43: _pendingAlarmData 처리 제거 - Kotlin FakeCallActivity가 단독 처리
   }
 
@@ -464,6 +466,36 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     } catch (e) {
       debugPrint('[FCM] 토큰 등록 오류: $e');
     }
+  }
+
+  // ── 딥링크 채널 초기화 ──────────────────────────────────────
+  // Kotlin에서 pushapp://join?token=xxx 수신 시 Flutter로 전달
+  void _initDeepLink() {
+    // Kotlin → Flutter: onDeepLink(token) 수신
+    _deepLinkChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onDeepLink') {
+        final token = call.arguments as String?;
+        if (token != null && token.isNotEmpty) {
+          debugPrint('[DeepLink] onDeepLink 수신: $token');
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) _showChannelJoinScreen(token);
+        }
+      }
+    });
+
+    // 콜드스타트 시 Kotlin에 pending 토큰 요청
+    Future.delayed(const Duration(milliseconds: 1000), () async {
+      try {
+        final token = await _deepLinkChannel.invokeMethod<String?>('getInitialToken');
+        if (token != null && token.isNotEmpty) {
+          debugPrint('[DeepLink] getInitialToken: $token');
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) _showChannelJoinScreen(token);
+        }
+      } catch (e) {
+        debugPrint('[DeepLink] getInitialToken 오류: $e');
+      }
+    });
   }
 
   // ── 앱 포그라운드 폴링 비활성화 (v1.0.43)

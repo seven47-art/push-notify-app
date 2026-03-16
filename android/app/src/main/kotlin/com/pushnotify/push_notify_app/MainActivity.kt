@@ -32,10 +32,15 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_PERMISSIONS  = "com.pushnotify/permissions"
     private val CHANNEL_AUDIO        = "com.pushnotify.push_notify_app/audio_recorder"
     private val CHANNEL_SCHEDULE     = "com.pushnotify.push_notify_app/alarm"  // v1.0.76: Flutter → Kotlin AlarmManager 예약
+    private val CHANNEL_DEEPLINK     = "com.pushnotify.push_notify_app/deeplink"  // 딥링크 전달
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
     private var alarmChannel: MethodChannel? = null
+    private var deepLinkChannel: MethodChannel? = null
+
+    // 앱 콜드스타트 시 딥링크 토큰 임시 보관 (Flutter 준비 전 도착한 경우)
+    private var pendingDeepLinkToken: String? = null
 
     // 오디오 녹음
     private var mediaRecorder: MediaRecorder? = null
@@ -44,6 +49,26 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         alarmChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ALARM)
+
+        // 딥링크 채널 - Flutter가 준비되면 pending 토큰 즉시 전달
+        deepLinkChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_DEEPLINK)
+        deepLinkChannel!!.setMethodCallHandler { call, result ->
+            when (call.method) {
+                // Flutter가 준비되면 호출: pending 딥링크 토큰 반환
+                "getInitialToken" -> {
+                    result.success(pendingDeepLinkToken)
+                    pendingDeepLinkToken = null
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // Flutter 준비 직후 pending 딥링크가 있으면 바로 전달
+        pendingDeepLinkToken?.let { token ->
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                deepLinkChannel?.invokeMethod("onDeepLink", token)
+                pendingDeepLinkToken = null
+            }, 1500)
+        }
 
         // v1.0.76: Flutter → Kotlin AlarmManager 예약 채널
         // Flutter가 서버에서 조회한 pending 알람을 Kotlin AlarmScheduler에 등록
@@ -270,6 +295,7 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAlarmIntent(intent)
+        handleDeepLinkIntent(intent)
         // 권한 요청은 Flutter permission_screen.dart 에서 처리
         // requestEssentialPermissions() 제거 → 중복 팝업 없음
     }
@@ -278,6 +304,26 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAlarmIntent(intent)
+        handleDeepLinkIntent(intent)
+    }
+
+    // 딥링크 Intent 처리: pushapp://join?token=xxx
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme == "pushapp" && uri.host == "join") {
+            val token = uri.getQueryParameter("token") ?: return
+            if (token.isEmpty()) return
+            Log.d("MainActivity", "[DeepLink] token=$token, deepLinkChannel=${deepLinkChannel != null}")
+            if (deepLinkChannel != null) {
+                // Flutter 준비됨 → 바로 전달
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    deepLinkChannel?.invokeMethod("onDeepLink", token)
+                }, 500)
+            } else {
+                // Flutter 아직 준비 안 됨 → pending 보관
+                pendingDeepLinkToken = token
+            }
+        }
     }
 
     private fun handleAlarmIntent(intent: Intent?) {
