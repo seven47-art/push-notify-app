@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v28
+// public/static/mobile-app.js  v29
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1217,7 +1217,8 @@ const App = {
         : null)
 
       if (cached) {
-        if (cached.channels) this._inboxChannels = cached.channels
+        // 전체 조회일 때만 채널 목록 갱신 (필터 조회 시 기존 전체 채널 목록 유지)
+        if (!channelId && cached.channels) this._inboxChannels = cached.channels
         // state 업데이트 → 즉시 렌더
         this._inboxItems      = cached.data || []
         this._inboxHasMore    = cached.hasMore ?? false
@@ -1247,7 +1248,8 @@ const App = {
         throw new Error(resData.error || 'API error')
       }
 
-      if (isFirst && resData.channels) this._inboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신 (필터 조회 시 기존 전체 채널 목록 유지)
+      if (isFirst && !channelId && resData.channels) this._inboxChannels = resData.channels
       if (isFirst) {
         // state 완전 교체
         this._inboxItems      = resData.data || []
@@ -1276,7 +1278,9 @@ const App = {
       const res = await API.get(`/alarms/inbox?${params}`)
       const resData = res.data
       if (!resData.success) return
-      if (resData.channels) this._inboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신
+      const _bgChannelId = new URLSearchParams(params.split('?')[1] || params).get('channel_id') || ''
+      if (!_bgChannelId && resData.channels) this._inboxChannels = resData.channels
       Cache.set(cacheKey, { ...resData })
       // 현재 inbox 탭이고, 상세뷰 닫혔을 때만 state 교체 후 렌더
       const dv = document.getElementById('inbox-detail-view')
@@ -1491,7 +1495,8 @@ const App = {
         : null)
 
       if (cached) {
-        if (cached.channels) this._outboxChannels = cached.channels
+        // 전체 조회일 때만 채널 목록 갱신
+        if (!channelId && cached.channels) this._outboxChannels = cached.channels
         this._outboxItems      = cached.data || []
         this._outboxHasMore    = cached.hasMore ?? false
         this._outboxNextOffset = (cached.data || []).length
@@ -1517,7 +1522,8 @@ const App = {
         throw new Error(resData.error || 'API error')
       }
 
-      if (isFirst && resData.channels) this._outboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신
+      if (isFirst && !channelId && resData.channels) this._outboxChannels = resData.channels
       if (isFirst) {
         this._outboxItems      = resData.data || []
         this._outboxHasMore    = resData.hasMore ?? false
@@ -1544,7 +1550,8 @@ const App = {
       const res = await API.get(`/alarms/outbox?${params}`)
       const resData = res.data
       if (!resData.success) return
-      if (resData.channels) this._outboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신
+      if (!channelId && resData.channels) this._outboxChannels = resData.channels
       Cache.set(cacheKey, { ...resData })
       const dv = document.getElementById('outbox-detail-view')
       if (currentTab === 'send' && (!dv || dv.style.display === 'none')) {
@@ -1638,7 +1645,8 @@ const App = {
   _renderInboxItems(resData, channelEl, channelId, isFirst) {
     // state 기반 렌더로 이관됨 — 기존 호출 시 state 교체 후 renderInbox 호출
     if (isFirst) {
-      if (resData.channels) this._inboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신
+      if (!channelId && resData.channels) this._inboxChannels = resData.channels
       this._inboxItems      = resData.data || []
       this._inboxHasMore    = resData.hasMore ?? false
       this._inboxNextOffset = (resData.data || []).length
@@ -1653,7 +1661,8 @@ const App = {
 
   _renderOutboxItems(resData, channelEl, channelId, isFirst) {
     if (isFirst) {
-      if (resData.channels) this._outboxChannels = resData.channels
+      // 전체 조회일 때만 채널 목록 갱신
+      if (!channelId && resData.channels) this._outboxChannels = resData.channels
       this._outboxItems      = resData.data || []
       this._outboxHasMore    = resData.hasMore ?? false
       this._outboxNextOffset = (resData.data || []).length
