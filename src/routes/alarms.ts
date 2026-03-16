@@ -2,7 +2,7 @@
 // 채널 알람 스케줄 관리 + 통화형 알람 발송 (FCM V1 API + Twilio 연동 or 시뮬레이션)
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { sendFCMDataMessage } from './fcm'
+import { sendFCMDataMessage, sendFCMMulticast } from './fcm'
 import { deleteFromFirebaseStorage } from './uploads'
 
 const alarms = new Hono<{ Bindings: Bindings }>()
@@ -228,12 +228,21 @@ alarms.post('/', async (c) => {
         notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
       }
 
-      // 모든 토큰에 FCM 발송 (fire-and-forget)
-      const sendPromises = Array.from(fcmTargets.values()).map(token =>
-        sendFCMDataMessage(token, schedulePayload, fcmServiceAccount, fcmProjectId)
-          .catch(() => ({ success: false }))
-      )
-      c.executionCtx?.waitUntil(Promise.all(sendPromises))
+      // FCM Multicast 발송 (fire-and-forget) - 500명씩 자동 분할
+      const tokenList = Array.from(fcmTargets.values())
+      const multicastPromise = sendFCMMulticast(tokenList, schedulePayload, fcmServiceAccount, fcmProjectId)
+        .then(async (res) => {
+          // invalid token 즉시 비활성화
+          if (res.invalidTokens.length > 0) {
+            for (const badToken of res.invalidTokens) {
+              await c.env.DB.prepare(
+                "UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?"
+              ).bind(badToken).run().catch(() => {})
+            }
+          }
+        })
+        .catch(() => {})
+      c.executionCtx?.waitUntil(multicastPromise)
     }
     // ─────────────────────────────────────────────────────────────────
 
@@ -343,13 +352,20 @@ alarms.delete('/:id', async (c) => {
           channel_name: alarm.channel_name || '',
         }
 
-        // 모든 구독자에게 취소 신호 발송 (fire-and-forget)
-        const sendPromises = subs
-          .filter(s => s.fcm_token)
-          .map(s => sendFCMDataMessage(s.fcm_token, cancelPayload, fcmServiceAccount, fcmProjectId)
-            .catch(() => ({ success: false }))
-          )
-        c.executionCtx?.waitUntil(Promise.all(sendPromises))
+        // FCM Multicast로 취소 신호 발송 (fire-and-forget)
+        const cancelTokens = subs.filter(s => s.fcm_token).map(s => s.fcm_token as string)
+        const cancelPromise = sendFCMMulticast(cancelTokens, cancelPayload, fcmServiceAccount, fcmProjectId)
+          .then(async (res) => {
+            if (res.invalidTokens.length > 0) {
+              for (const badToken of res.invalidTokens) {
+                await c.env.DB.prepare(
+                  "UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?"
+                ).bind(badToken).run().catch(() => {})
+              }
+            }
+          })
+          .catch(() => {})
+        c.executionCtx?.waitUntil(cancelPromise)
       }
     }
 
@@ -390,43 +406,13 @@ alarms.post('/trigger', async (c) => {
       pollingUserId = sessionRow?.user_id || null
     }
 
-    // ── 3일 이전 알람 로그 자동 정리 ──────────────────────────────────
-    try {
-      // file 타입 알람의 Firebase Storage 파일도 같이 삭제
-      const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
-      if (serviceAccountJson) {
-        const sa = JSON.parse(serviceAccountJson)
-        const projectId = sa.project_id || c.env.FCM_PROJECT_ID
-        const bucket = `${projectId}.firebasestorage.app`
-        // 3일 이전 file 타입 알람 조회 (msg_value가 firebasestorage URL인 경우)
-        const { results: oldFileAlarms } = await c.env.DB.prepare(
-          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
-        ).all() as { results: any[] }
-        for (const row of oldFileAlarms) {
-          try {
-            // URL에서 filePath 추출: /o/{encodedPath}?alt=media
-            const match = (row.msg_value as string).match(/\/o\/([^?]+)/)
-            if (match) {
-              const filePath = decodeURIComponent(match[1])
-              await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
-            }
-          } catch (_) {}
-        }
-      }
-      await c.env.DB.prepare(
-        "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
-      ).run()
-      await c.env.DB.prepare(
-        "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
-      ).run()
-    } catch (_) {}
-    // ──────────────────────────────────────────────────────────────────
-
     // UTC 기준 현재 시각 (분 단위 절사)
+    // ※ cleanup 로직은 /api/alarms/cleanup 으로 분리됨
     const now = new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
 
     // 발송 대상 알람 조회: pending + triggered 모두 포함
     // (triggered 포함 이유: FCM 발송은 완료됐어도 폴링 사용자가 아직 못 받을 수 있음)
+    // LIMIT 제거 - 모든 시간 도래 알람 처리 (Multicast로 대용량 처리 가능)
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
              ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id,
@@ -436,7 +422,6 @@ alarms.post('/trigger', async (c) => {
       WHERE a.status IN ('pending', 'triggered')
         AND replace(substr(a.scheduled_at, 1, 16), 'Z', '') <= ?
       ORDER BY a.scheduled_at ASC
-      LIMIT 20
     `).bind(now).all() as { results: any[] }
 
     if (dueAlarms.length === 0) {
@@ -502,122 +487,123 @@ alarms.post('/trigger', async (c) => {
       // audio/video/file은 Firebase Storage URL(msg_value)을 직접 사용
       let contentUrl = alarm.msg_value || ''
 
-      // ── 4) 수신자별 발송 ────────────────────────────────────────
+      // ── 4) 발송 ─────────────────────────────────────────────────
       let sentCount = 0, failedCount = 0
       const callResults: any[] = []
 
-      for (const recipient of recipients) {
-        // ★ FCM/Twilio 방식: alarm_logs로 개인별 중복 체크 (이미 받은 사람 스킵)
-        if (!isPollingMode && recipient.user_id) {
-          const alreadyLogged: any = await c.env.DB.prepare(
-            'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
-          ).bind(alarm.id, recipient.user_id).first()
-          if (alreadyLogged) {
-            callResults.push({
-              user_id:      recipient.user_id,
-              display_name: recipient.display_name,
-              role:         recipient.role,
-              mode:         'skipped',
-              success:      true,
-              message:      '이미 발송됨 (alarm_logs 기준)'
-            })
-            continue
+      if (useTwilio) {
+        // ── Twilio 음성 통화 (순차 발송) ──
+        for (const recipient of recipients) {
+          if (!recipient.phone_number) continue
+          if (!isPollingMode && recipient.user_id) {
+            const alreadyLogged: any = await c.env.DB.prepare(
+              'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
+            ).bind(alarm.id, recipient.user_id).first()
+            if (alreadyLogged) { callResults.push({ user_id: recipient.user_id, mode: 'skipped', success: true }); continue }
+          }
+          const callRes = await makeTwilioCall(
+            recipient.phone_number, alarm.channel_name, alarm.msg_type,
+            contentUrl || alarm.msg_value || '', twilioSid, twilioToken, twilioFrom, webhookBase
+          )
+          callResults.push({ user_id: recipient.user_id, display_name: recipient.display_name, role: recipient.role, phone: recipient.phone_number, mode: 'twilio', ...callRes })
+          if (callRes.success) sentCount++; else failedCount++
+        }
+
+      } else if (useFCM) {
+        // ── FCM Multicast 발송 ──
+        // 이미 발송된 수신자 제외 (alarm_logs 기준 중복 방지)
+        const notYetSent: typeof recipients = []
+        for (const recipient of recipients) {
+          if (recipient.user_id) {
+            const alreadyLogged: any = await c.env.DB.prepare(
+              'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
+            ).bind(alarm.id, recipient.user_id).first()
+            if (alreadyLogged) {
+              callResults.push({ user_id: recipient.user_id, display_name: recipient.display_name, role: recipient.role, mode: 'skipped', success: true, message: '이미 발송됨 (alarm_logs 기준)' })
+              continue
+            }
+          }
+          notYetSent.push(recipient)
+        }
+
+        if (notYetSent.length > 0) {
+          const fcmPayload: Record<string, string> = {
+            type:         'alarm',
+            channel_name: alarm.channel_name || '알람',
+            channel_public_id: alarm.channel_public_id || '',
+            msg_type:     alarm.msg_type     || 'youtube',
+            msg_value:    alarm.msg_value    || '',
+            alarm_id:     String(alarm.id),
+            content_url:  contentUrl         || '',
+            homepage_url: alarm.channel_homepage_url || '',
+            link_url:     alarm.alarm_link_url || '',
+          }
+
+          // FCM 토큰이 있는 수신자와 없는 수신자 분리
+          const withToken    = notYetSent.filter(r => r.fcm_token)
+          const withoutToken = notYetSent.filter(r => !r.fcm_token)
+
+          // Multicast 발송 (500명씩 자동 분할)
+          const tokenList = withToken.map(r => r.fcm_token as string)
+          const multiRes = tokenList.length > 0
+            ? await sendFCMMulticast(tokenList, fcmPayload, fcmServiceAccount, fcmProjectId)
+            : { successCount: 0, failureCount: 0, invalidTokens: [] }
+
+          sentCount  += multiRes.successCount
+          failedCount += multiRes.failureCount
+
+          // invalid token 즉시 비활성화
+          if (multiRes.invalidTokens.length > 0) {
+            for (const badToken of multiRes.invalidTokens) {
+              await c.env.DB.prepare("UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?")
+                .bind(badToken).run().catch(() => {})
+            }
+          }
+
+          // callResults 구성 (토큰 있는 수신자)
+          for (const r of withToken) {
+            const isInvalid = multiRes.invalidTokens.includes(r.fcm_token as string)
+            callResults.push({ user_id: r.user_id, display_name: r.display_name, role: r.role, mode: 'fcm', success: !isInvalid })
+          }
+
+          // 토큰 없는 수신자는 폴링 방식
+          for (const r of withoutToken) {
+            callResults.push({ user_id: r.user_id, display_name: r.display_name, role: r.role, mode: 'app_polling', success: true, message: '앱 폴링으로 수신됨' })
+            sentCount++
           }
         }
 
-        if (useTwilio && recipient.phone_number) {
-          // ── Twilio 음성 통화 ──
-          const callRes = await makeTwilioCall(
-            recipient.phone_number,
-            alarm.channel_name,
-            alarm.msg_type,
-            contentUrl || alarm.msg_value || '',
-            twilioSid, twilioToken, twilioFrom,
-            webhookBase
-          )
-          callResults.push({
-            user_id:      recipient.user_id,
-            display_name: recipient.display_name,
-            role:         recipient.role,
-            phone:        recipient.phone_number,
-            mode:         'twilio',
-            ...callRes
-          })
-          if (callRes.success) sentCount++; else failedCount++
-
-        } else if (useFCM && recipient.fcm_token) {
-          // ── FCM 데이터 메시지 ──
-          const fcmRes = await sendFCMDataMessage(
-            recipient.fcm_token,
-            {
-              type:         'alarm',
-              channel_name: alarm.channel_name || '알람',
-              channel_public_id: alarm.channel_public_id || '',
-              msg_type:     alarm.msg_type     || 'youtube',
-              msg_value:    alarm.msg_value    || '',
-              alarm_id:     String(alarm.id),
-              content_url:  contentUrl         || '',
-              homepage_url: alarm.channel_homepage_url || '',
-              link_url:     alarm.alarm_link_url || '',
-            },
-            fcmServiceAccount,
-            fcmProjectId
-          )
-          callResults.push({
-            user_id:      recipient.user_id,
-            display_name: recipient.display_name,
-            role:         recipient.role,
-            mode:         'fcm',
-            ...fcmRes
-          })
-          if (fcmRes.success) sentCount++; else failedCount++
-
-        } else {
-          // ── 폴링(app_polling) 방식 ──
-          callResults.push({
-            user_id:      recipient.user_id,
-            display_name: recipient.display_name,
-            role:         recipient.role,
-            mode:         'app_polling',
-            success:      true,
-            message:      '앱 폴링으로 수신됨'
-          })
+      } else {
+        // ── 폴링(app_polling) 방식 ──
+        for (const recipient of recipients) {
+          callResults.push({ user_id: recipient.user_id, display_name: recipient.display_name, role: recipient.role, mode: 'app_polling', success: true, message: '앱 폴링으로 수신됨' })
           sentCount++
         }
+      }
 
-        // ★ alarm_logs INSERT OR IGNORE (UNIQUE INDEX로 자동 중복 방지)
-        if (recipient.user_id) {
-          const lastResult = callResults[callResults.length - 1]
-          if (lastResult.mode !== 'skipped') {
-            try {
-              const newStatus = lastResult.success ? 'received' : 'failed'
-              // 껍데기가 있으면 UPDATE, 없으면 INSERT (폴백)
-              const updated = await c.env.DB.prepare(`
-                UPDATE alarm_logs SET status = ?
-                WHERE alarm_id = ? AND receiver_id = ? AND status = 'pending'
-              `).bind(newStatus, alarm.id, recipient.user_id).run()
+      // ★ alarm_logs 업데이트 (skipped 제외)
+      for (const r of callResults) {
+        if (r.mode === 'skipped' || !r.user_id) continue
+        try {
+          const newStatus = r.success ? 'received' : 'failed'
+          const updated = await c.env.DB.prepare(`
+            UPDATE alarm_logs SET status = ?
+            WHERE alarm_id = ? AND receiver_id = ? AND status = 'pending'
+          `).bind(newStatus, alarm.id, r.user_id).run()
 
-              if ((updated.meta.changes ?? 0) === 0) {
-                await c.env.DB.prepare(`
-                  INSERT OR IGNORE INTO alarm_logs
-                    (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `).bind(
-                  alarm.id,
-                  alarm.channel_id,
-                  alarm.channel_name || '알람',
-                  recipient.user_id,
-                  alarm.msg_type  || 'youtube',
-                  alarm.msg_value || '',
-                  newStatus,
-                  alarm.created_by || null,
-                  alarm.scheduled_at || null,
-                  alarm.alarm_link_url || alarm.channel_homepage_url || null
-                ).run()
-              }
-            } catch (_) {}
+          if ((updated.meta.changes ?? 0) === 0) {
+            await c.env.DB.prepare(`
+              INSERT OR IGNORE INTO alarm_logs
+                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              alarm.id, alarm.channel_id, alarm.channel_name || '알람',
+              r.user_id, alarm.msg_type || 'youtube', alarm.msg_value || '',
+              newStatus, alarm.created_by || null, alarm.scheduled_at || null,
+              alarm.alarm_link_url || alarm.channel_homepage_url || null
+            ).run()
           }
-        }
+        } catch (_) {}
       }
 
       if (callResults.length === 0) continue
@@ -677,6 +663,58 @@ alarms.post('/trigger', async (c) => {
 })
 
 // =============================================
+// POST /api/alarms/cleanup  - 3일 이전 데이터 정리 (Cron에서 별도 호출)
+// /trigger에서 분리해 독립적으로 실행 가능
+// =============================================
+alarms.post('/cleanup', async (c) => {
+  try {
+    const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    let deletedFiles = 0
+
+    // Firebase Storage 파일 삭제 (audio/video/file 타입)
+    if (serviceAccountJson) {
+      try {
+        const sa = JSON.parse(serviceAccountJson)
+        const projectId = sa.project_id || c.env.FCM_PROJECT_ID
+        const bucket = `${projectId}.firebasestorage.app`
+        const { results: oldFileAlarms } = await c.env.DB.prepare(
+          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
+        ).all() as { results: any[] }
+        for (const row of oldFileAlarms) {
+          try {
+            const match = (row.msg_value as string).match(/\/o\/([^?]+)/)
+            if (match) {
+              const filePath = decodeURIComponent(match[1])
+              await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
+              deletedFiles++
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
+    // 3일 이전 alarm_logs 삭제
+    const logsResult = await c.env.DB.prepare(
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+    ).run()
+
+    // 3일 이전 alarm_schedules 삭제 (triggered/cancelled)
+    const schedulesResult = await c.env.DB.prepare(
+      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+    ).run()
+
+    return c.json({
+      success: true,
+      deleted_logs: logsResult.meta.changes ?? 0,
+      deleted_schedules: schedulesResult.meta.changes ?? 0,
+      deleted_files: deletedFiles
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // POST /api/alarms/bulk-delete  - 알람 일괄 삭제
 // =============================================
 alarms.post('/bulk-delete', async (c) => {
@@ -720,7 +758,7 @@ alarms.get('/pending', async (c) => {
           AND a.scheduled_at > datetime('now')
           AND s.user_id = ? AND s.is_active = 1
         ORDER BY a.scheduled_at ASC
-        LIMIT 50
+        LIMIT 200
       `
       params = [userId]
     } else {
@@ -732,7 +770,7 @@ alarms.get('/pending', async (c) => {
         JOIN channels ch ON a.channel_id = ch.id
         WHERE a.status = 'pending'
         ORDER BY a.scheduled_at ASC
-        LIMIT 50
+        LIMIT 200
       `
       params = []
     }

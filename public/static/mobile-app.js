@@ -1107,24 +1107,8 @@ const App = {
 
     if (isFirst) {
       this._inboxChannelId = channelId
-      // 채널 필터 클릭 시 채널 목록 유지 (null 초기화 안 함)
-      if (!this._inboxChannels) {
-        // 캐시 즉시 표시
-        const cacheKey = 'inbox_all'
-        const cached = Cache.get(cacheKey)
-        if (cached) {
-          this._inboxChannels = cached.channels || null
-        }
-      }
-      // 리스트 영역만 로딩 표시
-      const cacheKey = 'inbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        this._inboxChannels = this._inboxChannels || cached.channels || null
-        this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
+      this._inboxChannels = null
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     // 더보기 버튼 로딩 상태
@@ -1141,12 +1125,9 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
-      // 첫 페이지 결과 캐시 저장
-      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData, channels: resData.channels || this._inboxChannels })
-
       this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst && !Cache.get('inbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
@@ -1200,9 +1181,22 @@ const App = {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 캐시 삭제 후 goto로 수신함 완전 새로고침
       this._invalidateInboxCache()
-      this.goto('inbox')
+      this._inboxEditMode = false
+      this._inboxChannels = null
+      const bar = document.getElementById('inbox-action-bar')
+      const btn = document.getElementById('inbox-edit-btn')
+      if (bar) bar.style.display = 'none'
+      if (btn) btn.style.color = 'var(--text3)'
+      const f = document.getElementById('inbox-filter')
+      if (f) f.innerHTML = ''
+      const channelEl = document.getElementById('inbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      const apiRes = await API.get('/alarms/inbox?limit=20&offset=0')
+      if (apiRes.data?.success) {
+        if (apiRes.data.channels) this._inboxChannels = apiRes.data.channels
+        this._renderInboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+      }
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1274,9 +1268,22 @@ const App = {
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 캐시 삭제 후 goto로 발신함 완전 새로고침
       this._invalidateOutboxCache()
-      this.goto('send')
+      this._outboxEditMode = false
+      this._outboxChannels = null
+      const bar = document.getElementById('outbox-action-bar')
+      const btn = document.getElementById('outbox-edit-btn')
+      if (bar) bar.style.display = 'none'
+      if (btn) btn.style.color = 'var(--text3)'
+      const f = document.getElementById('outbox-filter')
+      if (f) f.innerHTML = ''
+      const channelEl = document.getElementById('outbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      const apiRes = await API.get('/alarms/outbox?limit=20&offset=0')
+      if (apiRes.data?.success) {
+        if (apiRes.data.channels) this._outboxChannels = apiRes.data.channels
+        this._renderOutboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
+      }
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1370,20 +1377,8 @@ const App = {
 
     if (isFirst) {
       this._outboxChannelId = channelId
-      // 채널 필터 클릭 시 채널 목록 유지
-      if (!this._outboxChannels) {
-        const cacheKey = 'outbox_all'
-        const cached = Cache.get(cacheKey)
-        if (cached) this._outboxChannels = cached.channels || null
-      }
-      const cacheKey = 'outbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        this._outboxChannels = this._outboxChannels || cached.channels || null
-        this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
+      this._outboxChannels = null
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     // 더보기 버튼 로딩 상태
@@ -1400,12 +1395,9 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
-      // 첫 페이지 결과 캐시 저장
-      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), { ...resData, channels: this._outboxChannels })
-
       this._renderOutboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst && !Cache.get('outbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },

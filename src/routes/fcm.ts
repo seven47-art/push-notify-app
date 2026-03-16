@@ -133,6 +133,89 @@ export async function sendFCMDataMessage(
 }
 
 // =============================================
+// FCM V1 API Multicast 발송 (최대 500명씩 분할)
+// tokens: FCM 토큰 배열, data: 공통 data payload
+// 반환: { successCount, failureCount, invalidTokens }
+// =============================================
+export async function sendFCMMulticast(
+  tokens: string[],
+  data: Record<string, string>,
+  serviceAccountJson: string,
+  projectId: string
+): Promise<{ successCount: number; failureCount: number; invalidTokens: string[] }> {
+  if (tokens.length === 0) return { successCount: 0, failureCount: 0, invalidTokens: [] }
+
+  const CHUNK_SIZE = 500
+  let successCount = 0
+  let failureCount = 0
+  const invalidTokens: string[] = []
+
+  // 500명씩 청크 분할
+  for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+    const chunk = tokens.slice(i, i + CHUNK_SIZE)
+
+    try {
+      const accessToken = await getFirebaseAccessToken(serviceAccountJson)
+
+      // FCM V1 sendEach (배치) - 각 토큰에 개별 메시지 병렬 전송
+      const sendPromises = chunk.map(async (token) => {
+        const message = {
+          message: {
+            token,
+            data,
+            android: {
+              priority: 'high',
+              ttl: '60s',
+            },
+          },
+        }
+
+        const res = await fetch(
+          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message),
+          }
+        )
+
+        const result: any = await res.json()
+
+        if (res.ok && result.name) {
+          return { token, success: true }
+        } else {
+          // invalid token 감지 (UNREGISTERED, INVALID_ARGUMENT)
+          const errCode = result.error?.details?.[0]?.errorCode || result.error?.status || ''
+          const isInvalid = errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT'
+          return { token, success: false, isInvalid, error: result.error?.message }
+        }
+      })
+
+      const chunkResults = await Promise.all(sendPromises)
+
+      for (const r of chunkResults) {
+        if (r.success) {
+          successCount++
+        } else {
+          failureCount++
+          if ((r as any).isInvalid) {
+            invalidTokens.push(r.token)
+          }
+        }
+      }
+    } catch (e: any) {
+      // 청크 전체 실패 시 해당 청크 수만큼 failureCount 증가
+      failureCount += chunk.length
+    }
+  }
+
+  return { successCount, failureCount, invalidTokens }
+}
+
+// =============================================
 // POST /api/fcm/register  - FCM 토큰 등록/갱신
 // 앱 로그인 후 FCM 토큰을 서버에 저장 (구독자 테이블의 fcm_token 컬럼)
 // =============================================
