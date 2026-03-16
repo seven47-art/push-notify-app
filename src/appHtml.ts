@@ -652,23 +652,21 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 
   <div class="screen" id="screen-owned-all">
-    <div class="section-header" style="margin-top:8px;">
+    <div class="section-header" style="margin-top:8px;flex-shrink:0;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
       <span class="section-title" style="flex:1;">내 채널</span>
       <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
     </div>
-    <div id="owned-all-list"></div>
-    <div style="height:12px;"></div>
+    <div id="owned-all-list" style="flex:1;overflow-y:auto;"></div>
   </div>
 
   <!-- 나의 가입채널 전체 페이지 -->
   <div class="screen" id="screen-joined-all">
-    <div class="section-header" style="margin-top:8px;">
+    <div class="section-header" style="margin-top:8px;flex-shrink:0;">
       <button class="back-btn" onclick="App.gotoBack()"><i class="fas fa-arrow-left"></i></button>
       <span class="section-title" style="flex:1;">구독 채널</span>
     </div>
-    <div id="joined-all-list"></div>
-    <div style="height:12px;"></div>
+    <div id="joined-all-list" style="flex:1;overflow-y:auto;"></div>
   </div>
 
   <!-- 채널 탭 -->
@@ -700,40 +698,40 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 
   <!-- 수신함 -->
   <div class="screen" id="screen-inbox">
-    <div class="section-header">
+    <div class="section-header" style="flex-shrink:0;">
       <span class="section-title">수신함</span>
     </div>
-    <!-- 채널 목록 뷰 -->
-    <div id="inbox-channel-list"></div>
-    <div id="inbox-sentinel" style="height:1px;"></div>
+    <!-- 채널 필터 (고정) -->
+    <div id="inbox-filter" style="flex-shrink:0;"></div>
+    <!-- 채널 목록 뷰 (스크롤) -->
+    <div id="inbox-channel-list" style="flex:1;overflow-y:auto;"></div>
     <!-- 채널 상세 뷰 (뒤로가기 포함) -->
-    <div id="inbox-detail-view" style="display:none; flex-direction:column; flex:1;">
-      <div class="sub-header">
+    <div id="inbox-detail-view" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="sub-header" style="flex-shrink:0;">
         <button class="back-btn" onclick="App.inboxBack()"><i class="fas fa-arrow-left"></i></button>
         <span id="inbox-detail-title" class="sub-title"></span>
       </div>
-      <div id="inbox-detail-list"></div>
+      <div id="inbox-detail-list" style="flex:1;overflow-y:auto;"></div>
     </div>
-    <div style="height:12px;"></div>
   </div>
 
   <!-- 발신함 -->
   <div class="screen" id="screen-send">
-    <div class="section-header">
+    <div class="section-header" style="flex-shrink:0;">
       <span class="section-title">발신함</span>
     </div>
-    <!-- 채널 목록 뷰 -->
-    <div id="outbox-channel-list"></div>
-    <div id="outbox-sentinel" style="height:1px;"></div>
+    <!-- 채널 필터 (고정) -->
+    <div id="outbox-filter" style="flex-shrink:0;"></div>
+    <!-- 채널 목록 뷰 (스크롤) -->
+    <div id="outbox-channel-list" style="flex:1;overflow-y:auto;"></div>
     <!-- 채널 상세 뷰 -->
-    <div id="outbox-detail-view" style="display:none; flex-direction:column; flex:1;">
-      <div class="sub-header">
+    <div id="outbox-detail-view" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="sub-header" style="flex-shrink:0;">
         <button class="back-btn" onclick="App.outboxBack()"><i class="fas fa-arrow-left"></i></button>
         <span id="outbox-detail-title" class="sub-title"></span>
       </div>
-      <div id="outbox-detail-list"></div>
+      <div id="outbox-detail-list" style="flex:1;overflow-y:auto;"></div>
     </div>
-    <div style="height:12px;"></div>
   </div>
 
   <!-- 컨텐츠 재생 전용 페이지 -->
