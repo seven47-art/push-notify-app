@@ -700,6 +700,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-inbox">
     <div class="section-header" style="flex-shrink:0;">
       <span class="section-title">수신함</span>
+      <button id="inbox-edit-btn" onclick="App.toggleInboxEditMode()" style="margin-left:auto;background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--text3);font-size:20px;"><i class="fas fa-minus-circle"></i></button>
+    </div>
+    <!-- 선택 삭제 액션바 -->
+    <div id="inbox-action-bar" style="display:none;flex-shrink:0;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;gap:10px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;">
+        <input type="checkbox" id="inbox-check-all" onchange="App.toggleInboxCheckAll(this.checked)" style="width:16px;height:16px;cursor:pointer;"> 전체선택
+      </label>
+      <span id="inbox-selected-count" style="font-size:13px;color:var(--text3);margin-left:4px;">0개 선택</span>
+      <button onclick="App.deleteSelectedInbox()" style="margin-left:auto;padding:6px 14px;background:#EF4444;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">삭제</button>
+      <button onclick="App.toggleInboxEditMode()" style="padding:6px 14px;background:var(--bg3);color:var(--text);border:none;border-radius:8px;font-size:13px;cursor:pointer;">취소</button>
     </div>
     <!-- 채널 필터 (고정) -->
     <div id="inbox-filter" style="flex-shrink:0;"></div>
@@ -719,6 +729,16 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="screen" id="screen-send">
     <div class="section-header" style="flex-shrink:0;">
       <span class="section-title">발신함</span>
+      <button id="outbox-edit-btn" onclick="App.toggleOutboxEditMode()" style="margin-left:auto;background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--text3);font-size:20px;"><i class="fas fa-minus-circle"></i></button>
+    </div>
+    <!-- 선택 삭제 액션바 -->
+    <div id="outbox-action-bar" style="display:none;flex-shrink:0;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;gap:10px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;">
+        <input type="checkbox" id="outbox-check-all" onchange="App.toggleOutboxCheckAll(this.checked)" style="width:16px;height:16px;cursor:pointer;"> 전체선택
+      </label>
+      <span id="outbox-selected-count" style="font-size:13px;color:var(--text3);margin-left:4px;">0개 선택</span>
+      <button onclick="App.deleteSelectedOutbox()" style="margin-left:auto;padding:6px 14px;background:#EF4444;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">삭제</button>
+      <button onclick="App.toggleOutboxEditMode()" style="padding:6px 14px;background:var(--bg3);color:var(--text);border:none;border-radius:8px;font-size:13px;cursor:pointer;">취소</button>
     </div>
     <!-- 채널 필터 (고정) -->
     <div id="outbox-filter" style="flex-shrink:0;"></div>

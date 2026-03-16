@@ -338,8 +338,8 @@ const App = {
     currentTab = tab
     if (tab === 'home')          this.loadHome()
     else if (tab === 'channel')  this.loadChannel()
-    else if (tab === 'inbox')    { this._inboxChannels = null; const f = document.getElementById('inbox-filter'); if(f) f.innerHTML=''; this.loadInbox() }
-    else if (tab === 'send')     { this._outboxChannels = null; const f = document.getElementById('outbox-filter'); if(f) f.innerHTML=''; this.loadSend() }
+    else if (tab === 'inbox')    { this._inboxEditMode = false; this._inboxChannels = null; const f = document.getElementById('inbox-filter'); if(f) f.innerHTML=''; const bar = document.getElementById('inbox-action-bar'); if(bar) bar.style.display='none'; this.loadInbox() }
+    else if (tab === 'send')     { this._outboxEditMode = false; this._outboxChannels = null; const f = document.getElementById('outbox-filter'); if(f) f.innerHTML=''; const bar = document.getElementById('outbox-action-bar'); if(bar) bar.style.display='none'; this.loadSend() }
     else if (tab === 'settings') this.loadSettings()
     else if (tab === 'owned-all')  this.loadOwnedAll()
     else if (tab === 'joined-all') this.loadJoinedAll()
@@ -1041,12 +1041,17 @@ const App = {
       const chImg = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-      return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
-        <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
-        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
-        <span class="alarm-list-channel">${item.channel_name}</span>
-        <span class="alarm-list-time">${timeStr}</span>
-        <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+      return `<div class="alarm-list-row" style="cursor:pointer;">
+        <div class="inbox-item-check" style="display:${this._inboxEditMode ? 'block' : 'none'};flex-shrink:0;padding-right:8px;" onclick="event.stopPropagation()">
+          <input type="checkbox" data-id="${item.id}" onchange="App._updateInboxSelectedCount()" style="width:18px;height:18px;cursor:pointer;">
+        </div>
+        <div style="display:flex;align-items:center;flex:1;gap:0;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;margin-right:8px;">${chImg}</div>
+          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;">${typeIcon}</div>
+          <span class="alarm-list-channel">${item.channel_name}</span>
+          <span class="alarm-list-time">${timeStr}</span>
+          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+        </div>
       </div>`
     }).join('')
     if (isFirst) {
@@ -1130,7 +1135,116 @@ const App = {
     if (dv) dv.style.display = 'none'
   },
 
-  // ── 발신함 ──────────────────────────────
+  // ── 수신함 편집 모드 ──────────────────────────────
+  _inboxEditMode: false,
+
+  toggleInboxEditMode() {
+    this._inboxEditMode = !this._inboxEditMode
+    const bar = document.getElementById('inbox-action-bar')
+    const btn = document.getElementById('inbox-edit-btn')
+    if (bar) bar.style.display = this._inboxEditMode ? 'flex' : 'none'
+    if (btn) btn.style.color = this._inboxEditMode ? 'var(--primary)' : 'var(--text3)'
+    // 체크박스 표시/숨김
+    document.querySelectorAll('.inbox-item-check').forEach(el => {
+      el.style.display = this._inboxEditMode ? 'block' : 'none'
+    })
+    // 전체선택 초기화
+    const checkAll = document.getElementById('inbox-check-all')
+    if (checkAll) checkAll.checked = false
+    this._updateInboxSelectedCount()
+  },
+
+  toggleInboxCheckAll(checked) {
+    document.querySelectorAll('.inbox-item-check input').forEach(cb => {
+      cb.checked = checked
+    })
+    this._updateInboxSelectedCount()
+  },
+
+  _updateInboxSelectedCount() {
+    const checked = document.querySelectorAll('.inbox-item-check input:checked').length
+    const countEl = document.getElementById('inbox-selected-count')
+    if (countEl) countEl.textContent = checked + '개 선택'
+  },
+
+  async deleteSelectedInbox() {
+    const checked = document.querySelectorAll('.inbox-item-check input:checked')
+    if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
+    const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
+    try {
+      const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
+      if (!res.data?.success) throw new Error()
+      App.showToast(log_ids.length + '개 삭제되었습니다')
+      // 캐시 삭제 후 목록 새로고침
+      Cache.del('inbox_' + (this._inboxChannelId || 'all'))
+      Cache.del('inbox_all')
+      this._inboxChannels = null
+      const f = document.getElementById('inbox-filter'); if (f) f.innerHTML = ''
+      this._inboxEditMode = false
+      const bar = document.getElementById('inbox-action-bar')
+      const btn = document.getElementById('inbox-edit-btn')
+      if (bar) bar.style.display = 'none'
+      if (btn) btn.style.color = 'var(--text3)'
+      this.loadInbox(this._inboxChannelId || '')
+    } catch(e) {
+      App.showToast('삭제 실패. 다시 시도해주세요.', 'error')
+    }
+  },
+
+  // ── 발신함 편집 모드 ──────────────────────────────
+  _outboxEditMode: false,
+
+  toggleOutboxEditMode() {
+    this._outboxEditMode = !this._outboxEditMode
+    const bar = document.getElementById('outbox-action-bar')
+    const btn = document.getElementById('outbox-edit-btn')
+    if (bar) bar.style.display = this._outboxEditMode ? 'flex' : 'none'
+    if (btn) btn.style.color = this._outboxEditMode ? 'var(--primary)' : 'var(--text3)'
+    document.querySelectorAll('.outbox-item-check').forEach(el => {
+      el.style.display = this._outboxEditMode ? 'block' : 'none'
+    })
+    const checkAll = document.getElementById('outbox-check-all')
+    if (checkAll) checkAll.checked = false
+    this._updateOutboxSelectedCount()
+  },
+
+  toggleOutboxCheckAll(checked) {
+    document.querySelectorAll('.outbox-item-check input').forEach(cb => {
+      cb.checked = checked
+    })
+    this._updateOutboxSelectedCount()
+  },
+
+  _updateOutboxSelectedCount() {
+    const checked = document.querySelectorAll('.outbox-item-check input:checked').length
+    const countEl = document.getElementById('outbox-selected-count')
+    if (countEl) countEl.textContent = checked + '개 선택'
+  },
+
+  async deleteSelectedOutbox() {
+    const checked = document.querySelectorAll('.outbox-item-check input:checked')
+    if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
+    const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
+    try {
+      const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
+      if (!res.data?.success) throw new Error()
+      App.showToast(log_ids.length + '개 삭제되었습니다')
+      Cache.del('outbox_' + (this._outboxChannelId || 'all'))
+      Cache.del('outbox_all')
+      this._outboxChannels = null
+      const f = document.getElementById('outbox-filter'); if (f) f.innerHTML = ''
+      this._outboxEditMode = false
+      const bar = document.getElementById('outbox-action-bar')
+      const btn = document.getElementById('outbox-edit-btn')
+      if (bar) bar.style.display = 'none'
+      if (btn) btn.style.color = 'var(--text3)'
+      this.loadSend(this._outboxChannelId || '')
+    } catch(e) {
+      App.showToast('삭제 실패. 다시 시도해주세요.', 'error')
+    }
+  },
+
+
   _renderOutboxItems(resData, channelEl, channelId, isFirst) {
     const iconMap = {
       youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
@@ -1179,12 +1293,17 @@ const App = {
       const chImg = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-      return `<div class="alarm-list-row" style="cursor:pointer;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
-        <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${chImg}</div>
-        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${typeIcon}</div>
-        <span class="alarm-list-channel">${item.channel_name}</span>
-        <span class="alarm-list-time">${timeStr}</span>
-        <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+      return `<div class="alarm-list-row" style="cursor:pointer;">
+        <div class="outbox-item-check" style="display:${this._outboxEditMode ? 'block' : 'none'};flex-shrink:0;padding-right:8px;" onclick="event.stopPropagation()">
+          <input type="checkbox" data-id="${item.id}" onchange="App._updateOutboxSelectedCount()" style="width:18px;height:18px;cursor:pointer;">
+        </div>
+        <div style="display:flex;align-items:center;flex:1;gap:0;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;margin-right:8px;">${chImg}</div>
+          <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;">${typeIcon}</div>
+          <span class="alarm-list-channel">${item.channel_name}</span>
+          <span class="alarm-list-time">${timeStr}</span>
+          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
+        </div>
       </div>`
     }).join('')
     if (isFirst) {
