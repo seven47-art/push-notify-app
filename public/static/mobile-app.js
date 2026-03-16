@@ -1210,9 +1210,9 @@ const App = {
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 캐시 무효화 후 목록 새로고침
+      // 캐시 무효화 후 화면 강제 활성화 + 목록 새로고침
       this._invalidateInboxCache()
-      await this.loadInbox(this._inboxChannelId || '')
+      this.goto('inbox')
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1292,9 +1292,9 @@ const App = {
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 캐시 무효화 후 목록 새로고침
+      // 캐시 무효화 후 화면 강제 활성화 + 목록 새로고침
       this._invalidateOutboxCache()
-      await this.loadSend(this._outboxChannelId || '')
+      this.goto('send')
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
