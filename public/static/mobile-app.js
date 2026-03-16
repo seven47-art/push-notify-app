@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v25
+// public/static/mobile-app.js  v26
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1134,22 +1134,16 @@ const App = {
     const channelEl = document.getElementById('inbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터 렌더 (최초 1회 또는 채널 목록 변경 시)
+    // 채널 필터: 현재 items에 실제 존재하는 채널만 표시 (삭제 후 자동 재계산)
     const filterEl = document.getElementById('inbox-filter')
-    if (filterEl && this._inboxChannels) {
-      const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
-      if (existingBtns.length === 0) {
-        filterEl.innerHTML = this._buildChannelFilter(this._inboxChannels, this._inboxChannelFilter, 'App.loadInbox')
-      } else {
-        existingBtns.forEach(btn => {
-          const onclick = btn.getAttribute('onclick') || ''
-          const isAll = onclick.includes("('')") || onclick.includes("('')")
-          const match = onclick.match(/loadInbox\('(\d+)'/)
-          const btnChId = match ? match[1] : ''
-          const isActive = this._inboxChannelFilter ? btnChId === String(this._inboxChannelFilter) : isAll
-          btn.classList.toggle('ch-tab-active', isActive)
-        })
+    if (filterEl) {
+      const activeChIds = new Set(this._inboxItems.map(it => String(it.channel_id)))
+      const visibleChannels = (this._inboxChannels || []).filter(ch => activeChIds.has(String(ch.id)))
+      // 현재 필터가 더 이상 items에 없으면 '전체'로 리셋
+      if (this._inboxChannelFilter && !activeChIds.has(String(this._inboxChannelFilter))) {
+        this._inboxChannelFilter = ''
       }
+      filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._inboxChannelFilter, 'App.loadInbox')
     }
 
     const items = this._inboxItems
@@ -1403,22 +1397,16 @@ const App = {
     const channelEl = document.getElementById('outbox-channel-list')
     if (!channelEl) return
 
-    // 채널 필터
+    // 채널 필터: 현재 items에 실제 존재하는 채널만 표시 (삭제 후 자동 재계산)
     const filterEl = document.getElementById('outbox-filter')
-    if (filterEl && this._outboxChannels) {
-      const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
-      if (existingBtns.length === 0) {
-        filterEl.innerHTML = this._buildChannelFilter(this._outboxChannels, this._outboxChannelFilter, 'App.loadSend')
-      } else {
-        existingBtns.forEach(btn => {
-          const onclick = btn.getAttribute('onclick') || ''
-          const isAll = onclick.includes("('')")
-          const match = onclick.match(/loadSend\('(\d+)'/)
-          const btnChId = match ? match[1] : ''
-          const isActive = this._outboxChannelFilter ? btnChId === String(this._outboxChannelFilter) : isAll
-          btn.classList.toggle('ch-tab-active', isActive)
-        })
+    if (filterEl) {
+      const activeChIds = new Set(this._outboxItems.map(it => String(it.channel_id)))
+      const visibleChannels = (this._outboxChannels || []).filter(ch => activeChIds.has(String(ch.id)))
+      // 현재 필터가 더 이상 items에 없으면 '전체'로 리셋
+      if (this._outboxChannelFilter && !activeChIds.has(String(this._outboxChannelFilter))) {
+        this._outboxChannelFilter = ''
       }
+      filterEl.innerHTML = this._buildChannelFilter(visibleChannels, this._outboxChannelFilter, 'App.loadSend')
     }
 
     const items = this._outboxItems
