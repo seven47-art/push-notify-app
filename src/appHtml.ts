@@ -862,6 +862,12 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('joined-all')">
     <i class="fas fa-list"></i> 구독채널
   </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('inbox')">
+    <i class="fas fa-inbox"></i> 수신함
+  </div>
+  <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('send')">
+    <i class="fas fa-paper-plane"></i> 발신함
+  </div>
   <div class="drawer-menu-item" onclick="App.closeDrawer();App.goto('settings')">
     <i class="fas fa-cog"></i> 설정
   </div>
