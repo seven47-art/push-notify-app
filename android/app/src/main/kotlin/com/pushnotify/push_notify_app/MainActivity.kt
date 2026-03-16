@@ -56,7 +56,6 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 // Flutter가 준비되면 호출: pending 딥링크 토큰 반환
                 "getInitialToken" -> {
-                    Log.d("DeepLink", "[2] getInitialToken 호출됨 - pendingToken=${pendingDeepLinkToken}")
                     result.success(pendingDeepLinkToken)
                     pendingDeepLinkToken = null
                 }
@@ -311,11 +310,10 @@ class MainActivity : FlutterActivity() {
     // 딥링크 Intent 처리: pushapp://join?token=xxx
     private fun handleDeepLinkIntent(intent: Intent?) {
         val uri = intent?.data ?: return
-        Log.d("DeepLink", "[1] handleDeepLinkIntent - uri=$uri, scheme=${uri.scheme}, host=${uri.host}")
         if (uri.scheme == "pushapp" && uri.host == "join") {
             val token = uri.getQueryParameter("token") ?: return
             if (token.isEmpty()) return
-            Log.d("DeepLink", "[1] 토큰 추출 성공: $token, deepLinkChannel=${deepLinkChannel != null}, pendingToken저장")
+            Log.d("MainActivity", "[DeepLink] token=$token, deepLinkChannel=${deepLinkChannel != null}")
             if (deepLinkChannel != null) {
                 // Flutter 준비됨 → 바로 전달
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
