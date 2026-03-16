@@ -1164,6 +1164,7 @@ const App = {
   },
 
   // ── 수신함 편집 모드 ──────────────────────────────
+  // ── 수신함 편집 모드 (완전 재작성) ──────────────────────────────
   _inboxEditMode: false,
 
   toggleInboxEditMode() {
@@ -1172,27 +1173,23 @@ const App = {
     const btn = document.getElementById('inbox-edit-btn')
     if (bar) bar.style.display = this._inboxEditMode ? 'flex' : 'none'
     if (btn) btn.style.color = this._inboxEditMode ? 'var(--primary)' : 'var(--text3)'
-    // 체크박스 표시/숨김
     document.querySelectorAll('.inbox-item-check').forEach(el => {
-      el.style.display = this._inboxEditMode ? 'block' : 'none'
+      el.style.display = this._inboxEditMode ? 'flex' : 'none'
     })
-    // 전체선택 초기화
     const checkAll = document.getElementById('inbox-check-all')
     if (checkAll) checkAll.checked = false
     this._updateInboxSelectedCount()
   },
 
   toggleInboxCheckAll(checked) {
-    document.querySelectorAll('.inbox-item-check input').forEach(cb => {
-      cb.checked = checked
-    })
+    document.querySelectorAll('.inbox-item-check input').forEach(cb => { cb.checked = checked })
     this._updateInboxSelectedCount()
   },
 
   _updateInboxSelectedCount() {
-    const checked = document.querySelectorAll('.inbox-item-check input:checked').length
-    const countEl = document.getElementById('inbox-selected-count')
-    if (countEl) countEl.textContent = checked + '개 선택'
+    const n = document.querySelectorAll('.inbox-item-check input:checked').length
+    const el = document.getElementById('inbox-selected-count')
+    if (el) el.textContent = n + '개 선택'
   },
 
   async deleteSelectedInbox() {
@@ -1200,31 +1197,38 @@ const App = {
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
+      // 1. API 삭제 호출
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 1. 편집모드 종료
+      // 2. 편집모드 UI 종료
       this._inboxEditMode = false
       this._inboxChannels = null
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 2. 리스트 영역 스피너 강제 표시
-      const channelEl = document.getElementById('inbox-channel-list')
-      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      // 3. 수신함 필터도 초기화
+      // 3. 캐시 삭제
+      this._invalidateInboxCache()
+      // 4. screen-inbox 강제 active + 수신함 전체 새로고침
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
+      const screen = document.getElementById('screen-inbox')
+      const navBtn = document.getElementById('nav-inbox')
+      if (screen) screen.classList.add('active')
+      if (navBtn) navBtn.classList.add('active')
+      currentTab = 'inbox'
+      // 5. 필터 초기화
       const filterEl = document.getElementById('inbox-filter')
       if (filterEl) filterEl.innerHTML = ''
-      // 4. 캐시 완전 삭제
-      this._invalidateInboxCache()
-      // 5. API 직접 호출해서 렌더링
-      const LIMIT = 20
-      const params = `limit=${LIMIT}&offset=0`
-      const apiRes = await API.get(`/alarms/inbox?${params}`)
+      // 6. 로딩 스피너
+      const channelEl = document.getElementById('inbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      // 7. API 재호출 → 렌더링
+      const apiRes = await API.get('/alarms/inbox?limit=20&offset=0')
       const resData = apiRes.data
       if (!resData.success) throw new Error()
-      if (resData.channels) this._inboxChannels = resData.channels
+      this._inboxChannels = resData.channels || null
       Cache.set('inbox_all', { ...resData, channels: this._inboxChannels })
       if (channelEl) this._renderInboxItems({ ...resData, _offset: 0 }, channelEl, '', true)
     } catch(e) {
@@ -1262,6 +1266,7 @@ const App = {
   },
 
   // ── 발신함 편집 모드 ──────────────────────────────
+  // ── 발신함 편집 모드 (완전 재작성) ──────────────────────────────
   _outboxEditMode: false,
 
   toggleOutboxEditMode() {
@@ -1271,7 +1276,7 @@ const App = {
     if (bar) bar.style.display = this._outboxEditMode ? 'flex' : 'none'
     if (btn) btn.style.color = this._outboxEditMode ? 'var(--primary)' : 'var(--text3)'
     document.querySelectorAll('.outbox-item-check').forEach(el => {
-      el.style.display = this._outboxEditMode ? 'block' : 'none'
+      el.style.display = this._outboxEditMode ? 'flex' : 'none'
     })
     const checkAll = document.getElementById('outbox-check-all')
     if (checkAll) checkAll.checked = false
@@ -1279,16 +1284,14 @@ const App = {
   },
 
   toggleOutboxCheckAll(checked) {
-    document.querySelectorAll('.outbox-item-check input').forEach(cb => {
-      cb.checked = checked
-    })
+    document.querySelectorAll('.outbox-item-check input').forEach(cb => { cb.checked = checked })
     this._updateOutboxSelectedCount()
   },
 
   _updateOutboxSelectedCount() {
-    const checked = document.querySelectorAll('.outbox-item-check input:checked').length
-    const countEl = document.getElementById('outbox-selected-count')
-    if (countEl) countEl.textContent = checked + '개 선택'
+    const n = document.querySelectorAll('.outbox-item-check input:checked').length
+    const el = document.getElementById('outbox-selected-count')
+    if (el) el.textContent = n + '개 선택'
   },
 
   async deleteSelectedOutbox() {
@@ -1296,31 +1299,38 @@ const App = {
     if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
     const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
     try {
+      // 1. API 삭제 호출
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 1. 편집모드 종료
+      // 2. 편집모드 UI 종료
       this._outboxEditMode = false
       this._outboxChannels = null
       const bar = document.getElementById('outbox-action-bar')
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 2. 리스트 영역 스피너 강제 표시
-      const channelEl = document.getElementById('outbox-channel-list')
-      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      // 3. 발신함 필터도 초기화
+      // 3. 캐시 삭제
+      this._invalidateOutboxCache()
+      // 4. screen-send 강제 active + 발신함 전체 새로고침
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
+      const screen = document.getElementById('screen-send')
+      const navBtn = document.getElementById('nav-send')
+      if (screen) screen.classList.add('active')
+      if (navBtn) navBtn.classList.add('active')
+      currentTab = 'send'
+      // 5. 필터 초기화
       const filterEl = document.getElementById('outbox-filter')
       if (filterEl) filterEl.innerHTML = ''
-      // 4. 캐시 완전 삭제
-      this._invalidateOutboxCache()
-      // 5. API 직접 호출해서 렌더링
-      const LIMIT = 20
-      const params = `limit=${LIMIT}&offset=0`
-      const apiRes = await API.get(`/alarms/outbox?${params}`)
+      // 6. 로딩 스피너
+      const channelEl = document.getElementById('outbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      // 7. API 재호출 → 렌더링
+      const apiRes = await API.get('/alarms/outbox?limit=20&offset=0')
       const resData = apiRes.data
       if (!resData.success) throw new Error()
-      if (resData.channels) this._outboxChannels = resData.channels
+      this._outboxChannels = resData.channels || null
       Cache.set('outbox_all', { ...resData, channels: this._outboxChannels })
       if (channelEl) this._renderOutboxItems({ ...resData, _offset: 0 }, channelEl, '', true)
     } catch(e) {
