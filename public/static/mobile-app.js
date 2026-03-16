@@ -1203,16 +1203,30 @@ const App = {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 편집모드 종료
+      // 1. 편집모드 종료
       this._inboxEditMode = false
       this._inboxChannels = null
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 캐시 무효화 후 화면 강제 활성화 + 목록 새로고침
+      // 2. 리스트 영역 스피너 강제 표시
+      const channelEl = document.getElementById('inbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      // 3. 수신함 필터도 초기화
+      const filterEl = document.getElementById('inbox-filter')
+      if (filterEl) filterEl.innerHTML = ''
+      // 4. 캐시 완전 삭제
       this._invalidateInboxCache()
-      this.goto('inbox')
+      // 5. API 직접 호출해서 렌더링
+      const LIMIT = 20
+      const params = `limit=${LIMIT}&offset=0`
+      const apiRes = await API.get(`/alarms/inbox?${params}`)
+      const resData = apiRes.data
+      if (!resData.success) throw new Error()
+      if (resData.channels) this._inboxChannels = resData.channels
+      Cache.set('inbox_all', { ...resData, channels: this._inboxChannels })
+      if (channelEl) this._renderInboxItems({ ...resData, _offset: 0 }, channelEl, '', true)
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
@@ -1285,16 +1299,30 @@ const App = {
       const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
       App.showToast(log_ids.length + '개 삭제되었습니다')
-      // 편집모드 종료
+      // 1. 편집모드 종료
       this._outboxEditMode = false
       this._outboxChannels = null
       const bar = document.getElementById('outbox-action-bar')
       const btn = document.getElementById('outbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-      // 캐시 무효화 후 화면 강제 활성화 + 목록 새로고침
+      // 2. 리스트 영역 스피너 강제 표시
+      const channelEl = document.getElementById('outbox-channel-list')
+      if (channelEl) channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
+      // 3. 발신함 필터도 초기화
+      const filterEl = document.getElementById('outbox-filter')
+      if (filterEl) filterEl.innerHTML = ''
+      // 4. 캐시 완전 삭제
       this._invalidateOutboxCache()
-      this.goto('send')
+      // 5. API 직접 호출해서 렌더링
+      const LIMIT = 20
+      const params = `limit=${LIMIT}&offset=0`
+      const apiRes = await API.get(`/alarms/outbox?${params}`)
+      const resData = apiRes.data
+      if (!resData.success) throw new Error()
+      if (resData.channels) this._outboxChannels = resData.channels
+      Cache.set('outbox_all', { ...resData, channels: this._outboxChannels })
+      if (channelEl) this._renderOutboxItems({ ...resData, _offset: 0 }, channelEl, '', true)
     } catch(e) {
       const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
       App.showToast('삭제 실패: ' + msg, 'error')
