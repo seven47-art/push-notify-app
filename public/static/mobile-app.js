@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v23
+// public/static/mobile-app.js  v24
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -1093,52 +1093,83 @@ const App = {
     if (bestSec)    bestSec.style.display    = 'block'
   },
 
-  // ── 수신함 ──────────────────────────────
-  _renderInboxItems(resData, channelEl, channelId, isFirst) {
-    const iconMap = {
-      youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-      audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-      video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
-      file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
-    }
-    const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
-    const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-    const hasMore = resData.hasMore ?? false
-    const nextOffset = resData._offset + resData.data.length
-    // 필터 렌더링: 채널 목록이 새로 로드됐을 때만 (처음 진입 시)
+  // ══════════════════════════════════════════════════════════════
+  // 수신함 / 발신함  —  MessageList (state 기반)
+  //   _inboxItems[]  / _outboxItems[]  : 서버에서 받은 아이템 배열 (source of truth)
+  //   _inboxSelectedIds / _outboxSelectedIds : Set<number>  선택된 id
+  //   모든 렌더링은 state → DOM  단방향으로만 수행
+  // ══════════════════════════════════════════════════════════════
+
+  // ── 상태 초기화 ────────────────────────────────────────────
+  _inboxItems:       [],
+  _inboxHasMore:     false,
+  _inboxNextOffset:  0,
+  _inboxChannelFilter: '',
+  _inboxSelectedIds: new Set(),
+  _inboxEditMode:    false,
+
+  _outboxItems:       [],
+  _outboxHasMore:     false,
+  _outboxNextOffset:  0,
+  _outboxChannelFilter: '',
+  _outboxSelectedIds: new Set(),
+  _outboxEditMode:    false,
+
+  // ── 공통 아이콘/상태 맵 ────────────────────────────────────
+  _msgIconMap: {
+    youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
+    audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
+    video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+    file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+  },
+  _statusLabelMap: { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' },
+  _statusColorMap: { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' },
+
+  // ══════════════════════════════════════════════════════════════
+  // 수신함
+  // ══════════════════════════════════════════════════════════════
+
+  // ── 수신함 렌더 (state → DOM, 단일 진실 원천) ──────────────
+  _renderInbox() {
+    const channelEl = document.getElementById('inbox-channel-list')
+    if (!channelEl) return
+
+    // 채널 필터 렌더 (최초 1회 또는 채널 목록 변경 시)
     const filterEl = document.getElementById('inbox-filter')
-    if (filterEl && isFirst && this._inboxChannels) {
+    if (filterEl && this._inboxChannels) {
       const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
       if (existingBtns.length === 0) {
-        // 필터 버튼이 없으면 새로 렌더링
-        filterEl.innerHTML = this._buildChannelFilter(this._inboxChannels, channelId, 'App.loadInbox')
+        filterEl.innerHTML = this._buildChannelFilter(this._inboxChannels, this._inboxChannelFilter, 'App.loadInbox')
       } else {
-        // 이미 있으면 active 클래스만 토글
         existingBtns.forEach(btn => {
           const onclick = btn.getAttribute('onclick') || ''
-          const isAll = onclick.includes("('')") || onclick.includes('(\'\'')
+          const isAll = onclick.includes("('')") || onclick.includes("('')")
           const match = onclick.match(/loadInbox\('(\d+)'/)
           const btnChId = match ? match[1] : ''
-          const isActive = channelId ? btnChId === String(channelId) : isAll
+          const isActive = this._inboxChannelFilter ? btnChId === String(this._inboxChannelFilter) : isAll
           btn.classList.toggle('ch-tab-active', isActive)
         })
       }
     }
-    if (isFirst && (!resData.data || !resData.data.length)) {
+
+    const items = this._inboxItems
+    if (!items.length) {
       channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
       return
     }
-    const items = resData.data.map(item => {
-      const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
-      const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
-      const stLabel = statusMap[item.status] || item.status
-      const stColor = statusColor[item.status] || '#90A4AE'
-      const chImg = item.channel_image
+
+    const rows = items.map(item => {
+      const typeIcon = this._msgIconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+      const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.received_at)
+      const stLabel  = this._statusLabelMap[item.status] || item.status
+      const stColor  = this._statusColorMap[item.status] || '#90A4AE'
+      const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-      return `<div class="alarm-list-row" style="cursor:pointer;">
-        <div class="inbox-item-check" style="display:${this._inboxEditMode ? 'block' : 'none'};flex-shrink:0;padding-right:8px;" onclick="event.stopPropagation()">
-          <input type="checkbox" data-id="${item.id}" onchange="App._updateInboxSelectedCount()" style="width:18px;height:18px;cursor:pointer;">
+      const isChecked = this._inboxSelectedIds.has(item.id)
+      return `<div class="alarm-list-row" data-item-id="${item.id}" style="cursor:pointer;">
+        <div class="inbox-item-check" style="display:${this._inboxEditMode ? 'flex' : 'none'};flex-shrink:0;padding-right:8px;align-items:center;" onclick="event.stopPropagation()">
+          <input type="checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''} onchange="App._onInboxCheckChange(${item.id},this.checked)" style="width:18px;height:18px;cursor:pointer;">
         </div>
         <div style="display:flex;align-items:center;flex:1;gap:0;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','inbox')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;margin-right:8px;">${chImg}</div>
@@ -1149,19 +1180,21 @@ const App = {
         </div>
       </div>`
     }).join('')
-    if (isFirst) {
-      channelEl.innerHTML = '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
-    }
-    const itemsEl = document.getElementById('inbox-items')
-    if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
-    const moreWrap = document.getElementById('inbox-more-wrap')
-    if (moreWrap) {
-      moreWrap.innerHTML = hasMore
-        ? `<button id="inbox-more-btn" onclick="App.loadInbox('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
-        : ''
-    }
+
+    const moreBtn = this._inboxHasMore
+      ? `<button id="inbox-more-btn" onclick="App.loadInbox('${this._inboxChannelFilter}',${this._inboxNextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+      : ''
+    channelEl.innerHTML = `<div id="inbox-items">${rows}</div><div id="inbox-more-wrap" style="padding:12px 16px 4px;">${moreBtn}</div>`
   },
 
+  // ── 체크박스 변경 핸들러 ───────────────────────────────────
+  _onInboxCheckChange(id, checked) {
+    if (checked) this._inboxSelectedIds.add(id)
+    else this._inboxSelectedIds.delete(id)
+    this._updateInboxSelectedCount()
+  },
+
+  // ── 수신함 로드 ────────────────────────────────────────────
   async loadInbox(channelId = '', offset = 0) {
     const channelEl = document.getElementById('inbox-channel-list')
     const detailView = document.getElementById('inbox-detail-view')
@@ -1173,30 +1206,35 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      this._inboxChannelId = channelId
-      // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
+      this._inboxChannelFilter = channelId
+
+      // 캐시 확인 (stale-while-revalidate)
       const cacheKey = 'inbox_' + (channelId || 'all')
-      // preload 캐시(inbox_items_uid)도 확인 (채널 필터 없는 전체 목록)
       const uid = Store.getUserId()
       const preloadCached = (!channelId) ? Cache.get('inbox_items_' + uid) : null
-      const cached = Cache.get(cacheKey) || (preloadCached ? { data: preloadCached.items, channels: Cache.get('inbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset } : null)
+      const cached = Cache.get(cacheKey) || (preloadCached
+        ? { data: preloadCached.items, channels: Cache.get('inbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset }
+        : null)
+
       if (cached) {
         if (cached.channels) this._inboxChannels = cached.channels
-        this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-        // 백그라운드에서 최신 데이터로 갱신 (스피너 없음)
+        // state 업데이트 → 즉시 렌더
+        this._inboxItems      = cached.data || []
+        this._inboxHasMore    = cached.hasMore ?? false
+        this._inboxNextOffset = (cached.data || []).length
+        this._inboxSelectedIds.clear()
+        this._renderInbox()
+        // 백그라운드 재검증
         this._fetchInboxBg(channelId, cacheKey, channelEl)
         return
       }
-      // 캐시 없으면 스피너 표시 후 fetch
-      this._inboxChannels = null
+      // 캐시 없으면 스피너
+      this._inboxItems = []
       channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-    }
-
-    // 더보기 버튼 로딩 상태
-    const moreBtn = document.getElementById('inbox-more-btn')
-    if (moreBtn && !isFirst) {
-      moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'
-      moreBtn.disabled = true
+    } else {
+      // 더보기 버튼 로딩
+      const moreBtn = document.getElementById('inbox-more-btn')
+      if (moreBtn) { moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'; moreBtn.disabled = true }
     }
 
     try {
@@ -1206,135 +1244,131 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
-      // 첫 페이지는 캐시에 저장
-      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData })
-      this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
+      if (isFirst) {
+        // state 완전 교체
+        this._inboxItems      = resData.data || []
+        this._inboxHasMore    = resData.hasMore ?? false
+        this._inboxNextOffset = (resData.data || []).length
+        this._inboxSelectedIds.clear()
+        Cache.set(cacheKey || ('inbox_' + (channelId || 'all')), { ...resData })
+      } else {
+        // 더보기: state에 append
+        this._inboxItems      = [...this._inboxItems, ...(resData.data || [])]
+        this._inboxHasMore    = resData.hasMore ?? false
+        this._inboxNextOffset = this._inboxItems.length
+      }
+      this._renderInbox()
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
-      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+      if (e.message === 'timeout') toast('네트워크가 느립니다. 다시 시도해주세요.')
     }
   },
 
-  // 백그라운드 inbox 갱신 (캐시 히트 후 조용히 최신화)
+  // ── 수신함 백그라운드 재검증 ───────────────────────────────
   async _fetchInboxBg(channelId, cacheKey, channelEl) {
     try {
-      const LIMIT = 20
-      const params = `limit=${LIMIT}&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
+      const params = `limit=20&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
       const res = await API.get(`/alarms/inbox?${params}`)
       const resData = res.data
       if (!resData.success) return
       if (resData.channels) this._inboxChannels = resData.channels
       Cache.set(cacheKey, { ...resData })
-      // 현재 탭이 inbox이고 상세뷰 닫혀있을 때만 UI 갱신
+      // 현재 inbox 탭이고, 상세뷰 닫혔을 때만 state 교체 후 렌더
       const dv = document.getElementById('inbox-detail-view')
       if (currentTab === 'inbox' && (!dv || dv.style.display === 'none')) {
-        this._renderInboxItems({ ...resData, _offset: 0 }, channelEl, channelId, true)
+        this._inboxItems      = resData.data || []
+        this._inboxHasMore    = resData.hasMore ?? false
+        this._inboxNextOffset = (resData.data || []).length
+        this._renderInbox()
       }
-    } catch(e) { /* 백그라운드 실패는 무시 */ }
+    } catch(_) {}
   },
 
-  _setupInfiniteScroll(type) {
-    // 더보기 버튼 방식으로 전환됨 - 빈 함수 유지 (하위 호환)
-  },
-
-  inboxOpenChannel(group) {},
-
-  inboxBack() {
-    document.getElementById('inbox-channel-list').style.display = 'block'
-    const dv = document.getElementById('inbox-detail-view')
-    if (dv) dv.style.display = 'none'
-  },
-
-  // ── 수신함 편집 모드 ──────────────────────────────
-  // ── 수신함 편집 모드 (완전 재작성) ──────────────────────────────
-  _inboxEditMode: false,
-
-  toggleInboxEditMode() {
-    this._inboxEditMode = !this._inboxEditMode
-    const bar = document.getElementById('inbox-action-bar')
-    const btn = document.getElementById('inbox-edit-btn')
-    if (bar) bar.style.display = this._inboxEditMode ? 'flex' : 'none'
-    if (btn) btn.style.color = this._inboxEditMode ? 'var(--primary)' : 'var(--text3)'
-    document.querySelectorAll('.inbox-item-check').forEach(el => {
-      el.style.display = this._inboxEditMode ? 'flex' : 'none'
-    })
-    const checkAll = document.getElementById('inbox-check-all')
-    if (checkAll) checkAll.checked = false
-    this._updateInboxSelectedCount()
-  },
-
-  toggleInboxCheckAll(checked) {
-    document.querySelectorAll('.inbox-item-check input').forEach(cb => { cb.checked = checked })
-    this._updateInboxSelectedCount()
-  },
-
-  _updateInboxSelectedCount() {
-    const n = document.querySelectorAll('.inbox-item-check input:checked').length
-    const el = document.getElementById('inbox-selected-count')
-    if (el) el.textContent = n + '개 선택'
-  },
-
+  // ── 수신함 선택 삭제 ──────────────────────────────────────
   async deleteSelectedInbox() {
-    const checked = document.querySelectorAll('.inbox-item-check input:checked')
-    if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
-    const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
-    const deletedIdSet = new Set(log_ids)
-
+    const log_ids = Array.from(this._inboxSelectedIds)
+    if (!log_ids.length) { toast('삭제할 항목을 선택하세요'); return }
     try {
       const res = await API.post('/alarms/inbox/bulk-delete', { log_ids })
       if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
 
-      // ① 성공 토스트
-      App.showToast(log_ids.length + '개 삭제되었습니다')
+      // ① state에서 즉시 제거
+      const delSet = new Set(log_ids)
+      this._inboxItems = this._inboxItems.filter(item => !delSet.has(item.id))
+      this._inboxSelectedIds.clear()
 
-      // ② 선택모드 즉시 종료
+      // ② 선택 모드 종료
       this._inboxEditMode = false
       const bar = document.getElementById('inbox-action-bar')
       const btn = document.getElementById('inbox-edit-btn')
       if (bar) bar.style.display = 'none'
       if (btn) btn.style.color = 'var(--text3)'
-
-      // ③ DOM에서 삭제된 항목 즉시 제거 (API 재호출 없이 화면 즉시 갱신)
-      deletedIdSet.forEach(id => {
-        const cb = document.querySelector(`.inbox-item-check input[data-id="${id}"]`)
-        const row = cb?.closest('.alarm-list-row')
-        if (row) row.remove()
-      })
-
-      // ④ 남은 항목이 없으면 빈 상태 표시
-      const itemsEl = document.getElementById('inbox-items')
-      if (itemsEl && !itemsEl.querySelector('.alarm-list-row')) {
-        const channelEl = document.getElementById('inbox-channel-list')
-        if (channelEl) channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
-      }
-
-      // ⑤ 체크박스 표시 숨김 초기화
-      document.querySelectorAll('.inbox-item-check').forEach(el => { el.style.display = 'none' })
       const checkAll = document.getElementById('inbox-check-all')
       if (checkAll) checkAll.checked = false
       this._updateInboxSelectedCount()
 
-      // ⑥ 캐시 무효화
+      // ③ 즉시 렌더 (state 기반)
+      this._renderInbox()
+
+      // ④ 성공 토스트
+      toast(log_ids.length + '개 삭제되었습니다')
+
+      // ⑤ 캐시 무효화
       this._invalidateInboxCache()
 
-      // ⑦ 백그라운드에서 서버 최신 데이터로 재검증 (스피너 없음)
-      API.get('/alarms/inbox?limit=20&offset=0').then(apiRes => {
-        if (!apiRes.data?.success) return
-        const channelEl = document.getElementById('inbox-channel-list')
-        if (!channelEl) return
-        if (apiRes.data.channels) this._inboxChannels = apiRes.data.channels
-        Cache.set('inbox_all', { ...apiRes.data })
-        this._renderInboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
-      }).catch(() => {})
+      // ⑥ 백그라운드 재검증 (서버 정합성 보장, 화면은 이미 갱신됨)
+      this._fetchInboxBg(this._inboxChannelFilter, 'inbox_' + (this._inboxChannelFilter || 'all'), document.getElementById('inbox-channel-list'))
 
     } catch(e) {
-      const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
-      App.showToast('삭제 실패: ' + msg, 'error')
+      toast('삭제 실패: ' + (e.response?.data?.error || e.message || '다시 시도해주세요'))
     }
   },
 
+  // ── 수신함 편집 모드 ──────────────────────────────────────
+  toggleInboxEditMode() {
+    this._inboxEditMode = !this._inboxEditMode
+    this._inboxSelectedIds.clear()
+    const bar = document.getElementById('inbox-action-bar')
+    const btn = document.getElementById('inbox-edit-btn')
+    if (bar) bar.style.display = this._inboxEditMode ? 'flex' : 'none'
+    if (btn) btn.style.color = this._inboxEditMode ? 'var(--primary)' : 'var(--text3)'
+    const checkAll = document.getElementById('inbox-check-all')
+    if (checkAll) checkAll.checked = false
+    this._updateInboxSelectedCount()
+    // 편집모드 진입/종료 시 체크박스 표시 토글 (re-render)
+    this._renderInbox()
+  },
+
+  toggleInboxCheckAll(checked) {
+    if (checked) {
+      this._inboxItems.forEach(item => this._inboxSelectedIds.add(item.id))
+    } else {
+      this._inboxSelectedIds.clear()
+    }
+    this._renderInbox()
+    this._updateInboxSelectedCount()
+  },
+
+  _updateInboxSelectedCount() {
+    const el = document.getElementById('inbox-selected-count')
+    if (el) el.textContent = this._inboxSelectedIds.size + '개 선택'
+  },
+
+  _setupInfiniteScroll(type) {}, // 더보기 버튼 방식 유지 (하위 호환)
+  inboxOpenChannel(group) {},
+
+  inboxBack() {
+    const channelEl = document.getElementById('inbox-channel-list')
+    const dv = document.getElementById('inbox-detail-view')
+    if (channelEl) channelEl.style.display = 'block'
+    if (dv) dv.style.display = 'none'
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // 캐시 무효화
+  // ══════════════════════════════════════════════════════════════
+
   _invalidateInboxCache() {
-    // 모든 inbox 캐시 키 무효화 (localStorage + 메모리)
     const keys = Object.keys(localStorage).filter(k => k.startsWith('ringo_cache_inbox_'))
     keys.forEach(k => localStorage.removeItem(k))
     Cache._mem && Object.keys(Cache._mem).filter(k => k.startsWith('inbox_')).forEach(k => delete Cache._mem[k])
@@ -1347,7 +1381,6 @@ const App = {
   },
 
   _invalidateAllFeedCache() {
-    // inbox + outbox + home + channels 캐시 전부 무효화 (채널 삭제/구독변경 등 큰 변경 시)
     this._invalidateInboxCache()
     this._invalidateOutboxCache()
     const keys = Object.keys(localStorage).filter(k =>
@@ -1361,148 +1394,56 @@ const App = {
     ).forEach(k => delete Cache._mem[k])
   },
 
-  // ── 발신함 편집 모드 ──────────────────────────────
-  // ── 발신함 편집 모드 (완전 재작성) ──────────────────────────────
-  _outboxEditMode: false,
+  // ══════════════════════════════════════════════════════════════
+  // 발신함
+  // ══════════════════════════════════════════════════════════════
 
-  toggleOutboxEditMode() {
-    this._outboxEditMode = !this._outboxEditMode
-    const bar = document.getElementById('outbox-action-bar')
-    const btn = document.getElementById('outbox-edit-btn')
-    if (bar) bar.style.display = this._outboxEditMode ? 'flex' : 'none'
-    if (btn) btn.style.color = this._outboxEditMode ? 'var(--primary)' : 'var(--text3)'
-    document.querySelectorAll('.outbox-item-check').forEach(el => {
-      el.style.display = this._outboxEditMode ? 'flex' : 'none'
-    })
-    const checkAll = document.getElementById('outbox-check-all')
-    if (checkAll) checkAll.checked = false
-    this._updateOutboxSelectedCount()
-  },
+  // ── 발신함 렌더 (state → DOM) ─────────────────────────────
+  _renderOutbox() {
+    const channelEl = document.getElementById('outbox-channel-list')
+    if (!channelEl) return
 
-  toggleOutboxCheckAll(checked) {
-    document.querySelectorAll('.outbox-item-check input').forEach(cb => { cb.checked = checked })
-    this._updateOutboxSelectedCount()
-  },
-
-  _updateOutboxSelectedCount() {
-    const n = document.querySelectorAll('.outbox-item-check input:checked').length
-    const el = document.getElementById('outbox-selected-count')
-    if (el) el.textContent = n + '개 선택'
-  },
-
-  async deleteSelectedOutbox() {
-    const checked = document.querySelectorAll('.outbox-item-check input:checked')
-    if (!checked.length) { App.showToast('삭제할 항목을 선택하세요', 'error'); return }
-    const log_ids = Array.from(checked).map(cb => Number(cb.dataset.id))
-    const deletedIdSet = new Set(log_ids)
-
-    try {
-      const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
-      if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
-
-      // ① 성공 토스트
-      App.showToast(log_ids.length + '개 삭제되었습니다')
-
-      // ② 선택모드 즉시 종료
-      this._outboxEditMode = false
-      const bar = document.getElementById('outbox-action-bar')
-      const btn = document.getElementById('outbox-edit-btn')
-      if (bar) bar.style.display = 'none'
-      if (btn) btn.style.color = 'var(--text3)'
-
-      // ③ DOM에서 삭제된 항목 즉시 제거 (API 재호출 없이 화면 즉시 갱신)
-      deletedIdSet.forEach(id => {
-        const cb = document.querySelector(`.outbox-item-check input[data-id="${id}"]`)
-        const row = cb?.closest('.alarm-list-row')
-        if (row) row.remove()
-      })
-
-      // ④ 남은 항목이 없으면 빈 상태 표시
-      const itemsEl = document.getElementById('outbox-items')
-      if (itemsEl && !itemsEl.querySelector('.alarm-list-row')) {
-        const channelEl = document.getElementById('outbox-channel-list')
-        if (channelEl) channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
-      }
-
-      // ⑤ 체크박스 표시 숨김 초기화
-      document.querySelectorAll('.outbox-item-check').forEach(el => { el.style.display = 'none' })
-      const checkAll = document.getElementById('outbox-check-all')
-      if (checkAll) checkAll.checked = false
-      this._updateOutboxSelectedCount()
-
-      // ⑥ 캐시 무효화
-      this._invalidateOutboxCache()
-
-      // ⑦ 백그라운드에서 서버 최신 데이터로 재검증 (스피너 없음)
-      API.get('/alarms/outbox?limit=20&offset=0').then(apiRes => {
-        if (!apiRes.data?.success) return
-        const channelEl = document.getElementById('outbox-channel-list')
-        if (!channelEl) return
-        if (apiRes.data.channels) this._outboxChannels = apiRes.data.channels
-        Cache.set('outbox_all', { ...apiRes.data })
-        this._renderOutboxItems({ ...apiRes.data, _offset: 0 }, channelEl, '', true)
-      }).catch(() => {})
-
-    } catch(e) {
-      const msg = e.response?.data?.error || e.message || '다시 시도해주세요.'
-      App.showToast('삭제 실패: ' + msg, 'error')
-    }
-  },
-
-
-  _renderOutboxItems(resData, channelEl, channelId, isFirst) {
-    const iconMap = {
-      youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-      audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-      video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
-      file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
-    }
-    const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
-    const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-    const filterHtml = isFirst ? this._buildChannelFilter(this._outboxChannels || [], channelId, 'App.loadSend') : ''
-    const hasMore = resData.hasMore ?? false
-    const nextOffset = resData._offset + resData.data.length
-    // 필터 렌더링: 버튼이 없으면 새로 그리고, 있으면 active만 토글
+    // 채널 필터
     const filterEl = document.getElementById('outbox-filter')
-    if (filterEl && isFirst && this._outboxChannels) {
+    if (filterEl && this._outboxChannels) {
       const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
       if (existingBtns.length === 0) {
-        filterEl.innerHTML = this._buildChannelFilter(this._outboxChannels, channelId, 'App.loadSend')
+        filterEl.innerHTML = this._buildChannelFilter(this._outboxChannels, this._outboxChannelFilter, 'App.loadSend')
       } else {
         existingBtns.forEach(btn => {
           const onclick = btn.getAttribute('onclick') || ''
-          const isAll = onclick.includes("('')") || onclick.includes('(\'\'')
+          const isAll = onclick.includes("('')")
           const match = onclick.match(/loadSend\('(\d+)'/)
           const btnChId = match ? match[1] : ''
-          const isActive = channelId ? btnChId === String(channelId) : isAll
+          const isActive = this._outboxChannelFilter ? btnChId === String(this._outboxChannelFilter) : isAll
           btn.classList.toggle('ch-tab-active', isActive)
         })
       }
     }
-    const seenIds = new Set()
-    const dedupedData = resData.data.filter(item => {
-      const key = item.alarm_id || ('log_' + item.id)
-      if (seenIds.has(key)) return false
-      seenIds.add(key)
-      return true
-    })
-    if (isFirst && (!dedupedData || !dedupedData.length)) {
+
+    const items = this._outboxItems
+    if (!items.length) {
       channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
       return
     }
-    const items = dedupedData.map(item => {
+
+    const iconMap    = this._msgIconMap
+    const statusMap  = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
+    const statusColor= { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
+    const rows = items.map(item => {
       const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
-      const timeStr = this._fmtAlarmTime(item.scheduled_at || item.received_at)
-      const stLabel = statusMap[item.status] || item.status
-      const stColor = statusColor[item.status] || '#90A4AE'
-      const chImg = item.channel_image
+      const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.sent_at)
+      const stLabel  = statusMap[item.status] || item.status
+      const stColor  = statusColor[item.status] || '#90A4AE'
+      const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
-      return `<div class="alarm-list-row" style="cursor:pointer;">
-        <div class="outbox-item-check" style="display:${this._outboxEditMode ? 'block' : 'none'};flex-shrink:0;padding-right:8px;" onclick="event.stopPropagation()">
-          <input type="checkbox" data-id="${item.id}" onchange="App._updateOutboxSelectedCount()" style="width:18px;height:18px;cursor:pointer;">
+      const isChecked = this._outboxSelectedIds.has(item.id)
+      return `<div class="alarm-list-row" data-item-id="${item.id}" style="cursor:pointer;">
+        <div class="outbox-item-check" style="display:${this._outboxEditMode ? 'flex' : 'none'};flex-shrink:0;padding-right:8px;align-items:center;" onclick="event.stopPropagation()">
+          <input type="checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''} onchange="App._onOutboxCheckChange(${item.id},this.checked)" style="width:18px;height:18px;cursor:pointer;">
         </div>
-        <div style="display:flex;align-items:center;flex:1;gap:0;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','outbox')">
+        <div style="display:flex;align-items:center;flex:1;gap:0;" onclick="App.openAlarmContent(${item.id},${item.channel_id},'${(item.channel_name||'').replace(/'/g,"&#39;")}','${item.msg_type||''}','${(item.msg_value||'').replace(/'/g,"&#39;")}','${(item.link_url||'').replace(/'/g,"&#39;")}','send')">
           <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;margin-right:8px;">${chImg}</div>
           <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;">${typeIcon}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
@@ -1511,19 +1452,20 @@ const App = {
         </div>
       </div>`
     }).join('')
-    if (isFirst) {
-      channelEl.innerHTML = '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
-    }
-    const itemsEl = document.getElementById('outbox-items')
-    if (itemsEl) itemsEl.insertAdjacentHTML('beforeend', items)
-    const moreWrap = document.getElementById('outbox-more-wrap')
-    if (moreWrap) {
-      moreWrap.innerHTML = hasMore
-        ? `<button id="outbox-more-btn" onclick="App.loadSend('${channelId}',${nextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
-        : ''
-    }
+
+    const moreBtn = this._outboxHasMore
+      ? `<button id="outbox-more-btn" onclick="App.loadSend('${this._outboxChannelFilter}',${this._outboxNextOffset})" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>더보기</button>`
+      : ''
+    channelEl.innerHTML = `<div id="outbox-items">${rows}</div><div id="outbox-more-wrap" style="padding:12px 16px 4px;">${moreBtn}</div>`
   },
 
+  _onOutboxCheckChange(id, checked) {
+    if (checked) this._outboxSelectedIds.add(id)
+    else this._outboxSelectedIds.delete(id)
+    this._updateOutboxSelectedCount()
+  },
+
+  // ── 발신함 로드 ────────────────────────────────────────────
   async loadSend(channelId = '', offset = 0) {
     const channelEl = document.getElementById('outbox-channel-list')
     const detailView = document.getElementById('outbox-detail-view')
@@ -1535,30 +1477,30 @@ const App = {
     const isFirst = offset === 0
 
     if (isFirst) {
-      this._outboxChannelId = channelId
-      // ── stale-while-revalidate: 캐시 있으면 즉시 표시 ──
+      this._outboxChannelFilter = channelId
+
       const cacheKey = 'outbox_' + (channelId || 'all')
-      // preload 캐시(outbox_items_uid)도 확인 (채널 필터 없는 전체 목록)
       const uid = Store.getUserId()
       const preloadCached = (!channelId) ? Cache.get('outbox_items_' + uid) : null
-      const cached = Cache.get(cacheKey) || (preloadCached ? { data: preloadCached.items, channels: Cache.get('outbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset } : null)
+      const cached = Cache.get(cacheKey) || (preloadCached
+        ? { data: preloadCached.items, channels: Cache.get('outbox_channels_' + uid) || [], hasMore: preloadCached.hasMore, nextOffset: preloadCached.nextOffset }
+        : null)
+
       if (cached) {
         if (cached.channels) this._outboxChannels = cached.channels
-        this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-        // 백그라운드에서 최신 데이터로 갱신 (스피너 없음)
+        this._outboxItems      = cached.data || []
+        this._outboxHasMore    = cached.hasMore ?? false
+        this._outboxNextOffset = (cached.data || []).length
+        this._outboxSelectedIds.clear()
+        this._renderOutbox()
         this._fetchOutboxBg(channelId, cacheKey, channelEl)
         return
       }
-      // 캐시 없으면 스피너 표시 후 fetch
-      this._outboxChannels = null
+      this._outboxItems = []
       channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-    }
-
-    // 더보기 버튼 로딩 상태
-    const moreBtn = document.getElementById('outbox-more-btn')
-    if (moreBtn && !isFirst) {
-      moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'
-      moreBtn.disabled = true
+    } else {
+      const moreBtn = document.getElementById('outbox-more-btn')
+      if (moreBtn) { moreBtn.innerHTML = '<i class="fas fa-spinner spin"></i> 불러오는 중...'; moreBtn.disabled = true }
     }
 
     try {
@@ -1568,39 +1510,151 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
-      // 첫 페이지는 캐시에 저장
-      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), { ...resData })
-      this._renderOutboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
+      if (isFirst) {
+        this._outboxItems      = resData.data || []
+        this._outboxHasMore    = resData.hasMore ?? false
+        this._outboxNextOffset = (resData.data || []).length
+        this._outboxSelectedIds.clear()
+        Cache.set('outbox_' + (channelId || 'all'), { ...resData })
+      } else {
+        this._outboxItems      = [...this._outboxItems, ...(resData.data || [])]
+        this._outboxHasMore    = resData.hasMore ?? false
+        this._outboxNextOffset = this._outboxItems.length
+      }
+      this._renderOutbox()
     } catch(e) {
       if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
-      if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
+      if (e.message === 'timeout') toast('네트워크가 느립니다. 다시 시도해주세요.')
     }
   },
 
-  // 백그라운드 outbox 갱신 (캐시 히트 후 조용히 최신화)
+  // ── 발신함 백그라운드 재검증 ───────────────────────────────
   async _fetchOutboxBg(channelId, cacheKey, channelEl) {
     try {
-      const LIMIT = 20
-      const params = `limit=${LIMIT}&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
+      const params = `limit=20&offset=0` + (channelId ? `&channel_id=${channelId}` : '')
       const res = await API.get(`/alarms/outbox?${params}`)
       const resData = res.data
       if (!resData.success) return
       if (resData.channels) this._outboxChannels = resData.channels
       Cache.set(cacheKey, { ...resData })
-      // 현재 탭이 send이고 상세뷰 닫혀있을 때만 UI 갱신
       const dv = document.getElementById('outbox-detail-view')
       if (currentTab === 'send' && (!dv || dv.style.display === 'none')) {
-        this._renderOutboxItems({ ...resData, _offset: 0 }, channelEl, channelId, true)
+        this._outboxItems      = resData.data || []
+        this._outboxHasMore    = resData.hasMore ?? false
+        this._outboxNextOffset = (resData.data || []).length
+        this._renderOutbox()
       }
-    } catch(e) { /* 백그라운드 실패는 무시 */ }
+    } catch(_) {}
+  },
+
+  // ── 발신함 선택 삭제 ──────────────────────────────────────
+  async deleteSelectedOutbox() {
+    const log_ids = Array.from(this._outboxSelectedIds)
+    if (!log_ids.length) { toast('삭제할 항목을 선택하세요'); return }
+    try {
+      const res = await API.post('/alarms/outbox/bulk-delete', { log_ids })
+      if (!res.data?.success) throw new Error(res.data?.error || '삭제 실패')
+
+      // ① state에서 즉시 제거
+      const delSet = new Set(log_ids)
+      this._outboxItems = this._outboxItems.filter(item => !delSet.has(item.id))
+      this._outboxSelectedIds.clear()
+
+      // ② 선택 모드 종료
+      this._outboxEditMode = false
+      const bar = document.getElementById('outbox-action-bar')
+      const btn = document.getElementById('outbox-edit-btn')
+      if (bar) bar.style.display = 'none'
+      if (btn) btn.style.color = 'var(--text3)'
+      const checkAll = document.getElementById('outbox-check-all')
+      if (checkAll) checkAll.checked = false
+      this._updateOutboxSelectedCount()
+
+      // ③ 즉시 렌더
+      this._renderOutbox()
+
+      // ④ 성공 토스트
+      toast(log_ids.length + '개 삭제되었습니다')
+
+      // ⑤ 캐시 무효화
+      this._invalidateOutboxCache()
+
+      // ⑥ 백그라운드 재검증
+      this._fetchOutboxBg(this._outboxChannelFilter, 'outbox_' + (this._outboxChannelFilter || 'all'), document.getElementById('outbox-channel-list'))
+
+    } catch(e) {
+      toast('삭제 실패: ' + (e.response?.data?.error || e.message || '다시 시도해주세요'))
+    }
+  },
+
+  // ── 발신함 편집 모드 ──────────────────────────────────────
+  toggleOutboxEditMode() {
+    this._outboxEditMode = !this._outboxEditMode
+    this._outboxSelectedIds.clear()
+    const bar = document.getElementById('outbox-action-bar')
+    const btn = document.getElementById('outbox-edit-btn')
+    if (bar) bar.style.display = this._outboxEditMode ? 'flex' : 'none'
+    if (btn) btn.style.color = this._outboxEditMode ? 'var(--primary)' : 'var(--text3)'
+    const checkAll = document.getElementById('outbox-check-all')
+    if (checkAll) checkAll.checked = false
+    this._updateOutboxSelectedCount()
+    this._renderOutbox()
+  },
+
+  toggleOutboxCheckAll(checked) {
+    if (checked) {
+      this._outboxItems.forEach(item => this._outboxSelectedIds.add(item.id))
+    } else {
+      this._outboxSelectedIds.clear()
+    }
+    this._renderOutbox()
+    this._updateOutboxSelectedCount()
+  },
+
+  _updateOutboxSelectedCount() {
+    const el = document.getElementById('outbox-selected-count')
+    if (el) el.textContent = this._outboxSelectedIds.size + '개 선택'
   },
 
   outboxOpenChannel(group) {},
 
   outboxBack() {
-    document.getElementById('outbox-channel-list').style.display = 'block'
+    const channelEl = document.getElementById('outbox-channel-list')
     const dv = document.getElementById('outbox-detail-view')
+    if (channelEl) channelEl.style.display = 'block'
     if (dv) dv.style.display = 'none'
+  },
+
+  // ── 레거시 호환용 래퍼 (기존 HTML onclick에서 호출될 수 있음) ──
+  _renderInboxItems(resData, channelEl, channelId, isFirst) {
+    // state 기반 렌더로 이관됨 — 기존 호출 시 state 교체 후 renderInbox 호출
+    if (isFirst) {
+      if (resData.channels) this._inboxChannels = resData.channels
+      this._inboxItems      = resData.data || []
+      this._inboxHasMore    = resData.hasMore ?? false
+      this._inboxNextOffset = (resData.data || []).length
+      this._inboxChannelFilter = channelId || ''
+    } else {
+      this._inboxItems      = [...this._inboxItems, ...(resData.data || [])]
+      this._inboxHasMore    = resData.hasMore ?? false
+      this._inboxNextOffset = this._inboxItems.length
+    }
+    this._renderInbox()
+  },
+
+  _renderOutboxItems(resData, channelEl, channelId, isFirst) {
+    if (isFirst) {
+      if (resData.channels) this._outboxChannels = resData.channels
+      this._outboxItems      = resData.data || []
+      this._outboxHasMore    = resData.hasMore ?? false
+      this._outboxNextOffset = (resData.data || []).length
+      this._outboxChannelFilter = channelId || ''
+    } else {
+      this._outboxItems      = [...this._outboxItems, ...(resData.data || [])]
+      this._outboxHasMore    = resData.hasMore ?? false
+      this._outboxNextOffset = this._outboxItems.length
+    }
+    this._renderOutbox()
   },
 
   // 수신함/발신함 알람 클릭 → 컨텐츠 재생 전용 페이지 표시
