@@ -239,8 +239,8 @@ app.get('/join/:token', async (c) => {
     '<meta property="og:title" content="' + ogTitle + '">' +
     '<meta property="og:description" content="' + ogDesc + '">' +
     '<meta property="og:image" content="' + ogImage + '">' +
-    '<meta property="og:image:width" content="400">' +
-    '<meta property="og:image:height" content="400">' +
+    '<meta property="og:image:width" content="600">' +
+    '<meta property="og:image:height" content="600">' +
     '<meta name="twitter:card" content="summary">' +
     '<meta name="twitter:title" content="' + ogTitle + '">' +
     '<meta name="twitter:description" content="' + ogDesc + '">' +
