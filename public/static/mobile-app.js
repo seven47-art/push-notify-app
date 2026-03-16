@@ -1107,24 +1107,8 @@ const App = {
 
     if (isFirst) {
       this._inboxChannelId = channelId
-      // 채널 필터 클릭 시 채널 목록 유지 (null 초기화 안 함)
-      if (!this._inboxChannels) {
-        // 캐시 즉시 표시
-        const cacheKey = 'inbox_all'
-        const cached = Cache.get(cacheKey)
-        if (cached) {
-          this._inboxChannels = cached.channels || null
-        }
-      }
-      // 리스트 영역만 로딩 표시
-      const cacheKey = 'inbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        this._inboxChannels = this._inboxChannels || cached.channels || null
-        this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
+      this._inboxChannels = null
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     // 더보기 버튼 로딩 상태
@@ -1141,12 +1125,9 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
-      // 첫 페이지 결과 캐시 저장
-      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData, channels: resData.channels || this._inboxChannels })
-
       this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst && !Cache.get('inbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
@@ -1370,20 +1351,8 @@ const App = {
 
     if (isFirst) {
       this._outboxChannelId = channelId
-      // 채널 필터 클릭 시 채널 목록 유지
-      if (!this._outboxChannels) {
-        const cacheKey = 'outbox_all'
-        const cached = Cache.get(cacheKey)
-        if (cached) this._outboxChannels = cached.channels || null
-      }
-      const cacheKey = 'outbox_' + (channelId || 'all')
-      const cached = Cache.get(cacheKey)
-      if (cached) {
-        this._outboxChannels = this._outboxChannels || cached.channels || null
-        this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
-      } else {
-        channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
-      }
+      this._outboxChannels = null
+      channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
     }
 
     // 더보기 버튼 로딩 상태
@@ -1400,12 +1369,9 @@ const App = {
       if (!resData.success) throw new Error()
 
       if (isFirst && resData.channels) this._outboxChannels = resData.channels
-      // 첫 페이지 결과 캐시 저장
-      if (isFirst) Cache.set('outbox_' + (channelId || 'all'), { ...resData, channels: this._outboxChannels })
-
       this._renderOutboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
-      if (isFirst && !Cache.get('outbox_' + (channelId || 'all'))) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
+      if (isFirst) channelEl.innerHTML = '<div class="empty-box">불러오기 실패</div>'
       if (e.message === 'timeout') App.showToast('네트워크가 느립니다. 다시 시도해주세요.', 'error')
     }
   },
