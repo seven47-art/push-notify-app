@@ -338,8 +338,8 @@ const App = {
     currentTab = tab
     if (tab === 'home')          this.loadHome()
     else if (tab === 'channel')  this.loadChannel()
-    else if (tab === 'inbox')    this.loadInbox()
-    else if (tab === 'send')     this.loadSend()
+    else if (tab === 'inbox')    { this._inboxChannels = null; const f = document.getElementById('inbox-filter'); if(f) f.innerHTML=''; this.loadInbox() }
+    else if (tab === 'send')     { this._outboxChannels = null; const f = document.getElementById('outbox-filter'); if(f) f.innerHTML=''; this.loadSend() }
     else if (tab === 'settings') this.loadSettings()
     else if (tab === 'owned-all')  this.loadOwnedAll()
     else if (tab === 'joined-all') this.loadJoinedAll()
@@ -1008,13 +1008,28 @@ const App = {
     }
     const statusMap = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
     const statusColor = { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
-    const filterHtml = isFirst ? this._buildChannelFilter(this._inboxChannels || [], channelId, 'App.loadInbox') : ''
     const hasMore = resData.hasMore ?? false
     const nextOffset = resData._offset + resData.data.length
+    // 필터 렌더링: 채널 목록이 새로 로드됐을 때만 (처음 진입 시)
+    const filterEl = document.getElementById('inbox-filter')
+    if (filterEl && isFirst && this._inboxChannels) {
+      const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
+      if (existingBtns.length === 0) {
+        // 필터 버튼이 없으면 새로 렌더링
+        filterEl.innerHTML = this._buildChannelFilter(this._inboxChannels, channelId, 'App.loadInbox')
+      } else {
+        // 이미 있으면 active 클래스만 토글
+        existingBtns.forEach(btn => {
+          const onclick = btn.getAttribute('onclick') || ''
+          const isAll = onclick.includes("('')") || onclick.includes('(\'\'')
+          const match = onclick.match(/loadInbox\('(\d+)'/)
+          const btnChId = match ? match[1] : ''
+          const isActive = channelId ? btnChId === String(channelId) : isAll
+          btn.classList.toggle('ch-tab-active', isActive)
+        })
+      }
+    }
     if (isFirst && (!resData.data || !resData.data.length)) {
-      // 필터는 고정 영역에, 빈 메시지는 리스트 영역에
-      const filterEl = document.getElementById('inbox-filter')
-      if (filterEl) filterEl.innerHTML = filterHtml
       channelEl.innerHTML = '<div class="empty-box">받은 알람이 없습니다.</div>'
       return
     }
@@ -1035,9 +1050,6 @@ const App = {
       </div>`
     }).join('')
     if (isFirst) {
-      // 필터는 고정 영역에 렌더링
-      const filterEl = document.getElementById('inbox-filter')
-      if (filterEl) filterEl.innerHTML = filterHtml
       channelEl.innerHTML = '<div id="inbox-items"></div><div id="inbox-more-wrap" style="padding:12px 16px 4px;"></div>'
     }
     const itemsEl = document.getElementById('inbox-items')
@@ -1062,12 +1074,20 @@ const App = {
 
     if (isFirst) {
       this._inboxChannelId = channelId
-      this._inboxChannels = null
-      // 캐시 즉시 표시
+      // 채널 필터 클릭 시 채널 목록 유지 (null 초기화 안 함)
+      if (!this._inboxChannels) {
+        // 캐시 즉시 표시
+        const cacheKey = 'inbox_all'
+        const cached = Cache.get(cacheKey)
+        if (cached) {
+          this._inboxChannels = cached.channels || null
+        }
+      }
+      // 리스트 영역만 로딩 표시
       const cacheKey = 'inbox_' + (channelId || 'all')
       const cached = Cache.get(cacheKey)
       if (cached) {
-        this._inboxChannels = cached.channels || null
+        this._inboxChannels = this._inboxChannels || cached.channels || null
         this._renderInboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
       } else {
         channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
@@ -1089,7 +1109,7 @@ const App = {
 
       if (isFirst && resData.channels) this._inboxChannels = resData.channels
       // 첫 페이지 결과 캐시 저장
-      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData, channels: this._inboxChannels })
+      if (isFirst) Cache.set('inbox_' + (channelId || 'all'), { ...resData, channels: resData.channels || this._inboxChannels })
 
       this._renderInboxItems({ ...resData, _offset: offset }, channelEl, channelId, isFirst)
     } catch(e) {
@@ -1123,6 +1143,23 @@ const App = {
     const filterHtml = isFirst ? this._buildChannelFilter(this._outboxChannels || [], channelId, 'App.loadSend') : ''
     const hasMore = resData.hasMore ?? false
     const nextOffset = resData._offset + resData.data.length
+    // 필터 렌더링: 버튼이 없으면 새로 그리고, 있으면 active만 토글
+    const filterEl = document.getElementById('outbox-filter')
+    if (filterEl && isFirst && this._outboxChannels) {
+      const existingBtns = filterEl.querySelectorAll('.ch-tab-btn')
+      if (existingBtns.length === 0) {
+        filterEl.innerHTML = this._buildChannelFilter(this._outboxChannels, channelId, 'App.loadSend')
+      } else {
+        existingBtns.forEach(btn => {
+          const onclick = btn.getAttribute('onclick') || ''
+          const isAll = onclick.includes("('')") || onclick.includes('(\'\'')
+          const match = onclick.match(/loadSend\('(\d+)'/)
+          const btnChId = match ? match[1] : ''
+          const isActive = channelId ? btnChId === String(channelId) : isAll
+          btn.classList.toggle('ch-tab-active', isActive)
+        })
+      }
+    }
     const seenIds = new Set()
     const dedupedData = resData.data.filter(item => {
       const key = item.alarm_id || ('log_' + item.id)
@@ -1131,8 +1168,6 @@ const App = {
       return true
     })
     if (isFirst && (!dedupedData || !dedupedData.length)) {
-      const filterEl = document.getElementById('outbox-filter')
-      if (filterEl) filterEl.innerHTML = filterHtml
       channelEl.innerHTML = '<div class="empty-box">발신한 알람이 없습니다.</div>'
       return
     }
@@ -1153,9 +1188,6 @@ const App = {
       </div>`
     }).join('')
     if (isFirst) {
-      // 필터는 고정 영역에 렌더링
-      const filterEl = document.getElementById('outbox-filter')
-      if (filterEl) filterEl.innerHTML = filterHtml
       channelEl.innerHTML = '<div id="outbox-items"></div><div id="outbox-more-wrap" style="padding:12px 16px 4px;"></div>'
     }
     const itemsEl = document.getElementById('outbox-items')
@@ -1180,12 +1212,16 @@ const App = {
 
     if (isFirst) {
       this._outboxChannelId = channelId
-      this._outboxChannels = null
-      // 캐시 즉시 표시
+      // 채널 필터 클릭 시 채널 목록 유지
+      if (!this._outboxChannels) {
+        const cacheKey = 'outbox_all'
+        const cached = Cache.get(cacheKey)
+        if (cached) this._outboxChannels = cached.channels || null
+      }
       const cacheKey = 'outbox_' + (channelId || 'all')
       const cached = Cache.get(cacheKey)
       if (cached) {
-        this._outboxChannels = cached.channels || null
+        this._outboxChannels = this._outboxChannels || cached.channels || null
         this._renderOutboxItems({ ...cached, _offset: 0 }, channelEl, channelId, true)
       } else {
         channelEl.innerHTML = '<div class="loading"><i class="fas fa-spinner spin"></i></div>'
