@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v24
+// public/static/mobile-app.js  v25
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
