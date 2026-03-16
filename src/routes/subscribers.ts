@@ -1,6 +1,7 @@
 // src/routes/subscribers.ts
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { sendFCMMulticast } from './fcm'
 
 const subscribers = new Hono<{ Bindings: Bindings }>()
 
@@ -98,14 +99,51 @@ subscribers.delete('/leave', async (c) => {
     if (!userId || !channelId) {
       return c.json({ success: false, error: 'user_id and channel_id are required' }, 400)
     }
+
+    // 탈퇴 전에 해당 채널의 pending 알람 목록 조회 (alarm_cancel FCM 발송용)
+    const { results: pendingAlarms } = await c.env.DB.prepare(`
+      SELECT id FROM alarm_schedules
+      WHERE channel_id = ? AND status = 'pending' AND scheduled_at > datetime('now')
+    `).bind(channelId).all() as { results: any[] }
+
+    // 탈퇴 회원의 FCM 토큰 조회
+    const subInfo: any = await c.env.DB.prepare(
+      'SELECT COALESCE(s.fcm_token, u.fcm_token) as fcm_token FROM subscribers s LEFT JOIN users u ON s.user_id = u.user_id WHERE s.user_id = ? AND s.channel_id = ?'
+    ).bind(userId, channelId).first()
+
+    // is_active = 0 으로 탈퇴 처리
     await c.env.DB.prepare(`
       UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND channel_id = ?
     `).bind(userId, channelId).run()
+
     // 해당 채널의 수신함 alarm_logs 삭제
     await c.env.DB.prepare(`
       DELETE FROM alarm_logs WHERE receiver_id = ? AND channel_id = ?
     `).bind(userId, channelId).run()
+
+    // 탈퇴 회원에게 각 pending 알람에 대해 alarm_cancel FCM 발송 (fire-and-forget)
+    if (pendingAlarms.length > 0 && subInfo?.fcm_token) {
+      const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+      const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
+
+      if (fcmServiceAccount && fcmProjectId) {
+        const cancelPromises = pendingAlarms.map(alarm =>
+          sendFCMMulticast(
+            [subInfo.fcm_token],
+            {
+              type:       'alarm_cancel',
+              alarm_id:   String(alarm.id),
+              channel_id: String(channelId),
+            },
+            fcmServiceAccount,
+            fcmProjectId
+          ).catch(() => {})
+        )
+        c.executionCtx?.waitUntil(Promise.all(cancelPromises))
+      }
+    }
+
     return c.json({ success: true, message: 'Left channel successfully' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
