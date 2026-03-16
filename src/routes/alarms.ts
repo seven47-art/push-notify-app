@@ -838,6 +838,46 @@ alarms.get('/logs', async (c) => {
 })
 
 // =============================================
+// POST /api/alarms/inbox/bulk-delete  - 수신함 로그 선택 삭제 (본인 것만)
+// =============================================
+alarms.post('/inbox/bulk-delete', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const { log_ids } = await c.req.json() as { log_ids: number[] }
+    if (!Array.isArray(log_ids) || log_ids.length === 0)
+      return c.json({ success: false, error: 'log_ids 필수' }, 400)
+    const placeholders = log_ids.map(() => '?').join(',')
+    await c.env.DB.prepare(
+      `DELETE FROM alarm_logs WHERE id IN (${placeholders}) AND receiver_id = ?`
+    ).bind(...log_ids, user.id).run()
+    return c.json({ success: true, deleted: log_ids.length })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// POST /api/alarms/outbox/bulk-delete  - 발신함 로그 선택 삭제 (본인 것만)
+// =============================================
+alarms.post('/outbox/bulk-delete', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const { log_ids } = await c.req.json() as { log_ids: number[] }
+    if (!Array.isArray(log_ids) || log_ids.length === 0)
+      return c.json({ success: false, error: 'log_ids 필수' }, 400)
+    const placeholders = log_ids.map(() => '?').join(',')
+    await c.env.DB.prepare(
+      `DELETE FROM alarm_logs WHERE id IN (${placeholders}) AND sender_id = ?`
+    ).bind(...log_ids, user.id).run()
+    return c.json({ success: true, deleted: log_ids.length })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // POST /api/alarms/logs/bulk-delete  - 알람 로그 선택 삭제 (관리자용)
 // =============================================
 alarms.post('/logs/bulk-delete', async (c) => {
