@@ -1,4 +1,4 @@
-// public/static/mobile-app.js  v20
+// public/static/mobile-app.js  v21
 // RinGo 모바일 웹 앱
 
 const API = axios.create({ baseURL: '/api' })
@@ -2031,74 +2031,83 @@ const App = {
     this._loadAlarmList(chId)
   },
 
-  // 알람 목록 로드 및 표시
+  // 알람 상태(state) - 서버에서 받은 active 알람 목록 보관
+  _alarmList: [],
+
+  // 알람 목록 로드 및 표시 (state 기반 렌더링)
   async _loadAlarmList(chId) {
-    const section    = document.getElementById('alarm-list-section')
-    const body       = document.getElementById('alarm-list-body')
+    const section     = document.getElementById('alarm-list-section')
+    const body        = document.getElementById('alarm-list-body')
     const settingWrap = document.getElementById('alarm-setting-wrap')
     const bottomBtns  = document.getElementById('alarm-bottom-btns')
     if (!section || !body) return
     try {
-      const res  = await API.get('/alarms?channel_id=' + chId)
-      // 서버에서 이미 지난 알람을 자동 삭제해서 반환하지만,
-      // 혹시 남아있는 경우를 대비해 프론트에서도 과거 알람 필터링
-      const now  = new Date()
-      const list = (res.data?.data || []).filter(a => {
-        if (a.status !== 'pending' && a.status !== 'triggered') return false
-        // 이미 지난 알람: 클라이언트에서 즉시 삭제 요청 (fire-and-forget, 에러 무시)
-        if (new Date(a.scheduled_at) < now) {
-          API.delete('/alarms/' + a.id).then(() => {
-            this._invalidateOutboxCache()  // 삭제 성공 시에만 캐시 무효화
-          }).catch(() => {})  // 404 등 이미 삭제된 경우 무시
-          return false
-        }
-        return true
-      })
-
-      // 기존 "+ 알람 추가하기" 버튼 제거 (재렌더 시 중복 방지)
-      document.getElementById('alarm-add-btn-wrap')?.remove()
-
-      if (list.length === 0) {
-        // 알람 없음 → 목록 숨기고 설정 섹션 전체 표시
-        section.style.display = 'none'
-        if (settingWrap) settingWrap.style.display = ''
-        if (bottomBtns)  bottomBtns.style.display  = ''
-        return
-      }
-
-      // 알람 있음 → 목록 표시, 설정 섹션 전체(콘텐츠/연결URL/날짜시간/확인버튼) 숨김
-      section.style.display = 'block'
-      if (settingWrap) settingWrap.style.display = 'none'
-      if (bottomBtns)  bottomBtns.style.display  = 'none'
-
-      const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
-      body.innerHTML = list.map(alarm => {
-        const dt = new Date(alarm.scheduled_at)
-        const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
-        const timeStr = dt.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' })
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-          <div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);">⏰ ${dateStr} ${timeStr}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:2px;">${srcLabel[alarm.msg_type] || alarm.msg_type} · 대상 ${alarm.total_targets}명</div>
-          </div>
-          <button onclick="App._cancelAlarm(${alarm.id})" style="background:rgba(255,59,48,0.15);border:none;border-radius:8px;padding:6px 12px;color:#FF3B30;font-size:12px;cursor:pointer;">
-            <i class="fas fa-trash"></i> 삭제
-          </button>
-        </div>`
-      }).join('')
-
-      // "+ 알람 추가하기" 버튼 삽입 (3개 미만일 때만)
-      if (list.length < 3) {
-        const btnWrap = document.createElement('div')
-        btnWrap.id = 'alarm-add-btn-wrap'
-        btnWrap.style.cssText = 'padding:14px 14px 4px;'
-        btnWrap.innerHTML = `<button onclick="App._showAlarmAddArea()" style="width:100%;padding:12px;border:2px dashed var(--teal,#00BCD4);border-radius:12px;background:transparent;color:var(--teal,#00BCD4);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-          <i class="fas fa-plus-circle"></i> 알람 추가하기
-        </button>`
-        section.appendChild(btnWrap)
-      }
+      const res = await API.get('/alarms?channel_id=' + chId)
+      console.log('[Alarm] GET /api/alarms?channel_id=' + chId, 'response:', res.data)
+      // 서버가 이미 만료 알람을 자동 삭제하고 반환 → 클라이언트 재삭제 불필요
+      // active 알람만 필터링 (서버 처리 보완용)
+      const now = new Date()
+      this._alarmList = (res.data?.data || []).filter(a =>
+        (a.status === 'pending' || a.status === 'triggered') &&
+        new Date(a.scheduled_at) >= now
+      )
+      this._renderAlarmList()
     } catch(e) {
+      console.error('[Alarm] _loadAlarmList error:', e)
+      if (section) section.style.display = 'none'
+    }
+  },
+
+  // 알람 목록 state → DOM 렌더링
+  _renderAlarmList() {
+    const section     = document.getElementById('alarm-list-section')
+    const body        = document.getElementById('alarm-list-body')
+    const settingWrap = document.getElementById('alarm-setting-wrap')
+    const bottomBtns  = document.getElementById('alarm-bottom-btns')
+    if (!section || !body) return
+
+    // 기존 "+ 알람 추가하기" 버튼 제거 (재렌더 시 중복 방지)
+    document.getElementById('alarm-add-btn-wrap')?.remove()
+
+    const list = this._alarmList
+    if (list.length === 0) {
+      // 알람 없음 → 목록 숨기고 설정 섹션 전체 표시
       section.style.display = 'none'
+      if (settingWrap) settingWrap.style.display = ''
+      if (bottomBtns)  bottomBtns.style.display  = ''
+      return
+    }
+
+    // 알람 있음 → 목록 표시, 설정 섹션(콘텐츠/연결URL/날짜시간/확인버튼) 숨김
+    section.style.display = 'block'
+    if (settingWrap) settingWrap.style.display = 'none'
+    if (bottomBtns)  bottomBtns.style.display  = 'none'
+
+    const srcLabel = { youtube:'YouTube', audio:'오디오', video:'비디오', file:'파일' }
+    body.innerHTML = list.map(alarm => {
+      const dt      = new Date(alarm.scheduled_at)
+      const dateStr = dt.toLocaleDateString('ko-KR', { month:'long', day:'numeric' })
+      const timeStr = dt.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' })
+      return `<div data-alarm-id="${alarm.id}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">⏰ ${dateStr} ${timeStr}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">${srcLabel[alarm.msg_type] || alarm.msg_type} · 대상 ${alarm.total_targets}명</div>
+        </div>
+        <button onclick="App._cancelAlarm(${alarm.id})" style="background:rgba(255,59,48,0.15);border:none;border-radius:8px;padding:6px 12px;color:#FF3B30;font-size:12px;cursor:pointer;">
+          <i class="fas fa-trash"></i> 삭제
+        </button>
+      </div>`
+    }).join('')
+
+    // "+ 알람 추가하기" 버튼 삽입 (3개 미만일 때만)
+    if (list.length < 3) {
+      const btnWrap = document.createElement('div')
+      btnWrap.id = 'alarm-add-btn-wrap'
+      btnWrap.style.cssText = 'padding:14px 14px 4px;'
+      btnWrap.innerHTML = `<button onclick="App._showAlarmAddArea()" style="width:100%;padding:12px;border:2px dashed var(--teal,#00BCD4);border-radius:12px;background:transparent;color:var(--teal,#00BCD4);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <i class="fas fa-plus-circle"></i> 알람 추가하기
+      </button>`
+      section.appendChild(btnWrap)
     }
   },
 
@@ -2114,54 +2123,77 @@ const App = {
     setTimeout(() => settingWrap?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   },
 
-  // 알람 취소
+  // 알람 취소 (state 기반 즉시 반영)
   async _cancelAlarm(alarmId) {
     if (!confirm('이 알람을 삭제하시겠습니까?')) return
+
+    console.log('[Alarm] DELETE /api/alarms/' + alarmId + '  (channel_id=' + currentAlarmChId + ')')
+
+    // ① 삭제 버튼 즉시 비활성화 (중복 클릭 방지)
+    const btn = document.querySelector(`[data-alarm-id="${alarmId}"] button`)
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5' }
+
+    let success = false
     try {
-      await API.delete('/alarms/' + alarmId)
-      toast('알람이 삭제됐습니다')
-      // 홈 캐시 + 채널 상세 캐시 + 발신함 캐시 무효화
-      Cache.del('home_' + Store.getUserId())
-      Cache.del('ch_detail_' + currentAlarmChId)
-      this._invalidateOutboxCache()
-
-      // ownedChannels 배열의 pending_alarm_count 즉시 갱신 → loadOwnedAll() 재렌더 시 반영
-      const oc = ownedChannels.find(c => c.id === currentAlarmChId)
-      if (oc && oc.pending_alarm_count > 0) {
-        oc.pending_alarm_count = Math.max(0, oc.pending_alarm_count - 1)
-        if (currentTab === 'owned-all') this.loadOwnedAll()
-        // 홈 탭 채널 미리보기도 재렌더
-        this._renderOwned()
-      }
-
-      // 알람 목록 재렌더 (null 안전하게 처리)
-      if (document.getElementById('alarm-list-section')) {
-        this._loadAlarmList(currentAlarmChId)
-      }
-      // 채널 소개 모달이 열려있으면 즉시 재렌더 (아이콘 즉시 반영)
-      const detailModal = document.getElementById('modal-channel-detail')
-      if (detailModal && detailModal.classList.contains('active')) {
-        const scroll = document.getElementById('ch-detail-scroll')
-        if (scroll) {
-          try {
-            const res = await API.get('/channels/' + currentAlarmChId)
-            const ch  = res.data?.data
-            if (ch) {
-              Cache.set('ch_detail_' + currentAlarmChId, ch)
-              this._renderChannelDetail(scroll, ch)
-              // ownedChannels 배열도 서버 값으로 정확히 동기화
-              const idx = ownedChannels.findIndex(c => c.id === currentAlarmChId)
-              if (idx !== -1) {
-                ownedChannels[idx] = { ...ownedChannels[idx], pending_alarm_count: ch.pending_alarm_count || 0 }
-                if (currentTab === 'owned-all') this.loadOwnedAll()
-                this._renderOwned()
-              }
-            }
-          } catch (_) {}
-        }
-      }
+      const res = await API.delete('/alarms/' + alarmId)
+      console.log('[Alarm] DELETE result:', res.status, res.data)
+      success = true
     } catch(e) {
-      toast('삭제 실패: ' + e.message, 3000)
+      // 404 = 이미 삭제됨 → 성공 처리
+      if (e.response && e.response.status === 404) {
+        console.warn('[Alarm] 404 - already deleted, treating as success')
+        success = true
+      } else {
+        console.error('[Alarm] DELETE error:', e)
+        toast('삭제 실패: ' + (e.response?.data?.error || e.message), 3000)
+        // 버튼 복구
+        if (btn) { btn.disabled = false; btn.style.opacity = '' }
+        return   // ③ 404가 아닌 에러 시 UI 갱신 금지
+      }
+    }
+
+    if (!success) return
+
+    // ② 성공 시에만 UI 갱신
+    toast('알람이 삭제됐습니다')
+
+    // state에서 즉시 제거 → 재렌더 (서버 재조회 불필요)
+    this._alarmList = this._alarmList.filter(a => a.id !== alarmId)
+    this._renderAlarmList()
+
+    // 캐시 무효화
+    Cache.del('home_' + Store.getUserId())
+    Cache.del('ch_detail_' + currentAlarmChId)
+    this._invalidateOutboxCache()
+
+    // ownedChannels pending_alarm_count 즉시 갱신
+    const oc = ownedChannels.find(c => c.id === currentAlarmChId)
+    if (oc && oc.pending_alarm_count > 0) {
+      oc.pending_alarm_count = Math.max(0, oc.pending_alarm_count - 1)
+      if (currentTab === 'owned-all') this.loadOwnedAll()
+      this._renderOwned()
+    }
+
+    // 채널 소개 모달이 열려있으면 서버 값으로 재렌더 (pending_alarm_count 아이콘 갱신)
+    const detailModal = document.getElementById('modal-channel-detail')
+    if (detailModal && detailModal.classList.contains('active')) {
+      const scroll = document.getElementById('ch-detail-scroll')
+      if (scroll) {
+        try {
+          const res = await API.get('/channels/' + currentAlarmChId)
+          const ch  = res.data?.data
+          if (ch) {
+            Cache.set('ch_detail_' + currentAlarmChId, ch)
+            this._renderChannelDetail(scroll, ch)
+            const idx = ownedChannels.findIndex(c => c.id === currentAlarmChId)
+            if (idx !== -1) {
+              ownedChannels[idx] = { ...ownedChannels[idx], pending_alarm_count: ch.pending_alarm_count || 0 }
+              if (currentTab === 'owned-all') this.loadOwnedAll()
+              this._renderOwned()
+            }
+          }
+        } catch (_) {}
+      }
     }
   },
   toggleAlarmInModal(btn) {
