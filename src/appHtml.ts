@@ -546,26 +546,8 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <div id="screen-wrap" style="display:none;">
 
   <!-- 홈 화면 -->
+  <!-- 홈화면 (배너 고정 + 메뉴 카드 그리드 스크롤) -->
   <div class="screen active" id="screen-home">
-    <!-- 나의 운영채널 -->
-    <div class="section-header" style="margin-top:8px;">
-      <span class="section-title">내 채널</span>
-      <button class="section-btn" onclick="App.openCreateChannel()"><i class="fas fa-plus"></i> 채널 만들기</button>
-    </div>
-    <div id="owned-list"></div>
-    <div id="owned-more" style="display:none;"></div>
-
-    <!-- 나의 가입채널 -->
-    <div class="section-header" style="margin-top:8px;">
-      <span class="section-title">구독 채널</span>
-    </div>
-    <div id="joined-list"></div>
-    <div id="joined-more" style="display:none;"></div>
-    <div style="height:12px;"></div>
-  </div>
-
-  <!-- 신홈화면 (배너 고정 + 메뉴 카드 그리드 스크롤) -->
-  <div class="screen" id="screen-home-new">
     <div class="new-home-wrap">
       <!-- 배너 (고정 영역) -->
       <div class="new-home-banner-wrap" id="new-home-banner-wrap">
