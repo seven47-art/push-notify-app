@@ -2846,7 +2846,7 @@ const App = {
         // 채널 나가기 시 관련 캐시 무효화
         this._invalidateAllFeedCache()
         this.closeModal('modal-channel-detail')
-        this.loadHome()
+        this.goto('joined-all')
       } else {
         toast(res.data?.error || '채널 나가기 실패', 3000)
       }
