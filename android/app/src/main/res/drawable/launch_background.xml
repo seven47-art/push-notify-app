@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 이하 splash - splash_icon.xml과 동일한 디자인 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 흰색 배경 -->
-    <item android:drawable="@color/splash_bg" />
-    <!-- 앱 아이콘 - 실제 앱 아이콘과 동일한 크기로 중앙 배치 -->
+    <item android:drawable="@android:color/white" />
+    <!-- 아이콘 60dp 중앙 고정 -->
     <item>
         <bitmap
-            android:src="@mipmap/ic_launcher"
+            android:src="@drawable/ringo_icon"
             android:gravity="center"
-            android:width="72dp"
-            android:height="72dp" />
+            android:width="60dp"
+            android:height="60dp" />
     </item>
 </layer-list>

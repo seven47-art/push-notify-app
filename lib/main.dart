@@ -228,11 +228,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // v3.2.0: 화면 표시 없이 투명 처리
-    // Android 시스템 스플래시(1번 화면)가 보이는 동안 백그라운드에서 세션 체크 완료
-    return const Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SizedBox.shrink(),
+    // v3.2.1: Android splash(1번 화면)와 완전 동일한 디자인
+    // 흰배경 + ringo_icon 60dp 중앙 - 텍스트/스피너 없음
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Image.asset(
+          'assets/images/ringo_icon.png',
+          width: 60,
+          height: 60,
+        ),
+      ),
     );
   }
 }
