@@ -51,11 +51,17 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // ─────────────────────────────────────────────────
 // 앱 시작점
 // ─────────────────────────────────────────────────
+// ── [PERF] 타이밍 헬퍼 ──────────────────────────────
+final int _appStartMs = DateTime.now().millisecondsSinceEpoch;
+int _t() => DateTime.now().millisecondsSinceEpoch - _appStartMs;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('[PERF] app start  t=0ms');
 
   // Firebase 초기화
   await Firebase.initializeApp();
+  debugPrint('[PERF] Firebase init done  t=${_t()}ms');
 
   // FCM 백그라운드 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -71,6 +77,7 @@ void main() async {
   // 로컬 알림 초기화 (인앱 알림용)
   await _initLocalNotifications();
 
+  debugPrint('[PERF] runApp called  t=${_t()}ms');
   runApp(const RinGoApp());
 }
 
@@ -169,6 +176,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[PERF] SplashScreen build  t=${_t()}ms');
     _launch();
   }
 
@@ -176,22 +184,31 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 로그인 상태 → 토큰 유효성 → (업데이트/점검 체크 확장 가능) → 딥링크 확인 → 목적지 결정
   /// 강제 대기 없이 즉시 판단, WebView URL에 초기 파라미터 전달
   Future<void> _launch() async {
+    debugPrint('[PERF] _launch() start  t=${_t()}ms');
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('session_token') ?? '';
 
     // ── 1) 토큰 없음 → 로그인 화면
-    if (token.isEmpty) { _goAuth(); return; }
+    if (token.isEmpty) {
+      debugPrint('[PERF] _launch() → no token → /auth  t=${_t()}ms');
+      _goAuth(); return;
+    }
 
     // ── 2) 권한 설정 미완료 → 권한 화면
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
-    if (!permDone) { _goPermissions(); return; }
+    if (!permDone) {
+      debugPrint('[PERF] _launch() → no permissions → /permissions  t=${_t()}ms');
+      _goPermissions(); return;
+    }
 
     // ── 3) 토큰 유효성 확인 (서버, 실패 시 오프라인 허용)
+    debugPrint('[PERF] _launch() token check start  t=${_t()}ms');
     try {
       final res = await http.get(
         Uri.parse('$_baseUrl/api/auth/me'),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 5)); // 8초→5초로 단축
+      debugPrint('[PERF] _launch() token check done  status=${res.statusCode}  t=${_t()}ms');
 
       if (res.statusCode == 401 || res.statusCode == 403) {
         await prefs.remove('session_token');
@@ -199,7 +216,8 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
       // 200 외 (500, 네트워크 오류 등) → 오프라인 허용, 메인으로
-    } catch (_) {
+    } catch (err) {
+      debugPrint('[PERF] _launch() token check error/timeout: $err  t=${_t()}ms');
       // 네트워크 없음 / 타임아웃 → 저장된 토큰으로 진행
     }
 
@@ -211,6 +229,7 @@ class _SplashScreenState extends State<SplashScreen> {
           .invokeMethod<String?>('getInitialToken');
     } catch (_) {}
 
+    debugPrint('[PERF] _launch() end → /main  deepLink=${deepLinkToken != null}  t=${_t()}ms');
     // ── 5) 목적지 결정: 딥링크 있으면 파라미터 포함한 URL로 WebView 진입
     _goMain(deepLinkToken: deepLinkToken);
   }
@@ -264,9 +283,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   // SplashScreen에서 전달받은 초기 딥링크 토큰 (onPageFinished 후 처리)
   String? _pendingInitialDeepLink;
 
+  // ── WebView 생성 카운터 (재생성 감지) ──
+  static int _webViewCreateCount = 0;
+
   @override
   void initState() {
     super.initState();
+    debugPrint('[PERF] WebViewScreen initState  t=${_t()}ms');
     WidgetsBinding.instance.addObserver(this);
     _initWebView();
     _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
@@ -284,7 +307,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   }
 
   // ── 세션 토큰 웹뷰 localStorage 주입 (재시도 포함) ──
+  static int _injectSessionCount = 0;
   Future<void> _injectSession() async {
+    _injectSessionCount++;
+    debugPrint('[PERF] _injectSession() call #$_injectSessionCount  t=${_t()}ms');
     final prefs       = await SharedPreferences.getInstance();
     final token       = prefs.getString('session_token') ?? '';
     if (token.isEmpty) return;
@@ -328,12 +354,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 })();
 """;
     await _controller.runJavaScript(js);
+    debugPrint('[PERF] _injectSession() done #$_injectSessionCount  t=${_t()}ms');
     // 500ms 재시도 제거:
     // mobile-app.js가 Flutter 환경을 감지해 auth-screen을 미리 숨기고
     // flutterSetSession 호출만 기다리므로 재시도 불필요.
   }
 
   void _initWebView() {
+    _webViewCreateCount++;
+    debugPrint('[PERF] WebView create #$_webViewCreateCount  t=${_t()}ms');
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
@@ -345,14 +374,19 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) => setState(() {
+          onPageStarted: (url) => setState(() {
+            debugPrint('[PERF] onPageStarted  initialDone=$_initialLoadDone  t=${_t()}ms  url=$url');
             // 최초 로드 전에만 전체화면 로딩 표시
             // 이후 WebView 내 페이지 이동(SPA 내부 goto)에서는 로딩 안 띄움
             if (!_initialLoadDone) _loading = true;
             _hasError = false;
           }),
-          onProgress:    (p) => setState(() => _loadingProgress = p),
-          onPageFinished: (_) async {
+          onProgress: (p) {
+            setState(() => _loadingProgress = p);
+            if (p == 100) debugPrint('[PERF] onProgress 100%  t=${_t()}ms');
+          },
+          onPageFinished: (url) async {
+            debugPrint('[PERF] onPageFinished  t=${_t()}ms  url=$url');
             setState(() { _loading = false; _initialLoadDone = true; });
             // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
             await _injectSession();
@@ -386,7 +420,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       )
       ..loadRequest(Uri.parse(_appUrl));
 
-    // SplashScreen에서 전달한 딥링크 토큰 처리
+    debugPrint('[PERF] WebView loadRequest sent  url=$_appUrl  t=${_t()}ms');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final deepLinkToken = ModalRoute.of(context)?.settings.arguments as String?;
       if (deepLinkToken != null && deepLinkToken.isNotEmpty) {
