@@ -143,7 +143,6 @@ class RinGoApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF0F0C29),
       ),
       home: const SplashScreen(),
       routes: {
@@ -228,7 +227,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // v3.2.4: Flutter SplashScreen UI 제거 - 로직(_launch)만 실행
+    // 로딩 UI 없음 - _launch() 로직만 실행 후 즉시 목적지로 이동
     return const SizedBox.shrink();
   }
 }
@@ -1412,7 +1411,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFF121212),
         body: SafeArea(
           child: Stack(
             children: [
