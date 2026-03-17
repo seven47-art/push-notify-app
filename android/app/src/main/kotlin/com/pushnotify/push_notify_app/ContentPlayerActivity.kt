@@ -285,8 +285,9 @@ class ContentPlayerActivity : Activity() {
 
             // ── 오디오 (WebView 재생 + 이퀄라이저 애니메이션 UI) ─────────────────────
             "audio" -> {
+                // 정책: processed URL(m4a)만 재생 — contentUrl 우선, 없으면 msgValue
                 val audioUrl = contentUrl.ifEmpty { msgValue }
-                Log.d(TAG, "오디오 WebView URL: $audioUrl")
+                Log.d(TAG, "오디오 WebView URL: $audioUrl (processed m4a)")
 
                 // 배경: 딥 퍼플 그라디언트 컨테이너
                 val audioContainer = FrameLayout(this).apply {
@@ -454,8 +455,9 @@ class ContentPlayerActivity : Activity() {
 
             // ── 비디오 (WebView로 직접 재생 - 세이투두 방식) ─────────────────────────
             "video" -> {
+                // 정책: processed URL(mp4 + faststart)만 재생 — contentUrl 우선, 없으면 msgValue
                 val videoUrl = contentUrl.ifEmpty { msgValue }
-                Log.d(TAG, "비디오 WebView URL: $videoUrl")
+                Log.d(TAG, "비디오 WebView URL: $videoUrl (processed mp4+faststart)")
 
                 webView = WebView(this).apply {
                     layoutParams = playerParams
@@ -515,7 +517,7 @@ class ContentPlayerActivity : Activity() {
                     )
                 })
                 msgView.addView(TextView(this).apply {
-                    text = "지원하지 않는 파일 형식입니다\n(mp3, mp4만 지원)"
+                    text = "지원하지 않는 파일 형식입니다\n(mp4, m4a만 지원)"
                     textSize = 15f
                     setTextColor(Color.parseColor("#94A3B8"))
                     gravity = Gravity.CENTER

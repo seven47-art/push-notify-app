@@ -1,0 +1,17 @@
+{
+  "name": "ringo-media-converter",
+  "version": "1.0.0",
+  "description": "RinGo 미디어 변환 Cloud Run 서비스 - ffprobe 분석 + ffmpeg 변환",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@google-cloud/storage": "^7.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

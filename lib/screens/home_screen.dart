@@ -1,6 +1,9 @@
 // lib/screens/home_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import 'create_channel_screen.dart';
 import 'join_channel_screen.dart';
@@ -472,7 +475,7 @@ class _DrawerSheet extends StatelessWidget {
       _DrawerItem(icon: Icons.group_add_outlined,    label: '채널 참여',     onTap: onJoinChannel),
       _DrawerItem(icon: Icons.privacy_tip_outlined,  label: '개인정보보호정책',
           onTap: () { Navigator.pop(context); }),
-      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.48',
+      _DrawerItem(icon: Icons.info_outline,          label: '버전 v1.0.49',
           onTap: () { Navigator.pop(context); }),
     ];
 
@@ -537,11 +540,23 @@ class _AlarmSheetState extends State<_AlarmSheet> {
   int _hour = 9, _min = 0;
   final _urlCtrl = TextEditingController();
 
+  // ── 파일 첨부 관련 상태 ──
+  File?   _pickedFile;        // 선택된 파일
+  String? _pickedFileName;    // 파일명 표시용
+  int?    _uploadedFileId;    // 업로드 후 받은 file_id
+  String? _processedUrl;      // 변환 완료 URL (알람에 저장할 값)
+  String  _uploadStatus = ''; // UI 상태 메시지
+  bool    _isUploading  = false;
+
+  // 허용 확장자
+  static const _allowedVideoExts = ['mp4', 'mov'];
+  static const _allowedAudioExts = ['mp3', 'm4a', 'wav'];
+  static const _maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+
   final _sources = [
     {'id': 'youtube', 'label': 'YouTube URL',  'icon': Icons.play_circle_fill, 'color': Color(0xFFFF0000)},
-    {'id': 'audio',   'label': '오디오 녹음',    'icon': Icons.mic,              'color': Color(0xFF4CAF50)},
-    {'id': 'video',   'label': '비디오 녹음',    'icon': Icons.videocam,         'color': Color(0xFF2196F3)},
-    {'id': 'file',    'label': '파일 첨부',      'icon': Icons.attach_file,      'color': Color(0xFF9C27B0)},
+    {'id': 'audio',   'label': '오디오 파일',    'icon': Icons.audiotrack,       'color': Color(0xFF4CAF50)},
+    {'id': 'video',   'label': '비디오 파일',    'icon': Icons.videocam,         'color': Color(0xFF2196F3)},
   ];
 
   @override
@@ -555,6 +570,152 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 
   @override
   void dispose() { _urlCtrl.dispose(); super.dispose(); }
+
+  // ── 파일 선택 ─────────────────────────────────────────────────
+  Future<void> _pickFile() async {
+    final allExts = [..._allowedVideoExts, ..._allowedAudioExts];
+    final result = await FilePicker.platform.pickFiles(
+      type:           FileType.custom,
+      allowedExtensions: allExts,
+      allowMultiple:  false,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final pf   = result.files.first;
+    final ext  = (pf.extension ?? '').toLowerCase();
+    final size = pf.size;
+
+    // 확장자 검증
+    if (!allExts.contains(ext)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('허용되지 않는 형식입니다. (mp4, mov, mp3, m4a, wav)'),
+          backgroundColor: Colors.red,
+        ));
+      }
+      return;
+    }
+
+    // 파일 크기 1차 검증
+    if (size > _maxFileSizeBytes) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('파일 크기가 10MB를 초과합니다 (${(size / 1024 / 1024).toStringAsFixed(1)}MB)'),
+          backgroundColor: Colors.red,
+        ));
+      }
+      return;
+    }
+
+    setState(() {
+      _pickedFile     = File(pf.path!);
+      _pickedFileName = pf.name;
+      _uploadedFileId = null;
+      _processedUrl   = null;
+      _uploadStatus   = '파일 선택됨';
+      _isUploading    = false;
+    });
+  }
+
+  // ── Firebase Storage 직접 업로드 + 변환 대기 ─────────────────
+  Future<void> _uploadFile() async {
+    if (_pickedFile == null || _pickedFileName == null) return;
+
+    final prefs       = await SharedPreferences.getInstance();
+    final sessionToken = prefs.getString('session_token') ?? '';
+    if (sessionToken.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다'), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() { _isUploading = true; _uploadStatus = '업로드 준비 중...'; });
+
+    try {
+      final fileSize = await _pickedFile!.length();
+
+      // 1) 서버에서 Signed Upload URL + file_id 발급
+      final prepareResult = await ApiService.prepareFileUpload(
+        sessionToken: sessionToken,
+        fileName:     _pickedFileName!,
+        fileSize:     fileSize,
+      );
+      if (prepareResult['success'] != true) {
+        throw Exception(prepareResult['error'] ?? '업로드 준비 실패');
+      }
+
+      final fileId      = prepareResult['file_id']      as int;
+      final uploadUrl   = prepareResult['upload_url']   as String;
+      final contentType = prepareResult['content_type'] as String;
+      final bucket      = prepareResult['bucket']       as String;
+      final origPath    = prepareResult['original_path'] as String;
+
+      if (mounted) setState(() => _uploadStatus = 'Firebase Storage 업로드 중...');
+
+      // 2) Firebase Storage 직접 PUT 업로드
+      final uploadOk = await ApiService.uploadFileToStorage(
+        uploadUrl:   uploadUrl,
+        file:        _pickedFile!,
+        contentType: contentType,
+      );
+      if (!uploadOk) throw Exception('파일 업로드 실패');
+
+      // 원본 다운로드 URL 생성
+      final encodedPath  = Uri.encodeComponent(origPath);
+      final originalUrl  = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+
+      // 3) 서버에 업로드 완료 신호 (status = processing)
+      await ApiService.completeFileUpload(
+        sessionToken: sessionToken,
+        fileId:       fileId,
+        originalUrl:  originalUrl,
+      );
+
+      if (mounted) setState(() {
+        _uploadedFileId = fileId;
+        _uploadStatus   = '변환 처리 중... (최대 1~2분 소요)';
+      });
+
+      // 4) 변환 완료까지 폴링 (최대 120초)
+      final finalStatus = await ApiService.waitForFileReady(
+        sessionToken:   sessionToken,
+        fileId:         fileId,
+        timeoutSec:     120,
+        onStatusChange: (s) {
+          if (mounted) setState(() {
+            _uploadStatus = switch (s) {
+              'processing' => '변환 처리 중...',
+              'ready'      => '변환 완료!',
+              'failed'     => '변환 실패',
+              _            => s,
+            };
+          });
+        },
+      );
+
+      if (finalStatus == null) {
+        throw Exception('변환 시간 초과 (120초). 잠시 후 다시 시도해 주세요.');
+      }
+      if (finalStatus.isFailed) {
+        throw Exception(finalStatus.errorMessage ?? '파일 변환에 실패했습니다');
+      }
+
+      // 5) 완료
+      setState(() {
+        _processedUrl = finalStatus.processedUrl;
+        _uploadStatus = '✅ 변환 완료 (${finalStatus.durationSec?.toStringAsFixed(1) ?? '?'}초)';
+        _isUploading  = false;
+      });
+
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadStatus = '❌ ${e.toString()}';
+          _isUploading  = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -675,6 +836,9 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                             ),
                           ),
                         ),
+                      // ── 오디오/비디오 파일 첨부 UI ──
+                      if (_selectedSrc == 'audio' || _selectedSrc == 'video')
+                        _buildFileUploadWidget(),
                     ]),
                   ),
 
@@ -752,8 +916,13 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      onPressed: _save,
-                      child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      onPressed: (_isSaving || _isUploading) ? null : _save,
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                            )
+                          : const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ]),
@@ -765,7 +934,11 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     );
   }
 
-  void _save() {
+  bool _isSaving = false;
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+
     final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _hour, _min);
     if (dt.isBefore(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -777,7 +950,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
         const SnackBar(content: Text('YouTube URL을 입력하세요'), backgroundColor: Colors.red));
       return;
     }
-    // 연결 URL https 검증
+    // YouTube URL https 검증
     final inputUrl = _urlCtrl.text.trim();
     if (_selectedSrc == 'youtube' && inputUrl.isNotEmpty && !inputUrl.startsWith('https://')) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -789,12 +962,178 @@ class _AlarmSheetState extends State<_AlarmSheet> {
       );
       return;
     }
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
-          '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}'),
-      backgroundColor: _teal,
-    ));
+
+    // 파일 타입 검증 — 변환 완료된 URL이 있어야 저장 가능
+    if ((_selectedSrc == 'audio' || _selectedSrc == 'video') && _processedUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_pickedFile == null
+              ? '파일을 선택하고 업로드해 주세요'
+              : _isUploading
+                  ? '변환 처리 중입니다. 잠시 기다려 주세요.'
+                  : '파일 업로드 후 변환이 완료되면 저장할 수 있습니다'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // msg_value 결정
+    final msgValue = (_selectedSrc == 'audio' || _selectedSrc == 'video')
+        ? (_processedUrl ?? '')
+        : inputUrl;
+
+    // 세션 토큰 확인
+    final prefs        = await SharedPreferences.getInstance();
+    final sessionToken = prefs.getString('session_token') ?? '';
+    if (sessionToken.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다'), backgroundColor: Colors.red));
+      }
+      return;
+    }
+
+    // 저장 중 표시
+    setState(() => _isSaving = true);
+
+    try {
+      // UTC ISO8601 문자열 변환
+      final scheduledAt = dt.toUtc().toIso8601String();
+
+      final result = await ApiService.createAlarm(
+        sessionToken: sessionToken,
+        channelId:    widget.channelId,
+        scheduledAt:  scheduledAt,
+        msgType:      _selectedSrc,   // 'youtube' | 'audio' | 'video'
+        msgValue:     msgValue,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
+              '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}'),
+          backgroundColor: _teal,
+        ));
+      } else {
+        final errMsg = result['error'] as String? ?? '알람 저장에 실패했습니다';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(errMsg),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('오류: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  // ── 파일 업로드 UI 위젯 ─────────────────────────────────────
+  Widget _buildFileUploadWidget() {
+    final isAudio    = _selectedSrc == 'audio';
+    final typeLabel  = isAudio ? '오디오' : '비디오';
+    final allowedExt = isAudio
+        ? 'mp3, m4a, wav'
+        : 'mp4, mov';
+    final typeColor  = isAudio ? const Color(0xFF4CAF50) : const Color(0xFF2196F3);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 허용 형식 안내
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: typeColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: typeColor.withOpacity(0.3)),
+            ),
+            child: Row(children: [
+              Icon(Icons.info_outline, color: typeColor, size: 14),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                '허용: $allowedExt  |  최대 10MB  |  최대 30초',
+                style: TextStyle(color: typeColor, fontSize: 11),
+              )),
+            ]),
+          ),
+          const SizedBox(height: 10),
+
+          // 파일 선택 버튼
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: typeColor,
+                  side: BorderSide(color: typeColor.withOpacity(0.6)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.folder_open, size: 18),
+                label: Text(
+                  _pickedFileName ?? '$typeLabel 파일 선택',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                onPressed: _isUploading ? null : _pickFile,
+              ),
+            ),
+            // 파일 선택 후 업로드 버튼 표시
+            if (_pickedFile != null && _processedUrl == null && !_isUploading) ...[
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: typeColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.upload, size: 18),
+                label: const Text('업로드', style: TextStyle(fontSize: 13)),
+                onPressed: _uploadFile,
+              ),
+            ],
+          ]),
+
+          // 상태 표시
+          if (_uploadStatus.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              if (_isUploading)
+                const SizedBox(
+                  width: 14, height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
+                ),
+              if (_isUploading) const SizedBox(width: 8),
+              Expanded(child: Text(
+                _uploadStatus,
+                style: TextStyle(
+                  color: _uploadStatus.startsWith('✅')
+                      ? _teal
+                      : _uploadStatus.startsWith('❌')
+                          ? Colors.red
+                          : _text2,
+                  fontSize: 12,
+                ),
+              )),
+            ]),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _card({required String title, required Widget child}) {
