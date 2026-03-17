@@ -228,8 +228,31 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // v3.2.2: 커스텀 UI 전면 제거 - 완전 투명, 로직(_launch)만 실행
-    return const SizedBox.shrink();
+    // v3.2.3: Android native splash와 동일한 디자인
+    // 흰 배경 + RinGo 로딩 전용 로고 중앙 + 하단 스피너만
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Spacer(),
+          // 로딩 전용 로고 - Android splash와 동일한 크기감 (200dp 기준)
+          Image.asset(
+            'assets/images/splash_logo.png',
+            width: 200,
+          ),
+          const Spacer(),
+          // 하단 스피너 (1번 화면과의 유일한 차이)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 60),
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9A3C)),
+              strokeWidth: 2.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
