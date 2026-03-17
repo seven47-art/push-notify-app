@@ -791,6 +791,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     final sessionToken = prefs.getString('session_token') ?? '';
 
     final uri = Uri.parse('$_baseUrl/api/uploads/alarm-file');
+    debugPrint('[_uploadToWorker] POST $uri fileName=$fileName contentType=$contentType');
+
     final request = http.MultipartRequest('POST', uri);
     request.fields['session_token'] = sessionToken;
     request.files.add(await http.MultipartFile.fromPath(
@@ -799,8 +801,21 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       contentType: MediaType.parse(contentType),
     ));
 
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(const Duration(minutes: 3));
     final body = await streamed.stream.bytesToString();
+    debugPrint('[_uploadToWorker] status=${streamed.statusCode} body=${body.length > 200 ? body.substring(0, 200) : body}');
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      // 200 범위 밖이면 JSON 파싱 시도 후 오류 반환
+      try {
+        final errJson = jsonDecode(body) as Map<String, dynamic>;
+        throw Exception('업로드 실패 (${streamed.statusCode}): ${errJson['error'] ?? body}');
+      } catch (parseErr) {
+        if (parseErr is Exception && parseErr.toString().startsWith('Exception: 업로드 실패')) rethrow;
+        throw Exception('업로드 실패 (${streamed.statusCode}): $body');
+      }
+    }
+
     final json = jsonDecode(body) as Map<String, dynamic>;
     if (json['success'] == true && json['url'] != null) {
       return json['url'] as String;

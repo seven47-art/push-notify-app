@@ -421,6 +421,88 @@ uploads.patch('/:id/status', async (c) => {
 })
 
 // =============================================
+// POST /api/uploads/alarm-file
+// Flutter main.dart의 _uploadToWorker가 호출하는 엔드포인트
+// multipart/form-data로 파일을 받아 Firebase Storage에 업로드 후 URL 반환
+//
+// FormData: session_token (field), file (file)
+// Response: { success, url }
+// =============================================
+uploads.post('/alarm-file', async (c) => {
+  try {
+    const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    if (!serviceAccountJson) {
+      return c.json({ success: false, error: 'Firebase 서비스 계정 미설정' }, 500)
+    }
+
+    const formData = await c.req.formData()
+    const sessionToken = formData.get('session_token') as string || ''
+    const file = formData.get('file') as File | null
+
+    // 세션 검증
+    if (!sessionToken) return c.json({ success: false, error: '인증 토큰 필수' }, 401)
+    const userId = await getUserIdFromSession(c.env.DB, sessionToken)
+    if (!userId) return c.json({ success: false, error: '세션 만료 또는 유효하지 않음' }, 401)
+
+    if (!file) return c.json({ success: false, error: '파일 없음' }, 400)
+
+    // 확장자 검증
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!ALLOWED_EXTS.includes(ext)) {
+      return c.json({
+        success: false,
+        error: `허용되지 않는 파일 형식입니다. 허용: ${ALLOWED_EXTS.join(', ')}`,
+      }, 400)
+    }
+
+    // 파일 크기 검증
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return c.json({ success: false, error: `파일 크기가 10MB를 초과합니다` }, 400)
+    }
+
+    // Firebase Storage 경로 설정
+    const sa = JSON.parse(serviceAccountJson)
+    const bucket = `${sa.project_id || c.env.FCM_PROJECT_ID}.firebasestorage.app`
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const storagePath = `alarm-files/${userId}/${Date.now()}_${sanitizedName}`
+    const encodedPath = encodeURIComponent(storagePath)
+
+    // Firebase Storage에 직접 업로드
+    const accessToken = await getStorageAccessToken(serviceAccountJson)
+    const fileBytes = await file.arrayBuffer()
+    const contentType = EXT_TO_MIME[ext] || file.type || 'application/octet-stream'
+
+    const uploadRes = await fetch(
+      `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodedPath}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': contentType,
+          'Content-Length': String(fileBytes.byteLength),
+        },
+        body: fileBytes,
+      }
+    )
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text()
+      console.error('[alarm-file 업로드 실패]', uploadRes.status, errText)
+      return c.json({ success: false, error: `Storage 업로드 실패: ${uploadRes.status}` }, 500)
+    }
+
+    // 다운로드 URL 구성
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`
+
+    console.log(`[alarm-file] 업로드 완료: userId=${userId} path=${storagePath}`)
+    return c.json({ success: true, url: downloadUrl })
+  } catch (e: any) {
+    console.error('[uploads/alarm-file 오류]', e)
+    return c.json({ success: false, error: e.message || '업로드 실패' }, 500)
+  }
+})
+
+// =============================================
 // DELETE /api/uploads/:id
 // 파일 레코드 + Storage 원본/변환 파일 삭제
 // =============================================
