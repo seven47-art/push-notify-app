@@ -325,21 +325,25 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:rgba(40,40,60,0.95); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:500; opacity:0; transition:all 0.25s; pointer-events:none; white-space:nowrap; z-index:999; }
 #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
-/* ── 로딩 풀스크린 (Flutter WebView 진입 시 세션 주입 전 표시) ── */
+/* ── 로그인/회원가입 풀스크린 ── */
 #auth-screen {
   position:fixed; inset:0; z-index:1000;
-  background:#FFFFFF;
+  background:linear-gradient(160deg,#0D0D1A 0%,#1A1028 50%,#0D0D1A 100%);
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:0 28px; overflow-y:auto;
 }
 #auth-screen.hidden { display:none; }
 
 .auth-logo-wrap {
-  display:flex; flex-direction:column; align-items:center; gap:10px;
+  display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:32px;
 }
 .auth-logo-icon {
-  display:flex; align-items:center; justify-content:center;
+  width:80px; height:80px; border-radius:22px;
+  overflow:hidden;
+  box-shadow:0 8px 32px rgba(255,107,107,0.35);
 }
+.auth-app-title { font-size:26px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
+.auth-app-sub { font-size:13px; color:#8888AA; margin-top:-4px; }
 
 /* 탭 전환 */
 .auth-tab-bar {
@@ -488,17 +492,19 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </head>
 <body>
 
-<!-- ══ 로딩 화면 (Flutter WebView 세션 주입 전 표시) ══ -->
+<!-- ══ 로그인 / 회원가입 화면 ══ -->
 <div id="auth-screen">
-  <!-- 로딩 전용 로고 -->
+  <!-- 로고 -->
   <div class="auth-logo-wrap">
     <div class="auth-logo-icon">
-      <img src="/static/splash_logo.png" style="width:200px;object-fit:contain;display:block;">
+      <img src="/static/ringo-icon.png" style="width:80px;height:80px;border-radius:22px;object-fit:cover;display:block;">
     </div>
+    <div class="auth-app-title">RinGo</div>
+    <div class="auth-app-sub">채널 알림 구독 서비스</div>
   </div>
   <!-- 로딩 스피너 -->
-  <div style="margin-top:48px;">
-    <i class="fas fa-spinner spin" style="font-size:24px;color:#FF9A3C;"></i>
+  <div style="margin-top:32px;">
+    <i class="fas fa-spinner spin" style="font-size:28px;color:rgba(255,255,255,0.5);"></i>
   </div>
   <!-- 숨겨진 폼 입력 (JS 참조용, 표시 안 됨) -->
   <div style="display:none;">
