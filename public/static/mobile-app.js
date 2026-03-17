@@ -1,8 +1,44 @@
 // public/static/mobile-app.js  v30
 // RinGo 모바일 웹 앱
 
+// ── [PERF] 타이밍 측정 유틸 ──────────────────────────────────
+;(function() {
+  window._PERF_T0 = Date.now()
+  window._PERF_gotoCount   = 0
+  window._PERF_loadHomeCount = 0
+  window._PERF_loadNewHomeCount = 0
+  window._PERF_apiCallCount = 0
+  window._pt = (label) => {
+    const ms = Date.now() - window._PERF_T0
+    console.log('[PERF] ' + label + '  t=' + ms + 'ms')
+  }
+  window._pt('JS module eval start')
+})()
+// ────────────────────────────────────────────────────────────
+
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
+
+// ── [PERF] API 호출 카운터 인터셉터 ─────────────────
+API.interceptors.request.use(config => {
+  window._PERF_apiCallCount = (window._PERF_apiCallCount || 0) + 1
+  if (window._pt) window._pt('API #' + window._PERF_apiCallCount + ' → ' + config.method?.toUpperCase() + ' ' + config.url)
+  config._perfStart = Date.now()
+  return config
+})
+API.interceptors.response.use(
+  res => {
+    const ms = Date.now() - (res.config._perfStart || Date.now())
+    if (window._pt) window._pt('API #' + window._PERF_apiCallCount + ' ← ' + res.status + ' ' + res.config.url + '  ' + ms + 'ms')
+    return res
+  },
+  err => {
+    const ms = Date.now() - (err.config?._perfStart || Date.now())
+    if (window._pt) window._pt('API ERR ← ' + (err.response?.status||'?') + ' ' + (err.config?.url||'?') + '  ' + ms + 'ms')
+    return Promise.reject(err)
+  }
+)
+// ─────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
 // 스토어 (세션 기반 인증 통합)
@@ -326,6 +362,8 @@ const App = {
 
   // ── 탭 이동 ──────────────────────────────
   goto(tab) {
+    window._PERF_gotoCount++
+    window._pt('App.goto("' + tab + '") call #' + window._PERF_gotoCount + (tab==='home'?' ← HOME':''))
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
     const screen = document.getElementById('screen-' + tab)
@@ -464,6 +502,8 @@ const App = {
   },
 
   async _loadNewHome() {
+    window._PERF_loadNewHomeCount++
+    window._pt('_loadNewHome() call #' + window._PERF_loadNewHomeCount)
     const grid = document.getElementById('new-home-grid')
     if (!grid) return
 
@@ -620,12 +660,16 @@ const App = {
 
   // ── 홈 화면 ──────────────────────────────
   async loadHome() {
+    window._PERF_loadHomeCount++
+    window._pt('loadHome() call #' + window._PERF_loadHomeCount)
+    const _lhStart = Date.now()
 
     // 공지 뱃지 체크
     this.checkNoticesBadge()
 
     const uid = Store.getUserId()
     if (!uid) {
+      window._pt('loadHome() uid=null → _loadNewHome() (no API)')
       this._loadNewHome()
       return
     }
@@ -633,6 +677,7 @@ const App = {
     // 캐시 확인 → 있으면 즉시 렌더 후 백그라운드 갱신
     const cacheKey = 'home_' + uid
     const cached = Cache.get(cacheKey)
+    window._pt('loadHome() cache=' + (cached ? 'HIT' : 'MISS') + '  uid=' + uid)
     if (cached) {
       ownedChannels  = cached.owned
       joinedChannels = cached.joined
@@ -656,13 +701,19 @@ const App = {
     }
 
     if (!cached) {
+      window._pt('loadHome() → fetchData() AWAIT start (no cache)')
+      window._PERF_apiCallCount += 2
       await fetchData()
+      window._pt('loadHome() → fetchData() done  apiCalls=' + window._PERF_apiCallCount)
     } else {
       fetchData() // 백그라운드 갱신
+      window._pt('loadHome() → fetchData() background (cache hit)')
     }
 
     // 신홈 메뉴 카드 렌더링
+    window._pt('loadHome() → _loadNewHome() start')
     this._loadNewHome()
+    window._pt('loadHome() done  elapsed=' + (Date.now()-_lhStart) + 'ms')
   },
 
   _renderOwned() {
@@ -3578,6 +3629,7 @@ async function pollAlarmTrigger() {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  window._pt('DOMContentLoaded fired')
   // localStorage 알림 3일 초과 항목 자동 삭제
   ;(function cleanOldNotifs() {
     try {
@@ -3602,15 +3654,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOMContentLoaded 시점에는 goto/loadHome 절대 호출하지 않음
   console.log('[RinGo] WebView created - DOMContentLoaded')
   const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
+  window._pt('isFlutterEnv=' + isFlutterEnv + '  UA=' + navigator.userAgent.substring(0,60))
   if (isFlutterEnv) {
     // Flutter 환경: auth-screen 숨기고 flutterSetSession 대기
     // → goto('home') / loadHome()은 flutterSetSession 수신 시 _doLogin()에서만 호출
     const authEl = document.getElementById('auth-screen')
     if (authEl) authEl.classList.add('hidden')
     console.log('[RinGo] Flutter 환경 감지 - flutterSetSession 대기 중')
+    window._pt('Flutter env → waiting for flutterSetSession (timeout=5s)')
     // fallback: 5초 내 flutterSetSession 미수신 시 경고 로그 (화면은 유지)
     window._flutterSessionTimeout = setTimeout(() => {
       if (!Store.isLoggedIn()) {
+        window._pt('⚠ flutterSetSession TIMEOUT 5s - session not received')
         console.warn('[RinGo] flutterSetSession 5초 대기 초과 - 세션 미수신 (네트워크 지연 가능성)')
       }
     }, 5000)
@@ -3644,12 +3699,15 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 function _doLogin() {
+  window._pt('_doLogin() called  _loginDone=' + !!window._loginDone)
   // 중복 호출 방지 guard
   if (window._loginDone) {
     console.warn('[RinGo] _doLogin() 중복 호출 차단')
+    window._pt('_doLogin() BLOCKED (duplicate)')
     return
   }
   window._loginDone = true
+  window._pt('_doLogin() executing')
 
   Auth.hide()
   const authEl = document.getElementById('auth-screen')
@@ -3677,9 +3735,12 @@ function _doLogin() {
   // → 탭 첫 진입 시 스피너 없이 즉시 표시
   if (!window._preloadDone) {
     window._preloadDone = true
+    window._pt('preload scheduled (1200ms delay)')
     setTimeout(() => {
       if (!Store.isLoggedIn()) return
+      window._pt('preload START  apiCalls before=' + window._PERF_apiCallCount)
       console.log('[Preload] 수신함·발신함·채널·내채널 백그라운드 preload 시작')
+      window._PERF_apiCallCount += 3  // inbox + outbox + channels
       // 수신함 preload (loadInbox는 stale-while-revalidate 패턴이므로 직접 API 호출)
       const uid = Store.getUserId()
       Promise.allSettled([
@@ -3705,7 +3766,10 @@ function _doLogin() {
         }),
         // 채널 탐색 탭 (인기/추천 채널)
         App.loadChannel && App._preloadChannels ? App._preloadChannels() : Promise.resolve(),
-      ]).then(() => console.log('[Preload] 전체 완료'))
+      ]).then(() => {
+        console.log('[Preload] 전체 완료')
+        window._pt('preload ALL DONE  totalApiCalls=' + window._PERF_apiCallCount)
+      })
     }, 1200)
   }
 
@@ -3733,6 +3797,7 @@ function _doLogin() {
 // Flutter onPageFinished에서 runJavaScript로 호출
 // flutterSetSession(token, userId, email, displayName)
 window.flutterSetSession = function(token, userId, email, displayName) {
+  window._pt('flutterSetSession called  userId=' + userId)
   console.log('[RinGo] flutterSetSession called')
 
   // fallback timeout 취소
@@ -3747,8 +3812,7 @@ window.flutterSetSession = function(token, userId, email, displayName) {
   Store.set('email',         email)
   Store.set('display_name',  displayName)
   console.log('[RinGo] session saved - userId:', userId)
-
-  // 드로어 이메일 갱신
+  window._pt('session saved → _doLogin() will be called')
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = email || displayName || ''
 
