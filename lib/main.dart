@@ -171,46 +171,21 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSession() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // 대기 없이 즉시 판단 (GIF/delay 전면 제거)
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('session_token') ?? '';
 
     // 토큰 없으면 → 로그인 화면
     if (token.isEmpty) { _goAuth(); return; }
 
-    // 로그인 되어 있지만 권한 설정을 아직 안 했으면 → 권한 화면
+    // 권한 설정 미완료 → 권한 화면
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
     if (!permDone) { _goPermissions(); return; }
 
-    // 토큰 있으면 → 서버 확인 시도 (실패해도 메인으로)
-    // 핵심: 네트워크 오류/서버 오류는 무시하고 저장된 토큰으로 자동 로그인
-    try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/api/auth/me'),
-        headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        if (body['success'] == true) {
-          // 세션 유효 → 메인
-          _goMain();
-          return;
-        }
-        // 401/403: 서버가 명시적으로 세션 만료 → 재로그인
-        if (res.statusCode == 401 || res.statusCode == 403) {
-          await prefs.remove('session_token');
-          _goAuth();
-          return;
-        }
-      }
-
-      // 500 등 서버 오류 → 토큰 유지하고 메인으로 (오프라인 허용)
-      _goMain();
-    } catch (_) {
-      // 네트워크 없음 / 타임아웃 → 토큰 유지하고 메인으로
-      _goMain();
-    }
+    // 토큰 있으면 → 서버 확인 없이 즉시 메인으로
+    // 세션 유효성 검증은 WebView 내 flutterSetSession 주입 후 서버가 처리
+    // (401/403 응답 시 웹앱에서 로그아웃 처리)
+    _goMain();
   }
 
   void _goAuth()        { if (mounted) Navigator.of(context).pushReplacementNamed('/auth'); }
@@ -219,16 +194,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF222222),
-      body: SizedBox.expand(
-        child: Image.asset(
-          'assets/images/splash_animation.gif',
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-        ),
-      ),
-    );
+    // UI 없음 - _checkSession() 즉시 실행 후 목적지로 이동
+    // Android native splash가 이 시간을 커버함
+    return const SizedBox.shrink();
   }
 }
 
@@ -325,18 +293,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 })();
 """;
     await _controller.runJavaScript(js);
-
-    // 500ms 후 한 번 더 시도 (DOMContentLoaded 타이밍 이슈 대비)
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      await _controller.runJavaScript(js);
-    }
+    // 재시도 제거: flutterSetSession이 중복 호출 방지 guard를 가지므로 불필요
   }
 
   void _initWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF121212))
+      ..setBackgroundColor(const Color(0xFF1A1A2E)) // native splash(#1A1A2E)와 동일 → 전환 시 깜빡임 없음
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {

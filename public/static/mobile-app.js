@@ -3595,20 +3595,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
-  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
-  if (Store.isLoggedIn()) {
+  // ── 시작 흐름 ──────────────────────────────────────────────
+  // Flutter WebView: auth-screen 즉시 숨기고 flutterSetSession 대기
+  //   → _injectSession()이 onPageFinished 후 즉시 flutterSetSession 호출
+  //   → flutterSetSession에서 _doLogin() 1회 호출
+  // 웹 환경: 세션 있으면 바로 _doLogin(), 없으면 Auth.show()
+  const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
+  if (isFlutterEnv) {
+    // Flutter 환경: auth-screen 즉시 숨김 (로딩 화면 표시 안 함)
+    const authEl = document.getElementById('auth-screen')
+    if (authEl) authEl.classList.add('hidden')
+    // flutterSetSession이 오지 않는 예외 상황 대비 (5초 fallback)
+    window._flutterSessionTimeout = setTimeout(() => {
+      if (!window._loginDone && Store.isLoggedIn()) {
+        _doLogin()
+      }
+    }, 5000)
+  } else if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
-    setTimeout(() => {
-      if (Store.isLoggedIn()) {
-        _doLogin()
-      } else {
-        Auth.show()  // 로그인 화면 표시
-      }
-    }, 400)
+    Auth.show()
   }
 
   // 샘플 알림 (첫 방문)
@@ -3624,6 +3630,16 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 function _doLogin() {
+  // 중복 호출 방지 guard
+  if (window._loginDone) return
+  window._loginDone = true
+
+  // fallback timeout 취소
+  if (window._flutterSessionTimeout) {
+    clearTimeout(window._flutterSessionTimeout)
+    window._flutterSessionTimeout = null
+  }
+
   Auth.hide()
   document.getElementById('auth-screen').classList.add('hidden')
   App.goto('home')
@@ -3697,47 +3713,31 @@ function _doLogin() {
 }
 
 // ── Flutter에서 호출하는 세션 주입 함수 ──────────────────────
-// Flutter onPageFinished에서 runJavaScript로 호출
-// flutterSetSession(token, userId, email, displayName)
+// Flutter onPageFinished → _injectSession() → runJavaScript로 호출
 window.flutterSetSession = function(token, userId, email, displayName) {
+  // 세션 저장
   Store.set('session_token', token)
   Store.set('user_id',       userId)
   Store.set('email',         email)
   Store.set('display_name',  displayName)
-  // 로그인 화면 숨기고 홈으로 이동
-  const authScreen = document.getElementById('auth-screen')
-  if (authScreen) authScreen.classList.add('hidden')
-  Auth.hide()
-  App.goto('home')
+
   // 드로어 이메일 갱신
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = email || displayName || ''
+
   // 앱 버전 라벨 갱신
   const appVer = localStorage.getItem('app_version')
   const versionEl = document.getElementById('app-version-label')
   if (versionEl && appVer) versionEl.textContent = 'v' + appVer
-  // 알람 폴링 시작 (중복 방지)
-  if (!window._pollStarted) {
-    window._pollStarted = true
-    if (typeof pollAlarmTrigger === 'function') {
-      pollAlarmTrigger()
-      setInterval(pollAlarmTrigger, 60 * 1000)
-    }
-  }
-  // ── 항목 6: channel_created 이벤트 리스너 등록 (중복 방지) ──
-  if (!window._channelEventsBound) {
-    window._channelEventsBound = true
-    document.addEventListener('channel_created', (e) => {
-      console.log('[channel_created] 이벤트 수신, 리스트 갱신', e.detail)
-      App.fetchMyChannels()
-    })
-  }
-  // ── 항목 10: 하단 탭 백그라운드 preload (Flutter 앱 경로) ──
+
+  // 홈으로 이동 (중복 방지 guard 포함된 _doLogin 사용)
+  _doLogin()
+
+  // 백그라운드 preload (홈 로드 후 1.2초 뒤)
   if (!window._preloadDone) {
     window._preloadDone = true
     setTimeout(() => {
       if (!Store.isLoggedIn()) return
-      console.log('[Preload] Flutter 경로 - 수신함·발신함·채널 preload 시작')
       const uid = Store.getUserId()
       Promise.allSettled([
         API.get('/alarms/inbox?limit=20&offset=0').then(r => {
@@ -3756,8 +3756,9 @@ window.flutterSetSession = function(token, userId, email, displayName) {
             Cache.set('outbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
           }
         }),
-        App._preloadChannels(),
-      ]).then(() => console.log('[Preload] Flutter 경로 완료'))
+        App._preloadChannels ? App._preloadChannels() : Promise.resolve(),
+      ]).then(() => console.log('[Preload] 완료'))
     }, 1200)
   }
 }
+
