@@ -869,8 +869,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickAudioFile() async {
     try {
+      // FileType.audio 대신 FileType.custom 사용:
+      // 삼성 등 일부 Android 기기에서 FileType.audio로 열면
+      // m4a 파일이 오디오 탭에 보이지만 선택이 안 되는 OS 버그가 있음.
+      // FileType.custom + allowedExtensions로 직접 지정하면 모든 기기에서 선택 가능.
       final result = await FilePicker.platform.pickFiles(
-          type: FileType.audio, withData: false, withReadStream: false);
+          type: FileType.custom,
+          allowedExtensions: ['mp3', 'm4a', 'wav'],
+          withData: false,
+          withReadStream: false);
       if (result == null || result.files.isEmpty) {
         _sendToWeb('window._flutterFileCancelled', {'type': 'audio'}); return;
       }
