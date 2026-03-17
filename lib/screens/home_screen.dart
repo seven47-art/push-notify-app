@@ -573,30 +573,35 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 
   // ── 파일 선택 ─────────────────────────────────────────────────
   Future<void> _pickFile() async {
-    final allExts = [..._allowedVideoExts, ..._allowedAudioExts];
+    // FileType.any 로 열고 앱 코드에서 확장자 직접 검사
+    // FileType.custom + allowedExtensions 는 삼성 등 일부 Android 기기에서
+    // m4a 파일 선택을 OS 레벨에서 차단하는 버그가 있음
     final result = await FilePicker.platform.pickFiles(
-      type:           FileType.custom,
-      allowedExtensions: allExts,
-      allowMultiple:  false,
+      type:          FileType.any,
+      allowMultiple: false,
     );
     if (result == null || result.files.isEmpty) return;
 
-    final pf   = result.files.first;
-    final ext  = (pf.extension ?? '').toLowerCase();
+    final pf  = result.files.first;
+    final ext = (pf.name.split('.').last).toLowerCase();
     final size = pf.size;
 
-    // 확장자 검증
+    // 디버그 로그 — m4a 가 어떤 타입으로 들어오는지 확인
+    debugPrint('[_pickFile] name=${pf.name}  ext=$ext  extension=${pf.extension}  size=$size  path=${pf.path}');
+
+    // 확장자 검증 (앱 코드에서 직접)
+    final allExts = [..._allowedVideoExts, ..._allowedAudioExts];
     if (!allExts.contains(ext)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('허용되지 않는 형식입니다. (mp4, mov, mp3, m4a, wav)'),
+          content: Text('허용되지 않는 형식입니다. (mp4, mov, mp3, m4a, wav)\n선택한 파일: ${pf.name}'),
           backgroundColor: Colors.red,
         ));
       }
       return;
     }
 
-    // 파일 크기 1차 검증
+    // 파일 크기 검증
     if (size > _maxFileSizeBytes) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

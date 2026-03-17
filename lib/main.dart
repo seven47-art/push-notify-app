@@ -869,13 +869,11 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickAudioFile() async {
     try {
-      // FileType.audio 대신 FileType.custom 사용:
-      // 삼성 등 일부 Android 기기에서 FileType.audio로 열면
-      // m4a 파일이 오디오 탭에 보이지만 선택이 안 되는 OS 버그가 있음.
-      // FileType.custom + allowedExtensions로 직접 지정하면 모든 기기에서 선택 가능.
+      // FileType.any 사용: FileType.audio / FileType.custom + allowedExtensions 모두
+      // 삼성 등 Android 실기기에서 m4a 선택을 막는 OS/file_picker 버그가 있음.
+      // FileType.any로 열고 앱 코드에서 직접 확장자 검사.
       final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['mp3', 'm4a', 'wav'],
+          type: FileType.any,
           withData: false,
           withReadStream: false);
       if (result == null || result.files.isEmpty) {
@@ -886,6 +884,21 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': '파일 경로를 가져올 수 없습니다'}); return;
       }
 
+      // 디버그 로그 — m4a가 어떤 타입으로 들어오는지 확인
+      final ext = f.name.split('.').last.toLowerCase();
+      debugPrint('[_pickAudioFile] path=${f.path}');
+      debugPrint('[_pickAudioFile] name=${f.name}  ext=$ext  extension=${f.extension}');
+
+      // 확장자 검증 (앱 코드에서 직접)
+      const allowed = ['mp3', 'm4a', 'wav'];
+      if (!allowed.contains(ext)) {
+        _sendToWeb('window._flutterFileError', {
+          'type': 'audio',
+          'error': '허용되지 않는 형식입니다. (mp3, m4a, wav만 가능)\n선택한 파일: ${f.name}'
+        });
+        return;
+      }
+
       // 크기 체크
       final fileSize = await File(f.path!).length();
       if (fileSize > 10 * 1024 * 1024) {
@@ -894,11 +907,11 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         return;
       }
 
-      // Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
+      // Cloudflare Worker로 직접 업로드
       _sendToWeb('window._flutterUploadProgress', {'type': 'audio', 'status': 'uploading'});
-      final ext      = f.name.split('.').last.toLowerCase();
-      final mime     = ext == 'mp3' ? 'audio/mpeg' : 'audio/$ext';
+      final mime     = ext == 'mp3' ? 'audio/mpeg' : 'audio/mp4'; // m4a → audio/mp4
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+      debugPrint('[_pickAudioFile] mime=$mime  uploadFileName=$fileName');
       final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
 
       _sendToWeb('window._flutterFileCallback', {
@@ -914,8 +927,9 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
   Future<void> _pickVideoFile() async {
     try {
+      // FileType.any + 앱 코드 확장자 검사 (FileType.video도 일부 기기에서 mkv 등 차단)
       final result = await FilePicker.platform.pickFiles(
-          type: FileType.video, withData: false, withReadStream: false);
+          type: FileType.any, withData: false, withReadStream: false);
       if (result == null || result.files.isEmpty) {
         _sendToWeb('window._flutterFileCancelled', {'type': 'video'}); return;
       }
@@ -924,7 +938,22 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 경로를 가져올 수 없습니다'}); return;
       }
 
-      // 파일 크기 체크 (압축 없이 바로 업로드 - 파일 첨부는 이미 완성된 파일)
+      // 디버그 로그
+      final extV = f.name.split('.').last.toLowerCase();
+      debugPrint('[_pickVideoFile] path=${f.path}');
+      debugPrint('[_pickVideoFile] name=${f.name}  ext=$extV  extension=${f.extension}');
+
+      // 확장자 검증
+      const allowedV = ['mp4', 'mov'];
+      if (!allowedV.contains(extV)) {
+        _sendToWeb('window._flutterFileError', {
+          'type': 'video',
+          'error': '허용되지 않는 형식입니다. (mp4, mov만 가능)\n선택한 파일: ${f.name}'
+        });
+        return;
+      }
+
+      // 파일 크기 체크
       final fileSize = await File(f.path!).length();
       if (fileSize > 50 * 1024 * 1024) {
         _sendToWeb('window._flutterFileError', {'type': 'video',
@@ -979,8 +1008,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   Future<void> _launchFilePicker() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['mp3','m4a','wav','aac','ogg','flac','wma','mp4','mov','mkv','avi','wmv','m4v','webm'],
+        type: FileType.any,  // custom + allowedExtensions 대신 any로 열고 앱에서 검사
         withData: false,
         withReadStream: false,
       );
@@ -1005,11 +1033,24 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
       // 2) MIME 타입 결정
       final ext = f.name.split('.').last.toLowerCase();
+      debugPrint('[_launchFilePicker] path=${f.path}');
+      debugPrint('[_launchFilePicker] name=${f.name}  ext=$ext  extension=${f.extension}');
+
+      // 확장자 검증 (앱 코드에서 직접)
       final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
       final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
+      if (!audioExts.contains(ext) && !videoExts.contains(ext)) {
+        _sendToWeb('window._flutterFileError', {
+          'type': 'file',
+          'error': '허용되지 않는 형식입니다.\n선택한 파일: ${f.name}'
+        });
+        return;
+      }
+
       String mime = 'application/octet-stream';
       if (audioExts.contains(ext)) mime = ext == 'm4a' ? 'audio/mp4' : 'audio/$ext';
       else if (videoExts.contains(ext)) mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
+      debugPrint('[_launchFilePicker] mime=$mime');
 
       // 3) Cloudflare Worker로 직접 업로드 (base64 없이 스트림 전송)
       _sendToWeb('window._flutterUploadProgress', {'type': 'file', 'status': 'uploading'});
