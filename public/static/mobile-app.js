@@ -3595,18 +3595,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: 로그인 상태 → 앱, 미로그인 → 대기 ──
-  // Flutter WebView에서는 DOMContentLoaded 직후 토큰이 아직 주입 전일 수 있음
-  // 토큰이 있으면 바로 진행, 없으면 300ms 대기 후 재확인
-  if (Store.isLoggedIn()) {
+  // ── 세션 확인: Flutter WebView 환경에서는 auth-screen을 즉시 숨김 ──
+  // Flutter SplashScreen이 이미 토큰 유효성을 확인하고 진입했으므로
+  // WebView 로드 직후 로그인 화면이 깜빡이지 않도록 미리 숨겨둠.
+  // flutterSetSession()이 호출되면 홈으로 이동.
+  // 순수 웹 브라우저 접근 시에는 기존대로 로그인 화면 표시.
+  const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
+  if (isFlutterEnv) {
+    // Flutter 환경: auth-screen 숨기고 대기, flutterSetSession 호출 기다림
+    const authEl = document.getElementById('auth-screen')
+    if (authEl) authEl.classList.add('hidden')
+    // 2초 내 flutterSetSession이 안 오면 로그인 화면 표시 (안전장치)
+    window._flutterSessionTimeout = setTimeout(() => {
+      if (!Store.isLoggedIn()) {
+        Auth.show()
+      }
+    }, 2000)
+  } else if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // Flutter WebView가 onPageFinished에서 토큰을 주입하므로 짧게 대기
+    // 웹 환경: 짧게 대기 후 로그인 상태 재확인
     setTimeout(() => {
       if (Store.isLoggedIn()) {
         _doLogin()
       } else {
-        Auth.show()  // 로그인 화면 표시
+        Auth.show()
       }
     }, 400)
   }
@@ -3700,6 +3713,11 @@ function _doLogin() {
 // Flutter onPageFinished에서 runJavaScript로 호출
 // flutterSetSession(token, userId, email, displayName)
 window.flutterSetSession = function(token, userId, email, displayName) {
+  // Flutter 환경 안전장치 타임아웃 취소
+  if (window._flutterSessionTimeout) {
+    clearTimeout(window._flutterSessionTimeout)
+    window._flutterSessionTimeout = null
+  }
   Store.set('session_token', token)
   Store.set('user_id',       userId)
   Store.set('email',         email)
