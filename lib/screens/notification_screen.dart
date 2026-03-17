@@ -551,8 +551,8 @@ class _NotificationScreenState extends State<NotificationScreen>
   IconData _getMsgTypeIcon(String type) {
     switch (type) {
       case 'youtube': return Icons.play_circle_fill;
-      case 'video':   return Icons.videocam;
-      case 'audio':   return Icons.audiotrack;
+      case 'video':   return Icons.movie;
+      case 'audio':   return Icons.headset;
       default:        return Icons.attach_file;
     }
   }

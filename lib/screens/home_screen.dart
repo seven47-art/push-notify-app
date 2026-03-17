@@ -555,8 +555,8 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 
   final _sources = [
     {'id': 'youtube', 'label': 'YouTube URL',  'icon': Icons.play_circle_fill, 'color': Color(0xFFFF0000)},
-    {'id': 'audio',   'label': '오디오 파일',    'icon': Icons.audiotrack,       'color': Color(0xFF4CAF50)},
-    {'id': 'video',   'label': '비디오 파일',    'icon': Icons.videocam,         'color': Color(0xFF2196F3)},
+    {'id': 'audio',   'label': '오디오 파일',    'icon': Icons.headset,          'color': Color(0xFF4CAF50)},
+    {'id': 'video',   'label': '비디오 파일',    'icon': Icons.movie,            'color': Color(0xFF2196F3)},
   ];
 
   @override

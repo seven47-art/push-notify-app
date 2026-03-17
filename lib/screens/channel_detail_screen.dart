@@ -55,9 +55,9 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       case 'youtube':
         return Icons.play_circle_fill;
       case 'video':
-        return Icons.videocam;
+        return Icons.movie;
       case 'audio':
-        return Icons.audiotrack;
+        return Icons.headset;
       default:
         return Icons.article;
     }
