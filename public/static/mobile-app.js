@@ -3595,31 +3595,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인 및 시작 흐름 분기 ──
-  // Flutter WebView 환경: 세션 주입 전에도 홈 UI 즉시 표시 (auth-screen 없음)
-  // 웹 브라우저 환경: localStorage 세션 확인 후 분기
+  // ── 세션 확인: Flutter WebView 환경에서는 auth-screen을 즉시 숨김 ──
+  // Flutter SplashScreen이 이미 토큰 유효성을 확인하고 진입했으므로
+  // WebView 로드 직후 로그인 화면이 깜빡이지 않도록 미리 숨겨둠.
+  // flutterSetSession()이 호출되면 홈으로 이동.
+  // 순수 웹 브라우저 접근 시에는 기존대로 로그인 화면 표시.
   const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
   if (isFlutterEnv) {
-    // Flutter 환경: 세션 유효 여부와 관계없이 즉시 홈 UI 표시
-    // → appbar/nav/screen-wrap 먼저 보이고 flutterSetSession 받으면 데이터 갱신
-    const appbar = document.getElementById('appbar')
-    const nav    = document.querySelector('.bottom-nav')
-    const wrap   = document.getElementById('screen-wrap')
-    if (appbar) appbar.style.display = ''
-    if (nav)    nav.style.display    = ''
-    if (wrap)   wrap.style.display   = ''
-    App.goto('home')
-    // fallback: 5초 내 flutterSetSession 안 오면 콘솔 경고만 (화면은 유지)
+    // Flutter 환경: auth-screen 숨기고 대기, flutterSetSession 호출 기다림
+    const authEl = document.getElementById('auth-screen')
+    if (authEl) authEl.classList.add('hidden')
+    // 2초 내 flutterSetSession이 안 오면 로그인 화면 표시 (안전장치)
     window._flutterSessionTimeout = setTimeout(() => {
       if (!Store.isLoggedIn()) {
-        console.warn('[RinGo] flutterSetSession 5초 대기 초과 - 세션 미수신 (네트워크 지연 가능성)')
+        Auth.show()
       }
-    }, 5000)
+    }, 2000)
   } else if (Store.isLoggedIn()) {
     _doLogin()
   } else {
-    // 웹 환경: localStorage 세션 없으면 Flutter AuthScreen에서 처리
-    console.log('[RinGo] 웹 환경 - 세션 없음, Flutter가 처리')
+    // 웹 환경: 짧게 대기 후 로그인 상태 재확인
+    setTimeout(() => {
+      if (Store.isLoggedIn()) {
+        _doLogin()
+      } else {
+        Auth.show()
+      }
+    }, 400)
   }
 
   // 샘플 알림 (첫 방문)
@@ -3711,16 +3713,20 @@ function _doLogin() {
 // Flutter onPageFinished에서 runJavaScript로 호출
 // flutterSetSession(token, userId, email, displayName)
 window.flutterSetSession = function(token, userId, email, displayName) {
-  // fallback timeout 취소
+  // Flutter 환경 안전장치 타임아웃 취소
   if (window._flutterSessionTimeout) {
     clearTimeout(window._flutterSessionTimeout)
     window._flutterSessionTimeout = null
   }
-  console.log('[RinGo] flutterSetSession 수신 - 세션 저장 및 데이터 갱신')
   Store.set('session_token', token)
   Store.set('user_id',       userId)
   Store.set('email',         email)
   Store.set('display_name',  displayName)
+  // 로그인 화면 숨기고 홈으로 이동
+  const authScreen = document.getElementById('auth-screen')
+  if (authScreen) authScreen.classList.add('hidden')
+  Auth.hide()
+  App.goto('home')
   // 드로어 이메일 갱신
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = email || displayName || ''
@@ -3728,10 +3734,6 @@ window.flutterSetSession = function(token, userId, email, displayName) {
   const appVer = localStorage.getItem('app_version')
   const versionEl = document.getElementById('app-version-label')
   if (versionEl && appVer) versionEl.textContent = 'v' + appVer
-  // 홈 데이터 갱신 (이미 홈 UI가 떠 있으므로 화면 전환 없이 데이터만 재로드)
-  if (typeof App !== 'undefined' && typeof App.loadHome === 'function') {
-    App.loadHome()
-  }
   // 알람 폴링 시작 (중복 방지)
   if (!window._pollStarted) {
     window._pollStarted = true
@@ -3740,7 +3742,7 @@ window.flutterSetSession = function(token, userId, email, displayName) {
       setInterval(pollAlarmTrigger, 60 * 1000)
     }
   }
-  // 항목 6: channel_created 이벤트 리스너 등록 (중복 방지)
+  // ── 항목 6: channel_created 이벤트 리스너 등록 (중복 방지) ──
   if (!window._channelEventsBound) {
     window._channelEventsBound = true
     document.addEventListener('channel_created', (e) => {
@@ -3748,7 +3750,7 @@ window.flutterSetSession = function(token, userId, email, displayName) {
       App.fetchMyChannels()
     })
   }
-  // 항목 10: 하단 탭 백그라운드 preload (Flutter 앱 경로)
+  // ── 항목 10: 하단 탭 백그라운드 preload (Flutter 앱 경로) ──
   if (!window._preloadDone) {
     window._preloadDone = true
     setTimeout(() => {
