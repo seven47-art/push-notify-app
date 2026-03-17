@@ -23,7 +23,7 @@ import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
-// splash_screen.dart 미사용 (v3.2.0: 2번 화면 제거)
+// splash_screen.dart 삭제됨 (v3.2.2: splash/loading 커스텀 UI 전면 제거)
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -228,18 +228,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // v3.2.1: Android splash(1번 화면)와 완전 동일한 디자인
-    // 흰배경 + ringo_icon 60dp 중앙 - 텍스트/스피너 없음
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Image.asset(
-          'assets/images/ringo_icon.png',
-          width: 60,
-          height: 60,
-        ),
-      ),
-    );
+    // v3.2.2: 커스텀 UI 전면 제거 - 완전 투명, 로직(_launch)만 실행
+    return const SizedBox.shrink();
   }
 }
 
@@ -1429,21 +1419,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
               _hasError
                 ? _buildErrorView()
                 : WebViewWidget(controller: _controller),
-              // 상단 progress bar: 최초 로드 중에만 표시
-              if (_loading && !_initialLoadDone)
-                Positioned(
-                  top: 0, left: 0, right: 0,
-                  child: LinearProgressIndicator(
-                    value: _loadingProgress > 0 ? _loadingProgress / 100 : null,
-                    minHeight: 3,
-                    backgroundColor: Colors.transparent,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
-                  ),
-                ),
-              // 전체화면 로딩 오버레이 완전 제거:
-              // 기존에는 progress < 10 일 때 검정 전체화면을 덮었으나,
-              // 이로 인해 앱 진입마다 검정 화면이 깜빡이는 문제 발생.
-              // SplashScreen이 이미 로딩을 커버하므로 WebViewScreen에서는 불필요.
+              // v3.2.2: LinearProgressIndicator 제거 (splash/loading 커스텀 UI 전면 제거)
             ],
           ),
         ),
