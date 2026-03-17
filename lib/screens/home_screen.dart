@@ -653,12 +653,13 @@ class _AlarmSheetState extends State<_AlarmSheet> {
       if (mounted) setState(() => _uploadStatus = 'Firebase Storage 업로드 중...');
 
       // 2) Firebase Storage 직접 PUT 업로드
+      if (mounted) setState(() => _uploadStatus = 'Firebase Storage 업로드 중... (URL 준비됨)');
       final uploadOk = await ApiService.uploadFileToStorage(
         uploadUrl:   uploadUrl,
         file:        _pickedFile!,
         contentType: contentType,
       );
-      if (!uploadOk) throw Exception('파일 업로드 실패');
+      if (!uploadOk) throw Exception('Firebase Storage PUT 업로드 실패 (uploadUrl: ${uploadUrl.substring(0, uploadUrl.length > 80 ? 80 : uploadUrl.length)}...)');
 
       // 원본 다운로드 URL 생성
       final encodedPath  = Uri.encodeComponent(origPath);

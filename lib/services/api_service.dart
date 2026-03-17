@@ -422,8 +422,14 @@ class ApiService {
       request.bodyBytes = fileBytes;
 
       final streamedResponse = await request.send().timeout(const Duration(minutes: 2));
-      return streamedResponse.statusCode >= 200 && streamedResponse.statusCode < 300;
+      if (streamedResponse.statusCode < 200 || streamedResponse.statusCode >= 300) {
+        final body = await streamedResponse.stream.bytesToString();
+        print('[uploadFileToStorage] 실패 status=${streamedResponse.statusCode} body=$body');
+        return false;
+      }
+      return true;
     } catch (e) {
+      print('[uploadFileToStorage] 예외: $e');
       return false;
     }
   }
