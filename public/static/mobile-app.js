@@ -1118,8 +1118,8 @@ const App = {
   // ── 공통 아이콘/상태 맵 ────────────────────────────────────
   _msgIconMap: {
     youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-    audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-    video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+    audio:   '<i class="fas fa-headphones" style="color:#4FC3F7;font-size:20px;"></i>',
+    video:   '<i class="fas fa-film"      style="color:#66BB6A;font-size:20px;"></i>',
     file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
   },
   _statusLabelMap: { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' },
