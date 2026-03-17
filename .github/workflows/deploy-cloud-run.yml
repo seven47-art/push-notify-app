@@ -1,0 +1,129 @@
+name: Deploy Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'GCP region'
+        required: true
+        default: 'asia-northeast3'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GCP Project ID
+        id: project
+        run: |
+          PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "")
+          if [ -z "$PROJECT_ID" ]; then
+            PROJECT_ID=$(echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('project_id',''))")
+          fi
+          echo "project_id=$PROJECT_ID" >> $GITHUB_OUTPUT
+          echo "✅ Project: $PROJECT_ID"
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ github.event.inputs.region }}-docker.pkg.dev --quiet
+
+      - name: Enable required APIs
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            eventarc.googleapis.com \
+            --project=${{ steps.project.outputs.project_id }} || true
+
+      - name: Create Artifact Registry repository (if not exists)
+        run: |
+          gcloud artifacts repositories create ringo-media-converter \
+            --repository-format=docker \
+            --location=${{ github.event.inputs.region }} \
+            --project=${{ steps.project.outputs.project_id }} \
+            --quiet 2>/dev/null || echo "Repository already exists"
+
+      - name: Build and Push Docker image
+        run: |
+          IMAGE="${{ github.event.inputs.region }}-docker.pkg.dev/${{ steps.project.outputs.project_id }}/ringo-media-converter/converter:${{ github.sha }}"
+          IMAGE_LATEST="${{ github.event.inputs.region }}-docker.pkg.dev/${{ steps.project.outputs.project_id }}/ringo-media-converter/converter:latest"
+          
+          docker build -t $IMAGE -t $IMAGE_LATEST ./cloud-run
+          docker push $IMAGE
+          docker push $IMAGE_LATEST
+          
+          echo "image=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ringo-media-converter \
+            --image=${{ env.image }} \
+            --region=${{ github.event.inputs.region }} \
+            --project=${{ steps.project.outputs.project_id }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=1Gi \
+            --cpu=1 \
+            --timeout=120 \
+            --concurrency=10 \
+            --min-instances=0 \
+            --max-instances=10 \
+            --set-env-vars="WORKER_BASE_URL=${{ secrets.WORKER_BASE_URL }},CLOUD_RUN_SECRET=${{ secrets.CLOUD_RUN_SECRET }},GCS_BUCKET=${{ secrets.GCS_BUCKET }}" \
+            --quiet
+
+      - name: Get Cloud Run URL
+        id: cloudrun_url
+        run: |
+          URL=$(gcloud run services describe ringo-media-converter \
+            --region=${{ github.event.inputs.region }} \
+            --project=${{ steps.project.outputs.project_id }} \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Cloud Run URL: $URL"
+
+      - name: Setup Eventarc trigger
+        run: |
+          PROJECT_ID=${{ steps.project.outputs.project_id }}
+          REGION=${{ github.event.inputs.region }}
+          SERVICE_URL=${{ steps.cloudrun_url.outputs.url }}
+          
+          gcloud projects add-iam-policy-binding $PROJECT_ID \
+            --member="serviceAccount:service-$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')@gcp-sa-eventarc.iam.gserviceaccount.com" \
+            --role="roles/eventarc.eventReceiver" --quiet 2>/dev/null || true
+          
+          gcloud projects add-iam-policy-binding $PROJECT_ID \
+            --member="serviceAccount:service-$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')@gs-project-accounts.iam.gserviceaccount.com" \
+            --role="roles/pubsub.publisher" --quiet 2>/dev/null || true
+          
+          gcloud eventarc triggers delete ringo-storage-trigger \
+            --location=$REGION --project=$PROJECT_ID --quiet 2>/dev/null || true
+          
+          sleep 5
+          
+          gcloud eventarc triggers create ringo-storage-trigger \
+            --location=$REGION \
+            --project=$PROJECT_ID \
+            --destination-run-service=ringo-media-converter \
+            --destination-run-region=$REGION \
+            --destination-run-path=/convert \
+            --event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --event-filters="bucket=${{ secrets.GCS_BUCKET }}" \
+            --service-account="$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
+            --quiet
+          
+          echo "✅ Eventarc trigger created"
+          echo "Cloud Run URL: $SERVICE_URL"
+          echo "Firebase Storage → Cloud Run /convert 자동 연결 완료"
