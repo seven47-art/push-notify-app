@@ -3595,30 +3595,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = Store.getEmail() || Store.getDisplayName() || '로그인 중...'
 
-  // ── 세션 확인: Flutter WebView 환경에서는 auth-screen을 즉시 숨김 ──
-  // Flutter SplashScreen이 이미 토큰 유효성을 확인하고 진입했으므로
-  // WebView 로드 직후 로그인 화면이 깜빡이지 않도록 미리 숨겨둠.
-  // flutterSetSession()이 호출되면 홈으로 이동.
-  // 순수 웹 브라우저 접근 시에는 기존대로 로그인 화면 표시.
+  // ── 시작 흐름 분기 ──────────────────────────────────────────
+  // 규칙: App.goto('home') + loadHome()는 세션 확정 후 단 1회만 호출
+  // - Flutter 환경: flutterSetSession 수신 후 _doLogin() 에서 1회 호출
+  // - 웹 환경:      localStorage 세션 확인 후 _doLogin() 에서 1회 호출
+  // DOMContentLoaded 시점에는 goto/loadHome 절대 호출하지 않음
+  console.log('[RinGo] WebView created - DOMContentLoaded')
   const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
   if (isFlutterEnv) {
-    // Flutter 환경: auth-screen 숨기고 대기, flutterSetSession 호출 기다림
+    // Flutter 환경: auth-screen 숨기고 flutterSetSession 대기
+    // → goto('home') / loadHome()은 flutterSetSession 수신 시 _doLogin()에서만 호출
     const authEl = document.getElementById('auth-screen')
     if (authEl) authEl.classList.add('hidden')
-    // 2초 내 flutterSetSession이 안 오면 로그인 화면 표시 (안전장치)
+    console.log('[RinGo] Flutter 환경 감지 - flutterSetSession 대기 중')
+    // fallback: 5초 내 flutterSetSession 미수신 시 경고 로그 (화면은 유지)
     window._flutterSessionTimeout = setTimeout(() => {
       if (!Store.isLoggedIn()) {
-        Auth.show()
+        console.warn('[RinGo] flutterSetSession 5초 대기 초과 - 세션 미수신 (네트워크 지연 가능성)')
       }
-    }, 2000)
+    }, 5000)
   } else if (Store.isLoggedIn()) {
+    // 웹 환경 + 세션 있음: 즉시 홈으로
+    console.log('[RinGo] 웹 환경 - 세션 확인됨, _doLogin() 호출')
     _doLogin()
   } else {
-    // 웹 환경: 짧게 대기 후 로그인 상태 재확인
+    // 웹 환경 + 세션 없음: 짧게 대기 후 재확인
     setTimeout(() => {
       if (Store.isLoggedIn()) {
+        console.log('[RinGo] 웹 환경 - 재확인 후 세션 확인됨, _doLogin() 호출')
         _doLogin()
       } else {
+        console.log('[RinGo] 웹 환경 - 세션 없음, Auth.show() 호출')
         Auth.show()
       }
     }, 400)
@@ -3637,9 +3644,22 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 function _doLogin() {
+  // 중복 호출 방지 guard
+  if (window._loginDone) {
+    console.warn('[RinGo] _doLogin() 중복 호출 차단')
+    return
+  }
+  window._loginDone = true
+
   Auth.hide()
-  document.getElementById('auth-screen').classList.add('hidden')
-  App.goto('home')
+  const authEl = document.getElementById('auth-screen')
+  if (authEl) authEl.classList.add('hidden')
+
+  // ── App.goto('home') + loadHome() 단 1회 호출 ──
+  console.log('[RinGo] App.goto(home) 호출')
+  App.goto('home')  // 내부에서 loadHome() 호출됨
+  console.log('[RinGo] loadHome() 호출됨 (goto 내부)')
+
   pollAlarmTrigger()
   setInterval(pollAlarmTrigger, 60 * 1000)
 
@@ -3713,69 +3733,31 @@ function _doLogin() {
 // Flutter onPageFinished에서 runJavaScript로 호출
 // flutterSetSession(token, userId, email, displayName)
 window.flutterSetSession = function(token, userId, email, displayName) {
-  // Flutter 환경 안전장치 타임아웃 취소
+  console.log('[RinGo] flutterSetSession called')
+
+  // fallback timeout 취소
   if (window._flutterSessionTimeout) {
     clearTimeout(window._flutterSessionTimeout)
     window._flutterSessionTimeout = null
   }
+
+  // ── 세션 저장 ──
   Store.set('session_token', token)
   Store.set('user_id',       userId)
   Store.set('email',         email)
   Store.set('display_name',  displayName)
-  // 로그인 화면 숨기고 홈으로 이동
-  const authScreen = document.getElementById('auth-screen')
-  if (authScreen) authScreen.classList.add('hidden')
-  Auth.hide()
-  App.goto('home')
+  console.log('[RinGo] session saved - userId:', userId)
+
   // 드로어 이메일 갱신
   const drawerEmail = document.getElementById('drawer-user-email')
   if (drawerEmail) drawerEmail.textContent = email || displayName || ''
+
   // 앱 버전 라벨 갱신
   const appVer = localStorage.getItem('app_version')
   const versionEl = document.getElementById('app-version-label')
   if (versionEl && appVer) versionEl.textContent = 'v' + appVer
-  // 알람 폴링 시작 (중복 방지)
-  if (!window._pollStarted) {
-    window._pollStarted = true
-    if (typeof pollAlarmTrigger === 'function') {
-      pollAlarmTrigger()
-      setInterval(pollAlarmTrigger, 60 * 1000)
-    }
-  }
-  // ── 항목 6: channel_created 이벤트 리스너 등록 (중복 방지) ──
-  if (!window._channelEventsBound) {
-    window._channelEventsBound = true
-    document.addEventListener('channel_created', (e) => {
-      console.log('[channel_created] 이벤트 수신, 리스트 갱신', e.detail)
-      App.fetchMyChannels()
-    })
-  }
-  // ── 항목 10: 하단 탭 백그라운드 preload (Flutter 앱 경로) ──
-  if (!window._preloadDone) {
-    window._preloadDone = true
-    setTimeout(() => {
-      if (!Store.isLoggedIn()) return
-      console.log('[Preload] Flutter 경로 - 수신함·발신함·채널 preload 시작')
-      const uid = Store.getUserId()
-      Promise.allSettled([
-        API.get('/alarms/inbox?limit=20&offset=0').then(r => {
-          if (r.data?.data) {
-            const items = r.data.data
-            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
-            Cache.set('inbox_channels_' + uid, channels)
-            Cache.set('inbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
-          }
-        }),
-        API.get('/alarms/outbox?limit=20&offset=0').then(r => {
-          if (r.data?.data) {
-            const items = r.data.data
-            const channels = [...new Map(items.map(i => [i.channel_id, { id: i.channel_id, name: i.channel_name }])).values()]
-            Cache.set('outbox_channels_' + uid, channels)
-            Cache.set('outbox_items_' + uid, { items, hasMore: items.length === 20, nextOffset: 20 })
-          }
-        }),
-        App._preloadChannels(),
-      ]).then(() => console.log('[Preload] Flutter 경로 완료'))
-    }, 1200)
-  }
+
+  // ── App.goto('home') + loadHome() 단 1회 호출 ──
+  // _doLogin() 내부에 중복 방지 guard 있음
+  _doLogin()
 }
