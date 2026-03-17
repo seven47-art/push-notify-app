@@ -621,7 +621,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
   Future<void> _uploadFile() async {
     if (_pickedFile == null || _pickedFileName == null) return;
 
-    final prefs       = await SharedPreferences.getInstance();
+    final prefs        = await SharedPreferences.getInstance();
     final sessionToken = prefs.getString('session_token') ?? '';
     if (sessionToken.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -629,89 +629,103 @@ class _AlarmSheetState extends State<_AlarmSheet> {
       return;
     }
 
-    setState(() { _isUploading = true; _uploadStatus = '업로드 준비 중...'; });
+    setState(() { _isUploading = true; _uploadStatus = '[1/4] 업로드 준비 중...'; });
 
     try {
       final fileSize = await _pickedFile!.length();
+      print('[_uploadFile] 시작: fileName=$_pickedFileName fileSize=$fileSize');
 
-      // 1) 서버에서 Signed Upload URL + file_id 발급
+      // ── 1단계: 서버에서 Upload URL + file_id 발급 ──────────────
+      if (mounted) setState(() => _uploadStatus = '[1/4] 서버에서 업로드 URL 발급 중...');
       final prepareResult = await ApiService.prepareFileUpload(
         sessionToken: sessionToken,
         fileName:     _pickedFileName!,
         fileSize:     fileSize,
       );
+      print('[_uploadFile] 1단계 결과: $prepareResult');
       if (prepareResult['success'] != true) {
-        throw Exception(prepareResult['error'] ?? '업로드 준비 실패');
+        throw Exception('[1단계 실패] ${prepareResult['error'] ?? '업로드 준비 실패'}');
       }
 
-      final fileId      = prepareResult['file_id']      as int;
-      final uploadUrl   = prepareResult['upload_url']   as String;
-      final contentType = prepareResult['content_type'] as String;
-      final bucket      = prepareResult['bucket']       as String;
+      final fileId      = prepareResult['file_id']       as int;
+      final uploadUrl   = prepareResult['upload_url']    as String;
+      final contentType = prepareResult['content_type']  as String;
+      final bucket      = prepareResult['bucket']        as String;
       final origPath    = prepareResult['original_path'] as String;
+      print('[_uploadFile] fileId=$fileId bucket=$bucket origPath=$origPath');
 
-      if (mounted) setState(() => _uploadStatus = 'Firebase Storage 업로드 중...');
-
-      // 2) Firebase Storage 직접 PUT 업로드
-      if (mounted) setState(() => _uploadStatus = 'Firebase Storage 업로드 중... (URL 준비됨)');
+      // ── 2단계: Firebase Storage 직접 PUT 업로드 ────────────────
+      if (mounted) setState(() => _uploadStatus = '[2/4] Firebase Storage 업로드 중...');
       final uploadOk = await ApiService.uploadFileToStorage(
         uploadUrl:   uploadUrl,
         file:        _pickedFile!,
         contentType: contentType,
       );
-      if (!uploadOk) throw Exception('Firebase Storage PUT 업로드 실패 (uploadUrl: ${uploadUrl.substring(0, uploadUrl.length > 80 ? 80 : uploadUrl.length)}...)');
+      print('[_uploadFile] 2단계 결과: uploadOk=$uploadOk');
+      if (!uploadOk) {
+        throw Exception('[2단계 실패] Firebase Storage 업로드 실패\n(contentType=$contentType)');
+      }
 
-      // 원본 다운로드 URL 생성
-      final encodedPath  = Uri.encodeComponent(origPath);
-      final originalUrl  = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+      // ── 3단계: 서버에 완료 신호 전송 → status=processing ───────
+      if (mounted) setState(() => _uploadStatus = '[3/4] 서버에 업로드 완료 신호 전송 중...');
+      final encodedPath = Uri.encodeComponent(origPath);
+      final originalUrl = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+      print('[_uploadFile] 3단계 originalUrl=$originalUrl');
 
-      // 3) 서버에 업로드 완료 신호 (status = processing)
-      await ApiService.completeFileUpload(
+      final completeResult = await ApiService.completeFileUpload(
         sessionToken: sessionToken,
         fileId:       fileId,
         originalUrl:  originalUrl,
       );
+      print('[_uploadFile] 3단계 결과: $completeResult');
+      if (completeResult['success'] != true) {
+        throw Exception('[3단계 실패] ${completeResult['error'] ?? '완료 신호 전송 실패'}');
+      }
 
       if (mounted) setState(() {
         _uploadedFileId = fileId;
-        _uploadStatus   = '변환 처리 중... (최대 1~2분 소요)';
+        _uploadStatus   = '[4/4] ffmpeg 변환 중... (최대 1~2분 소요)';
       });
 
-      // 4) 변환 완료까지 폴링 (최대 120초)
+      // ── 4단계: 변환 완료까지 폴링 (최대 120초) ──────────────────
       final finalStatus = await ApiService.waitForFileReady(
         sessionToken:   sessionToken,
         fileId:         fileId,
         timeoutSec:     120,
         onStatusChange: (s) {
+          print('[_uploadFile] 4단계 폴링 status=$s');
           if (mounted) setState(() {
             _uploadStatus = switch (s) {
-              'processing' => '변환 처리 중...',
-              'ready'      => '변환 완료!',
-              'failed'     => '변환 실패',
-              _            => s,
+              'processing' => '[4/4] ffmpeg 변환 중...',
+              'ready'      => '[4/4] 변환 완료!',
+              'failed'     => '[4/4] 변환 실패',
+              _            => '[4/4] $s',
             };
           });
         },
       );
 
+      print('[_uploadFile] 최종 상태: $finalStatus');
       if (finalStatus == null) {
-        throw Exception('변환 시간 초과 (120초). 잠시 후 다시 시도해 주세요.');
+        throw Exception('[4단계 실패] 변환 시간 초과 (120초). 잠시 후 다시 시도해 주세요.');
       }
       if (finalStatus.isFailed) {
-        throw Exception(finalStatus.errorMessage ?? '파일 변환에 실패했습니다');
+        throw Exception('[4단계 실패] ${finalStatus.errorMessage ?? '파일 변환 실패'}');
       }
 
-      // 5) 완료
-      setState(() {
+      // ── 완료 ────────────────────────────────────────────────────
+      print('[_uploadFile] 완료! processedUrl=${finalStatus.processedUrl}');
+      if (mounted) setState(() {
         _processedUrl = finalStatus.processedUrl;
         _uploadStatus = '✅ 변환 완료 (${finalStatus.durationSec?.toStringAsFixed(1) ?? '?'}초)';
         _isUploading  = false;
       });
 
     } catch (e) {
+      print('[_uploadFile] 오류: $e');
       if (mounted) {
         setState(() {
-          _uploadStatus = '❌ ${e.toString()}';
+          _uploadStatus = '❌ $e';
           _isUploading  = false;
         });
       }

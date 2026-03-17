@@ -388,9 +388,11 @@ class ApiService {
     required String fileName,
     required int fileSize,
   }) async {
+    final url = '$_baseUrl/api/uploads/prepare';
+    print('[UPLOAD-1] POST $url fileName=$fileName fileSize=$fileSize');
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/api/uploads/prepare'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'session_token': sessionToken,
@@ -398,15 +400,26 @@ class ApiService {
           'file_size':     fileSize,
         }),
       ).timeout(const Duration(seconds: 15));
+      print('[UPLOAD-1] status=${response.statusCode} body=${response.body}');
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        // 200/201 이외는 JSON 파싱 시도 후 fallback
+        try {
+          final errData = json.decode(response.body);
+          return {'success': false, 'error': errData['error'] ?? 'HTTP ${response.statusCode}'};
+        } catch (_) {
+          return {'success': false, 'error': 'HTTP ${response.statusCode}: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}'};
+        }
+      }
       return json.decode(response.body);
     } catch (e) {
-      return {'success': false, 'error': '서버 연결 실패: $e'};
+      print('[UPLOAD-1] 예외: $e');
+      return {'success': false, 'error': '[prepare] $e'};
     }
   }
 
   // =============================================
-  // 파일 업로드 — Firebase Storage 직접 PUT 업로드
-  // uploadUrl: prepareFileUpload에서 받은 Resumable Upload URL
+  // 파일 업로드 — Firebase Storage Resumable Upload (PUT)
+  // uploadUrl: prepareFileUpload에서 받은 Resumable Upload URL (Location 헤더값)
   // =============================================
   static Future<bool> uploadFileToStorage({
     required String uploadUrl,
@@ -414,6 +427,8 @@ class ApiService {
     required String contentType,
     void Function(double progress)? onProgress,
   }) async {
+    print('[UPLOAD-2] PUT to Firebase Storage url=${uploadUrl.substring(0, uploadUrl.length > 80 ? 80 : uploadUrl.length)}...');
+    print('[UPLOAD-2] contentType=$contentType fileSize=${await file.length()}');
     try {
       final fileBytes = await file.readAsBytes();
       final request   = http.Request('PUT', Uri.parse(uploadUrl));
@@ -422,14 +437,16 @@ class ApiService {
       request.bodyBytes = fileBytes;
 
       final streamedResponse = await request.send().timeout(const Duration(minutes: 2));
+      print('[UPLOAD-2] Firebase Storage 응답 status=${streamedResponse.statusCode}');
       if (streamedResponse.statusCode < 200 || streamedResponse.statusCode >= 300) {
         final body = await streamedResponse.stream.bytesToString();
-        print('[uploadFileToStorage] 실패 status=${streamedResponse.statusCode} body=$body');
+        print('[UPLOAD-2] 실패 body=${body.substring(0, body.length > 200 ? 200 : body.length)}');
         return false;
       }
+      print('[UPLOAD-2] Firebase Storage 업로드 성공!');
       return true;
     } catch (e) {
-      print('[uploadFileToStorage] 예외: $e');
+      print('[UPLOAD-2] 예외: $e');
       return false;
     }
   }
@@ -442,9 +459,11 @@ class ApiService {
     required int fileId,
     required String originalUrl,
   }) async {
+    final url = '$_baseUrl/api/uploads/complete';
+    print('[UPLOAD-3] POST $url fileId=$fileId originalUrl=$originalUrl');
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/api/uploads/complete'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'session_token': sessionToken,
@@ -452,9 +471,19 @@ class ApiService {
           'original_url':  originalUrl,
         }),
       ).timeout(const Duration(seconds: 10));
+      print('[UPLOAD-3] status=${response.statusCode} body=${response.body}');
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        try {
+          final errData = json.decode(response.body);
+          return {'success': false, 'error': errData['error'] ?? 'HTTP ${response.statusCode}'};
+        } catch (_) {
+          return {'success': false, 'error': 'HTTP ${response.statusCode}: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}'};
+        }
+      }
       return json.decode(response.body);
     } catch (e) {
-      return {'success': false, 'error': '서버 연결 실패: $e'};
+      print('[UPLOAD-3] 예외: $e');
+      return {'success': false, 'error': '[complete] $e'};
     }
   }
 
@@ -466,20 +495,25 @@ class ApiService {
     required String sessionToken,
     required int fileId,
   }) async {
+    final url = '$_baseUrl/api/uploads/$fileId?session_token=${Uri.encodeComponent(sessionToken)}';
+    print('[UPLOAD-4] GET $url');
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/api/uploads/$fileId?session_token=${Uri.encodeComponent(sessionToken)}'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
       ).timeout(const Duration(seconds: 10));
-
+      print('[UPLOAD-4] status=${response.statusCode} body=${response.body}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
           return UploadedFileStatus.fromJson(data);
         }
+      } else {
+        print('[UPLOAD-4] 비정상 응답 status=${response.statusCode}');
       }
       return null;
     } catch (e) {
+      print('[UPLOAD-4] 예외: $e');
       return null;
     }
   }
