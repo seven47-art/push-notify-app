@@ -344,6 +344,42 @@ class ApiService {
   }
 
   // =============================================
+  // 알람 예약 저장 — POST /api/alarms
+  // 반환: { success, data: { id, channel_id, scheduled_at, msg_type, ... } }
+  // =============================================
+  static Future<Map<String, dynamic>> createAlarm({
+    required String sessionToken,
+    required int channelId,
+    required String scheduledAt,   // ISO8601 UTC 문자열
+    required String msgType,       // 'youtube' | 'audio' | 'video'
+    required String msgValue,      // YouTube URL 또는 processed 파일 URL
+    String? linkUrl,
+  }) async {
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? await getUserId();
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/alarms'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'session_token': sessionToken,
+          'channel_id':   channelId,
+          'created_by':   userId,
+          'scheduled_at': scheduledAt,
+          'msg_type':     msgType,
+          'msg_value':    msgValue,
+          if (linkUrl != null && linkUrl.isNotEmpty) 'link_url': linkUrl,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': '서버 연결 실패: $e'};
+    }
+  }
+
+  // =============================================
   // 파일 업로드 — 업로드 준비 (Signed URL 발급)
   // 반환: { file_id, upload_url, original_path, bucket, content_type }
   // =============================================

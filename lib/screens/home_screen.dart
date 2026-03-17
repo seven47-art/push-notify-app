@@ -916,8 +916,13 @@ class _AlarmSheetState extends State<_AlarmSheet> {
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      onPressed: _save,
-                      child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      onPressed: (_isSaving || _isUploading) ? null : _save,
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                            )
+                          : const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ]),
@@ -929,7 +934,11 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     );
   }
 
-  void _save() {
+  bool _isSaving = false;
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+
     final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _hour, _min);
     if (dt.isBefore(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -975,12 +984,59 @@ class _AlarmSheetState extends State<_AlarmSheet> {
         ? (_processedUrl ?? '')
         : inputUrl;
 
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
-          '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}'),
-      backgroundColor: _teal,
-    ));
+    // 세션 토큰 확인
+    final prefs        = await SharedPreferences.getInstance();
+    final sessionToken = prefs.getString('session_token') ?? '';
+    if (sessionToken.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다'), backgroundColor: Colors.red));
+      }
+      return;
+    }
+
+    // 저장 중 표시
+    setState(() => _isSaving = true);
+
+    try {
+      // UTC ISO8601 문자열 변환
+      final scheduledAt = dt.toUtc().toIso8601String();
+
+      final result = await ApiService.createAlarm(
+        sessionToken: sessionToken,
+        channelId:    widget.channelId,
+        scheduledAt:  scheduledAt,
+        msgType:      _selectedSrc,   // 'youtube' | 'audio' | 'video'
+        msgValue:     msgValue,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
+              '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}'),
+          backgroundColor: _teal,
+        ));
+      } else {
+        final errMsg = result['error'] as String? ?? '알람 저장에 실패했습니다';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(errMsg),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('오류: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   // ── 파일 업로드 UI 위젯 ─────────────────────────────────────
