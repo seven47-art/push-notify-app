@@ -23,6 +23,7 @@ import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
+// splash_screen.dart 미사용 (v3.2.0: 2번 화면 제거)
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -156,6 +157,8 @@ class RinGoApp extends StatelessWidget {
 
 // ═══════════════════════════════════════════════
 //  스플래시 화면 – 세션 유효성 확인 후 분기
+//  v3.2.0: UI 제거 (투명 화면), 로직만 유지
+//  Android 시스템 스플래시(1번 화면)가 보이는 동안 백그라운드에서 처리
 // ═══════════════════════════════════════════════
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -225,15 +228,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF222222),
-      body: SizedBox.expand(
-        child: Image.asset(
-          'assets/images/splash_animation.gif',
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-        ),
-      ),
+    // v3.2.0: 화면 표시 없이 투명 처리
+    // Android 시스템 스플래시(1번 화면)가 보이는 동안 백그라운드에서 세션 체크 완료
+    return const Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SizedBox.shrink(),
     );
   }
 }
