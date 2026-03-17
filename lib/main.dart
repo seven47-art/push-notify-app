@@ -23,7 +23,6 @@ import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
-// splash_screen.dart 삭제됨 (v3.2.2: splash/loading 커스텀 UI 전면 제거)
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -51,17 +50,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // ─────────────────────────────────────────────────
 // 앱 시작점
 // ─────────────────────────────────────────────────
-// ── [PERF] 타이밍 헬퍼 ──────────────────────────────
-final int _appStartMs = DateTime.now().millisecondsSinceEpoch;
-int _t() => DateTime.now().millisecondsSinceEpoch - _appStartMs;
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('[PERF] app start  t=0ms');
 
   // Firebase 초기화
   await Firebase.initializeApp();
-  debugPrint('[PERF] Firebase init done  t=${_t()}ms');
 
   // FCM 백그라운드 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -77,7 +70,6 @@ void main() async {
   // 로컬 알림 초기화 (인앱 알림용)
   await _initLocalNotifications();
 
-  debugPrint('[PERF] runApp called  t=${_t()}ms');
   runApp(const RinGoApp());
 }
 
@@ -150,6 +142,7 @@ class RinGoApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF0F0C29),
       ),
       home: const SplashScreen(),
       routes: {
@@ -163,8 +156,6 @@ class RinGoApp extends StatelessWidget {
 
 // ═══════════════════════════════════════════════
 //  스플래시 화면 – 세션 유효성 확인 후 분기
-//  v3.2.0: UI 제거 (투명 화면), 로직만 유지
-//  Android 시스템 스플래시(1번 화면)가 보이는 동안 백그라운드에서 처리
 // ═══════════════════════════════════════════════
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -176,78 +167,68 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[PERF] SplashScreen build  t=${_t()}ms');
-    _launch();
+    _checkSession();
   }
 
-  /// Launch Loader:
-  /// 로그인 상태 → 토큰 유효성 → (업데이트/점검 체크 확장 가능) → 딥링크 확인 → 목적지 결정
-  /// 강제 대기 없이 즉시 판단, WebView URL에 초기 파라미터 전달
-  Future<void> _launch() async {
-    debugPrint('[PERF] _launch() start  t=${_t()}ms');
+  Future<void> _checkSession() async {
+    await Future.delayed(const Duration(milliseconds: 1200));
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('session_token') ?? '';
 
-    // ── 1) 토큰 없음 → 로그인 화면
-    if (token.isEmpty) {
-      debugPrint('[PERF] _launch() → no token → /auth  t=${_t()}ms');
-      _goAuth(); return;
-    }
+    // 토큰 없으면 → 로그인 화면
+    if (token.isEmpty) { _goAuth(); return; }
 
-    // ── 2) 권한 설정 미완료 → 권한 화면
+    // 로그인 되어 있지만 권한 설정을 아직 안 했으면 → 권한 화면
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
-    if (!permDone) {
-      debugPrint('[PERF] _launch() → no permissions → /permissions  t=${_t()}ms');
-      _goPermissions(); return;
-    }
+    if (!permDone) { _goPermissions(); return; }
 
-    // ── 3) 토큰 유효성 확인 (서버, 실패 시 오프라인 허용)
-    debugPrint('[PERF] _launch() token check start  t=${_t()}ms');
+    // 토큰 있으면 → 서버 확인 시도 (실패해도 메인으로)
+    // 핵심: 네트워크 오류/서버 오류는 무시하고 저장된 토큰으로 자동 로그인
     try {
       final res = await http.get(
         Uri.parse('$_baseUrl/api/auth/me'),
         headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 5)); // 8초→5초로 단축
-      debugPrint('[PERF] _launch() token check done  status=${res.statusCode}  t=${_t()}ms');
+      ).timeout(const Duration(seconds: 8));
 
-      if (res.statusCode == 401 || res.statusCode == 403) {
-        await prefs.remove('session_token');
-        _goAuth();
-        return;
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true) {
+          // 세션 유효 → 메인
+          _goMain();
+          return;
+        }
+        // 401/403: 서버가 명시적으로 세션 만료 → 재로그인
+        if (res.statusCode == 401 || res.statusCode == 403) {
+          await prefs.remove('session_token');
+          _goAuth();
+          return;
+        }
       }
-      // 200 외 (500, 네트워크 오류 등) → 오프라인 허용, 메인으로
-    } catch (err) {
-      debugPrint('[PERF] _launch() token check error/timeout: $err  t=${_t()}ms');
-      // 네트워크 없음 / 타임아웃 → 저장된 토큰으로 진행
+
+      // 500 등 서버 오류 → 토큰 유지하고 메인으로 (오프라인 허용)
+      _goMain();
+    } catch (_) {
+      // 네트워크 없음 / 타임아웃 → 토큰 유지하고 메인으로
+      _goMain();
     }
-
-    // ── 4) 딥링크 확인: Kotlin에서 초기 딥링크 토큰 읽기
-    //    딥링크가 있으면 WebView URL에 쿼리 파라미터로 전달해 바로 목적지로 이동
-    String? deepLinkToken;
-    try {
-      deepLinkToken = await const MethodChannel('com.pushnotify.push_notify_app/deeplink')
-          .invokeMethod<String?>('getInitialToken');
-    } catch (_) {}
-
-    debugPrint('[PERF] _launch() end → /main  deepLink=${deepLinkToken != null}  t=${_t()}ms');
-    // ── 5) 목적지 결정: 딥링크 있으면 파라미터 포함한 URL로 WebView 진입
-    _goMain(deepLinkToken: deepLinkToken);
   }
 
   void _goAuth()        { if (mounted) Navigator.of(context).pushReplacementNamed('/auth'); }
   void _goPermissions() { if (mounted) Navigator.of(context).pushReplacementNamed('/permissions'); }
-  void _goMain({ String? deepLinkToken }) {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(
-      '/main',
-      arguments: deepLinkToken, // WebViewScreen에서 초기 URL에 포함
-    );
-  }
+  void _goMain()        { if (mounted) Navigator.of(context).pushReplacementNamed('/main'); }
 
   @override
   Widget build(BuildContext context) {
-    // 로딩 UI 없음 - _launch() 로직만 실행 후 즉시 목적지로 이동
-    return const SizedBox.shrink();
+    return Scaffold(
+      backgroundColor: const Color(0xFF222222),
+      body: SizedBox.expand(
+        child: Image.asset(
+          'assets/images/splash_animation.gif',
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      ),
+    );
   }
 }
 
@@ -262,8 +243,7 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserver {
   late final WebViewController _controller;
-  bool  _loading = true;        // 최초 1회만 true, 이후 페이지 이동에서는 false 유지
-  bool  _initialLoadDone = false; // 최초 로드 완료 여부
+  bool  _loading = true;
   bool  _hasError = false;
   int   _loadingProgress = 0;
 
@@ -280,16 +260,10 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   bool   _isFakeCallShowing = false;
   // 이미 처리한 alarm_id 목록 (중복 수신 방지 - FCM + 폴링 동시 수신 케이스)
   final Set<int> _handledAlarmIds = {};
-  // SplashScreen에서 전달받은 초기 딥링크 토큰 (onPageFinished 후 처리)
-  String? _pendingInitialDeepLink;
-
-  // ── WebView 생성 카운터 (재생성 감지) ──
-  static int _webViewCreateCount = 0;
 
   @override
   void initState() {
     super.initState();
-    debugPrint('[PERF] WebViewScreen initState  t=${_t()}ms');
     WidgetsBinding.instance.addObserver(this);
     _initWebView();
     _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
@@ -307,10 +281,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   }
 
   // ── 세션 토큰 웹뷰 localStorage 주입 (재시도 포함) ──
-  static int _injectSessionCount = 0;
   Future<void> _injectSession() async {
-    _injectSessionCount++;
-    debugPrint('[PERF] _injectSession() call #$_injectSessionCount  t=${_t()}ms');
     final prefs       = await SharedPreferences.getInstance();
     final token       = prefs.getString('session_token') ?? '';
     if (token.isEmpty) return;
@@ -354,15 +325,15 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 })();
 """;
     await _controller.runJavaScript(js);
-    debugPrint('[PERF] _injectSession() done #$_injectSessionCount  t=${_t()}ms');
-    // 500ms 재시도 제거:
-    // mobile-app.js가 Flutter 환경을 감지해 auth-screen을 미리 숨기고
-    // flutterSetSession 호출만 기다리므로 재시도 불필요.
+
+    // 500ms 후 한 번 더 시도 (DOMContentLoaded 타이밍 이슈 대비)
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      await _controller.runJavaScript(js);
+    }
   }
 
   void _initWebView() {
-    _webViewCreateCount++;
-    debugPrint('[PERF] WebView create #$_webViewCreateCount  t=${_t()}ms');
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF121212))
@@ -374,36 +345,12 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (url) => setState(() {
-            debugPrint('[PERF] onPageStarted  initialDone=$_initialLoadDone  t=${_t()}ms  url=$url');
-            // 최초 로드 전에만 전체화면 로딩 표시
-            // 이후 WebView 내 페이지 이동(SPA 내부 goto)에서는 로딩 안 띄움
-            if (!_initialLoadDone) _loading = true;
-            _hasError = false;
-          }),
-          onProgress: (p) {
-            setState(() => _loadingProgress = p);
-            if (p == 100) debugPrint('[PERF] onProgress 100%  t=${_t()}ms');
-          },
-          onPageFinished: (url) async {
-            debugPrint('[PERF] onPageFinished  t=${_t()}ms  url=$url');
-            setState(() { _loading = false; _initialLoadDone = true; });
+          onPageStarted: (_) => setState(() { _loading = true; _hasError = false; }),
+          onProgress:    (p) => setState(() => _loadingProgress = p),
+          onPageFinished: (_) async {
+            setState(() => _loading = false);
             // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
             await _injectSession();
-            // ── SplashScreen에서 전달받은 초기 딥링크 처리 ──
-            if (_pendingInitialDeepLink != null) {
-              final token = _pendingInitialDeepLink!;
-              _pendingInitialDeepLink = null;
-              debugPrint('[DeepLink] 초기 딥링크 처리: $token');
-              await Future.delayed(const Duration(milliseconds: 300));
-              if (mounted) {
-                await _controller.runJavaScript(
-                  "if(typeof App!=='undefined'&&typeof App.goto==='function')"
-                  "{App.goto('join');}"
-                  "window._pendingInviteToken='${token.replaceAll("'", "\\'")}';",
-                );
-              }
-            }
           },
           onWebResourceError: (err) {
             if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
@@ -419,16 +366,6 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         ),
       )
       ..loadRequest(Uri.parse(_appUrl));
-
-    debugPrint('[PERF] WebView loadRequest sent  url=$_appUrl  t=${_t()}ms');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final deepLinkToken = ModalRoute.of(context)?.settings.arguments as String?;
-      if (deepLinkToken != null && deepLinkToken.isNotEmpty) {
-        debugPrint('[DeepLink] SplashScreen에서 전달된 초기 딥링크: $deepLinkToken');
-        // WebView 로드 완료 후 처리하도록 저장
-        _pendingInitialDeepLink = deepLinkToken;
-      }
-    });
   }
 
   // ── 앱 포그라운드/백그라운드 감지 ──
@@ -1445,13 +1382,42 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
         body: SafeArea(
           child: Stack(
             children: [
               _hasError
                 ? _buildErrorView()
                 : WebViewWidget(controller: _controller),
-              // v3.2.2: LinearProgressIndicator 제거 (splash/loading 커스텀 UI 전면 제거)
+              if (_loading)
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: LinearProgressIndicator(
+                    value: _loadingProgress / 100,
+                    minHeight: 3,
+                    backgroundColor: Colors.transparent,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                  ),
+                ),
+              if (_loading && _loadingProgress < 10)
+                Container(
+                  color: const Color(0xFF121212),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _AppLogo(),
+                        SizedBox(height: 24),
+                        SizedBox(
+                          width: 32, height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3, color: Color(0xFF6C63FF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
