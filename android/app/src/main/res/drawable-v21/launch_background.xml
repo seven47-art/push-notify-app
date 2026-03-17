@@ -1,14 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 21+ splash - 흰 배경 + RinGo 로딩 전용 로고 중앙 배치 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 흰색 배경 -->
     <item android:drawable="@color/splash_bg" />
-    <!-- 로딩 전용 로고 (RinGo 텍스트 로고) - 중앙 배치 -->
-    <item>
-        <bitmap
-            android:src="@drawable/splash_logo"
-            android:gravity="center"
-            android:width="200dp"
-            android:height="85dp" />
-    </item>
 </layer-list>

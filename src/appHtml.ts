@@ -325,21 +325,9 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:rgba(40,40,60,0.95); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:500; opacity:0; transition:all 0.25s; pointer-events:none; white-space:nowrap; z-index:999; }
 #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
-/* ── 로딩 풀스크린 (Flutter WebView 진입 시 세션 주입 전 표시) ── */
-#auth-screen {
-  position:fixed; inset:0; z-index:1000;
-  background:#FFFFFF;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:0 28px; overflow-y:auto;
-}
+/* auth-screen: Flutter 앱에서는 표시 안 함 (JS 참조용 hidden 유지) */
+#auth-screen { display:none; }
 #auth-screen.hidden { display:none; }
-
-.auth-logo-wrap {
-  display:flex; flex-direction:column; align-items:center; gap:10px;
-}
-.auth-logo-icon {
-  display:flex; align-items:center; justify-content:center;
-}
 
 /* 탭 전환 */
 .auth-tab-bar {
@@ -488,33 +476,20 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 </head>
 <body>
 
-<!-- ══ 로딩 화면 (Flutter WebView 세션 주입 전 표시) ══ -->
+<!-- auth-screen: Flutter 앱에서 전체화면 UI 제거 / JS 참조용 hidden 엘리먼트만 유지 -->
 <div id="auth-screen">
-  <!-- 로딩 전용 로고 -->
-  <div class="auth-logo-wrap">
-    <div class="auth-logo-icon">
-      <img src="/static/splash_logo.png" style="width:200px;object-fit:contain;display:block;">
-    </div>
-  </div>
-  <!-- 로딩 스피너 -->
-  <div style="margin-top:48px;">
-    <i class="fas fa-spinner spin" style="font-size:24px;color:#FF9A3C;"></i>
-  </div>
-  <!-- 숨겨진 폼 입력 (JS 참조용, 표시 안 됨) -->
-  <div style="display:none;">
-    <input type="email"    id="login-email">
-    <input type="password" id="login-pw">
-    <input type="text"     id="signup-name">
-    <input type="email"    id="signup-email">
-    <input type="password" id="signup-pw">
-    <input type="password" id="signup-pw2">
-    <div id="login-error"></div>
-    <div id="signup-error"></div>
-    <button id="login-btn"></button>
-    <button id="signup-btn"></button>
-    <button id="tab-login"></button>
-    <button id="tab-signup"></button>
-  </div>
+  <input type="email"    id="login-email"    style="display:none;">
+  <input type="password" id="login-pw"       style="display:none;">
+  <input type="text"     id="signup-name"    style="display:none;">
+  <input type="email"    id="signup-email"   style="display:none;">
+  <input type="password" id="signup-pw"      style="display:none;">
+  <input type="password" id="signup-pw2"     style="display:none;">
+  <div id="login-error"  style="display:none;"></div>
+  <div id="signup-error" style="display:none;"></div>
+  <button id="login-btn"  style="display:none;"></button>
+  <button id="signup-btn" style="display:none;"></button>
+  <button id="tab-login"  style="display:none;"></button>
+  <button id="tab-signup" style="display:none;"></button>
 </div>
 
 <!-- ══ 앱바 ══ -->
