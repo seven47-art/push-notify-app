@@ -279,7 +279,7 @@ uploads.post('/complete', async (c) => {
 uploads.get('/lookup', async (c) => {
   try {
     const secret         = c.req.header('X-Internal-Secret') || ''
-    const expectedSecret = (c.env as any).CLOUD_RUN_SECRET   || ''
+    const expectedSecret = c.env.CLOUD_RUN_SECRET   || ''
     if (!expectedSecret || secret !== expectedSecret) {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }
@@ -364,7 +364,7 @@ uploads.patch('/:id/status', async (c) => {
   try {
     // 내부 시크릿 검증 (Cloud Run만 호출 가능)
     const secret         = c.req.header('X-Internal-Secret') || ''
-    const expectedSecret = (c.env as any).CLOUD_RUN_SECRET   || ''
+    const expectedSecret = c.env.CLOUD_RUN_SECRET   || ''
     if (!expectedSecret || secret !== expectedSecret) {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }
