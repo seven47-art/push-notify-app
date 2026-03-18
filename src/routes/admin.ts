@@ -458,6 +458,9 @@ function adminDashboardHTML() {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('reports')">
       <i class="fas fa-flag w-4 text-center text-red-400"></i> 신고 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('blocked')">
+      <i class="fas fa-ban w-4 text-center text-rose-500"></i> 계정 차단 관리
+    </a>
   </nav>
 
   <!-- 하단: 관리자 설정 + 로그아웃 -->
@@ -957,6 +960,14 @@ function adminDashboardHTML() {
             <label class="text-xs text-slate-400">종료일</label>
             <input type="date" id="alarmLogsDateTo" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') searchAlarmLogs()">
           </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-slate-400">채널명</label>
+            <input type="text" id="alarmLogsChannel" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500 w-36" placeholder="채널명 검색" onkeydown="if(event.key==='Enter') searchAlarmLogs()">
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-slate-400">발신자</label>
+            <input type="text" id="alarmLogsSender" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500 w-40" placeholder="이메일 검색" onkeydown="if(event.key==='Enter') searchAlarmLogs()">
+          </div>
           <button onclick="searchAlarmLogs()" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm flex items-center gap-2"><i class="fas fa-search"></i> 검색</button>
           <button onclick="resetAlarmLogsSearch()" class="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm">초기화</button>
           <span id="alarmLogsSearchInfo" class="text-xs text-slate-400 ml-1"></span>
@@ -1317,6 +1328,59 @@ function adminDashboardHTML() {
             </div>
             <div id="report-detail-content"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 계정 차단 관리 ===== -->
+    <div id="page-blocked" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-rose-600/20 flex items-center justify-center"><i class="fas fa-ban text-rose-400"></i></div>
+            <div><h2 class="text-xl font-bold text-white">계정 차단 관리</h2><p class="text-slate-400 text-sm">차단된 이메일은 로그인 및 회원가입이 불가합니다</p></div>
+          </div>
+        </div>
+
+        <!-- 차단 추가 카드 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-plus-circle mr-2 text-rose-400"></i>이메일 차단 추가</h3>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input type="email" id="blockEmailInput" class="input-field text-sm flex-1" placeholder="차단할 이메일 입력" onkeydown="if(event.key==='Enter') addBlockedEmail()">
+            <input type="text" id="blockReasonInput" class="input-field text-sm w-full sm:w-48" placeholder="차단 사유 (선택)">
+            <button onclick="addBlockedEmail()" class="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap">
+              <i class="fas fa-ban mr-1"></i>차단 추가
+            </button>
+          </div>
+          <p class="text-slate-500 text-xs mt-2">※ 차단 시 해당 계정의 세션이 즉시 만료되고 재로그인이 불가합니다</p>
+        </div>
+
+        <!-- 검색 + 목록 -->
+        <div class="card rounded-xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-700 flex items-center gap-3">
+            <div class="relative flex-1 max-w-xs">
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+              <input type="text" id="blockSearchInput" class="input-field pl-9 text-sm" placeholder="이메일 검색..." oninput="searchBlockedEmails(this.value)">
+            </div>
+            <span id="blocked-total" class="text-slate-500 text-xs"></span>
+            <button onclick="loadBlockedAccounts()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-800 border-b border-slate-700">
+                <tr>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">이메일</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">차단 사유</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">차단일시</th>
+                  <th class="text-center px-5 py-3 text-slate-400 font-semibold">해제</th>
+                </tr>
+              </thead>
+              <tbody id="blocked-tbody">
+                <tr><td colspan="4" class="text-center py-10 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="blocked-pagination" class="px-5 py-3 border-t border-slate-700/50 flex items-center justify-between text-slate-400 text-sm"></div>
         </div>
       </div>
     </div>
