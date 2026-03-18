@@ -224,10 +224,15 @@ auth.post('/google', async (c) => {
       return c.json({ success: false, error: '사용할 수 없는 계정입니다. 고객센터에 문의하세요.' }, 403)
     }
 
-    // 기존 사용자 조회
+    // 기존 사용자 조회 (is_active 무관하게 먼저 확인)
     let user: any = await c.env.DB.prepare(
-      'SELECT * FROM users WHERE email = ? AND is_active = 1'
+      'SELECT * FROM users WHERE email = ?'
     ).bind(emailLower).first()
+
+    // 계정이 비활성화(차단)된 경우 로그인 거부
+    if (user && user.is_active === 0) {
+      return c.json({ success: false, error: '사용할 수 없는 계정입니다. 고객센터에 문의하세요.' }, 403)
+    }
 
     if (!user) {
       // 신규 사용자 자동 생성 (비밀번호 없음 - google_id로 구분)
