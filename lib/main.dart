@@ -23,6 +23,7 @@ import 'config.dart';
 import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
+import 'screens/terms_screen.dart';
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -148,6 +149,7 @@ class RinGoApp extends StatelessWidget {
       routes: {
         '/auth':        (_) => const AuthScreen(),
         '/permissions': (_) => const PermissionScreen(),
+        '/terms':       (_) => const TermsScreen(),
         '/main':        (_) => const WebViewScreen(),
       },
     );
@@ -202,6 +204,12 @@ class _StartGateState extends State<_StartGate> {
     if (!mounted) return;
     if (!permDone) {
       Navigator.of(context).pushReplacementNamed('/permissions');
+      return;
+    }
+    final termsAccepted = prefs.getBool('termsAccepted') ?? false;
+    if (!mounted) return;
+    if (!termsAccepted) {
+      Navigator.of(context).pushReplacementNamed('/terms');
       return;
     }
     Navigator.of(context).pushReplacementNamed('/main');
