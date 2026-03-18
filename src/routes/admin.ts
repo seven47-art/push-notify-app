@@ -335,11 +335,11 @@ function adminDashboardHTML() {
   .btn-warning { background:linear-gradient(135deg,#f59e0b,#d97706); }
   .btn-secondary { background:#334155; color:#e2e8f0; }
   .btn-secondary:hover { background:#475569; }
-  .nav-item { transition:all 0.2s; border-radius:8px; }
+  .nav-item { transition:all 0.2s; border-radius:8px; border-left:3px solid transparent; }
   .nav-item:hover,.nav-item.active { background:rgba(99,102,241,0.2); color:#a5b4fc; }
-  .nav-item.active { border-left:3px solid #6366f1; }
+  .nav-item.active { border-left-color:#6366f1; }
   .nav-item-settings:hover { background:rgba(245,158,11,0.15); color:#fbbf24; }
-  .nav-item-settings.active { background:rgba(245,158,11,0.15); color:#fbbf24; border-left:3px solid #f59e0b; }
+  .nav-item-settings.active { background:rgba(245,158,11,0.15); color:#fbbf24; border-left-color:#f59e0b; }
   .nav-item-logout:hover { background:rgba(239,68,68,0.15); color:#f87171; }
   .stat-card { background:linear-gradient(135deg,#1e293b,#0f172a); }
   .badge { padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; }

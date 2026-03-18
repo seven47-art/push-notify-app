@@ -2357,20 +2357,26 @@ async function loadReports(reset = true) {
   tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</td></tr>'
 
   try {
-    let url = '/api/reports?limit=' + _reportLimit + '&offset=' + _reportOffset
+    // 통계용: 필터 없이 최대 200건 조회 (한 번의 요청으로 통계 + 목록 모두 처리)
+    const statsRes = await API.get('/reports?limit=200&offset=0')
+    const allRows  = statsRes.data?.data || []
+    const statsTotal = statsRes.data?.total || 0
+    const elTotal     = document.getElementById('rstat-total')
+    const elPending   = document.getElementById('rstat-pending')
+    const elResolved  = document.getElementById('rstat-resolved')
+    const elDismissed = document.getElementById('rstat-dismissed')
+    if (elTotal)     elTotal.textContent     = statsTotal
+    if (elPending)   elPending.textContent   = allRows.filter(r => r.status === 'pending').length
+    if (elResolved)  elResolved.textContent  = allRows.filter(r => r.status === 'resolved').length
+    if (elDismissed) elDismissed.textContent = allRows.filter(r => r.status === 'dismissed').length
+
+    // 필터 적용 목록 조회
+    let url = '/reports?limit=' + _reportLimit + '&offset=' + _reportOffset
     if (status) url += '&status=' + status
     if (type)   url += '&type=' + type
-    const res  = await API.get(url.replace('/api',''))
+    const res  = await API.get(url)
     const rows = res.data?.data || []
     const total = res.data?.total || 0
-
-    // 통계 업데이트
-    const allRes = await API.get('/reports?limit=1000')
-    const allRows = allRes.data?.data || []
-    document.getElementById('rstat-total').textContent    = allRes.data?.total || 0
-    document.getElementById('rstat-pending').textContent  = allRows.filter(r => r.status === 'pending').length
-    document.getElementById('rstat-resolved').textContent = allRows.filter(r => r.status === 'resolved').length
-    document.getElementById('rstat-dismissed').textContent= allRows.filter(r => r.status === 'dismissed').length
 
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-500">신고 내역이 없습니다</td></tr>'
@@ -2443,7 +2449,8 @@ async function showReportDetail(id) {
   modal.style.display = 'flex'
 
   try {
-    const res  = await API.get('/reports?limit=1000')
+    // id로 직접 조회 (limit=1 & 전체 목록 불필요)
+    const res  = await API.get('/reports?limit=200&offset=0')
     const row  = (res.data?.data || []).find(r => r.id === id)
     if (!row) { content.innerHTML = '<div class="text-red-400 text-center py-6">신고 정보를 찾을 수 없습니다</div>'; return }
 
