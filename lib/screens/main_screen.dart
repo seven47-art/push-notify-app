@@ -1,12 +1,12 @@
 // lib/screens/main_screen.dart
-// Phase 1: WebView 대체 Flutter 네이티브 메인 화면
-// BottomNavigationBar 5탭 뼈대 — 각 탭은 Phase별로 실제 화면으로 교체
+// Phase 2: 수신함/발신함 탭 연결 완료
+// BottomNavigationBar 5탭 — 각 탭은 Phase별로 실제 화면으로 교체
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // ── 탭 화면 import (Phase 진행에 따라 실제 화면으로 교체) ──
 import 'home_screen.dart';          // Phase 4에서 완성
-import 'notification_screen.dart';  // Phase 2에서 완성
+import 'notification_screen.dart';  // Phase 2 완성
 import 'settings_screen.dart';      // Phase 3에서 완성
 
 // ── 색상 상수 ──────────────────────────────────────────────
@@ -20,11 +20,11 @@ const _border   = Color(0xFF3A3A55);
 
 // ── 탭 인덱스 상수 ────────────────────────────────────────
 class TabIndex {
-  static const int home     = 0;
+  static const int home      = 0;
   static const int myChannel = 1;
-  static const int inbox    = 2;
-  static const int outbox   = 3;
-  static const int settings = 4;
+  static const int inbox     = 2;
+  static const int outbox    = 3;
+  static const int settings  = 4;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -41,6 +41,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
 
+  // 수신함/발신함 화면에 접근하기 위한 GlobalKey
+  final _inboxKey  = GlobalKey<NotificationScreenState>();
+  final _outboxKey = GlobalKey<NotificationScreenState>();
+
   // 각 탭 화면 — Phase 진행에 따라 실제 구현 화면으로 교체
   late final List<Widget> _screens;
 
@@ -49,25 +53,36 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _currentIndex = widget.initialTab;
     _screens = [
-      const HomeScreen(),           // 탭 0: 홈 (Phase 4)
-      const _PlaceholderScreen(     // 탭 1: 내 채널 (Phase 5)
+      const HomeScreen(),                              // 탭 0: 홈 (Phase 4에서 완성)
+      const _PlaceholderScreen(                        // 탭 1: 내 채널 (Phase 5)
         icon: Icons.satellite_alt_rounded,
         label: '내 채널',
         sub: 'Phase 5에서 구현 예정',
       ),
-      const NotificationScreen(),   // 탭 2: 수신함/발신함 (Phase 2)
-      const _PlaceholderScreen(     // 탭 3: 발신함 (Phase 2 - NotificationScreen 탭으로 통합)
-        icon: Icons.send_rounded,
-        label: '발신함',
-        sub: 'Phase 2에서 구현 예정',
-      ),
-      const SettingsScreen(),        // 탭 4: 설정 (Phase 3)
+      NotificationScreen(key: _inboxKey,  initialTab: 0),  // 탭 2: 수신함
+      NotificationScreen(key: _outboxKey, initialTab: 1),  // 탭 3: 발신함
+      const SettingsScreen(),                          // 탭 4: 설정 (Phase 3)
     ];
   }
 
   void _onTabTapped(int index) {
-    if (_currentIndex == index) return;
+    if (_currentIndex == index) {
+      // 같은 탭 재탭 시 새로고침
+      _refreshTab(index);
+      return;
+    }
     setState(() => _currentIndex = index);
+    // 탭 전환 시 해당 화면 새로고침
+    _refreshTab(index);
+  }
+
+  /// 탭 전환/재탭 시 해당 화면 새로고침
+  void _refreshTab(int index) {
+    if (index == TabIndex.inbox) {
+      _inboxKey.currentState?.refresh();
+    } else if (index == TabIndex.outbox) {
+      _outboxKey.currentState?.refresh();
+    }
   }
 
   @override
