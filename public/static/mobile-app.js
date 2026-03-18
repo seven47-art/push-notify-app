@@ -3511,6 +3511,45 @@ const App = {
     const el = document.getElementById('image-viewer-overlay')
     if (el) el.remove()
   },
+
+  // ── channel_deleted: 운영자 계정 삭제 시 수신함/구독 목록 즉시 정리 ──
+  onChannelDeleted(channelId) {
+    const cid = Number(channelId)
+    if (!cid) return
+
+    // 수신함 아이템에서 해당 채널 항목 제거
+    if (this._inboxItems) {
+      this._inboxItems = this._inboxItems.filter(i => Number(i.channel_id) !== cid)
+    }
+    // 수신함 채널 필터 목록에서도 제거
+    if (this._inboxChannels) {
+      this._inboxChannels = this._inboxChannels.filter(c => Number(c.id) !== cid)
+    }
+    // 발신함 아이템에서 해당 채널 항목 제거
+    if (this._outboxItems) {
+      this._outboxItems = this._outboxItems.filter(i => Number(i.channel_id) !== cid)
+    }
+    if (this._outboxChannels) {
+      this._outboxChannels = this._outboxChannels.filter(c => Number(c.id) !== cid)
+    }
+
+    // 수신함/발신함 즉시 리렌더링 (현재 탭이 어디든)
+    this._renderInbox()
+    this._renderOutbox()
+
+    // 구독 채널 목록(joined-all 탭) 서버에서 새로 로드
+    const joinedEl = document.getElementById('page-joined-all')
+    if (joinedEl && joinedEl.style.display !== 'none') {
+      this.loadJoinedChannels()
+    }
+
+    // 캐시 무효화 (다음 로드 시 서버에서 새로 받도록)
+    if (Cache._mem) {
+      Object.keys(Cache._mem)
+        .filter(k => k.startsWith('inbox_') || k.startsWith('outbox_'))
+        .forEach(k => delete Cache._mem[k])
+    }
+  },
 }
 
 // 모달 외부 클릭 닫기
