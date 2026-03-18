@@ -332,6 +332,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:0 28px; overflow-y:auto;
 }
+/* 기본 숨김 – Flutter/웹 모두 JS에서 명시적으로 show() 할 때만 표시 */
 #auth-screen.hidden { display:none; }
 
 .auth-logo-wrap {
@@ -493,7 +494,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
 <body>
 
 <!-- ══ 로그인 / 회원가입 화면 ══ -->
-<div id="auth-screen">
+<div id="auth-screen" class="hidden">
   <!-- 로고 -->
   <div class="auth-logo-wrap">
     <div class="auth-logo-icon">

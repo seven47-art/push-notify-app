@@ -144,7 +144,7 @@ class RinGoApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF0F0C29),
       ),
-      home: const SplashScreen(),
+      home: const _StartGate(),
       routes: {
         '/auth':        (_) => const AuthScreen(),
         '/permissions': (_) => const PermissionScreen(),
@@ -155,49 +155,42 @@ class RinGoApp extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════
-//  스플래시 화면 – 세션 유효성 확인 후 분기
+//  시작 게이트 – UI 없이 즉시 라우팅
+//  Android native splash가 이 구간을 커버함
 // ═══════════════════════════════════════════════
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class _StartGate extends StatefulWidget {
+  const _StartGate();
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<_StartGate> createState() => _StartGateState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _StartGateState extends State<_StartGate> {
   @override
   void initState() {
     super.initState();
-    _checkSession();
+    _route();
   }
 
-  Future<void> _checkSession() async {
-    // 대기 없이 즉시 판단 (GIF/delay 전면 제거)
+  Future<void> _route() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('session_token') ?? '';
-
-    // 토큰 없으면 → 로그인 화면
-    if (token.isEmpty) { _goAuth(); return; }
-
-    // 권한 설정 미완료 → 권한 화면
+    if (!mounted) return;
+    if (token.isEmpty) {
+      Navigator.of(context).pushReplacementNamed('/auth');
+      return;
+    }
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
-    if (!permDone) { _goPermissions(); return; }
-
-    // 토큰 있으면 → 서버 확인 없이 즉시 메인으로
-    // 세션 유효성 검증은 WebView 내 flutterSetSession 주입 후 서버가 처리
-    // (401/403 응답 시 웹앱에서 로그아웃 처리)
-    _goMain();
+    if (!permDone) {
+      Navigator.of(context).pushReplacementNamed('/permissions');
+      return;
+    }
+    Navigator.of(context).pushReplacementNamed('/main');
   }
-
-  void _goAuth()        { if (mounted) Navigator.of(context).pushReplacementNamed('/auth'); }
-  void _goPermissions() { if (mounted) Navigator.of(context).pushReplacementNamed('/permissions'); }
-  void _goMain()        { if (mounted) Navigator.of(context).pushReplacementNamed('/main'); }
 
   @override
-  Widget build(BuildContext context) {
-    // UI 없음 - _checkSession() 즉시 실행 후 목적지로 이동
-    // Android native splash가 이 시간을 커버함
-    return const SizedBox.shrink();
-  }
+  Widget build(BuildContext context) =>
+      // 완전한 블랙 배경 – native splash와 동일색
+      const ColoredBox(color: Color(0xFF000000));
 }
 
 // ═══════════════════════════════════════════════
@@ -299,7 +292,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
   void _initWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF1A1A2E)) // native splash(#1A1A2E)와 동일 → 전환 시 깜빡임 없음
+      ..setBackgroundColor(const Color(0xFF000000)) // native splash(#000000)와 동일 → 전환 시 깜빡임 없음
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (JavaScriptMessage msg) {
@@ -1345,7 +1338,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFF121212),
+        backgroundColor: const Color(0xFF000000),
         body: SafeArea(
           child: Stack(
             children: [
@@ -1362,25 +1355,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
                   ),
                 ),
-              if (_loading && _loadingProgress < 10)
-                Container(
-                  color: const Color(0xFF121212),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _AppLogo(),
-                        SizedBox(height: 24),
-                        SizedBox(
-                          width: 32, height: 32,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3, color: Color(0xFF6C63FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              // 중간 로딩 전체화면 제거 – 블랙 배경이 WebView 아래에서 커버
             ],
           ),
         ),
