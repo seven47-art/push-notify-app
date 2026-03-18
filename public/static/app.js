@@ -261,15 +261,37 @@ function renderRecentBatches(batches) {
 // =============================================
 // 채널 관리
 // =============================================
+let _allChannels = []  // 채널 검색용 전체 캐시
+
 async function loadChannels() {
   try {
     const { data } = await API.get('/channels')
-    const list = data.data || []
-    const tbody = document.getElementById('channelsList')
+    _allChannels = data.data || []
+    renderChannels(_allChannels)
+  } catch (e) { showToast('채널 로드 오류: ' + e.message, 'error') }
+}
+
+function filterChannels(q) {
+  const keyword = (q || '').trim().toLowerCase()
+  if (!keyword) return renderChannels(_allChannels)
+  const filtered = _allChannels.filter(ch =>
+    (ch.name || '').toLowerCase().includes(keyword) ||
+    (ch.owner_email || '').toLowerCase().includes(keyword) ||
+    (ch.owner_id || '').toLowerCase().includes(keyword) ||
+    (ch.description || '').toLowerCase().includes(keyword)
+  )
+  renderChannels(filtered)
+}
+
+function renderChannels(list) {
+  const tbody = document.getElementById('channelsList')
+  const countEl = document.getElementById('channelCount')
+  if (countEl) countEl.textContent = list.length + '개'
 
     if (!list.length) {
+      const q = (document.getElementById('channelSearchInput')?.value || '').trim()
       tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-500 py-12">
-        <i class="fas fa-layer-group text-4xl mb-3 block text-slate-700"></i>채널이 없습니다</td></tr>`
+        <i class="fas fa-layer-group text-4xl mb-3 block text-slate-700"></i>${q ? `"${q}" 검색 결과가 없습니다` : '채널이 없습니다'}</td></tr>`
       return
     }
 
@@ -320,7 +342,6 @@ async function loadChannels() {
           </div>
         </td>
       </tr>`).join('')
-  } catch (e) { showToast('채널 로드 오류: ' + e.message, 'error') }
 }
 
 // 인기채널 지정/해제 토글
@@ -2397,9 +2418,9 @@ async function loadReports(reset = true) {
           <td class="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">${dt}</td>
           <td class="px-4 py-3">${typeBadge}</td>
           <td class="px-4 py-3 text-slate-200 text-sm">${r.reason}</td>
-          <td class="px-4 py-3 text-slate-300 text-sm max-w-[160px] truncate" title="${target}">${target}</td>
-          <td class="px-4 py-3 text-slate-400 text-xs">${r.reporter_name || r.reporter_id || '-'}</td>
-          <td class="px-4 py-3 text-slate-400 text-xs">${r.target_user_name || r.target_user_id || '-'}</td>
+          <td class="px-4 py-3 text-slate-300 text-sm max-w-[160px] truncate cursor-text select-all" title="${target}" onclick="event.stopPropagation()">${target}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs cursor-text select-all" onclick="event.stopPropagation()">${r.reporter_name || r.reporter_id || '-'}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs cursor-text select-all" onclick="event.stopPropagation()">${r.target_user_name || r.target_user_id || '-'}</td>
           <td class="px-4 py-3">${statusBadge}</td>
           <td class="px-4 py-3" onclick="event.stopPropagation()">
             <select onchange="updateReportStatus(${r.id}, this.value)" class="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1 outline-none">
