@@ -1150,8 +1150,6 @@ const App = {
     const rows = items.map(item => {
       const typeIcon = this._msgIconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
       const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.received_at)
-      const stLabel  = this._statusLabelMap[item.status] || item.status
-      const stColor  = this._statusColorMap[item.status] || '#90A4AE'
       const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
@@ -1165,7 +1163,6 @@ const App = {
           <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;">${typeIcon}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
-          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>
       </div>`
     }).join('')
@@ -1426,13 +1423,9 @@ const App = {
     }
 
     const iconMap    = this._msgIconMap
-    const statusMap  = { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' }
-    const statusColor= { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' }
     const rows = items.map(item => {
       const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
       const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.sent_at)
-      const stLabel  = statusMap[item.status] || item.status
-      const stColor  = statusColor[item.status] || '#90A4AE'
       const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
         : `<span style="font-size:11px;font-weight:700;">${(item.channel_name||'?').charAt(0).toUpperCase()}</span>`
@@ -1446,7 +1439,6 @@ const App = {
           <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;">${typeIcon}</div>
           <span class="alarm-list-channel">${item.channel_name}</span>
           <span class="alarm-list-time">${timeStr}</span>
-          <span class="alarm-list-status" style="color:${stColor};">${stLabel}</span>
         </div>
       </div>`
     }).join('')
