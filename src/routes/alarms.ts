@@ -1035,31 +1035,38 @@ alarms.get('/outbox', async (c) => {
 
     const channelId = c.req.query('channel_id') || ''
 
-    let query = `
-      SELECT
-        l.id, l.alarm_id, l.channel_id, l.channel_name,
-        l.msg_type, l.msg_value, l.status, l.received_at,
-        l.scheduled_at, l.link_url
-      FROM alarm_logs l
-      WHERE l.sender_id = ?
-    `
+    // alarm_logs는 수신자마다 1행 → GROUP BY alarm_id 로 묶어 발신 단위로 1건만 표시
+    let whereClause = `WHERE l.sender_id = ?`
     const params: any[] = [user.id]
     if (channelId) {
-      query += ` AND l.channel_id = ?`
+      whereClause += ` AND l.channel_id = ?`
       params.push(Number(channelId))
     }
     const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
     const offset = Number(c.req.query('offset') || 0)
 
-    // 전체 카운트
-    const countQuery = query.replace(
-      'SELECT\n        l.id, l.alarm_id, l.channel_id, l.channel_name,\n        l.msg_type, l.msg_value, l.status, l.received_at,\n        l.scheduled_at, l.link_url\n      FROM alarm_logs l',
-      'SELECT COUNT(*) as total FROM alarm_logs l'
-    )
-    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first() as any
+    // 전체 카운트 (alarm_id 기준 중복 제거)
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(DISTINCT l.alarm_id) as total FROM alarm_logs l ${whereClause}`
+    ).bind(...params).first() as any
     const total = countResult?.total || 0
 
-    query += ` ORDER BY l.received_at DESC LIMIT ? OFFSET ?`
+    // GROUP BY alarm_id: 수신자 수만큼 중복되던 문제 해결
+    // receiver_count: 총 수신자 수, status: 가장 최근 상태
+    const query = `
+      SELECT
+        MIN(l.id) as id, l.alarm_id, l.channel_id, l.channel_name,
+        l.msg_type, l.msg_value,
+        MAX(l.status) as status,
+        MIN(l.received_at) as received_at,
+        l.scheduled_at, l.link_url,
+        COUNT(l.id) as receiver_count
+      FROM alarm_logs l
+      ${whereClause}
+      GROUP BY l.alarm_id
+      ORDER BY MIN(l.received_at) DESC
+      LIMIT ? OFFSET ?
+    `
     params.push(limit, offset)
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }

@@ -2,6 +2,7 @@
 // 계정 차단 관리 API (관리자 전용)
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { sendFCMDataMessage } from './fcm'
 
 const blocked = new Hono<{ Bindings: Bindings }>()
 
@@ -64,15 +65,33 @@ blocked.post('/', async (c) => {
       return c.json({ success: false, error: '이미 차단된 이메일입니다' }, 409)
     }
 
+    // 해당 유저 FCM 토큰 + user_id 조회 (차단 전 먼저)
+    const userRow = await c.env.DB.prepare(
+      `SELECT user_id, fcm_token FROM users WHERE LOWER(email) = ?`
+    ).bind(email).first() as { user_id: string; fcm_token: string | null } | null
+
+    // FCM 강제 로그아웃 전송 (계정 비활성화 전에 전송)
+    if (userRow?.fcm_token) {
+      try {
+        const serviceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+        const projectId      = (c.env as any).FCM_PROJECT_ID           || ''
+        if (serviceAccount && projectId) {
+          await sendFCMDataMessage(
+            userRow.fcm_token,
+            { action: 'force_logout', reason: 'blocked' },
+            serviceAccount,
+            projectId
+          )
+        }
+      } catch (_) { /* FCM 실패해도 차단 계속 진행 */ }
+    }
+
     // 해당 유저 계정도 비활성화 처리
     await c.env.DB.prepare(
       `UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE LOWER(email) = ?`
     ).bind(email).run()
 
     // 해당 유저 세션 전체 삭제
-    const userRow = await c.env.DB.prepare(
-      `SELECT user_id FROM users WHERE LOWER(email) = ?`
-    ).bind(email).first() as { user_id: string } | null
     if (userRow) {
       await c.env.DB.prepare(
         `DELETE FROM user_sessions WHERE user_id = ?`

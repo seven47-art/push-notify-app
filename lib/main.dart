@@ -367,11 +367,11 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
         await prefs.remove('user_email');
         await prefs.remove('display_name');
         if (!mounted) return;
-        // 차단 안내 다이얼로그
+        // 차단 안내 다이얼로그 (dialogContext 사용 → pop 정상 동작)
         await showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (_) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             backgroundColor: const Color(0xFF1E293B),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(children: [
@@ -385,7 +385,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(dialogContext).pop(),
                 child: const Text('확인', style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
               ),
             ],
@@ -407,6 +407,53 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       _checkSessionValidity();
       debugPrint('[Lifecycle] 포그라운드 복귀 → 세션 체크');
     }
+  }
+
+  // ── FCM force_logout 처리 (관리자 회원삭제 / 계정차단) ──
+  Future<void> _handleForceLogout(String reason) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('session_token');
+    await prefs.remove('user_id');
+    await prefs.remove('email');
+    await prefs.remove('user_email');
+    await prefs.remove('display_name');
+
+    if (!mounted) return;
+
+    final isDeleted = reason == 'deleted';
+    final title   = isDeleted ? '계정 삭제됨' : '계정 사용 불가';
+    final content = isDeleted
+        ? '관리자에 의해 계정이 삭제되었습니다.\n다시 가입하실 수 있습니다.'
+        : '이 계정은 사용할 수 없습니다.\n다른 계정을 선택해주세요.';
+    final icon    = isDeleted ? Icons.person_remove : Icons.block;
+    final iconColor = isDeleted ? const Color(0xFFF59E0B) : const Color(0xFFEF4444);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ]),
+        content: Text(
+          content,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('확인', style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
   }
 
   // ── FCM 초기화 + 토큰 서버 등록 ──────────────────────
@@ -439,6 +486,13 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       // → Flutter에서는 로그만 남기고 알람 표시는 Kotlin에 완전 위임
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint('[FCM] 포그라운드 메시지 수신 (Kotlin에서 처리): ${message.data}');
+        // force_logout: 관리자 회원삭제 또는 계정 차단 시 즉시 로그아웃
+        final action = message.data['action'] ?? '';
+        if (action == 'force_logout') {
+          final reason = message.data['reason'] ?? 'deleted';
+          _handleForceLogout(reason);
+          return;
+        }
         // 알람 처리는 Kotlin RinGoFCMService → AlarmPollingService.triggerAlarm → FakeCallActivity
         // 여기서 _showFakeCall() 호출하면 Flutter FakeCallScreen(구 UI)이 이중으로 뜸 → 절대 호출 금지
       });
