@@ -10,9 +10,12 @@ async function getSessionUser(c: any): Promise<{ userId: string; displayName: st
   const auth = c.req.header('Authorization') || ''
   const token = auth.replace('Bearer ', '').trim()
   if (!token) return null
-  const row = await c.env.DB.prepare(
-    'SELECT user_id, display_name FROM sessions WHERE token = ? AND expires_at > datetime("now")'
-  ).bind(token).first() as { user_id: string; display_name: string } | null
+  const row = await c.env.DB.prepare(`
+    SELECT s.user_id, u.display_name
+    FROM user_sessions s
+    JOIN users u ON s.user_id = u.user_id
+    WHERE s.session_token = ? AND s.expires_at > datetime('now') AND u.is_active = 1
+  `).bind(token).first() as { user_id: string; display_name: string } | null
   if (!row) return null
   return { userId: row.user_id, displayName: row.display_name }
 }
