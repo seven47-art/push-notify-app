@@ -6,9 +6,7 @@ import type { Bindings } from '../types'
 const blocked = new Hono<{ Bindings: Bindings }>()
 
 // ── DB 초기화 ─────────────────────────────────────────────
-let _blockedTableReady = false
 async function ensureBlockedTable(db: any) {
-  if (_blockedTableReady) return
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS blocked_emails (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,7 +16,6 @@ async function ensureBlockedTable(db: any) {
       created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
-  _blockedTableReady = true
 }
 
 // ── GET /api/blocked  목록 조회 ───────────────────────────
@@ -123,13 +120,24 @@ blocked.delete('/:id', async (c) => {
 // auth.ts 에서 내부적으로 사용하지 않고 직접 DB 조회로 처리
 export async function isEmailBlocked(db: any, email: string): Promise<boolean> {
   try {
-    await ensureBlockedTable(db)
-    const row = await db.prepare(
-      `SELECT id FROM blocked_emails WHERE email = ? LIMIT 1`
-    ).bind(email.toLowerCase()).first()
-    return !!row
+    // 테이블이 없을 수 있으므로 직접 SELECT 시도, 없으면 생성 후 재시도
+    const emailLower = email.toLowerCase()
+    try {
+      const row = await db.prepare(
+        `SELECT id FROM blocked_emails WHERE email = ? LIMIT 1`
+      ).bind(emailLower).first()
+      return !!row
+    } catch {
+      // 테이블 없으면 생성 후 재조회
+      await ensureBlockedTable(db)
+      const row = await db.prepare(
+        `SELECT id FROM blocked_emails WHERE email = ? LIMIT 1`
+      ).bind(emailLower).first()
+      return !!row
+    }
   } catch {
-    return false  // 오류 시 차단 안 된 것으로 처리 (서비스 중단 방지)
+    // DB 자체가 응답 불가인 경우에만 false (서비스 전체 장애 상황)
+    return false
   }
 }
 
