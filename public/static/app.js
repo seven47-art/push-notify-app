@@ -100,7 +100,7 @@ function showPage(page) {
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
     'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그', 'download-mgmt': '다운로드 관리',
-    'banner-mgmt': '배너 관리'
+    'banner-mgmt': '배너 관리', 'reports': '신고 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -121,6 +121,7 @@ function showPage(page) {
   else if (page === 'admin-alarm') adminAlarmPageInit()
   else if (page === 'download-mgmt') loadCurrentApkInfo()
   else if (page === 'banner-mgmt') loadBannerSettings()
+  else if (page === 'reports') loadReports()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }
@@ -2339,4 +2340,165 @@ async function adminCancelAlarm(alarmId) {
 // ── 관리자 알람발송 페이지 진입 시 초기 로드 ──
 function adminAlarmPageInit() {
   adminShowTab('channel')
+}
+
+// ═══════════════════════════════════════════════════════════
+// 신고 관리 페이지
+// ═══════════════════════════════════════════════════════════
+let _reportOffset = 0
+const _reportLimit = 20
+
+async function loadReports(reset = true) {
+  if (reset) _reportOffset = 0
+  const status = document.getElementById('report-filter-status')?.value || ''
+  const type   = document.getElementById('report-filter-type')?.value   || ''
+  const tbody  = document.getElementById('reports-tbody')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</td></tr>'
+
+  try {
+    let url = '/api/reports?limit=' + _reportLimit + '&offset=' + _reportOffset
+    if (status) url += '&status=' + status
+    if (type)   url += '&type=' + type
+    const res  = await API.get(url.replace('/api',''))
+    const rows = res.data?.data || []
+    const total = res.data?.total || 0
+
+    // 통계 업데이트
+    const allRes = await API.get('/reports?limit=1000')
+    const allRows = allRes.data?.data || []
+    document.getElementById('rstat-total').textContent    = allRes.data?.total || 0
+    document.getElementById('rstat-pending').textContent  = allRows.filter(r => r.status === 'pending').length
+    document.getElementById('rstat-resolved').textContent = allRows.filter(r => r.status === 'resolved').length
+    document.getElementById('rstat-dismissed').textContent= allRows.filter(r => r.status === 'dismissed').length
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-500">신고 내역이 없습니다</td></tr>'
+    } else {
+      tbody.innerHTML = rows.map(r => {
+        const statusBadge = {
+          pending:   '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300">검토 대기</span>',
+          reviewing: '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300">검토 중</span>',
+          resolved:  '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300">처리 완료</span>',
+          dismissed: '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-500/30 text-slate-400">기각</span>',
+        }[r.status] || r.status
+        const typeBadge = r.report_type === 'channel'
+          ? '<span class="text-xs text-purple-400"><i class="fas fa-layer-group mr-1"></i>채널</span>'
+          : '<span class="text-xs text-sky-400"><i class="fas fa-bell mr-1"></i>알람</span>'
+        const dt = r.created_at ? r.created_at.replace('T',' ').substring(0,16) : '-'
+        const target = r.channel_name || r.alarm_title || '-'
+        return `<tr class="border-b border-slate-700/50 hover:bg-slate-800/40 cursor-pointer" onclick="showReportDetail(${r.id})">
+          <td class="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">${dt}</td>
+          <td class="px-4 py-3">${typeBadge}</td>
+          <td class="px-4 py-3 text-slate-200 text-sm">${r.reason}</td>
+          <td class="px-4 py-3 text-slate-300 text-sm max-w-[160px] truncate" title="${target}">${target}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs">${r.reporter_name || r.reporter_id || '-'}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs">${r.target_user_name || r.target_user_id || '-'}</td>
+          <td class="px-4 py-3">${statusBadge}</td>
+          <td class="px-4 py-3" onclick="event.stopPropagation()">
+            <select onchange="updateReportStatus(${r.id}, this.value)" class="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1 outline-none">
+              <option value="pending"   ${r.status==='pending'   ? 'selected':''}>대기</option>
+              <option value="reviewing" ${r.status==='reviewing' ? 'selected':''}>검토 중</option>
+              <option value="resolved"  ${r.status==='resolved'  ? 'selected':''}>처리 완료</option>
+              <option value="dismissed" ${r.status==='dismissed' ? 'selected':''}>기각</option>
+            </select>
+          </td>
+        </tr>`
+      }).join('')
+    }
+
+    // 페이지네이션
+    const pg = document.getElementById('reports-pagination')
+    if (pg) {
+      const from = _reportOffset + 1, to = Math.min(_reportOffset + _reportLimit, total)
+      pg.innerHTML = `<span>${from}–${to} / ${total}건</span>
+        <div class="flex gap-2">
+          <button onclick="loadReportsPrev()" ${_reportOffset===0?'disabled':''} class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 text-xs">이전</button>
+          <button onclick="loadReportsNext(${total})" ${_reportOffset+_reportLimit>=total?'disabled':''} class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 text-xs">다음</button>
+        </div>`
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-400">오류: ' + (e.response?.data?.error || e.message) + '</td></tr>'
+  }
+}
+
+function loadReportsPrev() { _reportOffset = Math.max(0, _reportOffset - _reportLimit); loadReports(false) }
+function loadReportsNext(total) { if (_reportOffset + _reportLimit < total) { _reportOffset += _reportLimit; loadReports(false) } }
+
+async function updateReportStatus(id, status) {
+  try {
+    await API.patch('/reports/' + id, { status })
+    showToast('상태가 변경됐습니다')
+    loadReports(false)
+  } catch (e) {
+    showToast('변경 실패: ' + (e.response?.data?.error || e.message), 'error')
+  }
+}
+
+async function showReportDetail(id) {
+  const modal   = document.getElementById('report-detail-modal')
+  const content = document.getElementById('report-detail-content')
+  if (!modal || !content) return
+  content.innerHTML = '<div class="text-center text-slate-400 py-6"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>'
+  modal.style.display = 'flex'
+
+  try {
+    const res  = await API.get('/reports?limit=1000')
+    const row  = (res.data?.data || []).find(r => r.id === id)
+    if (!row) { content.innerHTML = '<div class="text-red-400 text-center py-6">신고 정보를 찾을 수 없습니다</div>'; return }
+
+    const statusLabel = { pending:'검토 대기', reviewing:'검토 중', resolved:'처리 완료', dismissed:'기각' }[row.status] || row.status
+    const dt = row.created_at ? row.created_at.replace('T',' ').substring(0,19) : '-'
+    content.innerHTML = `
+      <div style="display:grid;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="background:#0f172a;border-radius:10px;padding:12px;">
+            <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">신고일시</div>
+            <div style="color:#e2e8f0;font-size:13px;">${dt}</div>
+          </div>
+          <div style="background:#0f172a;border-radius:10px;padding:12px;">
+            <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">신고 유형</div>
+            <div style="color:#e2e8f0;font-size:13px;">${row.report_type === 'channel' ? '채널' : '알람'}</div>
+          </div>
+          <div style="background:#0f172a;border-radius:10px;padding:12px;">
+            <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">신고자</div>
+            <div style="color:#e2e8f0;font-size:13px;">${row.reporter_name || row.reporter_id || '-'}</div>
+            <div style="color:#64748b;font-size:11px;">ID: ${row.reporter_id || '-'}</div>
+          </div>
+          <div style="background:#0f172a;border-radius:10px;padding:12px;">
+            <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">신고 대상</div>
+            <div style="color:#e2e8f0;font-size:13px;">${row.target_user_name || row.target_user_id || '-'}</div>
+            <div style="color:#64748b;font-size:11px;">ID: ${row.target_user_id || '-'}</div>
+          </div>
+        </div>
+        <div style="background:#0f172a;border-radius:10px;padding:12px;">
+          <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">채널명</div>
+          <div style="color:#e2e8f0;font-size:14px;font-weight:600;">${row.channel_name || '-'}</div>
+        </div>
+        ${row.alarm_title ? `<div style="background:#0f172a;border-radius:10px;padding:12px;">
+          <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">알람 제목</div>
+          <div style="color:#e2e8f0;font-size:13px;">${row.alarm_title}</div>
+          ${row.alarm_preview ? '<div style="color:#94a3b8;font-size:12px;margin-top:4px;">' + row.alarm_preview + '</div>' : ''}
+        </div>` : ''}
+        <div style="background:#451a1a;border:1px solid #7f1d1d;border-radius:10px;padding:12px;">
+          <div style="color:#fca5a5;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">신고 사유</div>
+          <div style="color:#fecaca;font-size:14px;font-weight:600;">${row.reason}</div>
+        </div>
+        ${row.description ? `<div style="background:#0f172a;border-radius:10px;padding:12px;">
+          <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">추가 설명</div>
+          <div style="color:#e2e8f0;font-size:13px;line-height:1.6;">${row.description.replace(/</g,'&lt;')}</div>
+        </div>` : ''}
+        <div style="background:#0f172a;border-radius:10px;padding:12px;">
+          <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">상태 변경</div>
+          <select onchange="updateReportStatus(${row.id},this.value)" style="width:100%;background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:14px;outline:none;">
+            <option value="pending"   ${row.status==='pending'   ?'selected':''}>검토 대기</option>
+            <option value="reviewing" ${row.status==='reviewing' ?'selected':''}>검토 중</option>
+            <option value="resolved"  ${row.status==='resolved'  ?'selected':''}>처리 완료</option>
+            <option value="dismissed" ${row.status==='dismissed' ?'selected':''}>기각</option>
+          </select>
+        </div>
+      </div>`
+  } catch (e) {
+    content.innerHTML = '<div class="text-red-400 text-center py-6">오류: ' + (e.response?.data?.error || e.message) + '</div>'
+  }
 }
