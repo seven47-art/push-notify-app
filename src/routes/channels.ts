@@ -49,12 +49,14 @@ channels.get('/', async (c) => {
         ch.homepage_url, ch.public_id, ch.is_popular,
         ch.is_secret,
         u.email as owner_email,
+        CASE WHEN b.email IS NOT NULL THEN 1 ELSE 0 END AS owner_is_blocked,
         COUNT(DISTINCT s.id)  as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
         COUNT(DISTINCT il.id) as invite_link_count,
         COUNT(DISTINCT CASE WHEN a.scheduled_at > datetime('now') AND a.status = 'pending' THEN a.id END) as pending_alarm_count
       FROM channels ch
       LEFT JOIN users u         ON ch.owner_id = u.user_id
+      LEFT JOIN blocked_emails b ON LOWER(b.email) = LOWER(u.email)
       LEFT JOIN subscribers s  ON ch.id = s.channel_id  AND s.is_active = 1
       LEFT JOIN contents ct    ON ch.id = ct.channel_id
       LEFT JOIN channel_invite_links il ON ch.id = il.channel_id AND il.is_active = 1
