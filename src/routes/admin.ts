@@ -455,6 +455,9 @@ function adminDashboardHTML() {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('banner-mgmt')">
       <i class="fas fa-image w-4 text-center text-pink-400"></i> 배너 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('reports')">
+      <i class="fas fa-flag w-4 text-center text-red-400"></i> 신고 관리
+    </a>
   </nav>
 
   <!-- 하단: 관리자 설정 + 로그아웃 -->
@@ -1385,6 +1388,76 @@ function adminDashboardHTML() {
       </div>
       <button type="submit" style="width:100%;padding:13px;background:linear-gradient(135deg,#f59e0b,#ef4444);border:none;border-radius:10px;color:white;font-size:15px;font-weight:600;cursor:pointer;">변경하기</button>
     </form>
+  </div>
+</div>
+
+<!-- ===== 신고 관리 ===== -->
+<div id="page-reports" class="page" style="display:none;">
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center"><i class="fas fa-flag text-red-400"></i></div>
+        <div><h2 class="text-xl font-bold text-white">신고 관리</h2><p class="text-slate-400 text-sm">접수된 신고를 검토하고 처리합니다</p></div>
+      </div>
+      <div class="flex items-center gap-2">
+        <select id="report-filter-status" onchange="loadReports()" class="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none">
+          <option value="">전체 상태</option>
+          <option value="pending">검토 대기</option>
+          <option value="reviewing">검토 중</option>
+          <option value="resolved">처리 완료</option>
+          <option value="dismissed">기각</option>
+        </select>
+        <select id="report-filter-type" onchange="loadReports()" class="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none">
+          <option value="">전체 유형</option>
+          <option value="channel">채널</option>
+          <option value="alarm">알람</option>
+        </select>
+        <button onclick="loadReports()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded-lg px-3 py-2"><i class="fas fa-rotate-right"></i></button>
+      </div>
+    </div>
+
+    <!-- 신고 통계 카드 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="card p-4 rounded-xl"><div class="text-2xl font-bold text-white" id="rstat-total">-</div><div class="text-slate-400 text-sm mt-1">전체 신고</div></div>
+      <div class="card p-4 rounded-xl"><div class="text-2xl font-bold text-amber-400" id="rstat-pending">-</div><div class="text-slate-400 text-sm mt-1">검토 대기</div></div>
+      <div class="card p-4 rounded-xl"><div class="text-2xl font-bold text-emerald-400" id="rstat-resolved">-</div><div class="text-slate-400 text-sm mt-1">처리 완료</div></div>
+      <div class="card p-4 rounded-xl"><div class="text-2xl font-bold text-slate-400" id="rstat-dismissed">-</div><div class="text-slate-400 text-sm mt-1">기각</div></div>
+    </div>
+
+    <!-- 신고 테이블 -->
+    <div class="card rounded-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-800 border-b border-slate-700">
+            <tr>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">신고일시</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">유형</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">신고 사유</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">채널명 / 알람</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">신고자</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">대상</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">상태</th>
+              <th class="text-left px-4 py-3 text-slate-400 font-semibold">처리</th>
+            </tr>
+          </thead>
+          <tbody id="reports-tbody">
+            <tr><td colspan="8" class="text-center py-10 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="reports-pagination" class="px-4 py-3 border-t border-slate-700/50 flex items-center justify-between text-slate-400 text-sm"></div>
+    </div>
+
+    <!-- 신고 상세 모달 -->
+    <div id="report-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;width:90%;max-width:520px;max-height:80vh;overflow-y:auto;padding:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <h3 style="color:white;font-size:18px;font-weight:700;">신고 상세</h3>
+          <button onclick="document.getElementById('report-detail-modal').style.display='none'" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;">✕</button>
+        </div>
+        <div id="report-detail-content"></div>
+      </div>
+    </div>
   </div>
 </div>
 

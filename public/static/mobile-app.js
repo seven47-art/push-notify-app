@@ -3074,21 +3074,28 @@ const App = {
     const alarmBadgeDetail = alarmCountDetail > 0
       ? `<span style="position:absolute;top:-4px;right:-4px;background:#FF3B30;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;pointer-events:none;">${alarmCountDetail}</span>`
       : ''
+    const safeName = (ch.name||'').replace(/'/g,"\\'")
+    // 신고 버튼 (오너 제외 모두 표시)
+    const reportBtn = !isOwner
+      ? '<button class="ch-action-btn" style="background:rgba(239,68,68,0.10);color:#f87171;" onclick="App._openReportSheet(' + ch.id + ',\'' + safeName + '\',\'' + (ch.owner_id||'') + '\')" title="신고"><i class="fas fa-flag"></i></button>'
+      : ''
     let btns = ''
     if (isOwner) {
       btns =
-        '<div style="position:relative;display:inline-block;"><button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' + alarmBadgeDetail + '</div>' +
-        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+        '<div style="position:relative;display:inline-block;"><button class="' + alarmCls + '" onclick="App.openAlarmModal(' + ch.id + ',\'' + safeName + '\')" title="알람설정"><i class="fas fa-clock"></i></button>' + alarmBadgeDetail + '</div>' +
+        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + safeName + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
         '<button class="ch-action-btn btn-setting" onclick="App.openEditChannel(' + ch.id + ')" title="채널설정"><i class="fas fa-pencil-alt"></i></button>' +
-        '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._deleteChannelFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널삭제"><i class="fas fa-trash-alt"></i></button>'
+        '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._deleteChannelFromDetail(' + ch.id + ',\'' + safeName + '\')" title="채널삭제"><i class="fas fa-trash-alt"></i></button>'
     } else if (isJoined) {
       btns =
-        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
-        '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._leaveChannelConfirm(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="채널나가기"><i class="fas fa-sign-out-alt"></i></button>'
+        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + safeName + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+        reportBtn +
+        '<button class="ch-action-btn" style="background:rgba(239,68,68,0.15);color:var(--danger);" onclick="App._leaveChannelConfirm(' + ch.id + ',\'' + safeName + '\')" title="채널나가기"><i class="fas fa-sign-out-alt"></i></button>'
     } else {
       btns =
-        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
-        '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + (ch.name||'').replace(/'/g,"\\'") + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
+        '<button class="ch-action-btn btn-invite" onclick="App.openInviteModal(' + ch.id + ',\'' + safeName + '\')" title="공유"><i class="fas fa-share-alt"></i></button>' +
+        reportBtn +
+        '<button class="ch-detail-btn-join" onclick="App._joinFromDetail(' + ch.id + ',\'' + safeName + '\')"><i class="fas fa-plus"></i> 채널 참여</button>'
     }
     let hpHtml = ''
     if (ch.homepage_url) {
@@ -3178,7 +3185,129 @@ const App = {
     }
   },
 
-  // 채널 공유 (초대링크 복사)
+  // ── 채널 신고 바텀시트 ───────────────────────────────────
+  _openReportSheet(chId, chName, ownerUserId) {
+    const REASONS = [
+      '불법 광고 / 스팸',
+      '사기 / 피싱',
+      '음란 / 선정적 콘텐츠',
+      '괴롭힘 / 혐오',
+      '저작권 / 도용 의심',
+      '기타'
+    ]
+    const radioHtml = REASONS.map((r, i) => `
+      <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''" onclick="document.getElementById('report-reason-${i}').checked=true;document.getElementById('report-sheet-submit').disabled=false;">
+        <input type="radio" id="report-reason-${i}" name="report-reason" value="${r}" style="accent-color:#ef4444;width:17px;height:17px;flex-shrink:0;">
+        <span style="font-size:14px;color:var(--text);">${r}</span>
+      </label>`).join('')
+
+    const sheetHtml = `
+      <div id="report-sheet-overlay" onclick="App._closeReportSheet()" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;"></div>
+      <div id="report-sheet" style="position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;z-index:3001;max-height:85vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,16px);transform:translateY(100%);transition:transform 0.28s cubic-bezier(.32,1,.4,1);">
+        <!-- 핸들 -->
+        <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+          <div style="width:36px;height:4px;border-radius:2px;background:var(--border);"></div>
+        </div>
+        <!-- 헤더 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 20px 14px;">
+          <div>
+            <div style="font-size:17px;font-weight:700;color:var(--text);">신고하기</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px;">${chName.replace(/</g,'&lt;')}</div>
+          </div>
+          <button onclick="App._closeReportSheet()" style="background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;padding:4px 8px;">✕</button>
+        </div>
+        <!-- 사유 -->
+        <div style="padding:0 12px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:0 8px 8px;">신고 사유 선택</div>
+          ${radioHtml}
+        </div>
+        <!-- 추가 설명 (선택) -->
+        <div style="padding:14px 20px 6px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">추가 설명 <span style="font-weight:400;opacity:.6;">(선택)</span></div>
+          <textarea id="report-desc" rows="3" maxlength="300" placeholder="구체적인 내용을 입력해 주세요 (선택사항)" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);resize:none;outline:none;"></textarea>
+          <div style="text-align:right;font-size:11px;color:var(--text2);margin-top:3px;" id="report-desc-count">0 / 300</div>
+        </div>
+        <!-- 신고 버튼 -->
+        <div style="padding:10px 20px 20px;">
+          <button id="report-sheet-submit" disabled
+            onclick="App._submitReport(${chId},'${chName.replace(/'/g,"\\'")}','${ownerUserId}')"
+            style="width:100%;padding:14px;background:#ef4444;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;opacity:0.5;transition:opacity 0.2s;">
+            신고하기
+          </button>
+        </div>
+      </div>`
+
+    // 기존 시트 제거 후 추가
+    document.getElementById('report-sheet-overlay')?.remove()
+    document.getElementById('report-sheet')?.remove()
+    document.body.insertAdjacentHTML('beforeend', sheetHtml)
+
+    // 글자 수 카운터
+    const descEl = document.getElementById('report-desc')
+    const countEl = document.getElementById('report-desc-count')
+    descEl?.addEventListener('input', () => { if (countEl) countEl.textContent = descEl.value.length + ' / 300' })
+
+    // 신고 버튼 활성화: 라디오 선택 시
+    document.querySelectorAll('input[name="report-reason"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const btn = document.getElementById('report-sheet-submit')
+        if (btn) { btn.disabled = false; btn.style.opacity = '1' }
+      })
+    })
+
+    // 슬라이드 업 애니메이션
+    requestAnimationFrame(() => {
+      const sheet = document.getElementById('report-sheet')
+      if (sheet) sheet.style.transform = 'translateY(0)'
+    })
+  },
+
+  _closeReportSheet() {
+    const sheet = document.getElementById('report-sheet')
+    if (sheet) {
+      sheet.style.transform = 'translateY(100%)'
+      setTimeout(() => {
+        sheet?.remove()
+        document.getElementById('report-sheet-overlay')?.remove()
+      }, 300)
+    }
+  },
+
+  async _submitReport(chId, chName, ownerUserId) {
+    const reasonEl = document.querySelector('input[name="report-reason"]:checked')
+    const reason   = reasonEl ? reasonEl.value : ''
+    if (!reason) { toast('신고 사유를 선택해 주세요', 2000); return }
+    const desc = (document.getElementById('report-desc')?.value || '').trim()
+
+    const btn = document.getElementById('report-sheet-submit')
+    if (btn) { btn.disabled = true; btn.textContent = '접수 중...'; btn.style.opacity = '0.7' }
+
+    try {
+      const res = await API.post('/reports', {
+        report_type:      'channel',
+        reason,
+        description:      desc,
+        channel_id:       chId,
+        channel_name:     chName,
+        target_user_id:   ownerUserId,
+        target_user_name: ownerUserId
+      })
+      if (res.data?.success) {
+        this._closeReportSheet()
+        setTimeout(() => toast('✅ 신고가 접수되었습니다. 검토 후 조치하겠습니다.', 3500), 350)
+      } else {
+        const errMsg = res.data?.error || '신고 접수에 실패했습니다'
+        if (btn) { btn.disabled = false; btn.textContent = '신고하기'; btn.style.opacity = '1' }
+        toast(errMsg, 3000)
+      }
+    } catch (e) {
+      const msg = e.response?.data?.error || e.message || '오류가 발생했습니다'
+      if (btn) { btn.disabled = false; btn.textContent = '신고하기'; btn.style.opacity = '1' }
+      toast(msg, 3000)
+    }
+  },
+
+  // ── 채널 공유 (초대링크 복사) ─────────────────────────────
   async _shareChannel(chId, name) {
     try {
       const userId = Store.getUserId()
