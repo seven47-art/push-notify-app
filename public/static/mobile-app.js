@@ -3301,7 +3301,12 @@ const App = {
         toast(errMsg, 3000)
       }
     } catch (e) {
-      const msg = e.response?.data?.error || e.message || '오류가 발생했습니다'
+      const status = e.response?.status
+      const msg = status === 401
+        ? '로그인이 필요합니다'
+        : status === 429
+        ? (e.response?.data?.error || '이미 신고하셨습니다')
+        : (e.response?.data?.error || e.message || '오류가 발생했습니다')
       if (btn) { btn.disabled = false; btn.textContent = '신고하기'; btn.style.opacity = '1' }
       toast(msg, 3000)
     }
