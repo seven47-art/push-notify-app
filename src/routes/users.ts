@@ -1,6 +1,27 @@
 // src/routes/users.ts - 회원 관리 API
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { sendFCMDataMessage } from './fcm'
+
+// FCM force_logout 전송 헬퍼
+async function sendForceLogout(db: any, env: any, userId: string) {
+  try {
+    const userRow = await db.prepare(
+      `SELECT fcm_token FROM users WHERE user_id = ?`
+    ).bind(userId).first() as { fcm_token: string | null } | null
+    const fcmToken = userRow?.fcm_token
+    if (!fcmToken) return
+    const serviceAccount = (env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+    const projectId      = (env as any).FCM_PROJECT_ID           || ''
+    if (!serviceAccount || !projectId) return
+    await sendFCMDataMessage(
+      fcmToken,
+      { action: 'force_logout', reason: 'deleted' },
+      serviceAccount,
+      projectId
+    )
+  } catch (_) { /* FCM 실패해도 삭제 계속 진행 */ }
+}
 
 const users = new Hono<{ Bindings: Bindings }>()
 
@@ -119,6 +140,10 @@ users.post('/bulk-delete', async (c) => {
 
     let deleted = 0
     for (const uid of user_ids) {
+      // FCM 강제 로그아웃 전송 (삭제 전에 토큰 조회)
+      await sendForceLogout(DB, c.env, uid)
+      // 세션 삭제
+      await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(uid).run()
       await DB.prepare(`DELETE FROM users WHERE user_id = ?`).bind(uid).run()
       deleted++
     }
@@ -236,6 +261,10 @@ users.delete('/:userId', async (c) => {
   try {
     const user = await DB.prepare(`SELECT id FROM users WHERE user_id = ?`).bind(userId).first()
     if (!user) return c.json({ success: false, error: '회원을 찾을 수 없습니다' }, 404)
+    // FCM 강제 로그아웃 전송 (삭제 전에 토큰 조회)
+    await sendForceLogout(DB, c.env, userId)
+    // 세션 삭제
+    await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run()
     await DB.prepare(`DELETE FROM users WHERE user_id = ?`).bind(userId).run()
     return c.json({ success: true, message: '회원이 삭제되었습니다' })
   } catch (e: any) {
