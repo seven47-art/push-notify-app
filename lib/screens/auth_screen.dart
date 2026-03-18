@@ -86,6 +86,22 @@ class _AuthScreenState extends State<AuthScreen> {
 
       final body = jsonDecode(res.body) as Map<String, dynamic>;
 
+      // ── 차단된 계정 (403) → 에러 메시지 표시 후 이메일 선택창으로 되돌아가기 ──
+      if (res.statusCode == 403) {
+        final errMsg = body['error'] as String? ?? '사용할 수 없는 계정입니다.';
+        setState(() {
+          _isLoggingIn = false;
+          _errorMsg    = '$errMsg\n다른 계정을 선택해주세요.';
+        });
+        // 2.5초 후 이메일 선택창 다시 열기
+        await Future.delayed(const Duration(milliseconds: 2500));
+        if (mounted) {
+          setState(() { _errorMsg = ''; });
+          _openAccountPicker();
+        }
+        return;
+      }
+
       if (body['success'] == true) {
         final data  = body['data'] as Map<String, dynamic>;
         final prefs = await SharedPreferences.getInstance();

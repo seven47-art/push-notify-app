@@ -819,23 +819,20 @@ alarms.get('/logs', async (c) => {
     const channel  = (c.req.query('channel')  || '').trim()  // 채널명 부분일치
     const sender   = (c.req.query('sender')   || '').trim()  // 발신자 이메일 부분일치
 
-    // HAVING 조건 (GROUP BY 이후 적용: 날짜)
-    const havingConditions: string[] = []
-    const havingParams: string[] = []
-    if (dateFrom) { havingConditions.push("MIN(l.received_at) >= ?"); havingParams.push(dateFrom + ' 00:00:00') }
-    if (dateTo)   { havingConditions.push("MIN(l.received_at) <= ?"); havingParams.push(dateTo + ' 23:59:59') }
-    if (channel)  { havingConditions.push("l.channel_name LIKE ?");   havingParams.push('%' + channel + '%') }
-    if (sender)   { havingConditions.push("COALESCE(u.email,'-') LIKE ?"); havingParams.push('%' + sender + '%') }
-    const havingClause = havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : ''
-
-    // WHERE 조건 (COUNT용: 날짜만 alarm_logs 에서 직접 필터)
+    // ── WHERE 조건 구성 (GROUP BY 이전 행 단위 필터) ──────────────
+    // channel_name: alarm_logs 컬럼 → 직접 WHERE 가능
+    // sender email: users JOIN 결과 컬럼 → WHERE에서 처리 (JOIN 후 필터)
+    // 날짜: received_at 직접 비교
     const whereConditions: string[] = []
-    const whereParams: string[] = []
+    const whereParams: any[] = []
     if (dateFrom) { whereConditions.push("l.received_at >= ?"); whereParams.push(dateFrom + ' 00:00:00') }
     if (dateTo)   { whereConditions.push("l.received_at <= ?"); whereParams.push(dateTo + ' 23:59:59') }
     if (channel)  { whereConditions.push("l.channel_name LIKE ?"); whereParams.push('%' + channel + '%') }
+    if (sender)   { whereConditions.push("COALESCE(u.email, '-') LIKE ?"); whereParams.push('%' + sender + '%') }
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
+    // ── 메인 쿼리: alarm_id 기준 집계 ────────────────────────────
+    // sender 필터가 있으면 LEFT JOIN → INNER처럼 동작해도 무방
     const { results } = await c.env.DB.prepare(`
       SELECT
         l.alarm_id                      AS id,
@@ -848,15 +845,19 @@ alarms.get('/logs', async (c) => {
         MIN(l.received_at)              AS scheduled_at
       FROM alarm_logs l
       LEFT JOIN users u ON u.user_id = l.sender_id
+      ${whereClause}
       GROUP BY l.alarm_id
-      ${havingClause}
       ORDER BY MIN(l.received_at) DESC
       LIMIT ? OFFSET ?
-    `).bind(...havingParams, limit, offset).all() as { results: any[] }
+    `).bind(...whereParams, limit, offset).all() as { results: any[] }
 
-    const { results: countResult } = await c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT alarm_id) as total FROM alarm_logs l ${whereClause}`
-    ).bind(...whereParams).all() as { results: any[] }
+    // ── COUNT 쿼리: 동일 조건으로 총 건수 계산 ───────────────────
+    const { results: countResult } = await c.env.DB.prepare(`
+      SELECT COUNT(DISTINCT l.alarm_id) AS total
+      FROM alarm_logs l
+      LEFT JOIN users u ON u.user_id = l.sender_id
+      ${whereClause}
+    `).bind(...whereParams).all() as { results: any[] }
 
     return c.json({
       success: true,

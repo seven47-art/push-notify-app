@@ -6,20 +6,19 @@ import type { Bindings } from '../types'
 const blocked = new Hono<{ Bindings: Bindings }>()
 
 // ── DB 초기화 ─────────────────────────────────────────────
+let _blockedTableReady = false
 async function ensureBlockedTable(db: any) {
+  if (_blockedTableReady) return
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS blocked_emails (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      email      TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+      email      TEXT    NOT NULL UNIQUE,
       reason     TEXT,
       blocked_by TEXT    NOT NULL DEFAULT 'admin',
       created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
-  // 이메일 인덱스 (로그인 체크용, 빠른 조회)
-  await db.prepare(`
-    CREATE INDEX IF NOT EXISTS idx_blocked_emails_email ON blocked_emails(email)
-  `).run()
+  _blockedTableReady = true
 }
 
 // ── GET /api/blocked  목록 조회 ───────────────────────────
@@ -60,9 +59,9 @@ blocked.post('/', async (c) => {
       return c.json({ success: false, error: '유효한 이메일을 입력하세요' }, 400)
     }
 
-    // 이미 차단된 이메일인지 확인
+    // 이미 차단된 이메일인지 확인 (소문자 비교)
     const existing = await c.env.DB.prepare(
-      `SELECT id FROM blocked_emails WHERE email = ?`
+      `SELECT id FROM blocked_emails WHERE LOWER(email) = ?`
     ).bind(email).first()
     if (existing) {
       return c.json({ success: false, error: '이미 차단된 이메일입니다' }, 409)
@@ -70,12 +69,12 @@ blocked.post('/', async (c) => {
 
     // 해당 유저 계정도 비활성화 처리
     await c.env.DB.prepare(
-      `UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE email = ?`
+      `UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE LOWER(email) = ?`
     ).bind(email).run()
 
     // 해당 유저 세션 전체 삭제
     const userRow = await c.env.DB.prepare(
-      `SELECT user_id FROM users WHERE email = ?`
+      `SELECT user_id FROM users WHERE LOWER(email) = ?`
     ).bind(email).first() as { user_id: string } | null
     if (userRow) {
       await c.env.DB.prepare(
