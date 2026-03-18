@@ -1181,7 +1181,7 @@ function adminDashboardHTML() {
 </div>
 
 <!-- ===== 배너 관리 페이지 (별도 div) ===== -->
-<div id="page-banner-mgmt" class="page" style="display:none;">
+<div id="page-banner-mgmt" class="page">
   <div class="space-y-6">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-xl bg-pink-600/20 flex items-center justify-center"><i class="fas fa-image text-pink-400"></i></div>
@@ -1392,7 +1392,7 @@ function adminDashboardHTML() {
 </div>
 
 <!-- ===== 신고 관리 ===== -->
-<div id="page-reports" class="page" style="display:none;">
+<div id="page-reports" class="page">
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
