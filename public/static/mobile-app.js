@@ -3602,15 +3602,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // 웹 환경: 세션 있으면 바로 _doLogin(), 없으면 Auth.show()
   const isFlutterEnv = navigator.userAgent.includes('wv') || !!window.FlutterBridge
   if (isFlutterEnv) {
-    // Flutter 환경: auth-screen 즉시 숨김 (로딩 화면 표시 안 함)
-    const authEl = document.getElementById('auth-screen')
-    if (authEl) authEl.classList.add('hidden')
-    // flutterSetSession이 오지 않는 예외 상황 대비 (5초 fallback)
+    // Flutter 환경: auth-screen은 HTML에서 이미 hidden → 즉시 flutterSetSession 대기
+    // flutterSetSession이 오지 않는 예외 상황 대비 (1초 fallback)
     window._flutterSessionTimeout = setTimeout(() => {
       if (!window._loginDone && Store.isLoggedIn()) {
         _doLogin()
       }
-    }, 5000)
+    }, 1000)
   } else if (Store.isLoggedIn()) {
     _doLogin()
   } else {
