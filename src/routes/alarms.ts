@@ -816,31 +816,24 @@ alarms.get('/logs', async (c) => {
     const offset = Number(c.req.query('offset') || 0)
     const dateFrom = c.req.query('date_from') || ''  // YYYY-MM-DD
     const dateTo   = c.req.query('date_to')   || ''  // YYYY-MM-DD
+    const channel  = (c.req.query('channel')  || '').trim()  // 채널명 부분일치
+    const sender   = (c.req.query('sender')   || '').trim()  // 발신자 이메일 부분일치
 
-    // 날짜 필터 조건 생성
-    const dateConditions: string[] = []
-    const dateParams: string[] = []
-    if (dateFrom) {
-      dateConditions.push("MIN(l.received_at) >= ?")
-      dateParams.push(dateFrom + ' 00:00:00')
-    }
-    if (dateTo) {
-      dateConditions.push("MIN(l.received_at) <= ?")
-      dateParams.push(dateTo + ' 23:59:59')
-    }
-    const havingClause = dateConditions.length > 0 ? `HAVING ${dateConditions.join(' AND ')}` : ''
+    // HAVING 조건 (GROUP BY 이후 적용: 날짜)
+    const havingConditions: string[] = []
+    const havingParams: string[] = []
+    if (dateFrom) { havingConditions.push("MIN(l.received_at) >= ?"); havingParams.push(dateFrom + ' 00:00:00') }
+    if (dateTo)   { havingConditions.push("MIN(l.received_at) <= ?"); havingParams.push(dateTo + ' 23:59:59') }
+    if (channel)  { havingConditions.push("l.channel_name LIKE ?");   havingParams.push('%' + channel + '%') }
+    if (sender)   { havingConditions.push("COALESCE(u.email,'-') LIKE ?"); havingParams.push('%' + sender + '%') }
+    const havingClause = havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : ''
 
-    // 날짜 필터용 WHERE 조건 (COUNT용)
+    // WHERE 조건 (COUNT용: 날짜만 alarm_logs 에서 직접 필터)
     const whereConditions: string[] = []
     const whereParams: string[] = []
-    if (dateFrom) {
-      whereConditions.push("l.received_at >= ?")
-      whereParams.push(dateFrom + ' 00:00:00')
-    }
-    if (dateTo) {
-      whereConditions.push("l.received_at <= ?")
-      whereParams.push(dateTo + ' 23:59:59')
-    }
+    if (dateFrom) { whereConditions.push("l.received_at >= ?"); whereParams.push(dateFrom + ' 00:00:00') }
+    if (dateTo)   { whereConditions.push("l.received_at <= ?"); whereParams.push(dateTo + ' 23:59:59') }
+    if (channel)  { whereConditions.push("l.channel_name LIKE ?"); whereParams.push('%' + channel + '%') }
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
     const { results } = await c.env.DB.prepare(`
@@ -859,7 +852,7 @@ alarms.get('/logs', async (c) => {
       ${havingClause}
       ORDER BY MIN(l.received_at) DESC
       LIMIT ? OFFSET ?
-    `).bind(...dateParams, limit, offset).all() as { results: any[] }
+    `).bind(...havingParams, limit, offset).all() as { results: any[] }
 
     const { results: countResult } = await c.env.DB.prepare(
       `SELECT COUNT(DISTINCT alarm_id) as total FROM alarm_logs l ${whereClause}`

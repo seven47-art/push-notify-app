@@ -20,6 +20,7 @@ import settings from './routes/settings'
 import admin from './routes/admin'
 import uploads from './routes/uploads'
 import reports from './routes/reports'
+import blocked from './routes/blocked'
 import { deleteFromFirebaseStorage } from './routes/uploads'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -55,6 +56,7 @@ app.route('/api/notices', notices)
 app.route('/api/settings', settings)
 app.route('/api/uploads', uploads)
 app.route('/api/reports', reports)
+app.route('/api/blocked', blocked)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })

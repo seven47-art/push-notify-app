@@ -2,6 +2,7 @@
 // 이메일 기반 회원가입 / 로그인 / 세션 관리
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { isEmailBlocked } from './blocked'
 
 const auth = new Hono<{ Bindings: Bindings }>()
 
@@ -58,6 +59,11 @@ auth.post('/register', async (c) => {
       return c.json({ success: false, error: '이미 사용 중인 이메일입니다' }, 409)
     }
 
+    // 차단된 이메일 확인
+    if (await isEmailBlocked(c.env.DB, email)) {
+      return c.json({ success: false, error: '사용할 수 없는 계정입니다. 고객센터에 문의하세요.' }, 403)
+    }
+
     // 비밀번호 해시
     const salt = generateSalt()
     const passwordHash = await sha256(password + salt)
@@ -100,6 +106,11 @@ auth.post('/login', async (c) => {
 
     if (!email || !password) {
       return c.json({ success: false, error: '이메일과 비밀번호를 입력해주세요' }, 400)
+    }
+
+    // 차단된 이메일 확인
+    if (await isEmailBlocked(c.env.DB, email)) {
+      return c.json({ success: false, error: '사용할 수 없는 계정입니다. 고객센터에 문의하세요.' }, 403)
     }
 
     // 사용자 조회
@@ -207,6 +218,11 @@ auth.post('/google', async (c) => {
     }
 
     const emailLower = email.toLowerCase()
+
+    // 차단된 이메일 확인
+    if (await isEmailBlocked(c.env.DB, emailLower)) {
+      return c.json({ success: false, error: '사용할 수 없는 계정입니다. 고객센터에 문의하세요.' }, 403)
+    }
 
     // 기존 사용자 조회
     let user: any = await c.env.DB.prepare(

@@ -100,7 +100,7 @@ function showPage(page) {
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
     'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그', 'download-mgmt': '다운로드 관리',
-    'banner-mgmt': '배너 관리', 'reports': '신고 관리'
+    'banner-mgmt': '배너 관리', 'reports': '신고 관리', 'blocked': '계정 차단 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -122,6 +122,7 @@ function showPage(page) {
   else if (page === 'download-mgmt') loadCurrentApkInfo()
   else if (page === 'banner-mgmt') loadBannerSettings()
   else if (page === 'reports') loadReports()
+  else if (page === 'blocked') loadBlockedAccounts()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }
@@ -1213,16 +1214,20 @@ async function loadAlarmLogs(offset = 0) {
   try {
     const dateFrom = document.getElementById('alarmLogsDateFrom')?.value || ''
     const dateTo   = document.getElementById('alarmLogsDateTo')?.value   || ''
+    const channel  = document.getElementById('alarmLogsChannel')?.value  || ''
+    const sender   = document.getElementById('alarmLogsSender')?.value   || ''
     const params = { limit: ALARM_LOGS_PAGE_SIZE, offset }
     if (dateFrom) params.date_from = dateFrom
     if (dateTo)   params.date_to   = dateTo
+    if (channel)  params.channel   = channel
+    if (sender)   params.sender    = sender
     const infoEl = document.getElementById('alarmLogsSearchInfo')
     if (infoEl) {
-      if (dateFrom || dateTo) {
-        infoEl.textContent = `검색 중: ${dateFrom || '~'} ~ ${dateTo || '~'}`
-      } else {
-        infoEl.textContent = ''
-      }
+      const parts = []
+      if (dateFrom || dateTo) parts.push(`날짜: ${dateFrom || '~'} ~ ${dateTo || '~'}`)
+      if (channel) parts.push(`채널: ${channel}`)
+      if (sender)  parts.push(`발신자: ${sender}`)
+      infoEl.textContent = parts.length ? '검색 중: ' + parts.join(' / ') : ''
     }
     const res = await API.get('/alarms/logs', { params })
     const { data, total } = res.data
@@ -1277,10 +1282,14 @@ function searchAlarmLogs() {
   loadAlarmLogs(0)
 }
 function resetAlarmLogsSearch() {
-  const fromEl = document.getElementById('alarmLogsDateFrom')
-  const toEl   = document.getElementById('alarmLogsDateTo')
-  if (fromEl) fromEl.value = ''
-  if (toEl)   toEl.value   = ''
+  const fromEl    = document.getElementById('alarmLogsDateFrom')
+  const toEl      = document.getElementById('alarmLogsDateTo')
+  const channelEl = document.getElementById('alarmLogsChannel')
+  const senderEl  = document.getElementById('alarmLogsSender')
+  if (fromEl)    fromEl.value    = ''
+  if (toEl)      toEl.value      = ''
+  if (channelEl) channelEl.value = ''
+  if (senderEl)  senderEl.value  = ''
   const infoEl = document.getElementById('alarmLogsSearchInfo')
   if (infoEl) infoEl.textContent = ''
   loadAlarmLogs(0)
@@ -2528,5 +2537,95 @@ async function showReportDetail(id) {
       </div>`
   } catch (e) {
     content.innerHTML = '<div class="text-red-400 text-center py-6">오류: ' + (e.response?.data?.error || e.message) + '</div>'
+  }
+}
+
+// =============================================
+// 계정 차단 관리
+// =============================================
+let _blockedOffset = 0
+const _blockedLimit = 30
+let _blockedSearchQ = ''
+
+async function loadBlockedAccounts(reset = true) {
+  if (reset) _blockedOffset = 0
+  const tbody = document.getElementById('blocked-tbody')
+  const totalEl = document.getElementById('blocked-total')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center py-10 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</td></tr>'
+  try {
+    let url = `/blocked?limit=${_blockedLimit}&offset=${_blockedOffset}`
+    if (_blockedSearchQ) url += '&q=' + encodeURIComponent(_blockedSearchQ)
+    const res = await API.get(url)
+    const rows  = res.data?.data  || []
+    const total = res.data?.total || 0
+    if (totalEl) totalEl.textContent = total + '건'
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-10 text-slate-500">차단된 계정이 없습니다</td></tr>'
+    } else {
+      tbody.innerHTML = rows.map(r => {
+        const dt = r.created_at ? r.created_at.replace('T',' ').substring(0,16) : '-'
+        return `<tr class="border-b border-slate-700/50 hover:bg-slate-800/40">
+          <td class="px-5 py-3 text-rose-300 text-sm font-medium select-all cursor-text">${r.email}</td>
+          <td class="px-5 py-3 text-slate-400 text-sm">${r.reason || '-'}</td>
+          <td class="px-5 py-3 text-slate-500 text-xs whitespace-nowrap">${dt}</td>
+          <td class="px-5 py-3 text-center">
+            <button onclick="unblockAccount(${r.id}, '${r.email}')"
+              class="bg-slate-700 hover:bg-emerald-600 text-slate-300 hover:text-white px-3 py-1 rounded text-xs transition-colors">
+              <i class="fas fa-unlock mr-1"></i>해제
+            </button>
+          </td>
+        </tr>`
+      }).join('')
+    }
+    // 페이지네이션
+    const pg = document.getElementById('blocked-pagination')
+    if (pg) {
+      const from = _blockedOffset + 1
+      const to   = Math.min(_blockedOffset + _blockedLimit, total)
+      pg.innerHTML = `<span>${total ? from + '–' + to + ' / ' + total + '건' : '0건'}</span>
+        <div class="flex gap-2">
+          <button onclick="_blockedOffset=Math.max(0,_blockedOffset-${_blockedLimit});loadBlockedAccounts(false)"
+            ${_blockedOffset===0?'disabled':''} class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 text-xs">이전</button>
+          <button onclick="_blockedOffset+=${_blockedLimit};loadBlockedAccounts(false)"
+            ${_blockedOffset+_blockedLimit>=total?'disabled':''} class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 text-xs">다음</button>
+        </div>`
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-400">오류: ' + (e.response?.data?.error || e.message) + '</td></tr>'
+  }
+}
+
+function searchBlockedEmails(q) {
+  _blockedSearchQ = (q || '').trim()
+  _blockedOffset  = 0
+  loadBlockedAccounts(false)
+}
+
+async function addBlockedEmail() {
+  const emailEl  = document.getElementById('blockEmailInput')
+  const reasonEl = document.getElementById('blockReasonInput')
+  const email  = (emailEl?.value || '').trim()
+  const reason = (reasonEl?.value || '').trim()
+  if (!email) { showToast('이메일을 입력하세요', 'error'); return }
+  try {
+    await API.post('/blocked', { email, reason })
+    showToast(`✅ ${email} 차단 완료`)
+    if (emailEl)  emailEl.value  = ''
+    if (reasonEl) reasonEl.value = ''
+    loadBlockedAccounts()
+  } catch (e) {
+    showToast('차단 실패: ' + (e.response?.data?.error || e.message), 'error')
+  }
+}
+
+async function unblockAccount(id, email) {
+  if (!confirm(`"${email}" 차단을 해제하시겠습니까?\n해당 계정이 다시 활성화됩니다.`)) return
+  try {
+    await API.delete('/blocked/' + id)
+    showToast(`✅ ${email} 차단 해제 완료`)
+    loadBlockedAccounts(false)
+  } catch (e) {
+    showToast('해제 실패: ' + (e.response?.data?.error || e.message), 'error')
   }
 }
