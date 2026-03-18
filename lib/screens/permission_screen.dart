@@ -209,7 +209,13 @@ class _PermissionScreenState extends State<PermissionScreen>
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('permissions_setup_done', true);
-    if (mounted) Navigator.of(context).pushReplacementNamed('/main');
+    if (!mounted) return;
+    final termsAccepted = prefs.getBool('termsAccepted') ?? false;
+    if (!termsAccepted) {
+      Navigator.of(context).pushReplacementNamed('/terms');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/main');
+    }
   }
 
   // ── UI ───────────────────────────────────────────────────────────────
