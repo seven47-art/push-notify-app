@@ -3305,10 +3305,16 @@ const App = {
       const msg = status === 401
         ? '로그인이 필요합니다'
         : status === 429
-        ? (e.response?.data?.error || '이미 신고하셨습니다')
+        ? (e.response?.data?.error || '동일한 사유로 이미 신고하셨습니다.\n24시간 후 다시 신고할 수 있습니다.')
         : (e.response?.data?.error || e.message || '오류가 발생했습니다')
       if (btn) { btn.disabled = false; btn.textContent = '신고하기'; btn.style.opacity = '1' }
-      toast(msg, 3000)
+      // 중복 신고(429)는 시트를 닫고 메시지 표시
+      if (status === 429) {
+        this._closeReportSheet()
+        setTimeout(() => toast('⚠️ ' + msg, 3500), 350)
+      } else {
+        toast(msg, 3000)
+      }
     }
   },
 
