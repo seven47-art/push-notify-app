@@ -179,7 +179,27 @@ class _StartGateState extends State<_StartGate> {
       Navigator.of(context).pushReplacementNamed('/auth');
       return;
     }
+    // 앱 재시작 시 서버에서 세션 유효성 확인 (차단된 계정 즉시 차단)
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        await prefs.remove('session_token');
+        await prefs.remove('user_id');
+        await prefs.remove('email');
+        await prefs.remove('user_email');
+        await prefs.remove('display_name');
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/auth');
+        return;
+      }
+    } catch (_) {
+      // 네트워크 오류 시 오프라인 허용 (기존 token으로 진입)
+    }
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
+    if (!mounted) return;
     if (!permDone) {
       Navigator.of(context).pushReplacementNamed('/permissions');
       return;
@@ -232,6 +252,8 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     _schedulePendingAlarms();       // v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약
     _initDeepLink();               // 딥링크 수신 채널 초기화
     // v1.0.43: _pendingAlarmData 처리 제거 - Kotlin FakeCallActivity가 단독 처리
+    // 앱 시작 시 세션 유효성 체크 (차단된 계정 즉시 로그아웃)
+    Future.delayed(const Duration(seconds: 2), _checkSessionValidity);
   }
 
   @override
@@ -324,12 +346,66 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       ..loadRequest(Uri.parse(_appUrl));
   }
 
+  // ── 세션 유효성 체크 (차단 계정 즉시 로그아웃) ──────────
+  Future<void> _checkSessionValidity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      if (token.isEmpty) return; // 로그인 안 된 상태면 체크 불필요
+
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        // 세션 만료 또는 차단된 계정
+        debugPrint('[Session] 세션 무효 (${res.statusCode}) → 강제 로그아웃');
+        await prefs.remove('session_token');
+        await prefs.remove('user_id');
+        await prefs.remove('email');
+        await prefs.remove('user_email');
+        await prefs.remove('display_name');
+        if (!mounted) return;
+        // 차단 안내 다이얼로그
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(children: [
+              Icon(Icons.block, color: Color(0xFFEF4444), size: 22),
+              SizedBox(width: 8),
+              Text('계정 사용 불가', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ]),
+            content: const Text(
+              '이 계정은 사용할 수 없습니다.\n확인을 누르면 다른 계정을 선택할 수 있습니다.',
+              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('확인', style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+      }
+    } catch (e) {
+      debugPrint('[Session] 세션 체크 오류 (무시): $e');
+    }
+  }
+
   // ── 앱 포그라운드/백그라운드 감지 ──
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // v1.0.43: Flutter 폴링 제거 - Kotlin AlarmPollingService가 처리
-      debugPrint('[Lifecycle] 포그라운드 복귀 (Flutter 폴링 없음)');
+      // 포그라운드 복귀 시 세션 유효성 체크 (차단 즉시 감지)
+      _checkSessionValidity();
+      debugPrint('[Lifecycle] 포그라운드 복귀 → 세션 체크');
     }
   }
 

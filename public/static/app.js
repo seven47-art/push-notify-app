@@ -317,7 +317,10 @@ function renderChannels(list) {
         <td class="px-5 py-3 text-center text-emerald-400 font-semibold">${ch.subscriber_count || 0}</td>
         <td class="px-5 py-3 text-center text-amber-400 font-semibold">${ch.invite_link_count || 0}</td>
         <td class="px-5 py-3 text-center text-blue-400 font-semibold">${ch.content_count || 0}</td>
-        <td class="px-5 py-3 text-slate-400 text-xs">${ch.owner_email || ch.owner_id}</td>
+        <td class="px-5 py-3 text-slate-400 text-xs">
+          ${ch.owner_email || ch.owner_id}
+          ${ch.owner_is_blocked ? '<span class="ml-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-400 border border-red-700/50">차단</span>' : ''}
+        </td>
         <td class="px-5 py-3 text-center">
           <span class="${ch.is_active ? 'badge-completed' : 'badge-failed'} badge">${ch.is_active ? '활성' : '비활성'}</span>
           ${Number(ch.is_secret) === 1 ? '<span class="badge ml-1" style="background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3);font-size:10px;padding:1px 5px;border-radius:4px;"><i class="fas fa-lock mr-1"></i>비밀</span>' : ''}
@@ -1249,7 +1252,10 @@ async function loadAlarmLogs(offset = 0) {
         <td class="px-4 py-3 text-center"><input type="checkbox" class="alarm-log-check accent-indigo-500 cursor-pointer" data-id="${row.id}" onchange="onAlarmLogCheck(this)" ${isChecked ? 'checked' : ''}></td>
         <td class="px-4 py-3 text-slate-400 text-xs">${row.id}</td>
         <td class="px-4 py-3 text-white font-medium">${row.channel_name || '-'}</td>
-        <td class="px-4 py-3 text-slate-300 text-xs">${row.sender_email || '-'}</td>
+        <td class="px-4 py-3 text-slate-300 text-xs">
+          ${row.sender_email || '-'}
+          ${row.sender_is_blocked ? '<span class="ml-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-400 border border-red-700/50">차단</span>' : ''}
+        </td>
         <td class="px-4 py-3 text-slate-300 text-xs text-center">${row.receiver_count ?? 0}명</td>
         <td class="px-4 py-3">
           <span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-300">${(row.msg_type || '-').toUpperCase()}</span>
@@ -1516,9 +1522,12 @@ async function loadMembers() {
     } else {
       tbody.innerHTML = data.map(m => {
         const isChecked = selectedMemberIds.has(m.user_id)
-        const activeBtn = m.is_active
-          ? `bg-emerald-900/50 text-emerald-400 hover:bg-red-900/50 hover:text-red-400`
-          : `bg-slate-700 text-slate-400 hover:bg-emerald-900/50 hover:text-emerald-400`
+        const activeBtn = m.is_blocked
+          ? `bg-red-900/60 text-red-400 cursor-default`
+          : m.is_active
+            ? `bg-emerald-900/50 text-emerald-400 hover:bg-red-900/50 hover:text-red-400`
+            : `bg-slate-700 text-slate-400 hover:bg-emerald-900/50 hover:text-emerald-400`
+        const activeLabel = m.is_blocked ? '🚫 차단' : (m.is_active ? '활성' : '비활성')
         return `
         <tr class="border-t border-slate-700/50 hover:bg-slate-800/50 ${isChecked ? 'bg-indigo-950/40' : ''}">
           <td class="px-4 py-3 text-center">
@@ -1541,7 +1550,7 @@ async function loadMembers() {
           <td class="px-4 py-3 text-center">
             <button onclick="toggleMember('${m.user_id}', ${m.is_active})"
               class="text-xs px-2 py-1 rounded-full font-semibold cursor-pointer ${activeBtn} transition-colors">
-              ${m.is_active ? '활성' : '비활성'}
+              ${activeLabel}
             </button>
           </td>
           <td class="px-4 py-3 text-slate-400 text-xs">${formatDate(m.created_at)}</td>

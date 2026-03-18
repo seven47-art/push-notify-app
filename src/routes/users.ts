@@ -46,9 +46,11 @@ users.get('/', async (c) => {
         u.created_at, u.updated_at,
         (u.fcm_token IS NOT NULL) AS has_fcm,
         u.phone_number,
-        COUNT(DISTINCT s.id) AS subscribe_count
+        COUNT(DISTINCT s.id) AS subscribe_count,
+        CASE WHEN b.email IS NOT NULL THEN 1 ELSE 0 END AS is_blocked
       FROM users u
       LEFT JOIN subscribers s ON s.user_id = u.user_id AND s.is_active = 1
+      LEFT JOIN blocked_emails b ON LOWER(b.email) = LOWER(u.email)
     `
     const params: any[] = []
     const where: string[] = []
