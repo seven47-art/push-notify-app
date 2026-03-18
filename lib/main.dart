@@ -493,6 +493,17 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           _handleForceLogout(reason);
           return;
         }
+        // channel_deleted: 운영자 계정 삭제 시 해당 채널 수신함/구독 목록에서 즉시 제거
+        if (action == 'channel_deleted') {
+          final channelId = message.data['channel_id'] ?? '';
+          if (channelId.isNotEmpty) {
+            _controller.runJavaScript(
+              "if(typeof App !== 'undefined' && typeof App.onChannelDeleted === 'function')"
+              "{ App.onChannelDeleted($channelId); }"
+            );
+          }
+          return;
+        }
         // 알람 처리는 Kotlin RinGoFCMService → AlarmPollingService.triggerAlarm → FakeCallActivity
         // 여기서 _showFakeCall() 호출하면 Flutter FakeCallScreen(구 UI)이 이중으로 뜸 → 절대 호출 금지
       });

@@ -1,9 +1,9 @@
 // src/routes/users.ts - 회원 관리 API
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
-import { sendFCMDataMessage } from './fcm'
+import { sendFCMDataMessage, sendFCMMulticast } from './fcm'
 
-// FCM force_logout 전송 헬퍼
+// ── FCM force_logout 전송 헬퍼 ──────────────────────────────
 async function sendForceLogout(db: any, env: any, userId: string) {
   try {
     const userRow = await db.prepare(
@@ -21,6 +21,78 @@ async function sendForceLogout(db: any, env: any, userId: string) {
       projectId
     )
   } catch (_) { /* FCM 실패해도 삭제 계속 진행 */ }
+}
+
+// ── 회원 1명 완전 삭제 (채널·구독자 알람 포함) ──────────────
+// 관리자 단건/다중 삭제 공통 함수
+async function deleteUserFully(db: any, env: any, userId: string) {
+  const serviceAccount = (env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+  const projectId      = (env as any).FCM_PROJECT_ID           || ''
+
+  // 1. FCM force_logout 전송 (삭제 전에 토큰 조회)
+  await sendForceLogout(db, env, userId)
+
+  // 2. 운영 채널 목록 조회
+  const myChannels = await db.prepare(
+    `SELECT id FROM channels WHERE owner_id = ?`
+  ).bind(userId).all()
+
+  for (const ch of (myChannels.results as { id: number }[])) {
+    const chId = ch.id
+
+    // 3a. 이 채널 구독자들의 FCM 토큰 수집 → channel_deleted 전송
+    const subRows = await db.prepare(
+      `SELECT COALESCE(s.fcm_token, u.fcm_token) as fcm_token
+       FROM subscribers s
+       LEFT JOIN users u ON u.user_id = s.user_id
+       WHERE s.channel_id = ? AND COALESCE(s.fcm_token, u.fcm_token) IS NOT NULL`
+    ).bind(chId).all()
+    const subTokens = (subRows.results as { fcm_token: string }[])
+      .map(r => r.fcm_token).filter(Boolean)
+
+    if (subTokens.length > 0 && serviceAccount && projectId) {
+      try {
+        await sendFCMMulticast(
+          subTokens,
+          { action: 'channel_deleted', channel_id: String(chId) },
+          serviceAccount,
+          projectId
+        )
+      } catch (_) { /* FCM 실패해도 DB 삭제 계속 */ }
+    }
+
+    // 3b. 채널 관련 DB 데이터 삭제
+    const batches = await db.prepare(
+      `SELECT id FROM notification_batches WHERE channel_id = ?`
+    ).bind(chId).all()
+    for (const b of (batches.results as { id: number }[])) {
+      await db.prepare(`DELETE FROM notification_logs WHERE batch_id = ?`).bind(b.id).run()
+    }
+    await db.prepare(`DELETE FROM notification_batches WHERE channel_id = ?`).bind(chId).run()
+
+    // 구독자 alarm_logs 삭제 (수신함에서 제거)
+    const alarmSchedules = await db.prepare(
+      `SELECT id FROM alarm_schedules WHERE channel_id = ?`
+    ).bind(chId).all()
+    for (const a of (alarmSchedules.results as { id: number }[])) {
+      await db.prepare(`DELETE FROM alarm_logs WHERE alarm_id = ?`).bind(a.id).run()
+    }
+    await db.prepare(`DELETE FROM alarm_schedules WHERE channel_id = ?`).bind(chId).run()
+    await db.prepare(`DELETE FROM subscribers WHERE channel_id = ?`).bind(chId).run()
+    await db.prepare(`DELETE FROM contents WHERE channel_id = ?`).bind(chId).run()
+    await db.prepare(`DELETE FROM channel_invite_links WHERE channel_id = ?`).bind(chId).run()
+    await db.prepare(`DELETE FROM channels WHERE id = ?`).bind(chId).run()
+  }
+
+  // 4. 삭제 회원 본인의 구독 정보 삭제 (다른 채널 구독)
+  await db.prepare(`DELETE FROM subscribers WHERE user_id = ?`).bind(userId).run()
+  // 5. 삭제 회원 본인의 alarm_logs 삭제 (수신함 + 발신함)
+  await db.prepare(`DELETE FROM alarm_logs WHERE receiver_id = ?`).bind(userId).run()
+  await db.prepare(`DELETE FROM alarm_logs WHERE sender_id = ?`).bind(userId).run()
+  // 6. 세션 삭제
+  await db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run()
+  // 7. 회원 삭제
+  await db.prepare(`DELETE FROM users WHERE user_id = ?`).bind(userId).run()
 }
 
 const users = new Hono<{ Bindings: Bindings }>()
@@ -140,11 +212,7 @@ users.post('/bulk-delete', async (c) => {
 
     let deleted = 0
     for (const uid of user_ids) {
-      // FCM 강제 로그아웃 전송 (삭제 전에 토큰 조회)
-      await sendForceLogout(DB, c.env, uid)
-      // 세션 삭제
-      await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(uid).run()
-      await DB.prepare(`DELETE FROM users WHERE user_id = ?`).bind(uid).run()
+      await deleteUserFully(DB, c.env, uid)
       deleted++
     }
     return c.json({ success: true, deleted })
@@ -261,11 +329,7 @@ users.delete('/:userId', async (c) => {
   try {
     const user = await DB.prepare(`SELECT id FROM users WHERE user_id = ?`).bind(userId).first()
     if (!user) return c.json({ success: false, error: '회원을 찾을 수 없습니다' }, 404)
-    // FCM 강제 로그아웃 전송 (삭제 전에 토큰 조회)
-    await sendForceLogout(DB, c.env, userId)
-    // 세션 삭제
-    await DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run()
-    await DB.prepare(`DELETE FROM users WHERE user_id = ?`).bind(userId).run()
+    await deleteUserFully(DB, c.env, userId)
     return c.json({ success: true, message: '회원이 삭제되었습니다' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
