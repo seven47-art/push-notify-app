@@ -24,6 +24,7 @@ import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
 import 'screens/terms_screen.dart';
+import 'screens/main_screen.dart';
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
 const String _appUrl  = kAppUrl;
@@ -150,7 +151,7 @@ class RinGoApp extends StatelessWidget {
         '/auth':        (_) => const AuthScreen(),
         '/permissions': (_) => const PermissionScreen(),
         '/terms':       (_) => const TermsScreen(),
-        '/main':        (_) => const WebViewScreen(),
+        '/main':        (_) => const MainScreen(),
       },
     );
   }
