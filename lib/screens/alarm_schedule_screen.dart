@@ -429,7 +429,6 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                                     style: const TextStyle(
                                       fontSize: 13,
                                       color: _text,
-                                      direction: TextDirection.ltr,
                                     ),
                                   ),
                                 ),
