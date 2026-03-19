@@ -25,6 +25,9 @@ class MainScreen extends StatefulWidget {
   final int initialTab;
   const MainScreen({super.key, this.initialTab = 0});
 
+  // 탭 인덱스 상수 (외부에서 MainScreen.tabSearch 로 접근 가능)
+  static const int tabSearch = 5;
+
   @override
   State<MainScreen> createState() => MainScreenState();
 }
@@ -42,9 +45,6 @@ class MainScreenState extends State<MainScreen> {
   ];
 
   late final List<Widget> _screens;
-
-  // 탭 인덱스 상수 (탭바에는 없지만 IndexedStack에 포함)
-  static const int tabSearch = 5;
 
   @override
   void initState() {
@@ -154,9 +154,9 @@ class MainScreenState extends State<MainScreen> {
       actions: [
         IconButton(
           icon: Icon(Icons.search,
-              color: _currentIndex == tabSearch ? _primary : const Color(0xFF333333),
+              color: _currentIndex == MainScreen.tabSearch ? _primary : const Color(0xFF333333),
               size: 24),
-          onPressed: () => setState(() => _currentIndex = tabSearch),
+          onPressed: () => setState(() => _currentIndex = MainScreen.tabSearch),
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
