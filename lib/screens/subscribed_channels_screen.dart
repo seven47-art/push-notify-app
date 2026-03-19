@@ -56,8 +56,9 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
       final res = await http.get(
-        Uri.parse('$kBaseUrl/api/channels/subscribed'),
+        Uri.parse('$kBaseUrl/api/subscribers?user_id=$userId'),
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
 
@@ -66,6 +67,7 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
         if (body['success'] == true) {
           if (mounted) {
             setState(() {
+              // subscribers API는 channel_name, image_url 등 포함
               _channels = List<Map<String, dynamic>>.from(
                 (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
               _loading = false;
@@ -221,11 +223,11 @@ class _ChannelListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name        = channel['name']?.toString() ?? '';
-    final desc        = channel['description']?.toString() ?? '';
+    final name        = (channel['channel_name'] ?? channel['name'])?.toString() ?? '';
+    final desc        = (channel['channel_description'] ?? channel['description'])?.toString() ?? '';
     final imageUrl    = channel['image_url']?.toString();
     final memberCount = channel['member_count'] ?? channel['subscriber_count'] ?? 0;
-    final isPrivate   = channel['is_private'] == true || channel['is_private'] == 1;
+    final isPrivate   = channel['is_secret'] == true || channel['is_secret'] == 1 || channel['is_private'] == true || channel['is_private'] == 1;
     final avatarColor = _avatarColors[colorIndex];
     final initial     = name.isNotEmpty ? name[0].toUpperCase() : '?';
 

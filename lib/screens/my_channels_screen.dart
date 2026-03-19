@@ -45,8 +45,9 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
       final res = await http.get(
-        Uri.parse('$kBaseUrl/api/channels/mine'),
+        Uri.parse('$kBaseUrl/api/channels?owner_id=$userId'),
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
 
