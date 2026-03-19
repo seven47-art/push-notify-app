@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/image_helper.dart';
 import 'content_player_screen.dart';
 
 enum NotificationMode { inbox, outbox }
@@ -428,24 +429,12 @@ class _AlarmListTile extends StatelessWidget {
                 ),
               ),
             // 채널 아바타
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: channelImage == null ? avatarColor : null,
-                borderRadius: BorderRadius.circular(10),
-                image: channelImage != null
-                    ? DecorationImage(image: NetworkImage(channelImage), fit: BoxFit.cover)
-                    : null,
-              ),
-              child: channelImage == null
-                  ? Center(
-                      child: Text(
-                        initial,
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    )
-                  : null,
+            channelAvatar(
+              imageUrl: channelImage,
+              name: channelName,
+              size: 44,
+              bgColor: avatarColor,
+              borderRadius: 10,
             ),
             const SizedBox(width: 10),
             // 콘텐츠 타입 아이콘

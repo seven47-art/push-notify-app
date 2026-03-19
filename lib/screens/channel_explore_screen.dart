@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/image_helper.dart';
 import 'channel_detail_screen.dart';
 import 'settings_screen.dart';
 import 'main_screen.dart';
@@ -335,25 +336,13 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
   }
 
   Widget _avatar(String name, String imageUrl, double size) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'C';
-    final color   = _avatarColors[name.codeUnitAt(0) % _avatarColors.length];
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: imageUrl.isNotEmpty
-          ? Image.network(imageUrl, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Center(
-                child: Text(initial,
-                    style: TextStyle(color: color,
-                        fontWeight: FontWeight.bold, fontSize: size * 0.4))))
-          : Center(
-              child: Text(initial,
-                  style: TextStyle(color: color,
-                      fontWeight: FontWeight.bold, fontSize: size * 0.4))),
+    final color = _avatarColors[name.isNotEmpty ? name.codeUnitAt(0) % _avatarColors.length : 0];
+    return channelAvatar(
+      imageUrl: imageUrl.isNotEmpty ? imageUrl : null,
+      name: name,
+      size: size,
+      bgColor: color,
+      borderRadius: 10,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/image_helper.dart';
 import 'channel_detail_screen.dart';
 import 'create_channel_screen.dart';
 
@@ -223,24 +224,12 @@ class _ChannelListTile extends StatelessWidget {
         child: Row(
           children: [
             // 아바타
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: imageUrl == null ? avatarColor : null,
-                borderRadius: BorderRadius.circular(12),
-                image: imageUrl != null
-                    ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
-                    : null,
-              ),
-              child: imageUrl == null
-                  ? Center(
-                      child: Text(
-                        initial,
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    )
-                  : null,
+            channelAvatar(
+              imageUrl: imageUrl,
+              name: name,
+              size: 48,
+              bgColor: avatarColor,
+              borderRadius: 12,
             ),
             const SizedBox(width: 12),
             Expanded(

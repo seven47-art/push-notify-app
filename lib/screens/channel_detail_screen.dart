@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
+import '../utils/image_helper.dart';
 import 'alarm_schedule_screen.dart';
 
 const _primary  = Color(0xFF6C63FF);
@@ -198,24 +199,12 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 채널 아바타
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: _primary.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(14),
-                    image: imageUrl != null
-                        ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
-                        : null,
-                  ),
-                  child: imageUrl == null
-                      ? Center(
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: const TextStyle(color: _primary, fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
-                        )
-                      : null,
+                channelAvatar(
+                  imageUrl: imageUrl,
+                  name: name,
+                  size: 64,
+                  bgColor: _primary,
+                  borderRadius: 14,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -484,6 +473,20 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
     super.dispose();
   }
 
+  Widget _buildImagePreview(String url, double size) {
+    if (isBase64Image(url)) {
+      final bytes = base64ToBytes(url);
+      if (bytes != null) {
+        return Image.memory(bytes, width: size, height: size, fit: BoxFit.cover);
+      }
+    }
+    return Image.network(url, width: size, height: size, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+            width: size, height: size,
+            color: Colors.grey[300],
+            child: const Icon(Icons.camera_alt, color: Colors.grey, size: 20)));
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final xfile  = await picker.pickImage(
@@ -638,11 +641,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
                         : _imageUrl != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(_imageUrl!, width: 40, height: 40, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                        width: 40, height: 40,
-                                        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(8)),
-                                        child: const Icon(Icons.camera_alt, color: Colors.grey, size: 20))),
+                                child: _buildImagePreview(_imageUrl!, 40),
                               )
                             : Container(
                                 width: 40, height: 40,
