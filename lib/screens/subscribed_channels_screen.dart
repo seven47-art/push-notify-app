@@ -1,8 +1,11 @@
 // lib/screens/subscribed_channels_screen.dart
 // 스크린샷 기준: ← 구독 채널 제목 + 채널 목록 (채널이미지/이름/잠금아이콘/구독자수/채널소개)
 // 탭 버튼이 눌리면 채널 상세(구독자 뷰)로 이동
+// 알람 배지: 알람 예약이 있는 채널에 빨간 카운트 배지 표시
+// 필터: 전체 / 알람설정
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
@@ -31,9 +34,11 @@ class SubscribedChannelsScreen extends StatefulWidget {
 
 class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
+  Map<String, int> _alarmCounts = {}; // channelId → 알람 개수
   bool _loading = true;
   String? _error;
   String _token = '';
+  bool _showAlarmOnly = false; // 알람설정된 채널만 보기
 
   // 외부에서 reload 호출 가능하도록 public 메서드
   void reload() => _load();
@@ -68,15 +73,44 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true) {
+          // subscribers API는 channel_name, image_url, owner_id 등 포함
+          // 내가 만든 채널(owner_id == userId)은 구독채널 목록에서 제외
+          final all = List<Map<String, dynamic>>.from(
+            (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+          final channels = userId.isEmpty
+              ? all
+              : all.where((ch) => ch['owner_id']?.toString() != userId).toList();
+
+          // 알람 카운트 조회
+          Map<String, int> alarmCounts = {};
+          if (channels.isNotEmpty) {
+            try {
+              final ids = channels
+                  .map((c) => (c['channel_id'] ?? c['id'])?.toString() ?? '')
+                  .where((id) => id.isNotEmpty)
+                  .join(',');
+              if (ids.isNotEmpty) {
+                final alarmRes = await http.get(
+                  Uri.parse('$kBaseUrl/api/alarms/count?channel_ids=$ids'),
+                  headers: {'Authorization': 'Bearer $_token'},
+                ).timeout(const Duration(seconds: 10));
+                if (alarmRes.statusCode == 200) {
+                  final ab = jsonDecode(alarmRes.body) as Map<String, dynamic>;
+                  if (ab['success'] == true && ab['data'] != null) {
+                    final data = ab['data'] as Map<String, dynamic>;
+                    data.forEach((k, v) {
+                      alarmCounts[k] = (v as num).toInt();
+                    });
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+
           if (mounted) {
             setState(() {
-              // subscribers API는 channel_name, image_url, owner_id 등 포함
-              // 내가 만든 채널(owner_id == userId)은 구독채널 목록에서 제외
-              final all = List<Map<String, dynamic>>.from(
-                (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
-              _channels = userId.isEmpty
-                  ? all
-                  : all.where((ch) => ch['owner_id']?.toString() != userId).toList();
+              _channels = channels;
+              _alarmCounts = alarmCounts;
               _loading = false;
             });
           }
@@ -89,16 +123,177 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     }
   }
 
+  // 길게 눌렀을 때 팝업 메뉴
+  void _showLongPressMenu(Map<String, dynamic> channel) {
+    final channelId   = (channel['channel_id'] ?? channel['id'])?.toString() ?? '';
+    final channelName = (channel['channel_name'] ?? channel['name'])?.toString() ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ChannelPopupMenu(
+        channelName: channelName,
+        items: [
+          _PopupItem(icon: Icons.link, label: '초대코드', onTap: () async {
+            Navigator.pop(context);
+            await _showInviteCode(channelId, channelName);
+          }),
+          _PopupItem(icon: Icons.flag_outlined, label: '채널신고', onTap: () {
+            Navigator.pop(context);
+            _openReport(channelId, channelName);
+          }),
+          _PopupItem(
+            icon: Icons.exit_to_app_outlined,
+            label: '채널나가기',
+            color: const Color(0xFFFF4444),
+            onTap: () async {
+              Navigator.pop(context);
+              await _leaveChannel(channelId, channelName);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 초대코드 바텀시트
+  Future<void> _showInviteCode(String channelId, String channelName) async {
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+
+      final invRes = await http.get(
+        Uri.parse('$kBaseUrl/api/invites?channel_id=$channelId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+
+      final invBody = jsonDecode(invRes.body) as Map<String, dynamic>;
+      final list = (invBody['data'] as List? ?? []);
+      final now = DateTime.now();
+      Map<String, dynamic>? active;
+      for (final inv in list) {
+        final isActive   = inv['is_active'] == true || inv['is_active'] == 1;
+        final expiresAt  = inv['expires_at'];
+        final notExpired = expiresAt == null ||
+            DateTime.tryParse(expiresAt.toString())?.isAfter(now) == true;
+        if (isActive && notExpired) { active = inv as Map<String, dynamic>; break; }
+      }
+
+      String? inviteToken = active?['invite_token']?.toString();
+      if (inviteToken == null || inviteToken.isEmpty) {
+        final crRes = await http.post(
+          Uri.parse('$kBaseUrl/api/invites'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'channel_id': channelId, 'created_by': userId}),
+        ).timeout(const Duration(seconds: 10));
+        final crBody = jsonDecode(crRes.body) as Map<String, dynamic>;
+        inviteToken = crBody['data']?['invite_token']?.toString();
+      }
+
+      final inviteLink = inviteToken != null
+          ? 'https://ringo.run/join/$inviteToken'
+          : 'https://ringo.run/join/$channelId';
+
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _InviteCodeSheet(channelName: channelName, inviteLink: inviteLink),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('초대 링크를 불러올 수 없습니다: $e')),
+        );
+      }
+    }
+  }
+
+  // 채널 신고
+  void _openReport(String channelId, String channelName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ChannelDetailScreen(
+        channelId: channelId,
+        isOwner: false,
+        isSubscribed: true,
+      ),
+    );
+  }
+
+  // 채널 나가기
+  Future<void> _leaveChannel(String channelId, String channelName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('채널 나가기'),
+        content: Text('"$channelName" 채널에서 나가시겠습니까?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('나가기', style: TextStyle(color: Color(0xFFFF4444))),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+      final res = await http.delete(
+        Uri.parse('$kBaseUrl/api/subscribers/leave?user_id=${Uri.encodeComponent(userId)}&channel_id=$channelId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (mounted) {
+        if (body['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$channelName" 채널에서 나갔습니다.')),
+          );
+          _load();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(body['error']?.toString() ?? '채널 나가기에 실패했습니다')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
-    if (_searchQuery.isEmpty) return _channels;
-    return _channels.where((ch) {
-      final name = ch['name']?.toString().toLowerCase() ?? '';
-      return name.contains(_searchQuery.toLowerCase());
-    }).toList();
+    var list = _channels;
+    // 알람설정 탭이면 알람 있는 채널만
+    if (_showAlarmOnly) {
+      list = list.where((ch) {
+        final id = (ch['channel_id'] ?? ch['id'])?.toString() ?? '';
+        return (_alarmCounts[id] ?? 0) > 0;
+      }).toList();
+    }
+    // 검색
+    if (_searchQuery.isNotEmpty) {
+      list = list.where((ch) {
+        final name = (ch['channel_name'] ?? ch['name'])?.toString().toLowerCase() ?? '';
+        return name.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+    return list;
   }
 
   @override
   Widget build(BuildContext context) {
+    final displayList = _filtered;
     return Scaffold(
       backgroundColor: _bg,
       body: RefreshIndicator(
@@ -109,17 +304,40 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: SizedBox(
-                  height: 36,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Text(
-                        '구독 채널',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 36,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            '구독 채널',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 10),
+                    // 필터 탭: 전체 / 알람설정
+                    Row(
+                      children: [
+                        _FilterChip(
+                          label: '전체',
+                          selected: !_showAlarmOnly,
+                          onTap: () => setState(() => _showAlarmOnly = false),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: '알람설정',
+                          selected: _showAlarmOnly,
+                          onTap: () => setState(() => _showAlarmOnly = true),
+                          icon: Icons.alarm,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -144,16 +362,20 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                   ),
                 ),
               )
-            else if (_filtered.isEmpty)
+            else if (displayList.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.list_alt, size: 56, color: Colors.grey[300]),
+                      Icon(
+                        _showAlarmOnly ? Icons.alarm_off : Icons.list_alt,
+                        size: 56, color: Colors.grey[300]),
                       const SizedBox(height: 12),
                       Text(
-                        _searchQuery.isNotEmpty ? '검색 결과가 없습니다.' : '구독 중인 채널이 없습니다.',
+                        _showAlarmOnly
+                            ? '알람이 설정된 구독 채널이 없습니다.'
+                            : (_searchQuery.isNotEmpty ? '검색 결과가 없습니다.' : '구독 중인 채널이 없습니다.'),
                         style: const TextStyle(color: _text2),
                       ),
                     ],
@@ -164,16 +386,20 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    if (index >= _filtered.length) return null;
+                    if (index >= displayList.length) return null;
+                    final ch = displayList[index];
+                    final id = (ch['channel_id'] ?? ch['id'])?.toString() ?? '';
+                    final alarmCount = _alarmCounts[id] ?? 0;
                     return _ChannelListTile(
-                      channel: _filtered[index],
+                      channel: ch,
                       colorIndex: index % _avatarColors.length,
+                      alarmCount: alarmCount,
                       onTap: () async {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => ChannelDetailScreen(
-                              channelId: (_filtered[index]['channel_id'] ?? _filtered[index]['id'])?.toString() ?? '',
+                              channelId: (displayList[index]['channel_id'] ?? displayList[index]['id'])?.toString() ?? '',
                               isOwner: false,
                               isSubscribed: true, // 구독 중인 채널
                             ),
@@ -181,11 +407,53 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                         );
                         _load();
                       },
+                      onLongPress: () => _showLongPressMenu(ch),
                     );
                   },
-                  childCount: _filtered.length,
+                  childCount: displayList.length,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 필터 칩 위젯
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+  const _FilterChip({required this.label, required this.selected, required this.onTap, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? _primary : Colors.transparent,
+          border: Border.all(color: selected ? _primary : _border),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 13, color: selected ? Colors.white : _text2),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: selected ? Colors.white : _text2,
+              ),
+            ),
           ],
         ),
       ),
@@ -196,8 +464,16 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
 class _ChannelListTile extends StatelessWidget {
   final Map<String, dynamic> channel;
   final int colorIndex;
+  final int alarmCount;
   final VoidCallback onTap;
-  const _ChannelListTile({required this.channel, required this.colorIndex, required this.onTap});
+  final VoidCallback? onLongPress;
+  const _ChannelListTile({
+    required this.channel,
+    required this.colorIndex,
+    required this.onTap,
+    this.alarmCount = 0,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -207,10 +483,10 @@ class _ChannelListTile extends StatelessWidget {
     final memberCount = channel['member_count'] ?? channel['subscriber_count'] ?? 0;
     final isPrivate   = channel['is_secret'] == true || channel['is_secret'] == 1 || channel['is_private'] == true || channel['is_private'] == 1;
     final avatarColor = _avatarColors[colorIndex];
-    final initial     = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: const BoxDecoration(
@@ -218,13 +494,42 @@ class _ChannelListTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // 아바타
-            channelAvatar(
-              imageUrl: imageUrl,
-              name: name,
-              size: 40,
-              bgColor: avatarColor,
-              borderRadius: 12,
+            // 아바타 + 알람 배지
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                channelAvatar(
+                  imageUrl: imageUrl,
+                  name: name,
+                  size: 40,
+                  bgColor: avatarColor,
+                  borderRadius: 12,
+                ),
+                if (alarmCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4444),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Center(
+                        child: Text(
+                          '$alarmCount',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -265,6 +570,151 @@ class _ChannelListTile extends StatelessWidget {
             const Icon(Icons.chevron_right, color: _text2, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── 롱프레스 팝업 메뉴 ─────────────────────────────────────────────────────
+class _PopupItem {
+  final IconData icon;
+  final String label;
+  final Color? color;
+  final VoidCallback onTap;
+  const _PopupItem({required this.icon, required this.label, required this.onTap, this.color});
+}
+
+class _ChannelPopupMenu extends StatelessWidget {
+  final String channelName;
+  final List<_PopupItem> items;
+  const _ChannelPopupMenu({required this.channelName, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                channelName,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1, color: Color(0xFFEEEEEE)),
+            ...items.map((item) => InkWell(
+              onTap: item.onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Icon(item.icon, size: 20, color: item.color ?? const Color(0xFF444444)),
+                    const SizedBox(width: 14),
+                    Text(item.label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: item.color ?? const Color(0xFF222222),
+                        fontWeight: FontWeight.w400,
+                      )),
+                  ],
+                ),
+              ),
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 초대코드 바텀시트 ────────────────────────────────────────────────────────
+class _InviteCodeSheet extends StatelessWidget {
+  final String channelName;
+  final String inviteLink;
+  const _InviteCodeSheet({required this.channelName, required this.inviteLink});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(width: 40, height: 4,
+            decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          Text('$channelName · 초대 링크',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF222222))),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEEEEEE)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(inviteLink,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF6C63FF)),
+                    overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: inviteLink));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('초대 링크가 복사되었습니다.')),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C63FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('복사',
+                      style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                side: const BorderSide(color: Color(0xFFEEEEEE)),
+              ),
+              child: const Text('닫기', style: TextStyle(color: Color(0xFF888888))),
+            ),
+          ),
+        ],
       ),
     );
   }
