@@ -280,16 +280,18 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.72,
-        height: double.infinity,
-        color: Colors.white,
-        padding: EdgeInsets.only(top: topPad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Material(
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.72,
+          height: double.infinity,
+          color: Colors.white,
+          padding: EdgeInsets.only(top: topPad),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               // 헤더
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
@@ -365,8 +367,8 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
           ),
         ),
       ),
-    );
-  }
+    );   // Align
+  }   // Material 닫기
 }
 
 class _DrawerItem extends StatelessWidget {
