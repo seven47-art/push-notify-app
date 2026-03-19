@@ -397,7 +397,7 @@ class _AlarmListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final channelName  = item['channel_name']?.toString() ?? '';
     final channelImage = item['channel_image']?.toString();
-    final contentType  = item['content_type']?.toString() ?? item['alarm_type']?.toString() ?? '';
+    final contentType  = item['msg_type']?.toString() ?? item['content_type']?.toString() ?? '';
     final scheduledAt  = item['scheduled_at'] ?? item['created_at'];
     final avatarColor  = _avatarColors[colorIndex];
     final initial      = channelName.isNotEmpty ? channelName[0].toUpperCase() : '?';

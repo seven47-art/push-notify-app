@@ -24,13 +24,15 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
   bool _webLoading = true;
 
   String get _contentType {
-    return widget.alarm['content_type']?.toString() ??
+    return widget.alarm['msg_type']?.toString() ??
+           widget.alarm['content_type']?.toString() ??
            widget.alarm['alarm_type']?.toString() ??
            '';
   }
 
   String get _contentUrl {
-    return widget.alarm['content_url']?.toString() ??
+    return widget.alarm['msg_value']?.toString() ??
+           widget.alarm['content_url']?.toString() ??
            widget.alarm['youtube_url']?.toString() ??
            widget.alarm['file_url']?.toString() ??
            '';

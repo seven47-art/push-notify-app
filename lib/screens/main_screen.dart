@@ -350,7 +350,7 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 child: Text(
-                  'RinGo v3.5.0',
+                  'RinGo v$kAppVersion',
                   style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                 ),
               ),

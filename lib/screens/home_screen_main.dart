@@ -9,6 +9,7 @@ import '../config.dart';
 import 'notices_screen.dart';
 import 'settings_screen.dart';
 import 'join_channel_screen.dart';
+import 'channel_explore_screen.dart';
 import 'main_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
@@ -96,7 +97,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
     final mainState = context.findAncestorStateOfType<MainScreenState>();
     switch (key) {
       case 'search':
-        mainState?.navigateToTab(2); // 구독채널(검색)
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const ChannelExploreScreen()));
         break;
       case 'my':
         mainState?.navigateToTab(1);
