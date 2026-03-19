@@ -486,7 +486,12 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final xfile  = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final xfile  = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 300,
+      maxHeight: 300,
+      imageQuality: 70,
+    );
     if (xfile != null && mounted) {
       setState(() { _selectedImage = File(xfile.path); _imageUrl = null; });
     }
@@ -495,25 +500,48 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      // 이미지 선택 시 base64로 변환 (웹뷰와 동일 방식)
+      String? imageUrl;
+      if (_selectedImage != null) {
+        final bytes = await _selectedImage!.readAsBytes();
+        imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      }
+
       final body = <String, dynamic>{
-        'description': _descCtrl.text,
-        'homepage':    _homepageCtrl.text,
-        'is_private':  _isPrivate,
+        'description':  _descCtrl.text,
+        'homepage_url': _homepageCtrl.text,
+        'is_secret':    _isPrivate,
+        if (imageUrl != null) 'image_url': imageUrl,
         if (_isPrivate && _passwordCtrl.text.isNotEmpty)
           'password': _passwordCtrl.text,
+        if (!_isPrivate) 'remove_password': true,
       };
-      await http.put(
+      final res = await http.put(
         Uri.parse('$kBaseUrl/api/channels/${widget.channel['id']}'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
-    if (mounted) {
-      Navigator.pop(context);
-      widget.onSaved();
+      ).timeout(const Duration(seconds: 15));
+
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onSaved();
+        final resBody = jsonDecode(res.body) as Map<String, dynamic>?;
+        if (resBody?['success'] != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resBody?['error']?.toString() ?? '저장에 실패했습니다.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
     }
   }
 

@@ -47,7 +47,12 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final xfile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final xfile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 300,
+      maxHeight: 300,
+      imageQuality: 70,
+    );
     if (xfile != null && mounted) {
       setState(() => _selectedImage = File(xfile.path));
     }
@@ -77,12 +82,22 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
       final prefs = await SharedPreferences.getInstance();
       final token  = prefs.getString('session_token') ?? '';
       final userId = prefs.getString('user_id') ?? '';
-      final body = {
+
+      // 이미지 선택 시 base64로 변환 (웹뷰와 동일 방식)
+      String? imageUrl;
+      if (_selectedImage != null) {
+        final bytes = await _selectedImage!.readAsBytes();
+        imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      }
+
+      final body = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
         'description': _descCtrl.text.trim(),
-        'homepage': _homepageCtrl.text.trim(),
+        'homepage_url': _homepageCtrl.text.trim(),
         'is_private': _isPrivate,
+        'is_secret': _isPrivate,
         'owner_id': userId,
+        if (imageUrl != null) 'image_url': imageUrl,
         if (_isPrivate && _passwordCtrl.text.isNotEmpty)
           'password': _passwordCtrl.text,
       };
@@ -106,10 +121,10 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
         final msg = errBody?['error']?.toString() ?? '채널 생성에 실패했습니다.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('네트워크 오류가 발생했습니다.')),
+          SnackBar(content: Text('오류: $e')),
         );
       }
     }
