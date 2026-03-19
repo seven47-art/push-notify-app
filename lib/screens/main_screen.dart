@@ -1,8 +1,12 @@
 // lib/screens/main_screen.dart
 // 스크린샷 기준: 하단 탭바 5개 (홈/내채널/구독채널/수신함/발신함)
 // 상단 앱바: RinGo 로고 + 검색/설정/햄버거 아이콘
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config.dart';
 import 'home_screen_main.dart';
 import 'my_channels_screen.dart';
 import 'subscribed_channels_screen.dart';
@@ -50,6 +54,53 @@ class MainScreenState extends State<MainScreen> {
       const NotificationScreen(mode: NotificationMode.inbox),
       const NotificationScreen(mode: NotificationMode.outbox),
     ];
+    _registerFcmToken();
+  }
+
+  // ── 네이티브 화면용 FCM 토큰 서버 등록 ──────────────────────
+  Future<void> _registerFcmToken() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission();
+      final fcmToken = await messaging.getToken();
+      if (fcmToken == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('session_token') ?? '';
+      if (sessionToken.isEmpty) return;
+
+      final res = await http.post(
+        Uri.parse('$kBaseUrl/api/fcm/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
+        body: jsonEncode({'fcm_token': fcmToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        await prefs.setString('fcm_token', fcmToken);
+        debugPrint('[FCM] 네이티브 토큰 서버 등록 성공');
+      } else {
+        debugPrint('[FCM] 네이티브 토큰 서버 등록 실패: ${res.statusCode}');
+      }
+
+      // 토큰 갱신 시 재등록
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        final p = await SharedPreferences.getInstance();
+        final t = p.getString('session_token') ?? '';
+        if (t.isEmpty) return;
+        await http.post(
+          Uri.parse('$kBaseUrl/api/fcm/register'),
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $t'},
+          body: jsonEncode({'fcm_token': newToken}),
+        ).timeout(const Duration(seconds: 10));
+        await p.setString('fcm_token', newToken);
+        debugPrint('[FCM] 네이티브 토큰 갱신 등록 성공');
+      });
+    } catch (e) {
+      debugPrint('[FCM] 네이티브 토큰 등록 오류: $e');
+    }
   }
 
   /// 외부에서 탭 전환 가능하도록 퍼블릭 메서드
