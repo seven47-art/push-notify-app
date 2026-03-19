@@ -242,7 +242,7 @@ class _ChannelListTile extends StatelessWidget {
                       ),
                       if (isPrivate) ...[
                         const SizedBox(width: 4),
-                        const Text('🔒', style: TextStyle(fontSize: 13)),
+                        const Icon(Icons.lock, size: 13, color: Color(0xFFEF4444)),
                       ],
                       const SizedBox(width: 4),
                       Icon(Icons.group, size: 13, color: _text2),

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/image_helper.dart';
 import 'channel_detail_screen.dart';
+import 'main_screen.dart';
 
 const _bg       = Color(0xFFFFFFFF);
 const _bg2      = Color(0xFFF9F9F9);
@@ -114,9 +115,15 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
       builder: (_) => ChannelDetailScreen(
         channelId: ch['id']?.toString() ?? '',
         isOwner: isOwner,
-        isSubscribed: false, // 탐색 화면은 미가입 채널
+        isSubscribed: false,
       ),
-    ));
+    )).then((result) {
+      // 채널 가입 완료 시 구독채널 탭(인덱스 2)으로 이동
+      if (result == 'joined' && mounted) {
+        final mainState = context.findAncestorStateOfType<MainScreenState>();
+        mainState?.navigateToTab(2);
+      }
+    });
   }
 
   Widget _buildSearchBar() {

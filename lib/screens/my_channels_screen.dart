@@ -218,7 +218,8 @@ class _ChannelListTile extends StatelessWidget {
     final desc       = channel['description']?.toString() ?? '';
     final imageUrl   = channel['image_url']?.toString();
     final memberCount = channel['member_count'] ?? channel['subscriber_count'] ?? 0;
-    final isPrivate  = channel['is_private'] == true || channel['is_private'] == 1;
+    final isPrivate  = channel['is_private'] == true || channel['is_private'] == 1
+                    || channel['is_secret'] == true  || channel['is_secret'] == 1;
     final avatarColor = _avatarColors[colorIndex];
     final initial    = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
@@ -255,7 +256,7 @@ class _ChannelListTile extends StatelessWidget {
                       ),
                       if (isPrivate) ...[
                         const SizedBox(width: 4),
-                        const Text('🔒', style: TextStyle(fontSize: 13)),
+                        const Icon(Icons.lock, size: 13, color: Color(0xFFEF4444)),
                       ],
                       const SizedBox(width: 4),
                       Icon(Icons.group, size: 13, color: _text2),

@@ -1,7 +1,9 @@
 // lib/screens/home_screen_main.dart
 // 스크린샷 기준: 배너(그라데이션) + "자주쓰는 메뉴" + 8개 메뉴카드 + "순서 변경" 버튼
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,15 +39,15 @@ class _MenuItem {
   });
 }
 
-const _allMenuItems = <_MenuItem>[
-  _MenuItem(key: 'search',   label: '채널검색',   subLabel: '채널 찾기',      icon: Icons.search,            iconBg: Color(0xFFE8F4FD), iconColor: Color(0xFF2196F3)),
-  _MenuItem(key: 'my',       label: '내 채널',   subLabel: '운영 채널 관리',   icon: Icons.wifi_tethering,    iconBg: Color(0xFFE8F5E9), iconColor: Color(0xFF4CAF50)),
-  _MenuItem(key: 'sub',      label: '구독 채널',  subLabel: '가입한 채널',     icon: Icons.list_alt_outlined, iconBg: Color(0xFFF3E5F5), iconColor: Color(0xFF9C27B0)),
-  _MenuItem(key: 'notice',   label: '공지사항',   subLabel: '공지 확인',       icon: Icons.campaign_outlined, iconBg: Color(0xFFFFF3E0), iconColor: Color(0xFFFF9800)),
-  _MenuItem(key: 'inbox',    label: '수신함',    subLabel: '받은 메시지',      icon: Icons.inbox_outlined,    iconBg: Color(0xFFE0F7FA), iconColor: Color(0xFF009688)),
-  _MenuItem(key: 'outbox',   label: '발신함',    subLabel: '보낸 메시지',      icon: Icons.send_outlined,     iconBg: Color(0xFFE8EAF6), iconColor: Color(0xFF3F51B5)),
-  _MenuItem(key: 'join',     label: '초대코드 가입', subLabel: '코드로 채널 참여', icon: Icons.qr_code_scanner,   iconBg: Color(0xFFFCE4EC), iconColor: Color(0xFFE91E63)),
-  _MenuItem(key: 'settings', label: '설정',      subLabel: '앱 환경설정',      icon: Icons.settings_outlined, iconBg: Color(0xFFF5F5F5), iconColor: Color(0xFF757575)),
+const _defaultMenuItems = <_MenuItem>[
+  _MenuItem(key: 'search',   label: '채널검색',      subLabel: '채널 찾기',        icon: Icons.search,            iconBg: Color(0x1F4A6FA5), iconColor: Color(0xFF4A6FA5)),
+  _MenuItem(key: 'my',       label: '내 채널',       subLabel: '운영 채널 관리',   icon: Icons.wifi_tethering,    iconBg: Color(0x1F3A8F7D), iconColor: Color(0xFF3A8F7D)),
+  _MenuItem(key: 'sub',      label: '구독 채널',     subLabel: '가입한 채널',       icon: Icons.list_alt_outlined, iconBg: Color(0x1F7B5EA7), iconColor: Color(0xFF7B5EA7)),
+  _MenuItem(key: 'notice',   label: '공지사항',      subLabel: '공지 확인',         icon: Icons.campaign_outlined, iconBg: Color(0x1FD4763B), iconColor: Color(0xFFD4763B)),
+  _MenuItem(key: 'inbox',    label: '수신함',        subLabel: '받은 메시지',       icon: Icons.inbox_outlined,    iconBg: Color(0x1F3A7D44), iconColor: Color(0xFF3A7D44)),
+  _MenuItem(key: 'outbox',   label: '발신함',        subLabel: '보낸 메시지',       icon: Icons.send_outlined,     iconBg: Color(0x1F2C6E9E), iconColor: Color(0xFF2C6E9E)),
+  _MenuItem(key: 'join',     label: '초대코드 가입', subLabel: '코드로 채널 참여',  icon: Icons.qr_code_scanner,   iconBg: Color(0x1FA0527A), iconColor: Color(0xFFA0527A)),
+  _MenuItem(key: 'settings', label: '설정',          subLabel: '앱 환경설정',       icon: Icons.settings_outlined, iconBg: Color(0x1F5A6472), iconColor: Color(0xFF5A6472)),
 ];
 
 class HomeScreenMain extends StatefulWidget {
@@ -58,11 +60,43 @@ class HomeScreenMain extends StatefulWidget {
 class _HomeScreenMainState extends State<HomeScreenMain> {
   Map<String, dynamic>? _banner;
   bool _bannerLoading = true;
+  List<_MenuItem> _menuItems = List.from(_defaultMenuItems);
+  bool _editMode = false;
 
   @override
   void initState() {
     super.initState();
+    _loadMenuOrder();
     _load();
+  }
+
+  // 저장된 메뉴 순서 불러오기
+  Future<void> _loadMenuOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('homeMenuOrder');
+    if (saved != null && saved.isNotEmpty) {
+      final mapped = saved
+          .map((id) => _defaultMenuItems.firstWhere((m) => m.key == id,
+              orElse: () => _defaultMenuItems.first))
+          .where((m) => saved.contains(m.key))
+          .toList();
+      final extra = _defaultMenuItems.where((m) => !saved.contains(m.key)).toList();
+      if (mounted) setState(() => _menuItems = [...mapped, ...extra]);
+    }
+  }
+
+  // 메뉴 순서 저장
+  Future<void> _saveMenuOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('homeMenuOrder', _menuItems.map((m) => m.key).toList());
+  }
+
+  // 편집모드 토글
+  void _toggleEditMode() {
+    if (_editMode) {
+      _saveMenuOrder();
+    }
+    setState(() => _editMode = !_editMode);
   }
 
   Future<void> _load() async {
@@ -148,7 +182,6 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       onTap: bannerLink != null ? () => _openBannerLink(bannerLink) : null,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        height: 150,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
@@ -159,24 +192,20 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
         ),
         child: Stack(
           children: [
+            // 흔들리는 종 애니메이션
             Positioned(
               right: 16,
-              top: 16,
-              bottom: 16,
-              child: Opacity(
-                opacity: 0.3,
-                child: Icon(
-                  Icons.notifications_active,
-                  size: 80,
-                  color: Colors.white,
-                ),
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: _BellAnimation(),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 110, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     bannerTitle,
@@ -245,19 +274,15 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
             children: [
               const Text(
                 '자주쓰는 메뉴',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _text,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _text),
               ),
               OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.swap_vert, size: 14),
-                label: const Text('순서 변경', style: TextStyle(fontSize: 12)),
+                onPressed: _toggleEditMode,
+                icon: Icon(_editMode ? Icons.check : Icons.swap_vert, size: 14),
+                label: Text(_editMode ? '완료' : '순서 변경', style: const TextStyle(fontSize: 12)),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _text2,
-                  side: const BorderSide(color: _border),
+                  foregroundColor: _editMode ? _primary : _text2,
+                  side: BorderSide(color: _editMode ? _primary : _border),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -267,24 +292,46 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
             ],
           ),
           const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 1.0,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: _allMenuItems.length,
-            itemBuilder: (context, index) {
-              final item = _allMenuItems[index];
-              return _MenuCard(
-                item: item,
-                onTap: () => _onMenuTap(context, item.key),
-              );
-            },
-          ),
+          _editMode
+              ? ReorderableGridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      final item = _menuItems.removeAt(oldIndex);
+                      _menuItems.insert(newIndex, item);
+                    });
+                  },
+                  children: _menuItems.map((item) => _MenuCard(
+                    key: ValueKey(item.key),
+                    item: item,
+                    editMode: true,
+                    onTap: () {},
+                  )).toList(),
+                )
+              : GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 1.0,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: _menuItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _menuItems[index];
+                    return _MenuCard(
+                      key: ValueKey(item.key),
+                      item: item,
+                      onTap: () => _onMenuTap(context, item.key),
+                    );
+                  },
+                ),
         ],
       ),
     );
@@ -294,7 +341,8 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
 class _MenuCard extends StatelessWidget {
   final _MenuItem item;
   final VoidCallback onTap;
-  const _MenuCard({required this.item, required this.onTap});
+  final bool editMode;
+  const _MenuCard({required super.key, required this.item, required this.onTap, this.editMode = false});
 
   @override
   Widget build(BuildContext context) {
@@ -303,37 +351,124 @@ class _MenuCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _border, width: 1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: editMode ? _primary.withOpacity(0.4) : _border, width: 1),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 4, offset: const Offset(0, 1))],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
+        child: Stack(
           children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    color: item.iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(item.icon, color: item.iconColor, size: 17),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _text, height: 1.3),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.subLabel,
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500, color: _text2),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            // 편집모드 드래그 핸들
+            if (editMode)
+              const Positioned(
+                top: 0, right: 0,
+                child: Icon(Icons.drag_indicator, size: 16, color: _text2),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 종 흔들림 애니메이션 위젯 ──────────────────────────────
+class _BellAnimation extends StatefulWidget {
+  @override
+  State<_BellAnimation> createState() => _BellAnimationState();
+}
+
+class _BellAnimationState extends State<_BellAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _swing;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4000),
+    )..repeat();
+    _swing = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.18), weight: 10),
+      TweenSequenceItem(tween: Tween(begin: 0.18, end: -0.18), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: -0.18, end: 0.12), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 0.12, end: -0.12), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: -0.12, end: 0.0), weight: 10),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 30),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _swing,
+      builder: (_, __) => Transform.rotate(
+        angle: _swing.value,
+        alignment: Alignment.topCenter,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 파동 효과
+            Opacity(
+              opacity: (0.15 + 0.15 * math.sin(_ctrl.value * 2 * math.pi)).clamp(0.0, 1.0),
+              child: Container(
+                width: 90, height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+              ),
+            ),
+            Opacity(
+              opacity: (0.1 + 0.1 * math.sin(_ctrl.value * 2 * math.pi + 1.0)).clamp(0.0, 1.0),
+              child: Container(
+                width: 70, height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.0),
+                ),
+              ),
+            ),
+            // 종 아이콘
             Container(
-              width: 44,
-              height: 44,
+              width: 56, height: 56,
               decoration: BoxDecoration(
-                color: item.iconBg,
-                borderRadius: BorderRadius.circular(12),
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.15),
               ),
-              child: Icon(item.icon, color: item.iconColor, size: 22),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _text,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              item.subLabel,
-              style: const TextStyle(fontSize: 10, color: _text2),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
+              child: const Icon(Icons.notifications_active, color: Colors.white, size: 32),
             ),
           ],
         ),

@@ -116,10 +116,19 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     );
     if (confirm != true) return;
     try {
-      await http.delete(
-        Uri.parse('$kBaseUrl/api/channels/${widget.channelId}/leave'),
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      final res = await http.delete(
+        Uri.parse('$kBaseUrl/api/subscribers/leave?user_id=${Uri.encodeComponent(userId)}&channel_id=${widget.channelId}'),
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (mounted && body['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(body['error']?.toString() ?? '채널 나가기에 실패했습니다')),
+        );
+        return;
+      }
     } catch (_) {}
     if (mounted) {
       // 구독채널 탭(인덱스 2)으로 이동 → 목록 자동 갱신
@@ -262,13 +271,16 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${ch['name'] ?? ''} 채널에 참여했습니다! 🎉')),
           );
-          // 구독채널 탭(인덱스 2)으로 이동
+          // 구독채널 탭(인덱스 2)으로 이동 + 목록 갱신
+          // popUntil로 스택 정리 후 MainScreenState에 탭 전환 요청
           final mainState = context.findAncestorStateOfType<MainScreenState>();
           if (mainState != null) {
-            Navigator.popUntil(context, (route) => route.isFirst);
+            // MainScreen이 ancestor에 있는 경우
             mainState.navigateToTab(2);
+            Navigator.popUntil(context, (route) => route.isFirst);
           } else {
-            Navigator.pop(context);
+            // push로 열린 별도 route → pop 결과값으로 상위에 알림
+            Navigator.of(context).pop('joined');
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

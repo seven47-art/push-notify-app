@@ -174,16 +174,22 @@ class MainScreenState extends State<MainScreen> {
           icon: Icon(Icons.search,
               color: _currentIndex == MainScreen.tabSearch ? _primary : const Color(0xFF333333),
               size: 24),
+          padding: const EdgeInsets.all(4),
+          visualDensity: VisualDensity.compact,
           onPressed: () => setState(() => _currentIndex = MainScreen.tabSearch),
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
+          padding: const EdgeInsets.all(4),
+          visualDensity: VisualDensity.compact,
           onPressed: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
           },
         ),
         IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF333333), size: 24),
+          padding: const EdgeInsets.only(left: 4, right: 12, top: 4, bottom: 4),
+          visualDensity: VisualDensity.compact,
           onPressed: () => _openDrawer(context),
         ),
         const SizedBox(width: 4),
