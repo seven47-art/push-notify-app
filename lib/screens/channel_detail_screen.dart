@@ -179,13 +179,70 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     );
   }
 
+  // 이미지 전체화면 모달
+  void _showImageFull(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            // 이미지
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: isBase64Image(imageUrl)
+                  ? () {
+                      final bytes = base64ToBytes(imageUrl);
+                      return bytes != null
+                          ? Image.memory(bytes,
+                              fit: BoxFit.contain,
+                              width: double.infinity)
+                          : const SizedBox();
+                    }()
+                  : Image.network(imageUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => Container(
+                            height: 200,
+                            color: Colors.grey[800],
+                            child: const Icon(Icons.broken_image,
+                                color: Colors.white54, size: 64),
+                          )),
+            ),
+            // X 닫기 버튼
+            Positioned(
+              top: -14,
+              right: -14,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 18, color: Colors.black87),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBody() {
     final ch         = _channel!;
     final name       = ch['name']?.toString() ?? '';
     final userId     = ch['user_id']?.toString() ?? ch['owner_id']?.toString() ?? '';
     final memberCount = ch['member_count'] ?? ch['subscriber_count'] ?? 0;
     final description = ch['description']?.toString() ?? '';
-    final homepage   = ch['homepage']?.toString() ?? ch['website']?.toString() ?? '';
+    final homepage   = ch['homepage_url']?.toString() ?? ch['homepage']?.toString() ?? ch['website']?.toString() ?? '';
     final imageUrl   = ch['image_url']?.toString();
 
     return SingleChildScrollView(
@@ -198,13 +255,18 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 채널 아바타
-                channelAvatar(
-                  imageUrl: imageUrl,
-                  name: name,
-                  size: 64,
-                  bgColor: _primary,
-                  borderRadius: 14,
+                // 채널 아바타 (이미지 있으면 클릭 시 전체화면)
+                GestureDetector(
+                  onTap: imageUrl != null && imageUrl.isNotEmpty
+                      ? () => _showImageFull(context, imageUrl)
+                      : null,
+                  child: channelAvatar(
+                    imageUrl: imageUrl,
+                    name: name,
+                    size: 64,
+                    bgColor: _primary,
+                    borderRadius: 14,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -459,7 +521,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
   void initState() {
     super.initState();
     _descCtrl     = TextEditingController(text: widget.channel['description']?.toString() ?? '');
-    _homepageCtrl = TextEditingController(text: widget.channel['homepage']?.toString() ?? widget.channel['website']?.toString() ?? '');
+    _homepageCtrl = TextEditingController(text: widget.channel['homepage_url']?.toString() ?? widget.channel['homepage']?.toString() ?? widget.channel['website']?.toString() ?? '');
     _passwordCtrl = TextEditingController();
     _isPrivate    = widget.channel['is_private'] == true || widget.channel['is_private'] == 1;
     _imageUrl     = widget.channel['image_url']?.toString();
