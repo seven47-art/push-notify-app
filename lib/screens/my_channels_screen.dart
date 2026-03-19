@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
 import 'alarm_schedule_screen.dart';
 import 'channel_detail_screen.dart';
@@ -129,10 +130,13 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
     final channelId   = channel['id']?.toString() ?? '';
     final channelName = channel['name']?.toString() ?? '';
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ChannelPopupMenu(
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: _ChannelPopupMenu(
         channelName: channelName,
         items: [
           _PopupItem(icon: Icons.alarm_outlined, label: '알람예약', onTap: () async {
@@ -169,6 +173,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
             },
           ),
         ],
+      ),
       ),
     );
   }
@@ -222,9 +227,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('초대 링크를 불러올 수 없습니다: $e')),
-        );
+        showCenterToast(context, '초대 링크를 불러올 수 없습니다: $e');
       }
     }
   }
@@ -234,13 +237,19 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('채널 삭제'),
-        content: Text('"$channelName" 채널을 삭제하면 복구할 수 없습니다.\n정말 삭제하시겠습니까?'),
+        backgroundColor: Colors.white,
+        title: const Text('채널 삭제',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222))),
+        content: Text('"$channelName" 채널을 삭제하면 복구할 수 없습니다.\n정말 삭제하시겠습니까?',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF444444))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('삭제', style: TextStyle(color: Color(0xFFFF4444))),
+            child: const Text('삭제', style: TextStyle(fontSize: 13, color: Color(0xFFFF4444))),
           ),
         ],
       ),
@@ -252,16 +261,12 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('채널이 삭제되었습니다.')),
-        );
+        showCenterToast(context, '채널이 삭제되었습니다.');
         _load();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제 실패: $e')),
-        );
+        showCenterToast(context, '삭제 실패: $e');
       }
     }
   }
@@ -491,7 +496,7 @@ class _ChannelListTile extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: _border, width: 0.5)),
         ),
@@ -504,7 +509,7 @@ class _ChannelListTile extends StatelessWidget {
                 channelAvatar(
                   imageUrl: imageUrl,
                   name: name,
-                  size: 40,
+                  size: 46,
                   bgColor: avatarColor,
                   borderRadius: 12,
                 ),
@@ -595,52 +600,48 @@ class _ChannelPopupMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            // 채널명 (굵게)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                channelName,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 채널명 (굵게, 좌측 정렬)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+            child: Text(
+              channelName,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          ...items.map((item) => InkWell(
+            onTap: item.onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              child: Row(
+                children: [
+                  Icon(item.icon, size: 20, color: item.color ?? const Color(0xFF444444)),
+                  const SizedBox(width: 14),
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: item.color ?? const Color(0xFF222222),
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            ...items.map((item) => InkWell(
-              onTap: item.onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Row(
-                  children: [
-                    Icon(item.icon, size: 20, color: item.color ?? const Color(0xFF444444)),
-                    const SizedBox(width: 14),
-                    Text(item.label,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: item.color ?? const Color(0xFF222222),
-                        fontWeight: FontWeight.w400,
-                      )),
-                  ],
-                ),
-              ),
-            )),
-            const SizedBox(height: 8),
-          ],
-        ),
+          )),
+          const SizedBox(height: 6),
+        ],
       ),
     );
   }
@@ -688,9 +689,7 @@ class _InviteCodeSheet extends StatelessWidget {
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: inviteLink));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('초대 링크가 복사되었습니다.')),
-                    );
+                    showCenterToast(context, '초대 링크가 복사되었습니다.');
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

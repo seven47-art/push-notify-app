@@ -410,7 +410,7 @@ class _AlarmListTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: selected ? _primary.withOpacity(0.06) : Colors.transparent,
           border: const Border(bottom: BorderSide(color: _border, width: 0.5)),
@@ -436,7 +436,7 @@ class _AlarmListTile extends StatelessWidget {
             channelAvatar(
               imageUrl: channelImage,
               name: channelName,
-              size: 38,
+              size: 42,
               bgColor: avatarColor,
               borderRadius: 10,
             ),

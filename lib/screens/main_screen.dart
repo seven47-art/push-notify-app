@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import 'home_screen_main.dart';
+import 'terms_screen.dart';
 import 'my_channels_screen.dart';
 import 'subscribed_channels_screen.dart';
 import 'notification_screen.dart';
@@ -62,6 +63,21 @@ class MainScreenState extends State<MainScreen> {
       const ChannelExploreScreen(), // index 5 - 검색 아이콘으로 전환
     ];
     _registerFcmToken();
+    // 빌드 완료 후 terms 체크
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkTerms());
+  }
+
+  Future<void> _checkTerms() async {
+    final prefs = await SharedPreferences.getInstance();
+    final accepted = prefs.getBool('termsAccepted') ?? false;
+    if (!accepted && mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black54,
+        builder: (_) => const TermsDialog(),
+      );
+    }
   }
 
   // ── 네이티브 화면용 FCM 토큰 서버 등록 ──────────────────────

@@ -218,12 +218,7 @@ class _StartGateState extends State<_StartGate> {
       Navigator.of(context).pushReplacementNamed('/permissions');
       return;
     }
-    final termsAccepted = prefs.getBool('termsAccepted') ?? false;
-    if (!mounted) return;
-    if (!termsAccepted) {
-      Navigator.of(context).pushReplacementNamed('/terms');
-      return;
-    }
+    // terms 동의 여부와 무관하게 홈으로 이동 (동의창은 MainScreen에서 팝업으로 표시)
     Navigator.of(context).pushReplacementNamed('/native_main');
   }
 

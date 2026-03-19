@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 
 const _primary = Color(0xFF6C63FF);
 const _teal    = Color(0xFF00BCD4);
@@ -129,17 +130,13 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
           setState(() {
             _alarms.removeWhere((a) => a['id']?.toString() == alarmId);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('알람이 삭제되었습니다.')),
-          );
+          showCenterToast(context, '알람이 삭제되었습니다.');
         }
         return;
       }
     } catch (_) {}
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('알람 삭제에 실패했습니다.')),
-      );
+      showCenterToast(context, '알람 삭제에 실패했습니다.');
     }
   }
 
@@ -203,9 +200,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     final f = result.files.first;
     if (f.path == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('파일 경로를 가져올 수 없습니다.')),
-        );
+        showCenterToast(context, '파일 경로를 가져올 수 없습니다.');
       }
       return;
     }
@@ -217,9 +212,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     const videoExts = ['mp4', 'mov', 'mkv'];
     if (!audioExts.contains(ext) && !videoExts.contains(ext)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('허용되지 않는 형식입니다. (mp3, m4a, wav, aac, mp4, mov, mkv)\n선택한 파일: ${f.name}')),
-        );
+        showCenterToast(context, '허용되지 않는 형식입니다. (mp3, m4a, wav, aac, mp4, mov, mkv)\n선택한 파일: ${f.name}');
       }
       return;
     }
@@ -230,9 +223,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     final limitMb  = isVideo ? 50 : 10;
     if (fileSize > limitMb * 1024 * 1024) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('파일 크기가 ${limitMb}MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB).')),
-        );
+        showCenterToast(context, '파일 크기가 ${limitMb}MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB).');
       }
       return;
     }
@@ -265,9 +256,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
           _uploadedFileUrl = downloadUrl;
           _uploading       = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ 업로드 완료: ${f.name}')),
-        );
+        showCenterToast(context, '✅ 업로드 완료: ${f.name}');
       }
     } catch (e) {
       if (mounted) {
@@ -276,9 +265,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
           _uploadedFileUrl = null;
           _uploading       = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('업로드 오류: $e')),
-        );
+        showCenterToast(context, '업로드 오류: $e');
       }
     }
   }
@@ -306,22 +293,16 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   Future<void> _submit() async {
     // 3개 제한 체크
     if (_alarms.length >= _maxAlarms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('알람은 채널당 최대 $_maxAlarms개까지 설정할 수 있습니다.')),
-      );
+      showCenterToast(context, '알람은 채널당 최대 $_maxAlarms개까지 설정할 수 있습니다.');
       return;
     }
     if (_youtubeCtrl.text.isEmpty && _pickedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('YouTube URL 또는 파일을 선택해주세요.')),
-      );
+      showCenterToast(context, 'YouTube URL 또는 파일을 선택해주세요.');
       return;
     }
     // 파일 선택했지만 업로드가 아직 안 된 경우
     if (_pickedFile != null && _uploadedFileUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_uploading ? '파일 업로드 중입니다. 잠시 기다려주세요.' : '파일 업로드에 실패했습니다. 다시 선택해주세요.')),
-      );
+      showCenterToast(context, _uploading ? '파일 업로드 중입니다. 잠시 기다려주세요.' : '파일 업로드에 실패했습니다. 다시 선택해주세요.');
       return;
     }
     setState(() => _saving = true);
@@ -372,22 +353,16 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
           });
           // 알람 목록 새로고침
           await _loadAlarms();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('알람이 예약되었습니다.')),
-          );
+          showCenterToast(context, '알람이 예약되었습니다.');
         } else {
           setState(() => _saving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(resBody['error']?.toString() ?? '알람 예약 실패')),
-          );
+          showCenterToast(context, resBody['error']?.toString() ?? '알람 예약 실패');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
-        );
+        showCenterToast(context, '오류: $e');
       }
     }
   }
@@ -735,9 +710,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                                       padding: const EdgeInsets.only(left: 4),
                                       child: _clearBtn(() {
                                         _clearFile();
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('파일이 삭제되었습니다.')),
-                                        );
+                                        showCenterToast(context, '파일이 삭제되었습니다.');
                                       }),
                                     ),
                                 ],
