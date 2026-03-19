@@ -2,6 +2,7 @@
 // 스크린샷 기준:
 //   운영자 뷰: 채널헤더(이미지/이름/ID/멤버수) + 알람⏰/공유📤/편집✏️/삭제🗑️ 버튼 + 채널소개 + 홈페이지
 //   구독자 뷰: 채널헤더 + 공유📤/신고🚩/나가기🚪 버튼 + 채널소개 + 홈페이지
+//   미가입 뷰: 채널헤더 + 공유📤/신고🚩 버튼 + [+ 채널 참여] 버튼 + 채널소개 + 홈페이지
 //   초대코드 바텀시트 / 알람설정 바텀시트 / 채널설정 바텀시트 / 신고 바텀시트
 import 'dart:convert';
 import 'dart:io';
@@ -26,7 +27,13 @@ const _red      = Color(0xFFFF4444);
 class ChannelDetailScreen extends StatefulWidget {
   final String channelId;
   final bool isOwner;
-  const ChannelDetailScreen({super.key, required this.channelId, required this.isOwner});
+  final bool isSubscribed; // true = 이미 구독 중, false = 미가입
+  const ChannelDetailScreen({
+    super.key,
+    required this.channelId,
+    required this.isOwner,
+    this.isSubscribed = true, // 기본값 true (기존 my/subscribed 화면 호환)
+  });
 
   @override
   State<ChannelDetailScreen> createState() => _ChannelDetailScreenState();
@@ -144,6 +151,119 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _ChannelSettingsSheet(channel: _channel!, token: _token, onSaved: _load),
     );
+  }
+
+  /// 채널 참여 (미가입 상태에서 + 채널 참여 버튼 탭)
+  Future<void> _joinChannel() async {
+    final ch = _channel;
+    if (ch == null) return;
+    final isSecret = (ch['is_secret'] ?? 0) == 1;
+    String? password;
+
+    // 비밀채널이면 비밀번호 입력 다이얼로그
+    if (isSecret) {
+      password = await showDialog<String>(
+        context: context,
+        builder: (_) => _PasswordDialog(),
+      );
+      if (password == null) return; // 취소
+      // 비밀번호 검증
+      try {
+        final vRes = await http.post(
+          Uri.parse('$kBaseUrl/api/channels/${widget.channelId}/verify-password'),
+          headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'password': password}),
+        ).timeout(const Duration(seconds: 10));
+        final vBody = jsonDecode(vRes.body) as Map<String, dynamic>;
+        if (vBody['success'] != true) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(vBody['error']?.toString() ?? '비밀번호가 올바르지 않습니다')),
+          );
+          return;
+        }
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('비밀번호 확인 중 오류가 발생했습니다')),
+        );
+        return;
+      }
+    }
+
+    try {
+      // 활성 초대 토큰 조회
+      final invRes = await http.get(
+        Uri.parse('$kBaseUrl/api/invites?channel_id=${widget.channelId}'),
+        headers: {'Authorization': 'Bearer $_token'},
+      ).timeout(const Duration(seconds: 10));
+      final invBody = jsonDecode(invRes.body) as Map<String, dynamic>;
+      final list = (invBody['data'] as List? ?? []);
+      final now = DateTime.now();
+      Map<String, dynamic>? active;
+      for (final inv in list) {
+        final isActive = inv['is_active'] == true || inv['is_active'] == 1;
+        final expiresAt = inv['expires_at'];
+        final notExpired = expiresAt == null || DateTime.tryParse(expiresAt.toString())?.isAfter(now) == true;
+        if (isActive && notExpired) { active = inv as Map<String, dynamic>; break; }
+      }
+
+      String? token;
+      if (active != null) {
+        token = active['invite_token']?.toString();
+      } else {
+        // 초대 토큰 새로 생성
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('user_id') ?? '';
+        final crRes = await http.post(
+          Uri.parse('$kBaseUrl/api/invites'),
+          headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'channel_id': widget.channelId, 'created_by': userId}),
+        ).timeout(const Duration(seconds: 10));
+        final crBody = jsonDecode(crRes.body) as Map<String, dynamic>;
+        token = crBody['data']?['invite_token']?.toString();
+      }
+
+      if (token == null || token.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('참여 링크를 만들 수 없습니다')),
+        );
+        return;
+      }
+
+      // 채널 참여
+      final prefs   = await SharedPreferences.getInstance();
+      final userId  = prefs.getString('user_id') ?? '';
+      final fcmToken = prefs.getString('fcm_token') ?? '';
+      final platform = prefs.getString('platform') ?? 'android';
+
+      final joinRes = await http.post(
+        Uri.parse('$kBaseUrl/api/invites/join'),
+        headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'invite_token': token,
+          'user_id':      userId,
+          'fcm_token':    fcmToken,
+          'platform':     platform,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final joinBody = jsonDecode(joinRes.body) as Map<String, dynamic>;
+      if (mounted) {
+        if (joinBody['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${ch['name'] ?? ''} 채널에 참여했습니다! 🎉')),
+          );
+          Navigator.pop(context); // 상세 화면 닫기
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(joinBody['error']?.toString() ?? '참여에 실패했습니다')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류: $e')),
+      );
+    }
   }
 
   void _openReport() {
@@ -305,10 +425,11 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
           // ── 액션 버튼 ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: widget.isOwner
-                  ? [
+            child: widget.isOwner
+                // 오너: 알람/공유/편집/삭제
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
                       _ActionBtn(icon: Icons.alarm, onTap: _openAlarmSchedule),
                       const SizedBox(width: 8),
                       _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
@@ -316,15 +437,43 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                       _ActionBtn(icon: Icons.edit_outlined, onTap: _openChannelSettings),
                       const SizedBox(width: 8),
                       _ActionBtn(icon: Icons.delete_outline, color: _red.withOpacity(0.8), onTap: _deleteChannel),
-                    ]
-                  : [
-                      _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
-                      const SizedBox(width: 8),
-                      _ActionBtn(icon: Icons.flag_outlined, color: Colors.red[300]!, onTap: _openReport),
-                      const SizedBox(width: 8),
-                      _ActionBtn(icon: Icons.exit_to_app_outlined, onTap: _leaveChannel),
                     ],
-            ),
+                  )
+                : widget.isSubscribed
+                    // 구독자: 공유/신고/나가기
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
+                          const SizedBox(width: 8),
+                          _ActionBtn(icon: Icons.flag_outlined, color: Colors.red[300]!, onTap: _openReport),
+                          const SizedBox(width: 8),
+                          _ActionBtn(icon: Icons.exit_to_app_outlined, onTap: _leaveChannel),
+                        ],
+                      )
+                    // 미가입: 공유/신고 + [+ 채널 참여] 풀넓이 버튼
+                    : Row(
+                        children: [
+                          _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
+                          const SizedBox(width: 8),
+                          _ActionBtn(icon: Icons.flag_outlined, color: Colors.red[300]!, onTap: _openReport),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _joinChannel,
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('채널 참여', style: TextStyle(fontWeight: FontWeight.w700)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primary,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(44),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
           ),
           const Divider(height: 1, color: _border),
           // ── 채널 소개 ──
@@ -660,6 +809,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             TextField(
               controller: _descCtrl,
               maxLines: 3,
+              style: const TextStyle(fontSize: 14, color: _text),
               decoration: InputDecoration(
                 hintText: '채널 소개를 입력하세요',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
@@ -673,6 +823,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             const SizedBox(height: 4),
             TextField(
               controller: _homepageCtrl,
+              style: const TextStyle(fontSize: 14, color: _text),
               decoration: InputDecoration(
                 hintText: 'https://',
                 suffixIcon: _homepageCtrl.text.isNotEmpty
@@ -765,6 +916,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: !_showPassword,
+                style: const TextStyle(fontSize: 14, color: _text),
                 decoration: InputDecoration(
                   hintText: '비밀번호를 입력하세요',
                   hintStyle: const TextStyle(color: _text2, fontSize: 13),
@@ -946,6 +1098,7 @@ class _ReportSheetState extends State<_ReportSheet> {
               controller: _detailCtrl,
               maxLines: 3,
               maxLength: 300,
+              style: const TextStyle(fontSize: 14, color: _text),
               decoration: InputDecoration(
                 hintText: '구체적인 내용을 입력해 주세요 (선택사항)',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),

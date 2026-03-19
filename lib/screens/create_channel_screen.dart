@@ -162,6 +162,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             TextField(
               controller: _nameCtrl,
               maxLength: 10,
+              style: const TextStyle(fontSize: 14, color: _text),
               onChanged: (_) { if (_nameError != null) setState(() => _nameError = null); },
               decoration: InputDecoration(
                 hintText: '10자 내로 적어주세요',
@@ -187,6 +188,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
               controller: _descCtrl,
               maxLines: 3,
               maxLength: 50,
+              style: const TextStyle(fontSize: 14, color: _text),
               onChanged: (_) { if (_descError != null) setState(() => _descError = null); },
               decoration: InputDecoration(
                 hintText: '50자 내로 적어주세요',
@@ -210,6 +212,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 4),
             TextField(
               controller: _homepageCtrl,
+              style: const TextStyle(fontSize: 14, color: _text),
               decoration: InputDecoration(
                 hintText: 'https://',
                 border: OutlineInputBorder(
@@ -299,6 +302,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: !_showPassword,
+                style: const TextStyle(fontSize: 14, color: _text),
                 decoration: InputDecoration(
                   hintText: '비밀번호를 입력하세요',
                   hintStyle: const TextStyle(color: _text2, fontSize: 13),
