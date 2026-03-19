@@ -172,6 +172,7 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                             builder: (_) => ChannelDetailScreen(
                               channelId: (_filtered[index]['channel_id'] ?? _filtered[index]['id'])?.toString() ?? '',
                               isOwner: false,
+                              isSubscribed: true, // 구독 중인 채널
                             ),
                           ),
                         );

@@ -114,6 +114,7 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
       builder: (_) => ChannelDetailScreen(
         channelId: ch['id']?.toString() ?? '',
         isOwner: isOwner,
+        isSubscribed: false, // 탐색 화면은 미가입 채널
       ),
     ));
   }
