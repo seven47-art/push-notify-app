@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import 'channel_detail_screen.dart';
+import 'settings_screen.dart';
+import 'main_screen.dart';
 
 const _bg       = Color(0xFFFFFFFF);
 const _bg2      = Color(0xFFF9F9F9);
@@ -125,15 +127,37 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
       appBar: AppBar(
         backgroundColor: _bg,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _text),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Image.asset(
-            'assets/images/ringo_logo_color.png',
-            height: 26,
-            fit: BoxFit.contain,
+          'assets/images/ringo_logo_black.png',
+          height: 26,
+          fit: BoxFit.contain,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
+          IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF333333), size: 24),
+            onPressed: () {
+              final mainState = context.findAncestorStateOfType<MainScreenState>();
+              if (mainState != null) {
+                Navigator.pop(context); // 탐색화면 닫고
+                // 드로어는 MainScreen에서 열기
+              } else {
+                // 독립 실행 시 설정으로 대체
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
