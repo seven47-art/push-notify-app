@@ -26,10 +26,10 @@ class SubscribedChannelsScreen extends StatefulWidget {
   const SubscribedChannelsScreen({super.key});
 
   @override
-  State<SubscribedChannelsScreen> createState() => _SubscribedChannelsScreenState();
+  State<SubscribedChannelsScreen> createState() => SubscribedChannelsScreenState();
 }
 
-class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
+class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
   bool _loading = true;
   String? _error;

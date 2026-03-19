@@ -37,7 +37,7 @@ class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   // 구독채널 화면 reload를 위한 GlobalKey
-  final GlobalKey<_SubscribedChannelsScreenState> _subscribedKey = GlobalKey<_SubscribedChannelsScreenState>();
+  final GlobalKey<SubscribedChannelsScreenState> _subscribedKey = GlobalKey<SubscribedChannelsScreenState>();
 
   final List<_TabItem> _tabs = const [
     _TabItem(icon: Icons.home_outlined,      activeIcon: Icons.home,            label: '홈'),
