@@ -1,6 +1,7 @@
 // lib/utils/image_helper.dart
 // base64 data URL 또는 일반 http URL 이미지를 통합 처리하는 헬퍼
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 /// image_url이 base64(data:image/...)인지 확인
