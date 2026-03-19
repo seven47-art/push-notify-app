@@ -123,13 +123,13 @@ class MainScreenState extends State<MainScreen> {
       barrierLabel: 'drawer',
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (ctx, anim, _) => _HamburgerDrawer(
+      pageBuilder: (ctx, anim, secAnim) => _HamburgerDrawer(
         onTabSelect: (index) {
           Navigator.pop(ctx);
           setState(() => _currentIndex = index);
         },
       ),
-      transitionBuilder: (ctx, anim, _, child) {
+      transitionBuilder: (ctx, anim, secAnim, child) {
         final offset = Tween<Offset>(
           begin: const Offset(1, 0),
           end: Offset.zero,
