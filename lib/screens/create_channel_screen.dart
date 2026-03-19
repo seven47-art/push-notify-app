@@ -72,12 +72,14 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
     setState(() => _saving = true);
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
       final body = {
         'name': _nameCtrl.text.trim(),
         'description': _descCtrl.text.trim(),
         'homepage': _homepageCtrl.text.trim(),
         'is_private': _isPrivate,
+        'owner_id': userId,
       };
       final res = await http.post(
         Uri.parse('$kBaseUrl/api/channels'),
