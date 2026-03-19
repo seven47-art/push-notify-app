@@ -7,8 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/image_helper.dart';
 import 'channel_detail_screen.dart';
-import 'settings_screen.dart';
-import 'main_screen.dart';
 
 const _bg       = Color(0xFFFFFFFF);
 const _bg2      = Color(0xFFF9F9F9);
@@ -120,86 +118,58 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
     ));
   }
 
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
+        ),
+        child: TextField(
+          controller: _searchCtrl,
+          focusNode: _searchFocus,
+          style: const TextStyle(color: _text, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: '채널명으로 검색...',
+            hintStyle: const TextStyle(color: _text2, fontSize: 14),
+            prefixIcon: const Icon(Icons.search, color: _text2, size: 20),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: _text2, size: 18),
+                    onPressed: () { _searchCtrl.clear(); _doSearch(''); },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          onChanged: _doSearch,
+          textInputAction: TextInputAction.search,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSearching = _searchQuery.isNotEmpty;
     return Scaffold(
       backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _text),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Image.asset(
-          'assets/images/ringo_logo_black.png',
-          height: 26,
-          fit: BoxFit.contain,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: _primary))
+                : _error != null
+                    ? _buildError()
+                    : isSearching
+                        ? _buildSearchResults()
+                        : _buildMain(),
           ),
-          IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF333333), size: 24),
-            onPressed: () {
-              final mainState = context.findAncestorStateOfType<MainScreenState>();
-              if (mainState != null) {
-                Navigator.pop(context); // 탐색화면 닫고
-                // 드로어는 MainScreen에서 열기
-              } else {
-                // 독립 실행 시 설정으로 대체
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-              }
-            },
-          ),
-          const SizedBox(width: 4),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _bg2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _border),
-              ),
-              child: TextField(
-                controller: _searchCtrl,
-                focusNode: _searchFocus,
-                style: const TextStyle(color: _text, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: '채널명으로 검색...',
-                  hintStyle: const TextStyle(color: _text2, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, color: _text2, size: 20),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: _text2, size: 18),
-                          onPressed: () { _searchCtrl.clear(); _doSearch(''); },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onChanged: _doSearch,
-                textInputAction: TextInputAction.search,
-              ),
-            ),
-          ),
-        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
-          : _error != null
-              ? _buildError()
-              : isSearching
-                  ? _buildSearchResults()
-                  : _buildMain(),
     );
   }
 

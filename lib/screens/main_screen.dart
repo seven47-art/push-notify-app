@@ -43,6 +43,9 @@ class MainScreenState extends State<MainScreen> {
 
   late final List<Widget> _screens;
 
+  // 탭 인덱스 상수 (탭바에는 없지만 IndexedStack에 포함)
+  static const int tabSearch = 5;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +56,7 @@ class MainScreenState extends State<MainScreen> {
       const SubscribedChannelsScreen(),
       const NotificationScreen(mode: NotificationMode.inbox),
       const NotificationScreen(mode: NotificationMode.outbox),
+      const ChannelExploreScreen(), // index 5 - 검색 아이콘으로 전환
     ];
     _registerFcmToken();
   }
@@ -149,8 +153,10 @@ class MainScreenState extends State<MainScreen> {
       title: const _RinGoLogo(),
       actions: [
         IconButton(
-          icon: const Icon(Icons.search, color: Color(0xFF333333), size: 24),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChannelExploreScreen())),
+          icon: Icon(Icons.search,
+              color: _currentIndex == tabSearch ? _primary : const Color(0xFF333333),
+              size: 24),
+          onPressed: () => setState(() => _currentIndex = tabSearch),
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
