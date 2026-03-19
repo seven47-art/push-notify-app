@@ -79,29 +79,57 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     setState(() => _saving = true);
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      final body = {
-        'channel_id': widget.channelId,
-        'scheduled_at': _scheduledAt.toUtc().toIso8601String(),
-        'link_url': _linkCtrl.text,
-      };
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+
+      // msg_type / msg_value 결정
+      String msgType  = '';
+      String msgValue = '';
       if (_youtubeCtrl.text.isNotEmpty) {
-        body['youtube_url'] = _youtubeCtrl.text;
-        body['content_type'] = 'youtube';
+        msgType  = 'youtube';
+        msgValue = _youtubeCtrl.text;
       } else if (_pickedFile != null) {
-        body['file_name'] = _pickedFile!.name;
+        // 확장자로 audio / video 구분
+        final ext = (_pickedFile!.extension ?? '').toLowerCase();
+        msgType  = ['mp4', 'mov', 'mkv'].contains(ext) ? 'video' : 'audio';
+        msgValue = _pickedFile!.name;
       }
-      await http.post(
+
+      final body = <String, dynamic>{
+        'channel_id':   widget.channelId,
+        'created_by':   userId,
+        'scheduled_at': _scheduledAt.toUtc().toIso8601String(),
+        'msg_type':     msgType,
+        'msg_value':    msgValue,
+        'link_url':     _linkCtrl.text,
+      };
+
+      final res = await http.post(
         Uri.parse('$kBaseUrl/api/alarms'),
         headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 15));
-    } catch (_) {}
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('알람이 예약되었습니다.')),
-      );
+
+      final resBody = jsonDecode(res.body) as Map<String, dynamic>;
+      if (mounted) {
+        Navigator.pop(context);
+        if (resBody['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('알람이 예약되었습니다.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resBody['error']?.toString() ?? '알람 예약 실패')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
     }
   }
 
