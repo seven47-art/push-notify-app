@@ -106,8 +106,8 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
   void _openDetail(Map<String, dynamic> ch) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ChannelDetailScreen(
-        channelId:   ch['id'] as int,
-        channelName: ch['name']?.toString() ?? '채널',
+        channelId: ch['id']?.toString() ?? '',
+        isOwner: false,
       ),
     ));
   }

@@ -344,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (chId != null) {
                     Navigator.push(context,
                       MaterialPageRoute(builder: (_) =>
-                        ChannelDetailScreen(channelId: chId, channelName: name)));
+                        ChannelDetailScreen(channelId: chId?.toString() ?? '', isOwner: true)));
                   }
                 },
                 child: Column(
@@ -413,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (chId != null) {
             Navigator.push(context,
               MaterialPageRoute(builder: (_) =>
-                ChannelDetailScreen(channelId: chId, channelName: name)));
+                ChannelDetailScreen(channelId: chId?.toString() ?? '', isOwner: false)));
           }
         },
         child: Container(
