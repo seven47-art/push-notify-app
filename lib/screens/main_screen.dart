@@ -9,6 +9,7 @@ import 'subscribed_channels_screen.dart';
 import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'notices_screen.dart';
+import 'channel_explore_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
 const _grey    = Color(0xFF9E9E9E);
@@ -98,7 +99,7 @@ class MainScreenState extends State<MainScreen> {
       actions: [
         IconButton(
           icon: const Icon(Icons.search, color: Color(0xFF333333), size: 24),
-          onPressed: () => setState(() => _currentIndex = 2),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChannelExploreScreen())),
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined, color: Color(0xFF333333), size: 24),
