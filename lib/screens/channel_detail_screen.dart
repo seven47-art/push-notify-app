@@ -1128,3 +1128,50 @@ class _ReportSheetState extends State<_ReportSheet> {
     );
   }
 }
+
+// ── 비밀채널 비밀번호 입력 다이얼로그 ──────────────────────────────────────
+class _PasswordDialog extends StatefulWidget {
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _ctrl = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('비밀번호 입력', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _text)),
+      content: TextField(
+        controller: _ctrl,
+        obscureText: _obscure,
+        style: const TextStyle(fontSize: 14, color: _text),
+        decoration: InputDecoration(
+          hintText: '채널 비밀번호',
+          hintStyle: const TextStyle(color: _text2),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          suffixIcon: IconButton(
+            icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, size: 20, color: _text2),
+            onPressed: () => setState(() => _obscure = !_obscure),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('취소')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+          child: const Text('확인', style: TextStyle(color: _primary)),
+        ),
+      ],
+    );
+  }
+}
