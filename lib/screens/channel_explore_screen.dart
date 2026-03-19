@@ -129,8 +129,11 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
           icon: const Icon(Icons.arrow_back, color: _text),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('RinGo',
-            style: TextStyle(color: _primary, fontWeight: FontWeight.bold, fontSize: 20)),
+        title: Image.asset(
+            'assets/images/ringo_logo_color.png',
+            height: 26,
+            fit: BoxFit.contain,
+          ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(

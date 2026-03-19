@@ -214,20 +214,15 @@ class MainScreenState extends State<MainScreen> {
   }
 }
 
-// ── RinGo 로고 텍스트 ──────────────────────────────
+// ── RinGo 로고 이미지 ──────────────────────────────
 class _RinGoLogo extends StatelessWidget {
   const _RinGoLogo();
   @override
   Widget build(BuildContext context) {
-    return const Text(
-      'RinGo',
-      style: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w800,
-        color: Color(0xFF222222),
-        letterSpacing: -0.5,
-        fontStyle: FontStyle.italic,
-      ),
+    return Image.asset(
+      'assets/images/ringo_logo_black.png',
+      height: 28,
+      fit: BoxFit.contain,
     );
   }
 }
@@ -284,14 +279,10 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
                 child: Row(
                   children: [
-                    const Text(
-                      'RinGo',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        fontStyle: FontStyle.italic,
-                        color: Color(0xFF222222),
-                      ),
+                    Image.asset(
+                      'assets/images/ringo_logo_black.png',
+                      height: 24,
+                      fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
