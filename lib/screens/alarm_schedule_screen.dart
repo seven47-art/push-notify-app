@@ -37,6 +37,12 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   bool _uploading = false;    // 파일 업로드 중 여부
   bool _saving    = false;
 
+  // ── 기존 알람 목록 ──────────────────────────────────────────
+  List<Map<String, dynamic>> _alarms = [];
+  bool _loadingAlarms = true;
+
+  static const int _maxAlarms = 3; // 채널당 최대 알람 개수
+
   // ── 상태 헬퍼 ───────────────────────────────────────────────
   bool get _hasYoutube => _youtubeCtrl.text.isNotEmpty;
   bool get _hasFile    => _pickedFile != null;
@@ -71,10 +77,84 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadAlarms();
+  }
+
+  @override
   void dispose() {
     _youtubeCtrl.dispose();
     _linkCtrl.dispose();
     super.dispose();
+  }
+
+  /// 기존 알람 목록 로드
+  Future<void> _loadAlarms() async {
+    setState(() => _loadingAlarms = true);
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/alarms?channel_id=${widget.channelId}&created_by=$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && mounted) {
+          setState(() {
+            _alarms = List<Map<String, dynamic>>.from(
+              (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+            _loadingAlarms = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingAlarms = false);
+  }
+
+  /// 알람 삭제
+  Future<void> _deleteAlarm(String alarmId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final res = await http.delete(
+        Uri.parse('$kBaseUrl/api/alarms/$alarmId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        if (mounted) {
+          setState(() {
+            _alarms.removeWhere((a) => a['id']?.toString() == alarmId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('알람이 삭제되었습니다.')),
+          );
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('알람 삭제에 실패했습니다.')),
+      );
+    }
+  }
+
+  /// 예약 시간 포맷
+  String _formatAlarmTime(String? scheduledAt) {
+    if (scheduledAt == null) return '-';
+    try {
+      final dt = DateTime.parse(scheduledAt).toLocal();
+      final ampm = dt.hour < 12 ? '오전' : '오후';
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min  = dt.minute.toString().padLeft(2, '0');
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $ampm $hour:$min';
+    } catch (_) {
+      return scheduledAt;
+    }
   }
 
   /// Cloudflare Worker에 파일 업로드 후 download URL 반환
@@ -224,6 +304,13 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   }
 
   Future<void> _submit() async {
+    // 3개 제한 체크
+    if (_alarms.length >= _maxAlarms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('알람은 채널당 최대 $_maxAlarms개까지 설정할 수 있습니다.')),
+      );
+      return;
+    }
     if (_youtubeCtrl.text.isEmpty && _pickedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('YouTube URL 또는 파일을 선택해주세요.')),
@@ -272,12 +359,24 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
 
       final resBody = jsonDecode(res.body) as Map<String, dynamic>;
       if (mounted) {
-        Navigator.pop(context);
         if (resBody['success'] == true) {
+          // 폼 초기화
+          _youtubeCtrl.clear();
+          _linkCtrl.clear();
+          setState(() {
+            _pickedFile = null;
+            _uploadedFileUrl = null;
+            _sameAsHomepage = false;
+            _scheduledAt = DateTime.now().add(const Duration(minutes: 5));
+            _saving = false;
+          });
+          // 알람 목록 새로고침
+          await _loadAlarms();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('알람이 예약되었습니다.')),
           );
         } else {
+          setState(() => _saving = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(resBody['error']?.toString() ?? '알람 예약 실패')),
           );
@@ -312,11 +411,129 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     );
   }
 
+  /// 기존 알람 목록 위젯
+  Widget _buildAlarmList() {
+    if (_loadingAlarms) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: SizedBox(width: 20, height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: _primary))),
+      );
+    }
+    if (_alarms.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('예약된 알람',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _alarms.length >= _maxAlarms ? _red : _primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_alarms.length}/$_maxAlarms',
+                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ..._alarms.asMap().entries.map((entry) {
+          final i = entry.key;
+          final alarm = entry.value;
+          final alarmId = alarm['id']?.toString() ?? '';
+          final scheduledAt = _formatAlarmTime(alarm['scheduled_at']?.toString());
+          final msgType = alarm['msg_type']?.toString() ?? '';
+          final typeIcon = msgType == 'youtube'
+              ? '📺'
+              : (msgType == 'video' ? '🎬' : '🎵');
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F8F8),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: _primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text('${i + 1}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _primary)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(scheduledAt,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _text)),
+                      Text('$typeIcon $msgType',
+                        style: const TextStyle(fontSize: 11, color: _text2)),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _deleteAlarm(alarmId),
+                  child: Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: _red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_outline, size: 16, color: _red),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        if (_alarms.length >= _maxAlarms)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _red.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _red.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 14, color: _red.withOpacity(0.8)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '최대 $_maxAlarms개까지 예약 가능합니다. 삭제 후 추가하세요.',
+                    style: TextStyle(fontSize: 12, color: _red.withOpacity(0.8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 상호 배타 dim 여부
     final youtubeDim = _hasFile;  // 파일이 있으면 YouTube 행 dim
     final fileDim    = _hasYoutube; // YouTube가 있으면 파일 행 dim
+    final isMaxReached = _alarms.length >= _maxAlarms;
 
     return Container(
       decoration: const BoxDecoration(
@@ -351,7 +568,13 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // ── 예약된 알람 목록 ──────────────────────────────────
+            _buildAlarmList(),
+
+            // ── 3개 미만일 때만 입력 폼 표시 ──────────────────────
+            if (!isMaxReached) ...[
 
             // ── 콘텐츠 선택 섹션 ───────────────────────────────
             Container(
@@ -692,6 +915,22 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                 ),
               ],
             ),
+            ], // if (!isMaxReached)
+
+            // ── 3개 꽉 찼을 때 닫기 버튼만 ──────────────────────
+            if (isMaxReached)
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    side: const BorderSide(color: _border),
+                  ),
+                  child: const Text('닫기', style: TextStyle(color: _text2)),
+                ),
+              ),
           ],
         ),
       ),

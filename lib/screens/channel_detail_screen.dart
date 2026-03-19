@@ -44,11 +44,32 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
   Map<String, dynamic>? _channel;
   bool _loading = true;
   String _token = '';
+  int _alarmCount = 0; // 이 채널의 알람 예약 개수
 
   @override
   void initState() {
     super.initState();
     _load();
+    if (widget.isOwner) _loadAlarmCount();
+  }
+
+  Future<void> _loadAlarmCount() async {
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/alarms?channel_id=${widget.channelId}&created_by=$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && mounted) {
+          final list = (body['data'] as List? ?? []);
+          setState(() => _alarmCount = list.length);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -159,7 +180,10 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AlarmScheduleSheet(channelId: widget.channelId, channelName: _channel?['name']?.toString() ?? ''),
-    );
+    ).then((_) {
+      // 알람 시트 닫힌 후 카운트 새로고침
+      if (widget.isOwner) _loadAlarmCount();
+    });
   }
 
   void _openChannelSettings() {
@@ -449,7 +473,34 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _ActionBtn(icon: Icons.alarm, onTap: _openAlarmSchedule),
+                      // 알람 버튼 + 카운트 배지
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _ActionBtn(icon: Icons.alarm, onTap: _openAlarmSchedule),
+                          if (_alarmCount > 0)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF4444),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white, width: 1.5),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Center(
+                                  child: Text(
+                                    '$_alarmCount',
+                                    style: const TextStyle(
+                                      fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       const SizedBox(width: 8),
                       _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
                       const SizedBox(width: 8),
