@@ -213,3 +213,199 @@ class _TermsScreenState extends State<TermsScreen> {
         ),
       );
 }
+
+// ══════════════════════════════════════════════════════════════
+//  TermsDialog – 홈화면 위에 오버레이로 표시되는 동의 다이얼로그
+// ══════════════════════════════════════════════════════════════
+class TermsDialog extends StatefulWidget {
+  const TermsDialog({super.key});
+
+  @override
+  State<TermsDialog> createState() => _TermsDialogState();
+}
+
+class _TermsDialogState extends State<TermsDialog> {
+  bool _checked = false;
+
+  Future<void> _onAgree() async {
+    if (!_checked) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('termsAccepted', true);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenH = MediaQuery.of(context).size.height;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: screenH * 0.75),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 32,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── 스크롤 가능한 본문 ──────────────────────────
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 타이틀
+                    const Text(
+                      '링고 이용 전 확인해주세요',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // 본문 서두
+                    const Text(
+                      '링고는 채널 기반으로 알람을 수신하는 서비스입니다.\n'
+                      '이 앱은 별도의 회원가입이나 비밀번호 설정 없이 이용할 수 있으며,\n'
+                      '기기에 등록된 이메일 정보가 사용자 식별을 위한 값으로 사용될 수 있습니다.\n\n'
+                      '서비스 이용 전 아래 내용을 확인해주세요.',
+                      style: TextStyle(
+                        color: Color(0xFFCCCCCC),
+                        fontSize: 13,
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _divider(),
+
+                    _sectionTitle('[서비스 이용 안내]'),
+                    _sectionBody('채널 구독 기반 알람 서비스이며, 오디오/비디오 콘텐츠가 알람으로 전달됩니다.'),
+                    const SizedBox(height: 16),
+                    _divider(),
+
+                    _sectionTitle('[개인정보 처리 안내]'),
+                    _sectionBody('기기 이메일은 사용자 식별, 알람 제공, 채널 이용, 신고 처리 및 서비스 운영에 사용될 수 있습니다.'),
+                    const SizedBox(height: 16),
+                    _divider(),
+
+                    _sectionTitle('[운영정책 및 신고 안내]'),
+                    _sectionBody('불법 광고/스팸, 사기/피싱, 음란/선정적 콘텐츠, 괴롭힘/혐오, 저작권/도용 의심 콘텐츠는 관리자 검토 후 조치될 수 있습니다.'),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── 고정 하단: 체크박스 + 버튼 ─────────────────
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Color(0xFF2E2E3E), width: 1)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 체크박스
+                  GestureDetector(
+                    onTap: () => setState(() => _checked = !_checked),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _checked ? const Color(0xFF6C63FF) : Colors.transparent,
+                            border: Border.all(
+                              color: _checked ? const Color(0xFF6C63FF) : const Color(0xFF888888),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: _checked
+                              ? const Icon(Icons.check, size: 13, color: Colors.white)
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            '위 내용을 확인했고 이에 동의합니다.',
+                            style: TextStyle(
+                              color: Color(0xFFDDDDDD),
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // 동의하고 시작 버튼
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _checked ? _onAgree : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C63FF),
+                        disabledBackgroundColor: const Color(0xFF2E2E3E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        '동의하고 시작',
+                        style: TextStyle(
+                          color: _checked ? Colors.white : const Color(0xFF666666),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+        height: 1,
+        color: const Color(0xFF2A2A3A),
+        margin: const EdgeInsets.only(bottom: 14),
+      );
+
+  Widget _sectionTitle(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(t,
+            style: const TextStyle(
+                color: Color(0xFF9D9AFF),
+                fontSize: 12,
+                fontWeight: FontWeight.w700)),
+      );
+
+  Widget _sectionBody(String b) => Text(b,
+      style: const TextStyle(
+          color: Color(0xFFAAAAAA), fontSize: 12, height: 1.6));
+}

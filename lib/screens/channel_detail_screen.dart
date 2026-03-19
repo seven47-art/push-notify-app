@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
 import 'alarm_schedule_screen.dart';
 import 'main_screen.dart';
@@ -145,9 +146,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       ).timeout(const Duration(seconds: 10));
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (mounted && body['success'] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(body['error']?.toString() ?? '채널 나가기에 실패했습니다')),
-        );
+        showCenterToast(context, body['error']?.toString() ?? '채널 나가기에 실패했습니다');
         return;
       }
     } catch (_) {}
@@ -219,15 +218,11 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
         ).timeout(const Duration(seconds: 10));
         final vBody = jsonDecode(vRes.body) as Map<String, dynamic>;
         if (vBody['success'] != true) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(vBody['error']?.toString() ?? '비밀번호가 올바르지 않습니다')),
-          );
+          if (mounted) showCenterToast(context, vBody['error']?.toString() ?? '비밀번호가 올바르지 않습니다');
           return;
         }
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('비밀번호 확인 중 오류가 발생했습니다')),
-        );
+        if (mounted) showCenterToast(context, '비밀번호 확인 중 오류가 발생했습니다');
         return;
       }
     }
@@ -266,9 +261,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       }
 
       if (token == null || token.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('참여 링크를 만들 수 없습니다')),
-        );
+        if (mounted) showCenterToast(context, '참여 링크를 만들 수 없습니다');
         return;
       }
 
@@ -292,9 +285,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       final joinBody = jsonDecode(joinRes.body) as Map<String, dynamic>;
       if (mounted) {
         if (joinBody['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${ch['name'] ?? ''} 채널에 참여했습니다! 🎉')),
-          );
+          showCenterToast(context, '${ch['name'] ?? ''} 채널에 참여했습니다! 🎉');
           // 구독채널 탭(인덱스 2)으로 이동 + 목록 갱신
           // popUntil로 스택 정리 후 MainScreenState에 탭 전환 요청
           final mainState = context.findAncestorStateOfType<MainScreenState>();
@@ -307,15 +298,11 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
             Navigator.of(context).pop('joined');
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(joinBody['error']?.toString() ?? '참여에 실패했습니다')),
-          );
+          showCenterToast(context, joinBody['error']?.toString() ?? '참여에 실패했습니다');
         }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류: $e')),
-      );
+      if (mounted) showCenterToast(context, '오류: $e');
     }
   }
 
@@ -695,9 +682,7 @@ class _InviteCodeSheet extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: inviteLink));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('링크가 복사되었습니다.')),
-                );
+                showCenterToast(context, '링크가 복사되었습니다.');
               },
               icon: const Icon(Icons.copy, size: 18),
               label: const Text('복사'),
@@ -822,17 +807,13 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
         widget.onSaved();
         final resBody = jsonDecode(res.body) as Map<String, dynamic>?;
         if (resBody?['success'] != true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(resBody?['error']?.toString() ?? '저장에 실패했습니다.')),
-          );
+          showCenterToast(context, resBody?['error']?.toString() ?? '저장에 실패했습니다.');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
-        );
+        showCenterToast(context, '오류: $e');
       }
     }
   }
@@ -1087,7 +1068,7 @@ class _ReportSheetState extends State<_ReportSheet> {
 
   Future<void> _submit() async {
     if (_selectedReason == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('신고 사유를 선택해주세요.')));
+      showCenterToast(context, '신고 사유를 선택해주세요.');
       return;
     }
     setState(() => _submitting = true);
@@ -1104,23 +1085,17 @@ class _ReportSheetState extends State<_ReportSheet> {
       Navigator.pop(context);
 
       if (resBody['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('신고가 접수되었습니다.')),
-        );
+        showCenterToast(context, '신고가 접수되었습니다.');
       } else {
         final errMsg = resBody['error']?.toString() ?? '신고 처리 중 오류가 발생했습니다.';
         // 중복 신고 메시지 처리
         final isAlready = errMsg.contains('already') || errMsg.contains('이미') || errMsg.contains('duplicate');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isAlready ? '이미 신고한 채널입니다.' : errMsg)),
-        );
+        showCenterToast(context, isAlready ? '이미 신고한 채널입니다.' : errMsg);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류가 발생했습니다. 다시 시도해주세요.')),
-      );
+      showCenterToast(context, '오류가 발생했습니다. 다시 시도해주세요.');
     }
   }
 

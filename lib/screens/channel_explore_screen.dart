@@ -304,7 +304,7 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
       onTap: () => _openDetail(ch),
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: _bg,
           border: Border(bottom: BorderSide(color: _border)),
@@ -312,7 +312,7 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
         child: Row(
           children: [
             // 아바타
-            _avatar(name, imageUrl, 40),
+            _avatar(name, imageUrl, 44),
             const SizedBox(width: 12),
             // 채널명 + 상태
             Expanded(

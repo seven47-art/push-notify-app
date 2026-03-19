@@ -210,12 +210,8 @@ class _PermissionScreenState extends State<PermissionScreen>
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('permissions_setup_done', true);
     if (!mounted) return;
-    final termsAccepted = prefs.getBool('termsAccepted') ?? false;
-    if (!termsAccepted) {
-      Navigator.of(context).pushReplacementNamed('/terms');
-    } else {
-      Navigator.of(context).pushReplacementNamed('/native_main');
-    }
+    // terms 동의 여부와 무관하게 홈으로 이동 (동의창은 MainScreen에서 팝업으로 표시)
+    Navigator.of(context).pushReplacementNamed('/native_main');
   }
 
   // ── UI ───────────────────────────────────────────────────────────────

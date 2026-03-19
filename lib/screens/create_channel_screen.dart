@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 
 const _primary = Color(0xFF6C63FF);
 const _teal    = Color(0xFF00BCD4);
@@ -109,9 +110,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
       if (res.statusCode == 200 || res.statusCode == 201) {
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('채널이 생성되었습니다.')),
-          );
+          showCenterToast(context, '채널이 생성되었습니다.');
         }
         return;
       }
@@ -119,13 +118,11 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
       if (mounted) {
         final errBody = jsonDecode(res.body) as Map<String, dynamic>?;
         final msg = errBody?['error']?.toString() ?? '채널 생성에 실패했습니다.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        showCenterToast(context, msg);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
-        );
+        showCenterToast(context, '오류: $e');
       }
     }
     if (mounted) setState(() => _saving = false);

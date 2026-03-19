@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 import 'policy_screen.dart';
 
 const _primary = Color(0xFF6C63FF);
@@ -105,9 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('탈퇴 처리 중 오류가 발생했습니다.')),
-      );
+      showCenterToast(context, '탈퇴 처리 중 오류가 발생했습니다.');
     }
   }
 

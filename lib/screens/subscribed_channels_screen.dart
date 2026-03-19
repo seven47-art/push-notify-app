@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
 import 'channel_detail_screen.dart';
 
@@ -128,30 +129,34 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     final channelId   = (channel['channel_id'] ?? channel['id'])?.toString() ?? '';
     final channelName = (channel['channel_name'] ?? channel['name'])?.toString() ?? '';
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ChannelPopupMenu(
-        channelName: channelName,
-        items: [
-          _PopupItem(icon: Icons.link, label: '초대코드', onTap: () async {
-            Navigator.pop(context);
-            await _showInviteCode(channelId, channelName);
-          }),
-          _PopupItem(icon: Icons.flag_outlined, label: '채널신고', onTap: () {
-            Navigator.pop(context);
-            _openReport(channelId, channelName);
-          }),
-          _PopupItem(
-            icon: Icons.exit_to_app_outlined,
-            label: '채널나가기',
-            color: const Color(0xFFFF4444),
-            onTap: () async {
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: _ChannelPopupMenu(
+          channelName: channelName,
+          items: [
+            _PopupItem(icon: Icons.link, label: '초대코드', onTap: () async {
               Navigator.pop(context);
-              await _leaveChannel(channelId, channelName);
-            },
-          ),
-        ],
+              await _showInviteCode(channelId, channelName);
+            }),
+            _PopupItem(icon: Icons.flag_outlined, label: '채널신고', onTap: () {
+              Navigator.pop(context);
+              _openReport(channelId, channelName);
+            }),
+            _PopupItem(
+              icon: Icons.exit_to_app_outlined,
+              label: '채널나가기',
+              color: const Color(0xFFFF4444),
+              onTap: () async {
+                Navigator.pop(context);
+                await _leaveChannel(channelId, channelName);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -204,9 +209,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('초대 링크를 불러올 수 없습니다: $e')),
-        );
+        showCenterToast(context, '초대 링크를 불러올 수 없습니다: $e');
       }
     }
   }
@@ -230,13 +233,19 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('채널 나가기'),
-        content: Text('"$channelName" 채널에서 나가시겠습니까?'),
+        backgroundColor: Colors.white,
+        title: const Text('채널 나가기',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF222222))),
+        content: Text('"$channelName" 채널에서 나가시겠습니까?',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF444444))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('나가기', style: TextStyle(color: Color(0xFFFF4444))),
+            child: const Text('나가기', style: TextStyle(fontSize: 13, color: Color(0xFFFF4444))),
           ),
         ],
       ),
@@ -253,21 +262,15 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (mounted) {
         if (body['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('"$channelName" 채널에서 나갔습니다.')),
-          );
+          showCenterToast(context, '"$channelName" 채널에서 나갔습니다.');
           _load();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(body['error']?.toString() ?? '채널 나가기에 실패했습니다')),
-          );
+          showCenterToast(context, body['error']?.toString() ?? '채널 나가기에 실패했습니다');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
-        );
+        showCenterToast(context, '오류: $e');
       }
     }
   }
@@ -488,7 +491,7 @@ class _ChannelListTile extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: _border, width: 0.5)),
         ),
@@ -501,7 +504,7 @@ class _ChannelListTile extends StatelessWidget {
                 channelAvatar(
                   imageUrl: imageUrl,
                   name: name,
-                  size: 40,
+                  size: 46,
                   bgColor: avatarColor,
                   borderRadius: 12,
                 ),
@@ -592,51 +595,48 @@ class _ChannelPopupMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                channelName,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 채널명 (굵게, 좌측 정렬)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+            child: Text(
+              channelName,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          ...items.map((item) => InkWell(
+            onTap: item.onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              child: Row(
+                children: [
+                  Icon(item.icon, size: 20, color: item.color ?? const Color(0xFF444444)),
+                  const SizedBox(width: 14),
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: item.color ?? const Color(0xFF222222),
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            ...items.map((item) => InkWell(
-              onTap: item.onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Row(
-                  children: [
-                    Icon(item.icon, size: 20, color: item.color ?? const Color(0xFF444444)),
-                    const SizedBox(width: 14),
-                    Text(item.label,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: item.color ?? const Color(0xFF222222),
-                        fontWeight: FontWeight.w400,
-                      )),
-                  ],
-                ),
-              ),
-            )),
-            const SizedBox(height: 8),
-          ],
-        ),
+          )),
+          const SizedBox(height: 6),
+        ],
       ),
     );
   }
@@ -684,9 +684,7 @@ class _InviteCodeSheet extends StatelessWidget {
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: inviteLink));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('초대 링크가 복사되었습니다.')),
-                    );
+                    showCenterToast(context, '초대 링크가 복사되었습니다.');
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

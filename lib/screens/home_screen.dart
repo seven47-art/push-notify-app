@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import 'create_channel_screen.dart';
 import 'join_channel_screen.dart';
 import 'channel_detail_screen.dart';
+import '../utils/toast_helper.dart';
 
 const _bg       = Color(0xFF121212);
 const _bg2      = Color(0xFF1E1E2E);
@@ -593,10 +594,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     final allExts = [..._allowedVideoExts, ..._allowedAudioExts];
     if (!allExts.contains(ext)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('허용되지 않는 형식입니다. (mp4, mov, mp3, m4a, wav)\n선택한 파일: ${pf.name}'),
-          backgroundColor: Colors.red,
-        ));
+        showCenterToast(context, '허용되지 않는 형식입니다. (mp4, mov, mp3, m4a, wav)\n선택한 파일: ${pf.name}');
       }
       return;
     }
@@ -604,10 +602,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     // 파일 크기 검증
     if (size > _maxFileSizeBytes) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('파일 크기가 10MB를 초과합니다 (${(size / 1024 / 1024).toStringAsFixed(1)}MB)'),
-          backgroundColor: Colors.red,
-        ));
+        showCenterToast(context, '파일 크기가 10MB를 초과합니다 (${(size / 1024 / 1024).toStringAsFixed(1)}MB)');
       }
       return;
     }
@@ -629,8 +624,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     final prefs        = await SharedPreferences.getInstance();
     final sessionToken = prefs.getString('session_token') ?? '';
     if (sessionToken.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인이 필요합니다'), backgroundColor: Colors.red));
+      if (mounted) showCenterToast(context, '로그인이 필요합니다');
       return;
     }
 
@@ -961,41 +955,27 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 
     final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _hour, _min);
     if (dt.isBefore(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('현재 시각 이후를 선택하세요'), backgroundColor: Colors.red));
+      showCenterToast(context, '현재 시각 이후를 선택하세요');
       return;
     }
     if (_selectedSrc == 'youtube' && _urlCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('YouTube URL을 입력하세요'), backgroundColor: Colors.red));
+      showCenterToast(context, 'YouTube URL을 입력하세요');
       return;
     }
     // YouTube URL https 검증
     final inputUrl = _urlCtrl.text.trim();
     if (_selectedSrc == 'youtube' && inputUrl.isNotEmpty && !inputUrl.startsWith('https://')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      showCenterToast(context, '등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.');
       return;
     }
 
     // 파일 타입 검증 — 변환 완료된 URL이 있어야 저장 가능
     if ((_selectedSrc == 'audio' || _selectedSrc == 'video') && _processedUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_pickedFile == null
+      showCenterToast(context, _pickedFile == null
               ? '파일을 선택하고 업로드해 주세요'
               : _isUploading
                   ? '변환 처리 중입니다. 잠시 기다려 주세요.'
-                  : '파일 업로드 후 변환이 완료되면 저장할 수 있습니다'),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+                  : '파일 업로드 후 변환이 완료되면 저장할 수 있습니다');
       return;
     }
 
@@ -1009,8 +989,7 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     final sessionToken = prefs.getString('session_token') ?? '';
     if (sessionToken.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그인이 필요합니다'), backgroundColor: Colors.red));
+        showCenterToast(context, '로그인이 필요합니다');
       }
       return;
     }
@@ -1034,25 +1013,15 @@ class _AlarmSheetState extends State<_AlarmSheet> {
 
       if (result['success'] == true) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
-              '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}'),
-          backgroundColor: _teal,
-        ));
+        showCenterToast(context, '알람 설정 완료 · ${_selectedDate.month}/${_selectedDate.day} '
+              '${_hour.toString().padLeft(2,'0')}:${_min.toString().padLeft(2,'0')}');
       } else {
         final errMsg = result['error'] as String? ?? '알람 저장에 실패했습니다';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(errMsg),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ));
+        showCenterToast(context, errMsg);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('오류: $e'),
-          backgroundColor: Colors.red,
-        ));
+        showCenterToast(context, '오류: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -1227,10 +1196,8 @@ class _AlarmSheetState extends State<_AlarmSheet> {
             onPressed: () {
               final v = int.tryParse(ctrl.text) ?? current;
               if (v < min || v > max) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$min ~ $max 사이 값을 입력하세요'),
-                      backgroundColor: const Color(0xFFEF4444)),
-                );
+                showCenterToast(context, '$min ~ $max 사이 값을 입력하세요'),
+                      backgroundColor: const Color(0xFFEF4444);
                 return;
               }
               onConfirm(v);
@@ -1421,8 +1388,7 @@ class _InviteSheetState extends State<_InviteSheet> {
   void _copy() {
     if (_url == null) return;
     Clipboard.setData(ClipboardData(text: _url!));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('클립보드에 복사됐습니다!'), backgroundColor: _primary));
+    showCenterToast(context, '클립보드에 복사됐습니다!');
   }
 
   @override
@@ -1527,20 +1493,13 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('채널명을 입력하세요'), backgroundColor: Colors.red));
+      showCenterToast(context, '채널명을 입력하세요');
       return;
     }
     // 홈페이지 URL https 검증
     final homepage = _hpCtrl.text.trim();
     if (homepage.isNotEmpty && !homepage.startsWith('https://')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      showCenterToast(context, '등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.');
       return;
     }
     setState(() => _saving = true);
