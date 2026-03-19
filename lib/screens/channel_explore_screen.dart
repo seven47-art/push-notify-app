@@ -34,6 +34,7 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
   List<Map<String, dynamic>> _popular = [];
   List<Map<String, dynamic>> _best    = [];
   List<Map<String, dynamic>> _search  = [];
+  Set<String> _subscribedIds = {};
 
   bool   _loading     = true;
   bool   _searching   = false;
@@ -60,7 +61,32 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _myUserId = prefs.getString('user_id') ?? '';
-    await _loadChannels();
+    await Future.wait([_loadChannels(), _loadSubscribedIds()]);
+  }
+
+  Future<void> _loadSubscribedIds() async {
+    if (_myUserId.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final res = await http
+          .get(
+            Uri.parse('$kBaseUrl/api/subscribers?user_id=$_myUserId'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = List<Map<String, dynamic>>.from(body['data'] ?? []);
+      if (mounted) {
+        setState(() {
+          _subscribedIds = list
+              .map((ch) => ch['channel_id']?.toString() ?? ch['id']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadChannels() async {
@@ -249,24 +275,36 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
     );
   }
 
-  // 스샷 기준: 아바타 + 채널명 + 구독수 + 상태(참여 가능/운영 중) + > 화살표
+  // 스샷 기준: 아바타 + 채널명 + 구독수 + 상태(참여 가능/운영 중/구독중) + > 화살표
   Widget _buildChannelTile(Map<String, dynamic> ch) {
     final name      = ch['name']?.toString() ?? '채널';
     final imageUrl  = ch['image_url']?.toString() ?? '';
     final subCnt    = ch['subscriber_count'] ?? 0;
     final isSecret  = ch['is_secret'] == true || ch['is_secret'] == 1;
     final ownerId   = ch['owner_id']?.toString() ?? '';
-    final isOwner   = _myUserId.isNotEmpty && ownerId == _myUserId;
+    final channelId = ch['id']?.toString() ?? '';
+    final isOwner      = _myUserId.isNotEmpty && ownerId == _myUserId;
+    final isSubscribed = _subscribedIds.contains(channelId);
 
-    // 상태 텍스트: 내가 운영자면 "운영 중", 아니면 "참여 가능"
-    final statusText  = isOwner ? '운영 중' : '참여 가능';
-    final statusColor = isOwner ? _primary : _text2;
+    // 상태 텍스트: 운영자 > 구독중 > 참여 가능
+    final String statusText;
+    final Color  statusColor;
+    if (isOwner) {
+      statusText  = '운영 중';
+      statusColor = _primary;
+    } else if (isSubscribed) {
+      statusText  = '구독중';
+      statusColor = const Color(0xFF10B981); // 초록
+    } else {
+      statusText  = '참여 가능';
+      statusColor = _text2;
+    }
 
     return GestureDetector(
       onTap: () => _openDetail(ch),
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: _bg,
           border: Border(bottom: BorderSide(color: _border)),
@@ -274,7 +312,7 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
         child: Row(
           children: [
             // 아바타
-            _avatar(name, imageUrl, 46),
+            _avatar(name, imageUrl, 40),
             const SizedBox(width: 12),
             // 채널명 + 상태
             Expanded(

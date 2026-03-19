@@ -181,10 +181,8 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
     return GestureDetector(
       onTap: bannerLink != null ? () => _openBannerLink(bannerLink) : null,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
             colors: [Color(0xFF2D1B69), Color(0xFF6C63FF)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
@@ -300,6 +298,17 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                   childAspectRatio: 1.0,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
+                  dragStartDelay: Duration.zero,
+                  dragWidgetBuilderV2: DragWidgetBuilderV2(
+                    isScreenshotDragWidget: false,
+                    builder: (index, child, screenshot) {
+                      return Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                        child: child,
+                      );
+                    },
+                  ),
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
                       final item = _menuItems.removeAt(oldIndex);

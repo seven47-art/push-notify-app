@@ -1,10 +1,9 @@
 // lib/screens/content_player_screen.dart
-// 스크린샷 기준: 알람 수신 후 콘텐츠 플레이어 화면
+// 알람 수신 후 콘텐츠 플레이어 화면
 // YouTube / 오디오 / 비디오 타입 처리
-// YouTube: WebView로 재생 (기존 WebView 유지 방침에 따라)
+// YouTube: url_launcher로 외부 앱 실행 (webview_flutter 제거됨)
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 const _primary = Color(0xFF6C63FF);
 const _text    = Color(0xFF222222);
@@ -20,9 +19,6 @@ class ContentPlayerScreen extends StatefulWidget {
 }
 
 class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
-  WebViewController? _webController;
-  bool _webLoading = true;
-
   String get _contentType {
     return widget.alarm['msg_type']?.toString() ??
            widget.alarm['content_type']?.toString() ??
@@ -44,46 +40,6 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
 
   String get _linkUrl {
     return widget.alarm['link_url']?.toString() ?? '';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    if (_contentType == 'youtube' && _contentUrl.isNotEmpty) {
-      _initWebView();
-    }
-  }
-
-  void _initWebView() {
-    final url = _buildEmbedUrl(_contentUrl);
-    _webController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) {
-          if (mounted) setState(() => _webLoading = false);
-        },
-      ))
-      ..loadRequest(Uri.parse(url));
-  }
-
-  String _buildEmbedUrl(String url) {
-    // YouTube URL을 embed URL로 변환
-    String videoId = '';
-    final patterns = [
-      RegExp(r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})'),
-      RegExp(r'youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})'),
-    ];
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(url);
-      if (match != null) {
-        videoId = match.group(1) ?? '';
-        break;
-      }
-    }
-    if (videoId.isNotEmpty) {
-      return 'https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1';
-    }
-    return url;
   }
 
   Future<void> _openLink() async {
@@ -143,28 +99,41 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
   }
 
   Widget _buildBody() {
-    if (_contentType == 'youtube' && _webController != null) {
-      return Column(
-        children: [
-          // YouTube WebView (16:9 ratio)
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Stack(
-              children: [
-                WebViewWidget(controller: _webController!),
-                if (_webLoading)
-                  Container(
-                    color: Colors.black,
-                    child: const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                  ),
-              ],
+    if (_contentType == 'youtube' && _contentUrl.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 120, height: 120,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.smart_display, size: 60, color: Colors.red),
             ),
-          ),
-          // 채널 정보 + 링크 버튼
-          _buildInfoSection(),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              _channelName,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text('YouTube 알람', style: TextStyle(fontSize: 14, color: _text2)),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: _openLink,
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('YouTube에서 재생'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(200, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
