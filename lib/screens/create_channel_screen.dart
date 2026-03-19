@@ -49,9 +49,9 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
     final picker = ImagePicker();
     final xfile = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 300,
-      maxHeight: 300,
-      imageQuality: 70,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
     );
     if (xfile != null && mounted) {
       setState(() => _selectedImage = File(xfile.path));
@@ -153,7 +153,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             // 채널명 (필수)
             Row(
               children: [
-                const Text('채널명 (필수)', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+                const Text('채널명 (필수)', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
                 const Spacer(),
                 const Text('* 변경 불가', style: TextStyle(fontSize: 11, color: _red)),
               ],
@@ -181,7 +181,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 12),
 
             // 채널 소개 (필수)
-            const Text('채널 소개 (필수)', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 소개 (필수)', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             TextField(
               controller: _descCtrl,
@@ -206,7 +206,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 12),
 
             // 채널 홈페이지
-            const Text('채널 홈페이지', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 홈페이지', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             TextField(
               controller: _homepageCtrl,
@@ -226,7 +226,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 12),
 
             // 채널 대표이미지 선택
-            const Text('채널 대표이미지 선택', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 대표이미지 선택', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             GestureDetector(
               onTap: _pickImage,
@@ -264,7 +264,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 12),
 
             // 비밀번호
-            const Text('비밀번호', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('비밀번호', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

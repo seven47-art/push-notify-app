@@ -132,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // 섹션 라벨
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('메뉴', style: TextStyle(fontSize: 12, color: _text2)),
+            child: Text('메뉴', style: TextStyle(fontSize: 12, color: _text, fontWeight: FontWeight.w600)),
           ),
           // 모드 선택
           _SettingsRow(

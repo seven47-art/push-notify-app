@@ -2,10 +2,13 @@
 // 스크린샷 기준: 알람 설정 바텀시트
 // 채널명 · 알람 설정 제목 + 콘텐츠 선택(YouTube/파일) + 연결URL + 날짜/시간 선택 + 확인/취소
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 
 const _primary = Color(0xFF6C63FF);
@@ -30,6 +33,8 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   bool _sameAsHomepage  = false;
   DateTime _scheduledAt = DateTime.now().add(const Duration(minutes: 5));
   PlatformFile? _pickedFile;
+  String? _uploadedFileUrl;   // 업로드 완료 후 받은 download URL
+  bool _uploading = false;    // 파일 업로드 중 여부
   bool _saving = false;
 
   @override
@@ -39,13 +44,123 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     super.dispose();
   }
 
+  /// Cloudflare Worker에 파일 업로드 후 download URL 반환
+  Future<String> _uploadToWorker(String localPath, String fileName, String contentType) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sessionToken = prefs.getString('session_token') ?? '';
+
+    final uri = Uri.parse('$kBaseUrl/api/uploads/alarm-file');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['session_token'] = sessionToken;
+    request.files.add(await http.MultipartFile.fromPath(
+      'file', localPath,
+      filename: fileName,
+      contentType: MediaType.parse(contentType),
+    ));
+
+    final streamed = await request.send().timeout(const Duration(minutes: 3));
+    final body = await streamed.stream.bytesToString();
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      try {
+        final errJson = jsonDecode(body) as Map<String, dynamic>;
+        throw Exception('업로드 실패 (${streamed.statusCode}): ${errJson['error'] ?? body}');
+      } catch (parseErr) {
+        if (parseErr is Exception && parseErr.toString().startsWith('Exception: 업로드 실패')) rethrow;
+        throw Exception('업로드 실패 (${streamed.statusCode}): $body');
+      }
+    }
+
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    if (json['success'] == true && json['url'] != null) {
+      return json['url'] as String;
+    }
+    throw Exception('업로드 실패: ${json['error'] ?? body}');
+  }
+
   Future<void> _pickFile() async {
+    // FileType.any + 앱 코드 확장자 검사 (일부 기기에서 custom 필터가 동작 안함)
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['mp3', 'mp4', 'wav', 'aac', 'mov', 'mkv'],
+      type: FileType.any,
+      withData: false,
+      withReadStream: false,
     );
-    if (result != null && result.files.isNotEmpty) {
-      setState(() => _pickedFile = result.files.first);
+    if (result == null || result.files.isEmpty) return;
+
+    final f = result.files.first;
+    if (f.path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('파일 경로를 가져올 수 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    final ext = f.name.split('.').last.toLowerCase();
+
+    // 확장자 검증
+    const audioExts = ['mp3', 'm4a', 'wav', 'aac'];
+    const videoExts = ['mp4', 'mov', 'mkv'];
+    if (!audioExts.contains(ext) && !videoExts.contains(ext)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('허용되지 않는 형식입니다. (mp3, m4a, wav, aac, mp4, mov, mkv)\n선택한 파일: ${f.name}')),
+        );
+      }
+      return;
+    }
+
+    // 파일 크기 검증
+    final fileSize = await File(f.path!).length();
+    final isVideo = videoExts.contains(ext);
+    final limitMb = isVideo ? 50 : 10;
+    if (fileSize > limitMb * 1024 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('파일 크기가 ${limitMb}MB를 초과합니다 (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB).')),
+        );
+      }
+      return;
+    }
+
+    // MIME 타입 결정
+    String mime;
+    if (ext == 'mp3') mime = 'audio/mpeg';
+    else if (ext == 'wav') mime = 'audio/wav';
+    else if (ext == 'aac') mime = 'audio/aac';
+    else if (ext == 'm4a') mime = 'audio/mp4';
+    else if (ext == 'mov') mime = 'video/quicktime';
+    else if (ext == 'mkv') mime = 'video/x-matroska';
+    else mime = 'video/mp4'; // mp4
+
+    // 파일 선택 상태 업데이트 + 업로드 시작
+    setState(() {
+      _pickedFile = f;
+      _uploadedFileUrl = null;
+      _uploading = true;
+    });
+
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
+      if (mounted) {
+        setState(() {
+          _uploadedFileUrl = downloadUrl;
+          _uploading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _pickedFile = null;
+          _uploadedFileUrl = null;
+          _uploading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('업로드 오류: $e')),
+        );
+      }
     }
   }
 
@@ -76,6 +191,13 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
       );
       return;
     }
+    // 파일 선택했지만 업로드가 아직 안 된 경우
+    if (_pickedFile != null && _uploadedFileUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_uploading ? '파일 업로드 중입니다. 잠시 기다려주세요.' : '파일 업로드에 실패했습니다. 다시 선택해주세요.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -88,11 +210,11 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
       if (_youtubeCtrl.text.isNotEmpty) {
         msgType  = 'youtube';
         msgValue = _youtubeCtrl.text;
-      } else if (_pickedFile != null) {
+      } else if (_pickedFile != null && _uploadedFileUrl != null) {
         // 확장자로 audio / video 구분
-        final ext = (_pickedFile!.extension ?? '').toLowerCase();
+        final ext = _pickedFile!.name.split('.').last.toLowerCase();
         msgType  = ['mp4', 'mov', 'mkv'].contains(ext) ? 'video' : 'audio';
-        msgValue = _pickedFile!.name;
+        msgValue = _uploadedFileUrl!;  // 업로드된 파일의 download URL 사용
       }
 
       final body = <String, dynamic>{
@@ -179,15 +301,29 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('콘텐츠 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text2)),
+                  const Text('콘텐츠 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
                   const SizedBox(height: 10),
-                  // YouTube URL 입력
+                  // YouTube URL 입력 (아이콘 탭 → YouTube 앱 열기)
                   Row(
                     children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.smart_display, color: Colors.white, size: 20),
+                      GestureDetector(
+                        onTap: () async {
+                          // YouTube 앱 먼저 시도, 없으면 브라우저로 fallback
+                          const youtubeAppUrl = 'youtube://';
+                          const youtubeBrowserUrl = 'https://www.youtube.com';
+                          final appUri = Uri.parse(youtubeAppUrl);
+                          final webUri = Uri.parse(youtubeBrowserUrl);
+                          if (await canLaunchUrl(appUri)) {
+                            await launchUrl(appUri, mode: LaunchMode.externalApplication);
+                          } else {
+                            await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
+                          child: const Icon(Icons.smart_display, color: Colors.white, size: 20),
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -207,24 +343,42 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                   const Divider(color: _border),
                   // 파일 선택
                   GestureDetector(
-                    onTap: _pickFile,
+                    onTap: (_uploading || _saving) ? null : _pickFile,
                     child: Row(
                       children: [
                         Container(
                           width: 36, height: 36,
-                          decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.folder_open, color: Colors.white, size: 20),
+                          decoration: BoxDecoration(
+                            color: _uploading ? Colors.blue.withOpacity(0.5) : Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: _uploading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.folder_open, color: Colors.white, size: 20),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            _pickedFile?.name ?? '파일을 선택하세요 (오디오/비디오)',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: _pickedFile != null ? _text : _text2,
-                            ),
-                          ),
+                          child: _uploading
+                              ? const Text('업로드 중...', style: TextStyle(fontSize: 13, color: _primary))
+                              : Text(
+                                  _pickedFile != null
+                                      ? (_uploadedFileUrl != null
+                                          ? '✓ ${_pickedFile!.name}'
+                                          : _pickedFile!.name)
+                                      : '파일을 선택하세요 (오디오/비디오)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _uploadedFileUrl != null
+                                        ? _primary
+                                        : (_pickedFile != null ? _text : _text2),
+                                  ),
+                                ),
                         ),
+                        if (_uploadedFileUrl != null)
+                          const Icon(Icons.check_circle, color: _primary, size: 18),
                       ],
                     ),
                   ),
@@ -242,7 +396,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('연결 URL', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text2)),
+                  const Text('연결 URL', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -292,7 +446,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('날짜 / 시간 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text2)),
+                  const Text('날짜 / 시간 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
                   const SizedBox(height: 10),
                   GestureDetector(
                     onTap: _pickDateTime,
@@ -408,186 +562,210 @@ class _DateTimePickerDialogState extends State<_DateTimePickerDialog> {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 헤더
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('날짜 / 시간 선택',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _text)),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close, color: _text2, size: 22),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // ── 날짜 섹션 ──
-              const Text('날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text2)),
-              const SizedBox(height: 10),
-              // 월 이동
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _focusMonth = DateTime(_focusMonth.year, _focusMonth.month - 1)),
-                    child: const Icon(Icons.chevron_left, color: _text2),
-                  ),
-                  Text('${_focusMonth.year}년 ${_focusMonth.month}월',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _text)),
-                  GestureDetector(
-                    onTap: () => setState(() => _focusMonth = DateTime(_focusMonth.year, _focusMonth.month + 1)),
-                    child: const Icon(Icons.chevron_right, color: _text2),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 요일 헤더
-              Row(
-                children: _weekdays.asMap().entries.map((e) {
-                  final color = e.key == 0 ? Colors.red : (e.key == 6 ? _primary : _text);
-                  return Expanded(
-                    child: Center(
-                      child: Text(e.value,
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+    // 라이트 모드 고정 색상 (다크모드 시스템 설정 무시)
+    const dialogBg      = Color(0xFFFFFFFF);
+    const dialogText    = Color(0xFF222222);
+    const dialogText2   = Color(0xFF888888);
+    const dialogBorder  = Color(0xFFEEEEEE);
+    const dialogGridBg  = Color(0xFFF5F5F5);
+
+    return Theme(
+      data: ThemeData.light().copyWith(
+        dialogBackgroundColor: dialogBg,
+        colorScheme: const ColorScheme.light(
+          primary: _primary,
+          surface: dialogBg,
+          onSurface: dialogText,
+        ),
+      ),
+      child: Dialog(
+        backgroundColor: dialogBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 헤더
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('날짜 / 시간 선택',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: dialogText)),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.close, color: dialogText2, size: 22),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 4),
-              // 날짜 그리드
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  childAspectRatio: 1.1,
+                  ],
                 ),
-                itemCount: days.length,
-                itemBuilder: (_, i) {
-                  final d = days[i];
-                  if (d == null) return const SizedBox();
-                  final isSelected = d == _selectedDate;
-                  final isToday = d == todayDate;
-                  final isPast = d.isBefore(todayDate);
-                  final col = i % 7 == 0 ? Colors.red : (i % 7 == 6 ? _primary : _text);
-                  return GestureDetector(
-                    onTap: isPast ? null : () => setState(() => _selectedDate = d),
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: isSelected
-                          ? BoxDecoration(color: _primary, shape: BoxShape.circle)
-                          : null,
+                const SizedBox(height: 16),
+                // ── 날짜 섹션 ──
+                const Text('날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: dialogText)),
+                const SizedBox(height: 10),
+                // 월 이동
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(() => _focusMonth = DateTime(_focusMonth.year, _focusMonth.month - 1)),
+                      child: const Icon(Icons.chevron_left, color: dialogText2),
+                    ),
+                    Text('${_focusMonth.year}년 ${_focusMonth.month}월',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: dialogText)),
+                    GestureDetector(
+                      onTap: () => setState(() => _focusMonth = DateTime(_focusMonth.year, _focusMonth.month + 1)),
+                      child: const Icon(Icons.chevron_right, color: dialogText2),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 요일 헤더
+                Row(
+                  children: _weekdays.asMap().entries.map((e) {
+                    final color = e.key == 0 ? Colors.red : (e.key == 6 ? _primary : dialogText);
+                    return Expanded(
                       child: Center(
-                        child: Text(
-                          '${d.day}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                            color: isSelected
-                                ? Colors.white
-                                : isPast
-                                    ? _text2.withOpacity(0.4)
-                                    : col,
+                        child: Text(e.value,
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 4),
+                // 날짜 그리드
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: days.length,
+                  itemBuilder: (_, i) {
+                    final d = days[i];
+                    if (d == null) return const SizedBox();
+                    final isSelected = d == _selectedDate;
+                    final isToday = d == todayDate;
+                    final isPast = d.isBefore(todayDate);
+                    final col = i % 7 == 0 ? Colors.red : (i % 7 == 6 ? _primary : dialogText);
+                    return GestureDetector(
+                      onTap: isPast ? null : () => setState(() => _selectedDate = d),
+                      child: Container(
+                        margin: const EdgeInsets.all(2),
+                        decoration: isSelected
+                            ? const BoxDecoration(color: _primary, shape: BoxShape.circle)
+                            : null,
+                        child: Center(
+                          child: Text(
+                            '${d.day}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
+                              color: isSelected
+                                  ? Colors.white
+                                  : isPast
+                                      ? dialogText2.withOpacity(0.4)
+                                      : col,
+                            ),
                           ),
                         ),
                       ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                // ── 시간 섹션 ──
+                const Text('시간', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: dialogText)),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 오전/오후 토글
+                    Column(
+                      children: ['오전', '오후'].map((label) {
+                        final selected = label == '오전' ? _isAm : !_isAm;
+                        return GestureDetector(
+                          onTap: () => setState(() => _isAm = label == '오전'),
+                          child: Container(
+                            width: 52, height: 36,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            decoration: BoxDecoration(
+                              color: selected ? _primary : const Color(0xFFEEEEEE),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(label,
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: selected ? Colors.white : dialogText2)),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              // ── 시간 섹션 ──
-              const Text('시간', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text2)),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 오전/오후 토글
-                  Column(
-                    children: ['오전', '오후'].map((label) {
-                      final selected = label == '오전' ? _isAm : !_isAm;
-                      return GestureDetector(
-                        onTap: () => setState(() => _isAm = label == '오전'),
-                        child: Container(
-                          width: 52, height: 36,
-                          margin: const EdgeInsets.symmetric(vertical: 2),
-                          decoration: BoxDecoration(
-                            color: selected ? _primary : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(label,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected ? Colors.white : _text2)),
-                          ),
+                    const SizedBox(width: 16),
+                    // 시 스피너
+                    _Spinner(
+                      value: _hour12,
+                      min: 1, max: 12,
+                      bgColor: dialogGridBg,
+                      textColor: dialogText,
+                      arrowColor: dialogText2,
+                      onChanged: (v) => setState(() => _hour12 = v),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(':', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: dialogText)),
+                    ),
+                    // 분 스피너
+                    _Spinner(
+                      value: _minute,
+                      min: 0, max: 59,
+                      bgColor: dialogGridBg,
+                      textColor: dialogText,
+                      arrowColor: dialogText2,
+                      onChanged: (v) => setState(() => _minute = v),
+                      pad2: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // 취소 / 확인
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          side: const BorderSide(color: dialogBorder),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(width: 16),
-                  // 시 스피너
-                  _Spinner(
-                    value: _hour12,
-                    min: 1, max: 12,
-                    onChanged: (v) => setState(() => _hour12 = v),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(':', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: _text)),
-                  ),
-                  // 분 스피너
-                  _Spinner(
-                    value: _minute,
-                    min: 0, max: 59,
-                    onChanged: (v) => setState(() => _minute = v),
-                    pad2: true,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // 취소 / 확인
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: const BorderSide(color: _border),
+                        child: const Text('취소', style: TextStyle(color: dialogText2)),
                       ),
-                      child: const Text('취소', style: TextStyle(color: _text2)),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, _result()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, _result()),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('확인'),
                       ),
-                      child: const Text('확인'),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -602,6 +780,9 @@ class _Spinner extends StatelessWidget {
   final int max;
   final bool pad2;
   final ValueChanged<int> onChanged;
+  final Color bgColor;
+  final Color textColor;
+  final Color arrowColor;
 
   const _Spinner({
     required this.value,
@@ -609,6 +790,9 @@ class _Spinner extends StatelessWidget {
     required this.max,
     required this.onChanged,
     this.pad2 = false,
+    this.bgColor  = const Color(0xFFF5F5F5),
+    this.textColor  = const Color(0xFF222222),
+    this.arrowColor = const Color(0xFF888888),
   });
 
   @override
@@ -618,22 +802,22 @@ class _Spinner extends StatelessWidget {
       children: [
         GestureDetector(
           onTap: () => onChanged(value >= max ? min : value + 1),
-          child: const Icon(Icons.keyboard_arrow_up, size: 28, color: _text2),
+          child: Icon(Icons.keyboard_arrow_up, size: 28, color: arrowColor),
         ),
         Container(
           width: 56, height: 48,
           decoration: BoxDecoration(
-            color: Colors.grey[100],
+            color: bgColor,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Center(
             child: Text(display,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: _text)),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: textColor)),
           ),
         ),
         GestureDetector(
           onTap: () => onChanged(value <= min ? max : value - 1),
-          child: const Icon(Icons.keyboard_arrow_down, size: 28, color: _text2),
+          child: Icon(Icons.keyboard_arrow_down, size: 28, color: arrowColor),
         ),
       ],
     );

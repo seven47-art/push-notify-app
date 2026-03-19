@@ -139,9 +139,12 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                 ),
               ),
             ),
+            // 로딩 중에는 SliverFillRemaining 없이 RefreshIndicator만 표시
+            // (당겨서 새로고침 시 인디케이터 중복 방지)
             if (_loading)
               const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: _primary)),
+                hasScrollBody: false,
+                child: SizedBox.shrink(),
               )
             else if (_error != null)
               SliverFillRemaining(

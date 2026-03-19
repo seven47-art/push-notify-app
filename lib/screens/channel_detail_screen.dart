@@ -191,27 +191,31 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            // 이미지
+            // 이미지 (InteractiveViewer로 핀치줌 지원)
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: isBase64Image(imageUrl)
-                  ? () {
-                      final bytes = base64ToBytes(imageUrl);
-                      return bytes != null
-                          ? Image.memory(bytes,
-                              fit: BoxFit.contain,
-                              width: double.infinity)
-                          : const SizedBox();
-                    }()
-                  : Image.network(imageUrl,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => Container(
-                            height: 200,
-                            color: Colors.grey[800],
-                            child: const Icon(Icons.broken_image,
-                                color: Colors.white54, size: 64),
-                          )),
+              child: InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 4.0,
+                child: isBase64Image(imageUrl)
+                    ? () {
+                        final bytes = base64ToBytes(imageUrl);
+                        return bytes != null
+                            ? Image.memory(bytes,
+                                fit: BoxFit.contain,
+                                width: double.infinity)
+                            : const SizedBox();
+                      }()
+                    : Image.network(imageUrl,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        errorBuilder: (_, __, ___) => Container(
+                              height: 200,
+                              color: Colors.grey[800],
+                              child: const Icon(Icons.broken_image,
+                                  color: Colors.white54, size: 64),
+                            )),
+              ),
             ),
             // X 닫기 버튼
             Positioned(
@@ -553,9 +557,9 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
     final picker = ImagePicker();
     final xfile  = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 300,
-      maxHeight: 300,
-      imageQuality: 70,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
     );
     if (xfile != null && mounted) {
       setState(() { _selectedImage = File(xfile.path); _imageUrl = null; });
@@ -630,7 +634,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             const Text('채널 설정', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text)),
             const SizedBox(height: 16),
             // 채널명 (변경 불가)
-            const Text('채널명', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널명', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -651,7 +655,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             ),
             const SizedBox(height: 12),
             // 채널 소개
-            const Text('채널 소개', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 소개', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             TextField(
               controller: _descCtrl,
@@ -665,7 +669,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             ),
             const SizedBox(height: 12),
             // 채널 홈페이지
-            const Text('채널 홈페이지', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 홈페이지', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             TextField(
               controller: _homepageCtrl,
@@ -681,7 +685,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             ),
             const SizedBox(height: 12),
             // 채널 대이미지
-            const Text('채널 대표이미지', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('채널 대표이미지', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             GestureDetector(
               onTap: _pickImage,
@@ -727,7 +731,7 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             ),
             const SizedBox(height: 12),
             // 비밀번호 설정
-            const Text('비밀번호 설정', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const Text('비밀번호 설정', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -862,15 +866,35 @@ class _ReportSheetState extends State<_ReportSheet> {
     }
     setState(() => _submitting = true);
     try {
-      await http.post(
+      final res = await http.post(
         Uri.parse('$kBaseUrl/api/channels/${widget.channelId}/report'),
         headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'},
         body: jsonEncode({'reason': _selectedReason, 'detail': _detailCtrl.text}),
       ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
-    if (mounted) {
+
+      final resBody = jsonDecode(res.body) as Map<String, dynamic>;
+
+      if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('신고가 접수되었습니다.')));
+
+      if (resBody['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('신고가 접수되었습니다.')),
+        );
+      } else {
+        final errMsg = resBody['error']?.toString() ?? '신고 처리 중 오류가 발생했습니다.';
+        // 중복 신고 메시지 처리
+        final isAlready = errMsg.contains('already') || errMsg.contains('이미') || errMsg.contains('duplicate');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isAlready ? '이미 신고한 채널입니다.' : errMsg)),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류가 발생했습니다. 다시 시도해주세요.')),
+      );
     }
   }
 

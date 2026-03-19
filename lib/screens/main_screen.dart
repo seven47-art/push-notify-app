@@ -117,16 +117,25 @@ class MainScreenState extends State<MainScreen> {
   }
 
   void _openDrawer(BuildContext context) {
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _HamburgerDrawer(
+      barrierDismissible: true,
+      barrierLabel: 'drawer',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, anim, _) => _HamburgerDrawer(
         onTabSelect: (index) {
-          Navigator.pop(context);
+          Navigator.pop(ctx);
           setState(() => _currentIndex = index);
         },
       ),
+      transitionBuilder: (ctx, anim, _, child) {
+        final offset = Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut));
+        return SlideTransition(position: offset, child: child);
+      },
     );
   }
 
@@ -270,16 +279,17 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
         width: MediaQuery.of(context).size.width * 0.72,
         height: double.infinity,
         color: Colors.white,
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        padding: EdgeInsets.only(top: topPad),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               // 헤더
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),

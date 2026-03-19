@@ -123,7 +123,8 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
 
             if (_loading)
               const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: _primary)),
+                hasScrollBody: false,
+                child: SizedBox.shrink(),
               )
             else if (_error != null)
               SliverFillRemaining(
@@ -169,7 +170,7 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => ChannelDetailScreen(
-                              channelId: _filtered[index]['id']?.toString() ?? '',
+                              channelId: (_filtered[index]['channel_id'] ?? _filtered[index]['id'])?.toString() ?? '',
                               isOwner: false,
                             ),
                           ),
