@@ -1,22 +1,20 @@
 // lib/screens/main_screen.dart
-// Phase 2: 수신함/발신함 탭 연결 완료
-// BottomNavigationBar 5탭 — 각 탭은 Phase별로 실제 화면으로 교체
+// Phase 2~6: 수신함/발신함/홈/내채널/설정 탭 모두 연결
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// ── 탭 화면 import (Phase 진행에 따라 실제 화면으로 교체) ──
-import 'home_screen.dart';          // Phase 4에서 완성
-import 'notification_screen.dart';  // Phase 2 완성
-import 'settings_screen.dart';      // Phase 3에서 완성
+// ── 탭 화면 import ──────────────────────────────────────
+import 'new_home_screen.dart';       // 탭 0: 홈 (Phase 4)
+import 'home_screen.dart';           // 탭 1: 내 채널 (Phase 5)
+import 'notification_screen.dart';  // 탭 2: 수신함, 탭 3: 발신함
+import 'settings_screen.dart';      // 탭 4: 설정 (Phase 3)
 
 // ── 색상 상수 ──────────────────────────────────────────────
-const _bg       = Color(0xFF121212);
-const _bg2      = Color(0xFF1E1E2E);
-const _primary  = Color(0xFF6C63FF);
-const _teal     = Color(0xFF1DE9B6);
-const _text     = Colors.white;
-const _text2    = Color(0xFFB0B0C8);
-const _border   = Color(0xFF3A3A55);
+const _bg      = Color(0xFF121212);
+const _bg2     = Color(0xFF1E1E2E);
+const _primary = Color(0xFF6C63FF);
+const _text2   = Color(0xFFB0B0C8);
+const _border  = Color(0xFF3A3A55);
 
 // ── 탭 인덱스 상수 ────────────────────────────────────────
 class TabIndex {
@@ -41,11 +39,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
 
-  // 수신함/발신함 화면에 접근하기 위한 GlobalKey
+  // 수신함/발신함 GlobalKey — 탭 전환·재탭 시 refresh() 호출용
   final _inboxKey  = GlobalKey<NotificationScreenState>();
   final _outboxKey = GlobalKey<NotificationScreenState>();
 
-  // 각 탭 화면 — Phase 진행에 따라 실제 구현 화면으로 교체
   late final List<Widget> _screens;
 
   @override
@@ -53,36 +50,26 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _currentIndex = widget.initialTab;
     _screens = [
-      const HomeScreen(),                              // 탭 0: 홈 (Phase 4에서 완성)
-      const _PlaceholderScreen(                        // 탭 1: 내 채널 (Phase 5)
-        icon: Icons.satellite_alt_rounded,
-        label: '내 채널',
-        sub: 'Phase 5에서 구현 예정',
-      ),
-      NotificationScreen(key: _inboxKey,  initialTab: 0),  // 탭 2: 수신함
-      NotificationScreen(key: _outboxKey, initialTab: 1),  // 탭 3: 발신함
-      const SettingsScreen(),                          // 탭 4: 설정 (Phase 3)
+      NewHomeScreen(onTabSwitch: _onTabTapped),          // 탭 0: 홈
+      const HomeScreen(),                                  // 탭 1: 내 채널
+      NotificationScreen(key: _inboxKey,  initialTab: 0), // 탭 2: 수신함
+      NotificationScreen(key: _outboxKey, initialTab: 1), // 탭 3: 발신함
+      const SettingsScreen(),                              // 탭 4: 설정
     ];
   }
 
   void _onTabTapped(int index) {
     if (_currentIndex == index) {
-      // 같은 탭 재탭 시 새로고침
       _refreshTab(index);
       return;
     }
     setState(() => _currentIndex = index);
-    // 탭 전환 시 해당 화면 새로고침
     _refreshTab(index);
   }
 
-  /// 탭 전환/재탭 시 해당 화면 새로고침
   void _refreshTab(int index) {
-    if (index == TabIndex.inbox) {
-      _inboxKey.currentState?.refresh();
-    } else if (index == TabIndex.outbox) {
-      _outboxKey.currentState?.refresh();
-    }
+    if (index == TabIndex.inbox)  _inboxKey.currentState?.refresh();
+    if (index == TabIndex.outbox) _outboxKey.currentState?.refresh();
   }
 
   @override
@@ -107,9 +94,7 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       decoration: BoxDecoration(
         color: _bg2,
-        border: Border(
-          top: BorderSide(color: _border, width: 1),
-        ),
+        border: Border(top: BorderSide(color: _border, width: 1)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
@@ -124,11 +109,11 @@ class _MainScreenState extends State<MainScreen> {
           height: 60,
           child: Row(
             children: [
-              _navItem(index: TabIndex.home,      icon: Icons.home_rounded,           label: '홈'),
-              _navItem(index: TabIndex.myChannel, icon: Icons.satellite_alt_rounded,  label: '내 채널'),
-              _navItem(index: TabIndex.inbox,     icon: Icons.notifications_rounded,  label: '수신함'),
-              _navItem(index: TabIndex.outbox,    icon: Icons.send_rounded,           label: '발신함'),
-              _navItem(index: TabIndex.settings,  icon: Icons.settings_rounded,       label: '설정'),
+              _navItem(index: TabIndex.home,      icon: Icons.home_rounded,          label: '홈'),
+              _navItem(index: TabIndex.myChannel, icon: Icons.satellite_alt_rounded, label: '내 채널'),
+              _navItem(index: TabIndex.inbox,     icon: Icons.notifications_rounded, label: '수신함'),
+              _navItem(index: TabIndex.outbox,    icon: Icons.send_rounded,          label: '발신함'),
+              _navItem(index: TabIndex.settings,  icon: Icons.settings_rounded,      label: '설정'),
             ],
           ),
         ),
@@ -156,64 +141,15 @@ class _MainScreenState extends State<MainScreen> {
                 color: isSelected ? _primary.withOpacity(0.15) : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: isSelected ? _primary : _text2,
-                size: 22,
-              ),
+              child: Icon(icon,
+                  color: isSelected ? _primary : _text2, size: 22),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? _primary : _text2,
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-// PlaceholderScreen — 아직 구현되지 않은 탭용 임시 화면
-// ══════════════════════════════════════════════════════════
-class _PlaceholderScreen extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sub;
-
-  const _PlaceholderScreen({
-    required this.icon,
-    required this.label,
-    required this.sub,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg2,
-        title: Text(label,
-            style: const TextStyle(color: _text, fontWeight: FontWeight.bold)),
-        elevation: 0,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 64, color: _text2.withOpacity(0.4)),
-            const SizedBox(height: 16),
             Text(label,
-                style: const TextStyle(
-                    color: _text, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(sub,
-                style: TextStyle(color: _text2.withOpacity(0.6), fontSize: 13)),
+                style: TextStyle(
+                    color: isSelected ? _primary : _text2,
+                    fontSize: 10,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal)),
           ],
         ),
       ),

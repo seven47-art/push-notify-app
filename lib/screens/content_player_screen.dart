@@ -1,18 +1,18 @@
 // lib/screens/content_player_screen.dart
-// 알람 콘텐츠 재생 화면 — WebView screen-content-player 대체
+// Phase 7: WebView 완전 제거 — YouTube는 외부 앱(youtube_launcher) 또는 url_launcher로 처리
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import '../config.dart';
 
 // ── 색상 상수 ──────────────────────────────────────────────
 const _cpBg      = Color(0xFF000000);
 const _cpPrimary = Color(0xFF6C63FF);
 const _cpTeal    = Color(0xFF1DE9B6);
+const _cpRed     = Color(0xFFEF4444);
 const _cpText    = Colors.white;
 const _cpText2   = Color(0xFF94A3B8);
 
@@ -43,19 +43,21 @@ class ContentPlayerScreen extends StatefulWidget {
 }
 
 class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
-  WebViewController? _webController;
-  bool _webLoading = true;
+  bool _launching = false;
 
   @override
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    if (widget.msgType == 'youtube') {
-      _initYouTubePlayer();
-    }
-    // 수신함 열람 시 status 'accepted' 처리 (WebView openAlarmContent와 동일)
+    // 수신함 열람 시 status 'accepted' 처리
     if (widget.source == 'inbox' && widget.logId > 0) {
       _markInboxAccepted();
+    }
+    // YouTube는 초기화 시 바로 외부 앱 열기 시도
+    if (widget.msgType == 'youtube') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _launchYouTube();
+      });
     }
   }
 
@@ -80,38 +82,36 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
         body: jsonEncode({'status': 'accepted'}),
       ).timeout(const Duration(seconds: 10));
     } catch (_) {
-      // 열람 상태 업데이트 실패해도 재생은 계속 진행
+      // 열람 상태 업데이트 실패해도 재생 계속 진행
     }
   }
 
-  void _initYouTubePlayer() {
-    final embedUrl = _toYoutubeEmbed(widget.msgValue);
-    _webController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) {
-          if (mounted) setState(() => _webLoading = false);
-        },
-      ))
-      ..loadRequest(Uri.parse(embedUrl));
-  }
-
-  String _toYoutubeEmbed(String url) {
-    // 다양한 유튜브 URL 형식을 embed URL로 변환
-    String videoId = '';
+  // ── YouTube: 외부 앱(YouTube 앱 또는 브라우저)으로 열기 ──
+  Future<void> _launchYouTube() async {
+    if (_launching) return;
+    setState(() => _launching = true);
+    final url = widget.msgValue;
     try {
       final uri = Uri.parse(url);
-      if (uri.host.contains('youtu.be')) {
-        videoId = uri.pathSegments.first;
-      } else if (uri.queryParameters.containsKey('v')) {
-        videoId = uri.queryParameters['v']!;
-      } else if (uri.pathSegments.contains('shorts')) {
-        videoId = uri.pathSegments.last;
+      // YouTube 앱 deep link 시도
+      final youtubeApp = Uri.parse('vnd.youtube:${_extractVideoId(url)}');
+      if (await canLaunchUrl(youtubeApp)) {
+        await launchUrl(youtubeApp);
+      } else if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (_) {}
-    if (videoId.isEmpty) return url;
-    return 'https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1';
+    if (mounted) setState(() => _launching = false);
+  }
+
+  String _extractVideoId(String url) {
+    try {
+      final uri = Uri.parse(url);
+      if (uri.host.contains('youtu.be')) return uri.pathSegments.first;
+      if (uri.queryParameters.containsKey('v')) return uri.queryParameters['v']!;
+      if (uri.pathSegments.contains('shorts')) return uri.pathSegments.last;
+    } catch (_) {}
+    return '';
   }
 
   Future<void> _openExternalLink() async {
@@ -165,34 +165,60 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
 
   Widget _buildContentArea() {
     switch (widget.msgType) {
-      case 'youtube':
-        return _buildYouTubePlayer();
-      case 'video':
-        return _buildVideoPlayer();
-      case 'audio':
-        return _buildAudioPlayer();
-      default:
-        return _buildFileView();
+      case 'youtube': return _buildYouTubeView();
+      case 'video':   return _buildVideoView();
+      case 'audio':   return _buildAudioView();
+      default:        return _buildFileView();
     }
   }
 
-  // ── YouTube ────────────────────────────────────────────
-  Widget _buildYouTubePlayer() {
-    if (_webController == null) return const SizedBox.shrink();
-    return Stack(
-      children: [
-        WebViewWidget(controller: _webController!),
-        if (_webLoading)
-          const Center(
-            child: CircularProgressIndicator(color: _cpPrimary),
+  // ── YouTube — 외부 앱 열기 유도 UI ─────────────────────
+  Widget _buildYouTubeView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF0000).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.smart_display_rounded,
+                color: Color(0xFFFF0000), size: 80),
           ),
-      ],
+          const SizedBox(height: 24),
+          const Text('YouTube 콘텐츠',
+              style: TextStyle(color: _cpText, fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(widget.channelName,
+              style: const TextStyle(color: _cpText2, fontSize: 14)),
+          const SizedBox(height: 32),
+          if (_launching)
+            const CircularProgressIndicator(color: Color(0xFFFF0000))
+          else
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF0000),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('YouTube에서 보기',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: _launchYouTube,
+            ),
+        ],
+      ),
     );
   }
 
   // ── 비디오 ─────────────────────────────────────────────
-  Widget _buildVideoPlayer() {
-    // video_player 패키지 없이 외부 앱으로 재생
+  Widget _buildVideoView() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -203,11 +229,13 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
               color: Colors.blue.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.movie, color: Colors.blue, size: 80),
+            child: const Icon(Icons.movie_rounded,
+                color: Colors.blue, size: 80),
           ),
           const SizedBox(height: 24),
           const Text('비디오 콘텐츠',
-              style: TextStyle(color: _cpText, fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(color: _cpText, fontSize: 18,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text(widget.channelName,
               style: const TextStyle(color: _cpText2, fontSize: 14)),
@@ -216,15 +244,19 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 28, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('외부 앱으로 재생', style: TextStyle(fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('외부 앱으로 재생',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: () async {
               final uri = Uri.parse(widget.msgValue);
               if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                await launchUrl(uri,
+                    mode: LaunchMode.externalApplication);
               }
             },
           ),
@@ -234,7 +266,7 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
   }
 
   // ── 오디오 ─────────────────────────────────────────────
-  Widget _buildAudioPlayer() {
+  Widget _buildAudioView() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -245,11 +277,13 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
               color: _cpTeal.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.music_note, color: _cpTeal, size: 80),
+            child: Icon(Icons.music_note_rounded,
+                color: _cpTeal, size: 80),
           ),
           const SizedBox(height: 24),
           const Text('오디오 콘텐츠',
-              style: TextStyle(color: _cpText, fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(color: _cpText, fontSize: 18,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text(widget.channelName,
               style: const TextStyle(color: _cpText2, fontSize: 14)),
@@ -258,15 +292,19 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: _cpTeal,
               foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 28, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            icon: const Icon(Icons.headset),
-            label: const Text('외부 앱으로 재생', style: TextStyle(fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.headset_rounded),
+            label: const Text('외부 앱으로 재생',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: () async {
               final uri = Uri.parse(widget.msgValue);
               if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                await launchUrl(uri,
+                    mode: LaunchMode.externalApplication);
               }
             },
           ),
@@ -287,11 +325,13 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
               color: Colors.orange.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.attach_file, color: Colors.orange, size: 80),
+            child: const Icon(Icons.attach_file_rounded,
+                color: Colors.orange, size: 80),
           ),
           const SizedBox(height: 24),
           const Text('파일 콘텐츠',
-              style: TextStyle(color: _cpText, fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(color: _cpText, fontSize: 18,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text(widget.channelName,
               style: const TextStyle(color: _cpText2, fontSize: 14)),
@@ -300,15 +340,19 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 28, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('파일 열기', style: TextStyle(fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.open_in_new_rounded),
+            label: const Text('파일 열기',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: () async {
               final uri = Uri.parse(widget.msgValue);
               if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                await launchUrl(uri,
+                    mode: LaunchMode.externalApplication);
               }
             },
           ),
@@ -339,7 +383,9 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             child: Text(
               widget.channelName,
               style: const TextStyle(
-                  color: _cpText, fontSize: 15, fontWeight: FontWeight.w600),
+                  color: _cpText,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -350,9 +396,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
               onTap: _openExternalLink,
               child: Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                     color: _cpPrimary, shape: BoxShape.circle),
-                child: const Icon(Icons.link, color: Colors.white, size: 20),
+                child: const Icon(Icons.link_rounded,
+                    color: Colors.white, size: 20),
               ),
             ),
           ],
@@ -362,8 +409,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
   }
 
   Widget _buildChannelAvatar() {
-    final colors = [_cpPrimary, Colors.pink, Colors.green, Colors.blue, Colors.orange];
-    final color  = widget.channelName.isNotEmpty
+    final colors = [
+      _cpPrimary, Colors.pink, Colors.green, Colors.blue, Colors.orange
+    ];
+    final color = widget.channelName.isNotEmpty
         ? colors[widget.channelName.codeUnitAt(0) % colors.length]
         : _cpPrimary;
     final initial = widget.channelName.isNotEmpty
@@ -381,10 +430,16 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
           ? Image.network(widget.channelImage, fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Center(
                 child: Text(initial,
-                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18))))
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18))))
           : Center(
               child: Text(initial,
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18))),
+                  style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18))),
     );
   }
 }

@@ -1,33 +1,28 @@
-// lib/main.dart  – WebView 래퍼 앱 + FlutterBridge + 가상통화 알람
-// 백그라운드/잠금화면 알람: Kotlin (AlarmPollingService + RinGoFCMService) 처리
-// 포그라운드 알람: Flutter _pollAlarms() + FakeCallScreen 처리
-import 'dart:async';
+// lib/main.dart  – Phase 7: WebView 완전 제거
+// 알람 처리: Kotlin (AlarmPollingService + RinGoFCMService)
+// Flutter: FCM 초기화, 로컬 알림, 라우팅, 세션 검사
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-// android_intent_plus: 미사용 (record_audio/video가 MethodChannel/ImagePicker로 대체됨)
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:video_compress/video_compress.dart';
 import 'config.dart';
-import 'fake_call_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/permission_screen.dart';
 import 'screens/terms_screen.dart';
 import 'screens/main_screen.dart';
 
-// ── 서버 URL (config.dart에서 관리) ──────────────
-const String _appUrl  = kAppUrl;
+// ── 서버 URL (config.dart) ────────────────────────
 const String _baseUrl = kBaseUrl;
 
 // ── 전역 알림 플러그인 ────────────────────────────
@@ -37,12 +32,9 @@ final FlutterLocalNotificationsPlugin _notificationsPlugin =
 // ── 앱 전역 네비게이터 키 ──────────────────────────
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-// ── 백그라운드 알람 데이터 임시 저장 ──────────────
-Map<String, dynamic>? _pendingAlarmData;
-
 // ─────────────────────────────────────────────────
 // FCM 백그라운드 핸들러 (앱 종료 시)
-// 실제 처리는 Kotlin RinGoFCMService.onMessageReceived()가 담당
+// 실제 처리는 Kotlin RinGoFCMService가 담당
 // ─────────────────────────────────────────────────
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -55,13 +47,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase 초기화
   await Firebase.initializeApp();
-
-  // FCM 백그라운드 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 상태바 투명
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -69,9 +57,7 @@ void main() async {
     ),
   );
 
-  // 로컬 알림 초기화 (인앱 알림용)
   await _initLocalNotifications();
-
   runApp(const RinGoApp());
 }
 
@@ -85,16 +71,10 @@ Future<void> _initLocalNotifications() async {
   await _notificationsPlugin.initialize(
     initSettings,
     onDidReceiveNotificationResponse: (NotificationResponse res) {
-      // v1.0.43: 로컬 알림 탭 핸들러 - FakeCallScreen 표시 제거
-      // 알람은 Kotlin FakeCallActivity에서 이미 처리됨 → Flutter에서 추가 표시 불필요
-      debugPrint('[Notification] tapped (v1.0.43: 추가 처리 없음): ${res.payload}');
+      debugPrint('[Notification] tapped: ${res.payload}');
     },
   );
 
-  // Android 알림 채널 설정 (벨소리 + 진동)
-  // ※ 권한 요청(requestNotificationsPermission, requestExactAlarmsPermission)은
-  //    permission_screen.dart에서 단계적으로 처리함
-  //    여기서 요청하면 Flutter 초기화 도중 팝업이 떠서 흰화면 먹통 발생!
   if (Platform.isAndroid) {
     const channel = AndroidNotificationChannel(
       'alarm_channel',
@@ -110,20 +90,7 @@ Future<void> _initLocalNotifications() async {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
-    // 알림 권한 요청은 permission_screen에서 처리 (여기서 하면 흰화면 크래시)
   }
-}
-
-// ─────────────────────────────────────────────────
-// ─────────────────────────────────────────────────
-// [v1.0.43 DEPRECATED] _showFakeCallFromData
-// 모든 알람 표시는 Kotlin FakeCallActivity에서 처리
-// 이 함수는 더 이상 호출되지 않음 (컴파일 오류 방지용으로 유지)
-// ─────────────────────────────────────────────────
-// ignore: unused_element
-void _showFakeCallFromData(BuildContext context, Map<String, dynamic> data) {
-  // v1.0.43: 호출 금지 - Kotlin FakeCallActivity가 단독 처리
-  debugPrint('[DEPRECATED] _showFakeCallFromData 호출됨 (무시)');
 }
 
 // ─────────────────────────────────────────────────
@@ -159,7 +126,6 @@ class RinGoApp extends StatelessWidget {
 
 // ═══════════════════════════════════════════════
 //  시작 게이트 – UI 없이 즉시 라우팅
-//  Android native splash가 이 구간을 커버함
 // ═══════════════════════════════════════════════
 class _StartGate extends StatefulWidget {
   const _StartGate();
@@ -182,7 +148,7 @@ class _StartGateState extends State<_StartGate> {
       Navigator.of(context).pushReplacementNamed('/auth');
       return;
     }
-    // 앱 재시작 시 서버에서 세션 유효성 확인 (차단된 계정 즉시 차단)
+    // 세션 유효성 서버 검사
     try {
       final res = await http.get(
         Uri.parse('$_baseUrl/api/auth/me'),
@@ -199,7 +165,7 @@ class _StartGateState extends State<_StartGate> {
         return;
       }
     } catch (_) {
-      // 네트워크 오류 시 오프라인 허용 (기존 token으로 진입)
+      // 네트워크 오류 시 오프라인 허용
     }
     final permDone = prefs.getBool('permissions_setup_done') ?? false;
     if (!mounted) return;
@@ -213,330 +179,57 @@ class _StartGateState extends State<_StartGate> {
       Navigator.of(context).pushReplacementNamed('/terms');
       return;
     }
+    // FCM 초기화 + Pending 알람 예약 (MainScreen 로드 후 비동기)
+    _initFCMAndPendingAlarms();
     Navigator.of(context).pushReplacementNamed('/main');
   }
 
-  @override
-  Widget build(BuildContext context) =>
-      // 완전한 블랙 배경 – native splash와 동일색
-      const ColoredBox(color: Color(0xFF000000));
-}
-
-// ═══════════════════════════════════════════════
-//  WebView 메인 화면 + 알람 폴링 + 가상통화 처리
-// ═══════════════════════════════════════════════
-class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key});
-  @override
-  State<WebViewScreen> createState() => _WebViewScreenState();
-}
-
-class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserver {
-  late final WebViewController _controller;
-  bool  _loading = true;
-  bool  _hasError = false;
-  int   _loadingProgress = 0;
-
-  // ── 오디오 녹음 상태 (Kotlin MethodChannel 방식) ──
-  static const _audioChannel   = MethodChannel('com.pushnotify.push_notify_app/audio_recorder');
-  static const _scheduleChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
-  static const _deepLinkChannel = MethodChannel('com.pushnotify.push_notify_app/deeplink');
-  bool _isAudioRecording = false;
-  String? _pendingAudioPath;
-  int? _pendingAudioTimestamp;
-
-  // ── 알람 폴링 ──
-  Timer? _alarmPollTimer;
-  bool   _isFakeCallShowing = false;
-  // 이미 처리한 alarm_id 목록 (중복 수신 방지 - FCM + 폴링 동시 수신 케이스)
-  final Set<int> _handledAlarmIds = {};
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initWebView();
-    _startAlarmPolling();          // v1.0.43: 비활성화됨 (Kotlin AlarmPollingService가 처리)
-    _initFCM();                     // FCM 초기화 + 토큰 서버 등록
-    _schedulePendingAlarms();       // v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약
-    _initDeepLink();               // 딥링크 수신 채널 초기화
-    // v1.0.43: _pendingAlarmData 처리 제거 - Kotlin FakeCallActivity가 단독 처리
-    // 앱 시작 시 세션 유효성 체크 (차단된 계정 즉시 로그아웃)
-    Future.delayed(const Duration(seconds: 2), _checkSessionValidity);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _alarmPollTimer?.cancel();
-    super.dispose();
-  }
-
-  // ── 세션 토큰 웹뷰 localStorage 주입 (재시도 포함) ──
-  Future<void> _injectSession() async {
-    final prefs       = await SharedPreferences.getInstance();
-    final token       = prefs.getString('session_token') ?? '';
-    if (token.isEmpty) return;
-
-    final userId      = prefs.getString('user_id')      ?? '';
-    final email       = prefs.getString('email')        ?? prefs.getString('user_email') ?? '';
-    final displayName = prefs.getString('display_name') ?? '';
-    final fcmToken    = prefs.getString('fcm_token')    ?? '';  // Android FCM 토큰
-
-    // 앱 버전 (pubspec.yaml의 version에서 앞부분만 사용)
-    const appVersion = '2.1.2';
-
-    final t = token.replaceAll("'", "\\'");
-    final u = userId.replaceAll("'", "\\'");
-    final e = email.replaceAll("'", "\\'");
-    final d = displayName.replaceAll("'", "\\'");
-    final f = fcmToken.replaceAll("'", "\\'");  // FCM 토큰 이스케이프
-
-    // JS 함수 존재 여부와 무관하게 localStorage에 직접 주입 후
-    // flutterSetSession이 있으면 호출, 없으면 Auth/App 직접 제어
-    final js = """
-(function() {
-  localStorage.setItem('session_token', '$t');
-  localStorage.setItem('user_id', '$u');
-  localStorage.setItem('email', '$e');
-  localStorage.setItem('display_name', '$d');
-  localStorage.setItem('app_version', '$appVersion');
-  if ('$f' !== '') {
-    localStorage.setItem('flutter_fcm_token', '$f');
-  }
-  if (typeof window.flutterSetSession === 'function') {
-    window.flutterSetSession('$t', '$u', '$e', '$d');
-  } else {
-    if (typeof Auth !== 'undefined' && typeof Auth.hide === 'function') {
-      Auth.hide();
-    }
-    if (typeof App !== 'undefined' && typeof App.goto === 'function') {
-      App.goto('home');
-    }
-  }
-})();
-""";
-    await _controller.runJavaScript(js);
-    // 재시도 제거: flutterSetSession이 중복 호출 방지 guard를 가지므로 불필요
-  }
-
-  void _initWebView() {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF000000)) // native splash(#000000)와 동일 → 전환 시 깜빡임 없음
-      ..addJavaScriptChannel(
-        'FlutterBridge',
-        onMessageReceived: (JavaScriptMessage msg) {
-          _handleBridgeMessage(msg.message);
-        },
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) => setState(() { _loading = true; _hasError = false; }),
-          onProgress:    (p) => setState(() => _loadingProgress = p),
-          onPageFinished: (_) async {
-            setState(() => _loading = false);
-            // ── Flutter 세션 토큰을 웹뷰 localStorage에 주입 ──
-            await _injectSession();
-          },
-          onWebResourceError: (err) {
-            if (err.isForMainFrame == true) setState(() { _hasError = true; _loading = false; });
-          },
-          onNavigationRequest: (NavigationRequest req) {
-            final uri = Uri.tryParse(req.url);
-            if (uri != null && uri.scheme == 'pushapp') {
-              _handleDeepLink(uri);
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(_appUrl));
-  }
-
-  // ── 세션 유효성 체크 (차단 계정 즉시 로그아웃) ──────────
-  Future<void> _checkSessionValidity() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      if (token.isEmpty) return; // 로그인 안 된 상태면 체크 불필요
-
-      final res = await http.get(
-        Uri.parse('$_baseUrl/api/auth/me'),
-        headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (res.statusCode == 401 || res.statusCode == 403) {
-        // 세션 만료 또는 차단된 계정
-        debugPrint('[Session] 세션 무효 (${res.statusCode}) → 강제 로그아웃');
-        await prefs.remove('session_token');
-        await prefs.remove('user_id');
-        await prefs.remove('email');
-        await prefs.remove('user_email');
-        await prefs.remove('display_name');
-        if (!mounted) return;
-        // 차단 안내 다이얼로그 (dialogContext 사용 → pop 정상 동작)
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
-            backgroundColor: const Color(0xFF1E293B),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(children: [
-              Icon(Icons.block, color: Color(0xFFEF4444), size: 22),
-              SizedBox(width: 8),
-              Text('계정 사용 불가', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ]),
-            content: const Text(
-              '이 계정은 사용할 수 없습니다.\n확인을 누르면 다른 계정을 선택할 수 있습니다.',
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('확인', style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-        if (!mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-      }
-    } catch (e) {
-      debugPrint('[Session] 세션 체크 오류 (무시): $e');
-    }
-  }
-
-  // ── 앱 포그라운드/백그라운드 감지 ──
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // 포그라운드 복귀 시 세션 유효성 체크 (차단 즉시 감지)
-      _checkSessionValidity();
-      debugPrint('[Lifecycle] 포그라운드 복귀 → 세션 체크');
-    }
-  }
-
-  // ── FCM force_logout 처리 (관리자 회원삭제 / 계정차단) ──
-  Future<void> _handleForceLogout(String reason) async {
-    if (!mounted) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('session_token');
-    await prefs.remove('user_id');
-    await prefs.remove('email');
-    await prefs.remove('user_email');
-    await prefs.remove('display_name');
-
-    if (!mounted) return;
-
-    final isDeleted = reason == 'deleted';
-    final title   = isDeleted ? '계정 삭제됨' : '계정 사용 불가';
-    final content = isDeleted
-        ? '관리자에 의해 계정이 삭제되었습니다.\n다시 가입하실 수 있습니다.'
-        : '이 계정은 사용할 수 없습니다.\n다른 계정을 선택해주세요.';
-    final icon    = isDeleted ? Icons.person_remove : Icons.block;
-    final iconColor = isDeleted ? const Color(0xFFF59E0B) : const Color(0xFFEF4444);
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          Icon(icon, color: iconColor, size: 22),
-          const SizedBox(width: 8),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        ]),
-        content: Text(
-          content,
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('확인', style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-  }
-
-  // ── FCM 초기화 + 토큰 서버 등록 ──────────────────────
-  Future<void> _initFCM() async {
+  // ── FCM 초기화 + 토큰 등록 + pending 알람 예약 ────────────
+  Future<void> _initFCMAndPendingAlarms() async {
     try {
       final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-      // Android 13+ 알림 권한 요청
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      // FCM 토큰 획득 + 서버 등록
       final fcmToken = await messaging.getToken();
       if (fcmToken != null) {
         debugPrint('[FCM] 토큰: $fcmToken');
         await _registerFcmToken(fcmToken);
       }
 
-      // 토큰 갱신 시 서버 재등록
       messaging.onTokenRefresh.listen((newToken) {
         debugPrint('[FCM] 토큰 갱신: $newToken');
         _registerFcmToken(newToken);
       });
 
-      // v1.0.43: 포그라운드 FCM 알람은 Kotlin RinGoFCMService가 단독 처리
-      // Flutter onMessage에서 FakeCallScreen을 띄우면 FakeCallActivity(새 UI)와 이중으로 뜨는 문제 발생
-      // → Flutter에서는 로그만 남기고 알람 표시는 Kotlin에 완전 위임
+      // 포그라운드 메시지: force_logout 처리
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('[FCM] 포그라운드 메시지 수신 (Kotlin에서 처리): ${message.data}');
-        // force_logout: 관리자 회원삭제 또는 계정 차단 시 즉시 로그아웃
+        debugPrint('[FCM] 포그라운드 메시지: ${message.data}');
         final action = message.data['action'] ?? '';
         if (action == 'force_logout') {
-          final reason = message.data['reason'] ?? 'deleted';
-          _handleForceLogout(reason);
-          return;
+          _handleForceLogout(message.data['reason'] ?? 'deleted');
         }
-        // channel_deleted: 운영자 계정 삭제 시 해당 채널 수신함/구독 목록에서 즉시 제거
-        if (action == 'channel_deleted') {
-          final channelId = message.data['channel_id'] ?? '';
-          if (channelId.isNotEmpty) {
-            _controller.runJavaScript(
-              "if(typeof App !== 'undefined' && typeof App.onChannelDeleted === 'function')"
-              "{ App.onChannelDeleted($channelId); }"
-            );
-          }
-          return;
-        }
-        // 알람 처리는 Kotlin RinGoFCMService → AlarmPollingService.triggerAlarm → FakeCallActivity
-        // 여기서 _showFakeCall() 호출하면 Flutter FakeCallScreen(구 UI)이 이중으로 뜸 → 절대 호출 금지
       });
 
-      // v1.0.43: 알림 탭 재개 시에도 Kotlin FakeCallActivity가 이미 처리했으므로 Flutter에서 추가 표시 불필요
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('[FCM] 알림 탭으로 앱 재개 (처리 불필요): ${message.data}');
-        // Kotlin FakeCallActivity에서 이미 표시됨 → 추가 처리 없음
+        debugPrint('[FCM] 알림 탭으로 앱 재개: ${message.data}');
       });
 
-      // v1.0.43: FakeCallActivity 수락 후 ContentPlayerActivity로 이동은 Kotlin에서 처리
-      // Flutter _showFakeCall()은 더 이상 사용하지 않음
+      // AlarmData MethodChannel (Kotlin → Flutter)
       const alarmDataCh = MethodChannel('com.pushnotify/alarm_data');
       alarmDataCh.setMethodCallHandler((call) async {
-        debugPrint('[AlarmData] 수신 (v1.0.43 이후 미사용): ${call.method}');
-        // FakeCallActivity 수락 → ContentPlayerActivity 전환은 Kotlin에서 직접 처리
+        debugPrint('[AlarmData] 수신: ${call.method}');
       });
 
+      // Pending 알람 예약
+      await _schedulePendingAlarms();
+
+      // DeepLink 채널
+      _initDeepLink();
     } catch (e) {
       debugPrint('[FCM] 초기화 실패: $e');
     }
   }
 
-  // ── FCM 토큰을 서버에 등록 ──────────────────────
   Future<void> _registerFcmToken(String fcmToken) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -553,81 +246,21 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
       ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) {
-        debugPrint('[FCM] 토큰 서버 등록 성공');
-        // 로컬에도 저장
         await prefs.setString('fcm_token', fcmToken);
-        // 웹뷰에도 즉시 주입 (onPageFinished보다 늦게 완료될 수 있으므로 별도 주입)
-        final f = fcmToken.replaceAll("'", "\\'");
-        try {
-          await _controller.runJavaScript(
-            "localStorage.setItem('flutter_fcm_token', '$f');"
-          );
-          debugPrint('[FCM] 웹뷰 flutter_fcm_token 주입 완료');
-        } catch (e) {
-          debugPrint('[FCM] 웹뷰 주입 오류: $e');
-        }
-      } else {
-        debugPrint('[FCM] 토큰 서버 등록 실패: ${res.statusCode}');
+        debugPrint('[FCM] 토큰 등록 성공');
       }
     } catch (e) {
       debugPrint('[FCM] 토큰 등록 오류: $e');
     }
   }
 
-  // ── 딥링크 채널 초기화 ──────────────────────────────────────
-  // Kotlin에서 pushapp://join?token=xxx 수신 시 Flutter로 전달
-  void _initDeepLink() {
-    // Kotlin → Flutter: onDeepLink(token) 수신
-    _deepLinkChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onDeepLink') {
-        final token = call.arguments as String?;
-        if (token != null && token.isNotEmpty) {
-          debugPrint('[DeepLink] onDeepLink 수신: $token');
-          await Future.delayed(const Duration(milliseconds: 800));
-          if (mounted) _showChannelJoinScreen(token);
-        }
-      }
-    });
-
-    // 콜드스타트 시 Kotlin에 pending 토큰 요청
-    Future.delayed(const Duration(milliseconds: 1000), () async {
-      try {
-        final token = await _deepLinkChannel.invokeMethod<String?>('getInitialToken');
-        if (token != null && token.isNotEmpty) {
-          debugPrint('[DeepLink] getInitialToken: $token');
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (mounted) _showChannelJoinScreen(token);
-        }
-      } catch (e) {
-        debugPrint('[DeepLink] getInitialToken 오류: $e');
-      }
-    });
-  }
-
-  // ── 앱 포그라운드 폴링 비활성화 (v1.0.43)
-  // Kotlin AlarmPollingService가 1분 주기로 동일한 /api/alarms/trigger를 호출함
-  // Flutter에서도 호출하면 두 경로가 동시에 알람을 트리거 → 이중 알람 발생
-  // → Flutter 폴링 완전 제거, Kotlin 단독 처리
-  void _startAlarmPolling() {
-    debugPrint('[AlarmPoll] Flutter 폴링 비활성화 (Kotlin AlarmPollingService가 처리)');
-    // 폴링 타이머 시작하지 않음
-  }
-
-  // ── v1.0.76: 앱 시작 시 pending 알람 AlarmManager 즉시 예약 ──
-  // FCM alarm_schedule 신호를 못 받은 경우(신규 설치, 재설치 등)에도
-  // 앱 시작 시 서버에서 내 채널의 pending 알람을 조회해 AlarmManager에 예약
   Future<void> _schedulePendingAlarms() async {
     try {
-      // 세션 토큰 + user_id 확인
       final prefs = await SharedPreferences.getInstance();
       final sessionToken = prefs.getString('session_token') ?? '';
       final userId = prefs.getString('user_id') ?? '';
-      if (sessionToken.isEmpty || userId.isEmpty) {
-        debugPrint('[PendingAlarm] 세션 없음 - 건너뜀');
-        return;
-      }
+      if (sessionToken.isEmpty || userId.isEmpty) return;
 
-      // 서버에서 내 채널의 pending 알람 조회
       final res = await http.get(
         Uri.parse('$_baseUrl/api/alarms/pending?user_id=$userId'),
         headers: {'Authorization': 'Bearer $sessionToken'},
@@ -637,20 +270,16 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
 
       final body = jsonDecode(res.body);
       final alarms = body['data'] as List<dynamic>?;
-      if (alarms == null || alarms.isEmpty) {
-        debugPrint('[PendingAlarm] 예약할 알람 없음');
-        return;
-      }
+      if (alarms == null || alarms.isEmpty) return;
 
-      // 각 알람을 Kotlin AlarmScheduler에 예약
       const platform = MethodChannel('com.pushnotify.push_notify_app/alarm');
       int scheduled = 0;
       for (final alarm in alarms) {
         final scheduledAt = alarm['scheduled_at'] as String?;
         if (scheduledAt == null) continue;
-        final scheduledMs = DateTime.tryParse(scheduledAt)?.toUtc().millisecondsSinceEpoch;
+        final scheduledMs =
+            DateTime.tryParse(scheduledAt)?.toUtc().millisecondsSinceEpoch;
         if (scheduledMs == null) continue;
-
         try {
           await platform.invokeMethod('scheduleAlarm', {
             'alarm_id':          alarm['id'] ?? 0,
@@ -667,924 +296,304 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
           debugPrint('[PendingAlarm] scheduleAlarm error: $e');
         }
       }
-      debugPrint('[PendingAlarm] $scheduled개 알람 AlarmManager 예약 완료');
+      debugPrint('[PendingAlarm] $scheduled개 AlarmManager 예약 완료');
     } catch (e) {
       debugPrint('[PendingAlarm] 오류: $e');
     }
   }
 
-  // ── 포그라운드 알람 폴링 (비활성화됨 - v1.0.43) ──
-  Future<void> _pollAlarms() async {
-    // v1.0.43: Flutter 폴링 비활성화 - Kotlin AlarmPollingService 단독 처리
-    debugPrint('[AlarmPoll] Flutter 폴링 호출 무시 (Kotlin에서 처리)');
-  }
-
-  // ── [v1.0.43 DEPRECATED] 가상통화 화면 표시 ──
-  // 모든 알람 표시는 Kotlin FakeCallActivity에서 처리
-  // 이 함수는 더 이상 호출되지 않음 (컴파일 오류 방지용으로 유지)
-  // ignore: unused_element
-  void _showFakeCall({
-    required String channelName,
-    required String msgType,
-    required String msgValue,
-    required int    alarmId,
-    String contentUrl = '',
-  }) {
-    // v1.0.43: 호출 금지 - Kotlin FakeCallActivity가 단독 처리
-    debugPrint('[DEPRECATED] _showFakeCall 호출됨 (무시): $channelName (id=$alarmId)');
-  }
-
-  // ── FlutterBridge 메시지 처리 ──────────────────────
-  void _handleBridgeMessage(String message) async {
-    try {
-      final data = jsonDecode(message) as Map<String, dynamic>;
-      final action = data['action'] as String? ?? '';
-
-      switch (action) {
-        case 'record_audio':
-          await _launchAudioRecorder();
-          break;
-        case 'stop_audio_record':
-          await _stopAudioRecorder();
-          break;
-        case 'record_video':
-          await _launchVideoRecorder();
-          break;
-        case 'pick_file':
-          await _launchFilePicker();
-          break;
-        case 'pick_audio_file':
-          await _pickAudioFile();
-          break;
-        case 'pick_video_file':
-          await _pickVideoFile();
-          break;
-        case 'pick_image':
-          // v1.0.50: 채널 대표이미지 선택 - Flutter ImagePicker로 처리 (WebView file input 우회)
-          final imgSource = data['source'] as String? ?? 'gallery';
-          await _pickChannelImage(imgSource);
-          break;
-        case 'show_fake_call':
-          // v1.0.43: FlutterBridge에서 show_fake_call 요청도 Kotlin으로 전달 안 함
-          // 웹에서 직접 알람을 띄우는 경우는 없어야 하므로 로그만 남김
-          debugPrint('[FlutterBridge] show_fake_call 무시 (Kotlin FakeCallActivity가 처리)');
-          break;
-        case 'open_content_player':
-          // 수신/발신함 리스트 클릭 → ContentPlayerActivity 직접 실행
-          final cpMsgType      = data['msg_type']      as String? ?? '';
-          final cpMsgValue     = data['msg_value']     as String? ?? '';
-          final cpChannelName  = data['channel_name']  as String? ?? '';
-          final cpChannelImage = data['channel_image'] as String? ?? '';
-          final cpLinkUrl      = data['link_url']      as String? ?? '';
-          debugPrint('[FlutterBridge] open_content_player → msgType=$cpMsgType channelName=$cpChannelName');
-          try {
-            await _scheduleChannel.invokeMethod('openContentPlayer', {
-              'msg_type':      cpMsgType,
-              'msg_value':     cpMsgValue,
-              'channel_name':  cpChannelName,
-              'channel_image': cpChannelImage,
-              'link_url':      cpLinkUrl,
-            });
-          } catch (e) {
-            debugPrint('[FlutterBridge] open_content_player 오류: $e');
-          }
-          break;
-        case 'launch_youtube':
-          final url = data['url'] as String? ?? '';
-          if (url.isNotEmpty) {
-            final uri = Uri.parse(url);
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          }
-          break;
-        case 'open_url':
-          final openUrlStr = data['url'] as String? ?? '';
-          if (openUrlStr.isNotEmpty) {
-            final openUri = Uri.parse(openUrlStr);
-            await launchUrl(openUri, mode: LaunchMode.externalApplication);
-          }
-          break;
-        case 'get_fcm_token':
-          // 웹뷰에서 FCM 토큰 요청 → SharedPreferences에서 읽어서 콜백으로 전달
-          final callback = data['callback'] as String? ?? '';
-          if (callback.isNotEmpty) {
-            final prefs2 = await SharedPreferences.getInstance();
-            final token2 = prefs2.getString('fcm_token') ?? '';
-            _sendToWeb(callback, {'fcm_token': token2, 'platform': token2.isNotEmpty ? 'android' : 'web'});
-            debugPrint('[FlutterBridge] get_fcm_token → ${token2.isNotEmpty ? "토큰 전달" : "토큰 없음"}');
-          }
-          break;
-        case 'logout':
-          // 웹뷰에서 로그아웃 요청 → 세션 삭제 + 로그인 화면으로 이동
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.remove('session_token');
-          await prefs.remove('user_id');
-          await prefs.remove('email');
-          await prefs.remove('user_email');
-          await prefs.remove('display_name');
-          await prefs.remove('fcm_token');
-          await prefs.remove('permissions_setup_done');
-          debugPrint('[FlutterBridge] 로그아웃 완료 → /auth 이동');
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
-          }
-          break;
-      }
-    } catch (e) {
-      debugPrint('[FlutterBridge] error: $e');
-    }
-  }
-
-  void _sendToWeb(String callbackFn, Map<String, dynamic> result) {
-    final json = jsonEncode(result);
-    _controller.runJavaScript('if(typeof $callbackFn==="function")$callbackFn($json)');
-  }
-
-  Future<void> _launchAudioRecorder() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final filePath = '${dir.path}/recording_$timestamp.m4a';
-
-      // Kotlin MediaRecorder 시작
-      final result = await _audioChannel.invokeMethod('startRecording', {'path': filePath});
-      if (result == true) {
-        _isAudioRecording = true;
-        _pendingAudioPath = filePath;
-        _pendingAudioTimestamp = timestamp;
-        _controller.runJavaScript(
-          'if (typeof showToast === "function") showToast("🎙️ 녹음 중... 완료하려면 다시 누르세요");'
-        );
-      } else {
-        _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': '녹음 시작 실패'});
-      }
-    } catch (e) {
-      _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
-    }
-  }
-
-  // 녹음 중지 및 파일 반환
-  Future<void> _stopAudioRecorder() async {
-    if (!_isAudioRecording) return;
-    try {
-      // Kotlin MediaRecorder 중지
-      await _audioChannel.invokeMethod('stopRecording');
-      _isAudioRecording = false;
-
-      final path = _pendingAudioPath;
-      final timestamp = _pendingAudioTimestamp;
-      _pendingAudioPath = null;
-      _pendingAudioTimestamp = null;
-
-      if (path != null) {
-        final file = File(path);
-        if (await file.exists()) {
-          final fileSize = await file.length();
-          final fileName = 'recording_${timestamp ?? DateTime.now().millisecondsSinceEpoch}.m4a';
-          final bytes = await file.readAsBytes();
-          final base64Str = 'data:audio/mp4;base64,${base64Encode(bytes)}';
-          _sendToWeb('window._flutterFileCallback', {
-            'type': 'audio',
-            'name': fileName,
-            'path': path,
-            'size': fileSize,
-            'base64': base64Str
-          });
-        } else {
-          _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
+  void _initDeepLink() {
+    const deepLinkCh = MethodChannel('com.pushnotify.push_notify_app/deeplink');
+    deepLinkCh.setMethodCallHandler((call) async {
+      if (call.method == 'onDeepLink') {
+        final token = call.arguments as String?;
+        if (token != null && token.isNotEmpty) {
+          debugPrint('[DeepLink] onDeepLink: $token');
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) _showChannelJoinFlow(token);
         }
-      } else {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'audio'});
       }
-    } catch (e) {
-      _isAudioRecording = false;
-      _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
-    }
-  }
+    });
 
-  // ─────────────────────────────────────────────────────────
-  // 파일 업로드 헬퍼: 세이투두 방식 (Firebase Storage SDK 직접)
-  // base64 변환 없음, Cloudflare 경유 없음 → 앱→Firebase 1단계
-  // ─────────────────────────────────────────────────────────
-
-  /// 비디오 파일을 480p(MediumQuality)로 압축
-  /// 압축 실패 시 원본 경로 반환
-  Future<String> _compressVideo(String sourcePath) async {
-    try {
-      final MediaInfo? info = await VideoCompress.compressVideo(
-        sourcePath,
-        quality: VideoQuality.MediumQuality, // 480p 수준
-        deleteOrigin: false,
-        includeAudio: true,
-        frameRate: 30,
-      );
-      if (info != null && info.path != null) {
-        debugPrint('[VideoCompress] 압축 완료: ${info.path} / ${info.filesize}bytes');
-        return info.path!;
-      }
-    } catch (e) {
-      debugPrint('[VideoCompress] 압축 실패, 원본 사용: $e');
-    }
-    return sourcePath;
-  }
-
-  /// Cloudflare Worker에 파일 직접 업로드 (MultipartRequest, base64 없음)
-  /// [localPath] : 로컬 파일 경로
-  /// [fileName]  : 저장 파일명
-  /// [contentType] : MIME 타입
-  /// 업로드 완료 후 Firebase Storage download URL 반환
-  Future<String> _uploadToWorker(String localPath, String fileName, String contentType) async {
-    final prefs = await SharedPreferences.getInstance();
-    final sessionToken = prefs.getString('session_token') ?? '';
-
-    final uri = Uri.parse('$_baseUrl/api/uploads/alarm-file');
-    debugPrint('[_uploadToWorker] POST $uri fileName=$fileName contentType=$contentType');
-
-    final request = http.MultipartRequest('POST', uri);
-    request.fields['session_token'] = sessionToken;
-    request.files.add(await http.MultipartFile.fromPath(
-      'file', localPath,
-      filename: fileName,
-      contentType: MediaType.parse(contentType),
-    ));
-
-    final streamed = await request.send().timeout(const Duration(minutes: 3));
-    final body = await streamed.stream.bytesToString();
-    debugPrint('[_uploadToWorker] status=${streamed.statusCode} body=${body.length > 200 ? body.substring(0, 200) : body}');
-
-    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
-      // 200 범위 밖이면 JSON 파싱 시도 후 오류 반환
+    Future.delayed(const Duration(milliseconds: 1000), () async {
       try {
-        final errJson = jsonDecode(body) as Map<String, dynamic>;
-        throw Exception('업로드 실패 (${streamed.statusCode}): ${errJson['error'] ?? body}');
-      } catch (parseErr) {
-        if (parseErr is Exception && parseErr.toString().startsWith('Exception: 업로드 실패')) rethrow;
-        throw Exception('업로드 실패 (${streamed.statusCode}): $body');
-      }
-    }
-
-    final json = jsonDecode(body) as Map<String, dynamic>;
-    if (json['success'] == true && json['url'] != null) {
-      return json['url'] as String;
-    }
-    throw Exception('업로드 실패: ${json['error'] ?? body}');
+        final token = await deepLinkCh.invokeMethod<String?>('getInitialToken');
+        if (token != null && token.isNotEmpty) {
+          if (mounted) _showChannelJoinFlow(token);
+        }
+      } catch (_) {}
+    });
   }
 
-  /// 세션 토큰으로 userId를 SharedPreferences에서 가져오기
-  Future<String> _getUserId() async {
+  // ── force_logout 처리 ─────────────────────────────────
+  Future<void> _handleForceLogout(String reason) async {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('user_id') ?? prefs.getString('userId') ?? 'unknown';
-  }
+    await prefs.remove('session_token');
+    await prefs.remove('user_id');
+    await prefs.remove('email');
+    await prefs.remove('user_email');
+    await prefs.remove('display_name');
 
-  Future<void> _launchVideoRecorder() async {
-    try {
-      final picker = ImagePicker();
-      final XFile? video = await picker.pickVideo(
-        source: ImageSource.camera,
-        maxDuration: const Duration(minutes: 10),
-      );
-      if (video == null) { _sendToWeb('window._flutterFileCancelled', {'type': 'video'}); return; }
-
-      // 1) 480p 압축
-      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'compressing'});
-      final compressedPath = await _compressVideo(video.path);
-      final file = File(compressedPath);
-      final fileSize = await file.length();
-
-      // 2) 10MB 초과 체크
-      if (fileSize > 10 * 1024 * 1024) {
-        _sendToWeb('window._flutterFileError', {'type': 'video',
-          'error': '압축 후에도 10MB 초과 (${(fileSize/1024/1024).toStringAsFixed(1)}MB). 더 짧은 영상을 사용해 주세요.'});
-        return;
-      }
-
-      // 3) Cloudflare Worker로 직접 업로드 (바이트 전송, base64 없음)
-      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${compressedPath.split('/').last}';
-      final downloadUrl = await _uploadToWorker(compressedPath, fileName, 'video/mp4');
-
-      _sendToWeb('window._flutterFileCallback', {
-        'type': 'video', 'name': fileName,
-        'path': compressedPath, 'size': fileSize,
-        'url': downloadUrl,
-        'base64': '',
-      });
-    } catch (e) {
-      _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
-    }
-  }
-
-  Future<void> _pickAudioFile() async {
-    try {
-      // FileType.any 사용: FileType.audio / FileType.custom + allowedExtensions 모두
-      // 삼성 등 Android 실기기에서 m4a 선택을 막는 OS/file_picker 버그가 있음.
-      // FileType.any로 열고 앱 코드에서 직접 확장자 검사.
-      final result = await FilePicker.platform.pickFiles(
-          type: FileType.any,
-          withData: false,
-          withReadStream: false);
-      if (result == null || result.files.isEmpty) {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'audio'}); return;
-      }
-      final f = result.files.first;
-      if (f.path == null) {
-        _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': '파일 경로를 가져올 수 없습니다'}); return;
-      }
-
-      // 디버그 로그 — m4a가 어떤 타입으로 들어오는지 확인
-      final ext = f.name.split('.').last.toLowerCase();
-      debugPrint('[_pickAudioFile] path=${f.path}');
-      debugPrint('[_pickAudioFile] name=${f.name}  ext=$ext  extension=${f.extension}');
-
-      // 확장자 검증 (앱 코드에서 직접)
-      const allowed = ['mp3', 'm4a', 'wav'];
-      if (!allowed.contains(ext)) {
-        _sendToWeb('window._flutterFileError', {
-          'type': 'audio',
-          'error': '허용되지 않는 형식입니다. (mp3, m4a, wav만 가능)\n선택한 파일: ${f.name}'
-        });
-        return;
-      }
-
-      // 크기 체크
-      final fileSize = await File(f.path!).length();
-      if (fileSize > 10 * 1024 * 1024) {
-        _sendToWeb('window._flutterFileError', {'type': 'audio',
-          'error': '파일 크기가 10MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
-        return;
-      }
-
-      // Cloudflare Worker로 직접 업로드
-      _sendToWeb('window._flutterUploadProgress', {'type': 'audio', 'status': 'uploading'});
-      final mime     = ext == 'mp3' ? 'audio/mpeg' : 'audio/mp4'; // m4a → audio/mp4
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
-      debugPrint('[_pickAudioFile] mime=$mime  uploadFileName=$fileName');
-      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
-
-      _sendToWeb('window._flutterFileCallback', {
-        'type': 'audio', 'name': f.name,
-        'path': f.path!, 'size': fileSize,
-        'url': downloadUrl,
-        'base64': '',
-      });
-    } catch (e) {
-      _sendToWeb('window._flutterFileError', {'type': 'audio', 'error': e.toString()});
-    }
-  }
-
-  Future<void> _pickVideoFile() async {
-    try {
-      // FileType.any + 앱 코드 확장자 검사 (FileType.video도 일부 기기에서 mkv 등 차단)
-      final result = await FilePicker.platform.pickFiles(
-          type: FileType.any, withData: false, withReadStream: false);
-      if (result == null || result.files.isEmpty) {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'video'}); return;
-      }
-      final f = result.files.first;
-      if (f.path == null) {
-        _sendToWeb('window._flutterFileError', {'type': 'video', 'error': '파일 경로를 가져올 수 없습니다'}); return;
-      }
-
-      // 디버그 로그
-      final extV = f.name.split('.').last.toLowerCase();
-      debugPrint('[_pickVideoFile] path=${f.path}');
-      debugPrint('[_pickVideoFile] name=${f.name}  ext=$extV  extension=${f.extension}');
-
-      // 확장자 검증
-      const allowedV = ['mp4', 'mov'];
-      if (!allowedV.contains(extV)) {
-        _sendToWeb('window._flutterFileError', {
-          'type': 'video',
-          'error': '허용되지 않는 형식입니다. (mp4, mov만 가능)\n선택한 파일: ${f.name}'
-        });
-        return;
-      }
-
-      // 파일 크기 체크
-      final fileSize = await File(f.path!).length();
-      if (fileSize > 50 * 1024 * 1024) {
-        _sendToWeb('window._flutterFileError', {'type': 'video',
-          'error': '파일 크기가 50MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
-        return;
-      }
-
-      // Cloudflare Worker로 직접 업로드 (압축 없이, base64 없음)
-      _sendToWeb('window._flutterUploadProgress', {'type': 'video', 'status': 'uploading'});
-      final ext = f.name.split('.').last.toLowerCase();
-      final mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
-      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
-
-      _sendToWeb('window._flutterFileCallback', {
-        'type': 'video', 'name': f.name,
-        'path': f.path!, 'size': fileSize,
-        'url': downloadUrl,
-        'base64': '',
-      });
-    } catch (e) {
-      _sendToWeb('window._flutterFileError', {'type': 'video', 'error': e.toString()});
-    }
-  }
-
-  // v1.0.50: 채널 대표이미지 선택 - Flutter ImagePicker 사용 (WebView file input 우회)
-  // base64로 인코딩해서 웹뷰로 전달
-  Future<void> _pickChannelImage(String source) async {
-    try {
-      final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
-        maxWidth: 300,
-        maxHeight: 300,
-        imageQuality: 70,
-      );
-      if (image == null) {
-        _sendToWeb('window._flutterImageCancelled', {});
-        return;
-      }
-      final bytes = await image.readAsBytes();
-      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      _sendToWeb('window._flutterImageCallback', {
-        'base64': base64Str,
-        'name': image.name,
-      });
-    } catch (e) {
-      _sendToWeb('window._flutterImageError', {'error': e.toString()});
-    }
-  }
-
-  Future<void> _launchFilePicker() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,  // custom + allowedExtensions 대신 any로 열고 앱에서 검사
-        withData: false,
-        withReadStream: false,
-      );
-      if (result == null || result.files.isEmpty) {
-        _sendToWeb('window._flutterFileCancelled', {'type': 'file'});
-        return;
-      }
-
-      final f = result.files.first;
-      if (f.path == null) {
-        _sendToWeb('window._flutterFileError', {'type': 'file', 'error': '파일 경로를 가져올 수 없습니다'});
-        return;
-      }
-
-      // 1) 파일 크기 체크 (서버 전송 전에 미리)
-      final fileSize = await File(f.path!).length();
-      if (fileSize > 50 * 1024 * 1024) {
-        _sendToWeb('window._flutterFileError', {'type': 'file',
-          'error': '파일 크기가 50MB를 초과합니다 (${(fileSize/1024/1024).toStringAsFixed(1)}MB).'});
-        return;
-      }
-
-      // 2) MIME 타입 결정
-      final ext = f.name.split('.').last.toLowerCase();
-      debugPrint('[_launchFilePicker] path=${f.path}');
-      debugPrint('[_launchFilePicker] name=${f.name}  ext=$ext  extension=${f.extension}');
-
-      // 확장자 검증 (앱 코드에서 직접)
-      final audioExts = ['mp3','m4a','wav','aac','ogg','flac','wma'];
-      final videoExts = ['mp4','mov','mkv','avi','wmv','m4v','webm'];
-      if (!audioExts.contains(ext) && !videoExts.contains(ext)) {
-        _sendToWeb('window._flutterFileError', {
-          'type': 'file',
-          'error': '허용되지 않는 형식입니다.\n선택한 파일: ${f.name}'
-        });
-        return;
-      }
-
-      String mime = 'application/octet-stream';
-      if (audioExts.contains(ext)) mime = ext == 'm4a' ? 'audio/mp4' : 'audio/$ext';
-      else if (videoExts.contains(ext)) mime = ext == 'mov' ? 'video/quicktime' : (ext == 'mkv' ? 'video/x-matroska' : 'video/$ext');
-      debugPrint('[_launchFilePicker] mime=$mime');
-
-      // 3) Cloudflare Worker로 직접 업로드 (base64 없이 스트림 전송)
-      _sendToWeb('window._flutterUploadProgress', {'type': 'file', 'status': 'uploading'});
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
-      final downloadUrl = await _uploadToWorker(f.path!, fileName, mime);
-
-      // 4) 업로드 완료 후 URL만 WebView로 전달 (base64 없음)
-      _sendToWeb('window._flutterFileCallback', {
-        'type': 'file',
-        'name': f.name,
-        'path': f.path!,
-        'size': fileSize,
-        'url': downloadUrl,
-        'base64': '',
-      });
-    } catch (e) {
-      _sendToWeb('window._flutterFileError', {'type': 'file', 'error': e.toString()});
-    }
-  }
-
-  void _handleDeepLink(Uri uri) {
-    if (uri.host == 'join') {
-      final token = uri.queryParameters['token'] ?? '';
-      if (token.isNotEmpty) _showChannelJoinScreen(token);
-    }
-  }
-
-  // 채널 소개 화면 표시 (서버에서 채널 정보 조회 후)
-  Future<void> _showChannelJoinScreen(String token) async {
-    showDialog(
-      context: context,
+    final isDeleted = reason == 'deleted';
+    await showDialog(
+      context: ctx,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(
+            isDeleted ? Icons.person_remove : Icons.block,
+            color: isDeleted
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFFEF4444),
+            size: 22,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isDeleted ? '계정 삭제됨' : '계정 사용 불가',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold),
+          ),
+        ]),
+        content: Text(
+          isDeleted
+              ? '관리자에 의해 계정이 삭제되었습니다.\n다시 가입하실 수 있습니다.'
+              : '이 계정은 사용할 수 없습니다.\n다른 계정을 선택해주세요.',
+          style: const TextStyle(
+              color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('확인',
+                style: TextStyle(
+                    color: Color(0xFF6366F1),
+                    fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    navigatorKey.currentState
+        ?.pushNamedAndRemoveUntil('/auth', (route) => false);
+  }
+
+  // ── 채널 가입 딥링크 flow ───────────────────────────────
+  Future<void> _showChannelJoinFlow(String token) async {
+    final ctx = navigatorKey.currentContext ?? context;
+    // 로딩 다이얼로그
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
         ),
       ),
     );
 
-    // 채널 정보 조회
     Map<String, dynamic>? channelData;
     try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/api/invites/verify/$token'),
-      ).timeout(const Duration(seconds: 8));
+      final res = await http
+          .get(Uri.parse('$_baseUrl/api/invites/verify/$token'))
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true && body['valid'] == true) {
           channelData = body['data'] as Map<String, dynamic>?;
         }
       }
-    } catch (e) {
-      debugPrint('[DeepLink][4] 채널 정보 조회 실패: $e');
-    }
-
-    // 로딩 다이얼로그 닫기
-    if (mounted) Navigator.of(context).pop();
-
-    if (!mounted) return;
-
-    // 채널 소개 화면 표시
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _buildChannelJoinDialog(ctx, token, channelData),
-    );
-  }
-
-  Widget _buildChannelJoinDialog(BuildContext ctx, String token, Map<String, dynamic>? data) {
-    final channelName = data?['channel_name'] as String? ?? '채널 초대';
-    final channelDesc = data?['channel_description'] as String? ?? '';
-    final channelImageUrl = data?['channel_image_url'] as String? ?? '';
-    final channelId = data?['channel_id'];
-    final isValid = data != null;
-
-    // 이미지 위젯
-    Widget imageWidget;
-    if (channelImageUrl.isNotEmpty && channelImageUrl.startsWith('http')) {
-      imageWidget = ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          channelImageUrl,
-          width: 80, height: 80, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultChannelIcon(),
-        ),
-      );
-    } else if (channelId != null) {
-      // base64 이미지인 경우 프록시 URL 사용
-      imageWidget = ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          '$_baseUrl/api/channels/$channelId/image',
-          width: 80, height: 80, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultChannelIcon(),
-        ),
-      );
-    } else {
-      imageWidget = _defaultChannelIcon();
-    }
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1B4B),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 상단 배지
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6C63FF).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
-              ),
-              child: const Text('채널 초대',
-                style: TextStyle(color: Color(0xFFA5B4FC), fontSize: 12, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 20),
-            // 채널 이미지
-            imageWidget,
-            const SizedBox(height: 16),
-            // 채널명
-            Text(channelName,
-              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            // 채널 설명
-            if (channelDesc.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(channelDesc,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.5),
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            const SizedBox(height: 24),
-            // 참여 버튼
-            if (isValid) SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C63FF),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  // 채널 소개 페이지 열기 (가입은 사용자가 소개 페이지에서 직접)
-                  if (channelId != null) {
-                    final safeChName = channelName.replaceAll("'", "\\'");
-                    _controller.runJavaScript(
-                      "if(typeof App !== 'undefined') { App.goto('joined-all'); setTimeout(function(){ App.openChannelDetail($channelId, '$safeChName'); }, 400); }"
-                    );
-                  } else {
-                    _controller.runJavaScript(
-                      "if(typeof App !== 'undefined') { App.goto('joined-all'); }"
-                    );
-                  }
-                },
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.info_outline, size: 18),
-                    SizedBox(width: 8),
-                    Text('채널 소개 보기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ) else Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
-              ),
-              child: const Text('유효하지 않은 초대 링크입니다',
-                style: TextStyle(color: Colors.redAccent, fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 10),
-            // 취소 버튼
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('닫기', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 채널 가입 처리 (Flutter에서 직접 API 호출)
-  Future<void> _joinChannel(String token) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('user_id') ?? '';
-      final fcmToken = prefs.getString('fcm_token') ?? '';
-      final sessionToken = prefs.getString('session_token') ?? '';
-      final displayName = prefs.getString('display_name') ?? '';
-
-      if (userId.isEmpty || sessionToken.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('로그인이 필요합니다')),
-          );
-        }
-        return;
-      }
-
-      // 로딩 표시
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
-            ),
-          ),
-        );
-      }
-
-      final res = await http.post(
-        Uri.parse('$_baseUrl/api/invites/join'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $sessionToken',
-        },
-        body: jsonEncode({
-          'invite_token': token,
-          'user_id': userId,
-          'display_name': displayName,
-          'fcm_token': fcmToken,
-          'platform': 'android',
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      // 로딩 닫기
-      if (mounted) Navigator.of(context).pop();
-
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        final channelName = body['data']?['channel_name'] ?? '채널';
-        final channelId = body['data']?['channel_id'];
-        // 웹뷰 구독채널 탭으로 이동 후 해당 채널 소개 페이지 열기
-        await _controller.runJavaScript(
-          "if(typeof App !== 'undefined') { App.goto('joined-all'); ${channelId != null ? "setTimeout(function(){ App.openChannelDetail($channelId, '${channelName.replaceAll("'", "\\'")}'); }, 600);" : ''} }"
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$channelName 채널에 참여했습니다! 🎉'),
-              backgroundColor: const Color(0xFF6C63FF),
-            ),
-          );
-        }
-      } else {
-        final errMsg = body['message'] ?? body['error'] ?? '참여에 실패했습니다';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errMsg), backgroundColor: Colors.redAccent),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop();
-      debugPrint('[JoinChannel] 오류: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('네트워크 오류가 발생했습니다'), backgroundColor: Colors.redAccent),
-        );
-      }
-    }
-  }
-
-  Widget _defaultChannelIcon() {
-    return Container(
-      width: 80, height: 80,
-      decoration: BoxDecoration(
-        color: const Color(0xFF6C63FF).withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
-      ),
-      child: const Icon(Icons.notifications, color: Color(0xFF6C63FF), size: 36),
-    );
-  }
-
-  void _showJoinDialog(String token) {
-    _showChannelJoinScreen(token);
-  }
-
-  Future<bool> _onWillPop() async {
-    // 1. 웹뷰 JS에 goBack() 요청 → 웹에서 처리하면 false(앱 유지)
-    try {
-      final result = await _controller.runJavaScriptReturningResult(
-        'App && typeof App.goBack === "function" ? App.goBack() : true'
-      );
-      // JS가 false 반환 → 웹에서 처리 완료, 앱 유지
-      if (result.toString() == 'false' || result.toString() == 'null') {
-        return false;
-      }
     } catch (_) {}
 
-    // 2. WebView 히스토리가 있으면 뒤로
-    if (await _controller.canGoBack()) {
-      await _controller.goBack();
-      return false;
-    }
+    if (mounted) Navigator.of(ctx).pop();
+    if (!mounted) return;
 
-    // 3. 홈 탭 상태 → 앱 종료
-    return true;
+    final channelId = channelData?['channel_id'];
+    final channelName =
+        channelData?['channel_name'] as String? ?? '채널 초대';
+
+    if (channelId != null) {
+      // Navigate to channel detail in the main screen
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/main',
+        (route) => false,
+      );
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: const Color(0xFF000000),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              _hasError
-                ? _buildErrorView()
-                : WebViewWidget(controller: _controller),
-              if (_loading)
-                Positioned(
-                  top: 0, left: 0, right: 0,
-                  child: LinearProgressIndicator(
-                    value: _loadingProgress / 100,
-                    minHeight: 3,
-                    backgroundColor: Colors.transparent,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
-                  ),
-                ),
-              // 중간 로딩 전체화면 제거 – 블랙 배경이 WebView 아래에서 커버
-            ],
-          ),
-        ),
-      ),
-    );
+  Widget build(BuildContext context) =>
+      const ColoredBox(color: Color(0xFF000000));
+}
+
+// ═══════════════════════════════════════════════════
+// 파일 업로드 유틸리티 (send_screen 등에서 사용)
+// Kotlin → FlutterBridge 브릿지가 없어진 대신
+// Flutter 화면에서 직접 호출 가능하도록 top-level 함수로 노출
+// ═══════════════════════════════════════════════════
+
+/// Cloudflare Worker에 파일 업로드 → Firebase Storage URL 반환
+Future<String> uploadFileToWorker(
+    String localPath, String fileName, String contentType) async {
+  final prefs = await SharedPreferences.getInstance();
+  final sessionToken = prefs.getString('session_token') ?? '';
+
+  final uri = Uri.parse('$_baseUrl/api/uploads/alarm-file');
+  final request = http.MultipartRequest('POST', uri);
+  request.fields['session_token'] = sessionToken;
+  request.files.add(await http.MultipartFile.fromPath(
+    'file', localPath,
+    filename: fileName,
+    contentType: MediaType.parse(contentType),
+  ));
+
+  final streamed =
+      await request.send().timeout(const Duration(minutes: 3));
+  final body = await streamed.stream.bytesToString();
+
+  if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+    try {
+      final errJson = jsonDecode(body) as Map<String, dynamic>;
+      throw Exception(
+          '업로드 실패 (${streamed.statusCode}): ${errJson['error'] ?? body}');
+    } catch (parseErr) {
+      if (parseErr is Exception &&
+          parseErr.toString().startsWith('Exception: 업로드 실패')) {
+        rethrow;
+      }
+      throw Exception('업로드 실패 (${streamed.statusCode}): $body');
+    }
   }
 
-  Widget _buildErrorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const _AppLogo(),
-            const SizedBox(height: 32),
-            const Icon(Icons.wifi_off_rounded, color: Color(0xFF6C63FF), size: 56),
-            const SizedBox(height: 16),
-            const Text('서버에 연결할 수 없습니다',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('인터넷 연결을 확인하고 다시 시도해 주세요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.5)),
-            const SizedBox(height: 28),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('다시 시도', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              onPressed: () {
-                setState(() { _hasError = false; _loading = true; });
-                _controller.reload();
-              },
-            ),
-          ],
-        ),
-      ),
+  final json = jsonDecode(body) as Map<String, dynamic>;
+  if (json['success'] == true && json['url'] != null) {
+    return json['url'] as String;
+  }
+  throw Exception('업로드 실패: ${json['error'] ?? body}');
+}
+
+/// 비디오 480p 압축 (실패 시 원본 반환)
+Future<String> compressVideoFile(String sourcePath) async {
+  try {
+    final MediaInfo? info = await VideoCompress.compressVideo(
+      sourcePath,
+      quality: VideoQuality.MediumQuality,
+      deleteOrigin: false,
+      includeAudio: true,
+      frameRate: 30,
     );
+    if (info != null && info.path != null) return info.path!;
+  } catch (e) {
+    debugPrint('[VideoCompress] 압축 실패, 원본 사용: $e');
+  }
+  return sourcePath;
+}
+
+/// ImagePicker로 채널 이미지 선택 → base64 반환
+Future<String?> pickChannelImageBase64({String source = 'gallery'}) async {
+  try {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source == 'camera'
+          ? ImageSource.camera
+          : ImageSource.gallery,
+      maxWidth: 300,
+      maxHeight: 300,
+      imageQuality: 70,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes();
+    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  } catch (_) {
+    return null;
   }
 }
 
-// ── 앱 로고 위젯 ──────────────────────────────
-class _AppLogo extends StatelessWidget {
-  const _AppLogo();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 80, height: 80,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF6C63FF).withOpacity(0.4),
-                blurRadius: 20, offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.notifications_active, color: Colors.white, size: 40),
-        ),
-        const SizedBox(height: 14),
-        const Text('RinGo',
-          style: TextStyle(
-            color: Colors.white, fontSize: 22,
-            fontWeight: FontWeight.bold, letterSpacing: 0.5,
-          )),
-      ],
+/// FilePicker로 오디오 파일 선택 → Worker 업로드 → URL 반환
+Future<String?> pickAndUploadAudioFile() async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+      withReadStream: false,
     );
+    if (result == null || result.files.isEmpty) return null;
+    final f = result.files.first;
+    if (f.path == null) return null;
+
+    final ext = f.name.split('.').last.toLowerCase();
+    const allowed = ['mp3', 'm4a', 'wav'];
+    if (!allowed.contains(ext)) return null;
+
+    final fileSize = await File(f.path!).length();
+    if (fileSize > 10 * 1024 * 1024) return null;
+
+    final mime = ext == 'mp3' ? 'audio/mpeg' : 'audio/mp4';
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+    return await uploadFileToWorker(f.path!, fileName, mime);
+  } catch (_) {
+    return null;
   }
+}
+
+/// FilePicker로 비디오 파일 선택 → 압축 → Worker 업로드 → URL 반환
+Future<String?> pickAndUploadVideoFile() async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+      withReadStream: false,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    final f = result.files.first;
+    if (f.path == null) return null;
+
+    final ext = f.name.split('.').last.toLowerCase();
+    const allowed = ['mp4', 'mov'];
+    if (!allowed.contains(ext)) return null;
+
+    final fileSize = await File(f.path!).length();
+    if (fileSize > 50 * 1024 * 1024) return null;
+
+    final compressed = await compressVideoFile(f.path!);
+    final mime = ext == 'mov' ? 'video/quicktime' : 'video/mp4';
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${f.name}';
+    return await uploadFileToWorker(compressed, fileName, mime);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// ImagePicker로 비디오 녹화 → 압축 → Worker 업로드 → URL 반환
+Future<String?> recordAndUploadVideo() async {
+  try {
+    final picker = ImagePicker();
+    final XFile? video = await picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(minutes: 10),
+    );
+    if (video == null) return null;
+    final compressed = await compressVideoFile(video.path);
+    final fileSize = await File(compressed).length();
+    if (fileSize > 10 * 1024 * 1024) return null;
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${compressed.split('/').last}';
+    return await uploadFileToWorker(compressed, fileName, 'video/mp4');
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 임시 디렉토리에서 오디오 녹음 파일 경로 생성
+Future<String> getTempAudioPath() async {
+  final dir = await getTemporaryDirectory();
+  final ts = DateTime.now().millisecondsSinceEpoch;
+  return '${dir.path}/recording_$ts.m4a';
 }
