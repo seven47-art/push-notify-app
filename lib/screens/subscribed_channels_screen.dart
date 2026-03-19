@@ -35,6 +35,9 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   String? _error;
   String _token = '';
 
+  // 외부에서 reload 호출 가능하도록 public 메서드
+  void reload() => _load();
+
   // 검색
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();

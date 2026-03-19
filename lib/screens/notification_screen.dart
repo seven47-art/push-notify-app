@@ -185,15 +185,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
     if (confirm != true) return;
 
-    for (final id in _selectedIds) {
-      try {
-        await http.delete(
-          Uri.parse('$kBaseUrl/api/alarms/log/$id'),
-          headers: {'Authorization': 'Bearer $_token'},
-        );
-      } catch (_) {}
-    }
-    _load();
+    final endpoint = widget.mode == NotificationMode.inbox
+        ? '$kBaseUrl/api/alarms/inbox/bulk-delete'
+        : '$kBaseUrl/api/alarms/outbox/bulk-delete';
+
+    try {
+      await http.post(
+        Uri.parse(endpoint),
+        headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'log_ids': _selectedIds.toList()}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+
+    if (mounted) _load();
   }
 
   void _onItemTap(Map<String, dynamic> item) {

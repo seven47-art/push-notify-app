@@ -36,6 +36,9 @@ class MainScreen extends StatefulWidget {
 class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
+  // 구독채널 화면 reload를 위한 GlobalKey
+  final GlobalKey<_SubscribedChannelsScreenState> _subscribedKey = GlobalKey<_SubscribedChannelsScreenState>();
+
   final List<_TabItem> _tabs = const [
     _TabItem(icon: Icons.home_outlined,      activeIcon: Icons.home,            label: '홈'),
     _TabItem(icon: Icons.wifi_tethering,     activeIcon: Icons.wifi_tethering,  label: '내 채널'),
@@ -53,7 +56,7 @@ class MainScreenState extends State<MainScreen> {
     _screens = [
       const HomeScreenMain(),
       const MyChannelsScreen(),
-      const SubscribedChannelsScreen(),
+      SubscribedChannelsScreen(key: _subscribedKey),
       const NotificationScreen(mode: NotificationMode.inbox),
       const NotificationScreen(mode: NotificationMode.outbox),
       const ChannelExploreScreen(), // index 5 - 검색 아이콘으로 전환
@@ -109,7 +112,13 @@ class MainScreenState extends State<MainScreen> {
 
   /// 외부에서 탭 전환 가능하도록 퍼블릭 메서드
   void navigateToTab(int index) {
-    if (mounted) setState(() => _currentIndex = index);
+    if (mounted) {
+      setState(() => _currentIndex = index);
+      // 구독채널 탭으로 이동 시 목록 갱신
+      if (index == 2) {
+        _subscribedKey.currentState?.reload();
+      }
+    }
   }
 
   void _onTabTapped(int index) {

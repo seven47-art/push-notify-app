@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../utils/image_helper.dart';
 import 'alarm_schedule_screen.dart';
+import 'main_screen.dart';
 
 const _primary  = Color(0xFF6C63FF);
 const _teal     = Color(0xFF00BCD4);
@@ -120,7 +121,16 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
     } catch (_) {}
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      // 구독채널 탭(인덱스 2)으로 이동 → 목록 자동 갱신
+      final mainState = context.findAncestorStateOfType<MainScreenState>();
+      if (mainState != null) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+        mainState.navigateToTab(2);
+      } else {
+        Navigator.pop(context);
+      }
+    }
   }
 
   void _shareChannel() {
@@ -252,7 +262,14 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${ch['name'] ?? ''} 채널에 참여했습니다! 🎉')),
           );
-          Navigator.pop(context); // 상세 화면 닫기
+          // 구독채널 탭(인덱스 2)으로 이동
+          final mainState = context.findAncestorStateOfType<MainScreenState>();
+          if (mainState != null) {
+            Navigator.popUntil(context, (route) => route.isFirst);
+            mainState.navigateToTab(2);
+          } else {
+            Navigator.pop(context);
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(joinBody['error']?.toString() ?? '참여에 실패했습니다')),
@@ -401,16 +418,6 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.person_outline, size: 13, color: _text2),
-                          const SizedBox(width: 3),
-                          Flexible(
-                            child: Text(userId, style: const TextStyle(fontSize: 12, color: _text2), overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
                           const Icon(Icons.group, size: 14, color: _text2),
                           const SizedBox(width: 3),
                           Text('$memberCount명', style: const TextStyle(fontSize: 12, color: _text2)),
@@ -518,8 +525,12 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: GestureDetector(
                 onTap: () async {
-                  final uri = Uri.tryParse(homepage);
-                  if (uri != null && await canLaunchUrl(uri)) {
+                  var urlStr = homepage;
+                  if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+                    urlStr = 'https://$urlStr';
+                  }
+                  final uri = Uri.tryParse(urlStr);
+                  if (uri != null) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },

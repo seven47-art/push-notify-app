@@ -163,7 +163,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
               controller: _nameCtrl,
               maxLength: 10,
               style: const TextStyle(fontSize: 14, color: _text),
-              onChanged: (_) { if (_nameError != null) setState(() => _nameError = null); },
+              onChanged: (_) => setState(() => _nameError = null),
               decoration: InputDecoration(
                 hintText: '10자 내로 적어주세요',
                 errorText: _nameError,
@@ -189,7 +189,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
               maxLines: 3,
               maxLength: 50,
               style: const TextStyle(fontSize: 14, color: _text),
-              onChanged: (_) { if (_descError != null) setState(() => _descError = null); },
+              onChanged: (_) => setState(() => _descError = null),
               decoration: InputDecoration(
                 hintText: '50자 내로 적어주세요',
                 errorText: _descError,
