@@ -38,7 +38,6 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   // 검색
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
-  bool _showSearch = false;
 
   @override
   void initState() {
@@ -103,52 +102,21 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Row(
-                  children: [
-                    const Text(
-                      '구독 채널',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: Icon(_showSearch ? Icons.close : Icons.search, color: _text, size: 22),
-                      onPressed: () {
-                        setState(() {
-                          _showSearch = !_showSearch;
-                          if (!_showSearch) {
-                            _searchQuery = '';
-                            _searchCtrl.clear();
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_showSearch)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: '채널명으로 검색...',
-                      hintStyle: const TextStyle(color: _text2, fontSize: 14),
-                      prefixIcon: const Icon(Icons.search, color: _text2, size: 20),
-                      filled: true,
-                      fillColor: const Color(0xFFF5F5F5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                child: SizedBox(
+                  height: 36,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        '구독 채널',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    onChanged: (v) => setState(() => _searchQuery = v),
+                    ],
                   ),
                 ),
               ),
+            ),
+
             if (_loading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator(color: _primary)),
