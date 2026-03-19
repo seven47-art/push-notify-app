@@ -18,7 +18,7 @@ class _TermsScreenState extends State<TermsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('termsAccepted', true);
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/main');
+    Navigator.of(context).pushReplacementNamed('/native_main');
   }
 
   @override

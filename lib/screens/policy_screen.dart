@@ -1,22 +1,14 @@
 // lib/screens/policy_screen.dart
-// Phase 3: 서버에서 약관/개인정보처리방침 텍스트를 받아 표시
-// type: 'terms' → GET /api/settings/terms
-// type: 'privacy' → GET /api/settings/privacy
+// 스크린샷 기준: 뒤로가기 + 약관/개인정보 텍스트 표시
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../config.dart';
 
-const _bg      = Color(0xFF121212);
-const _bg2     = Color(0xFF1E1E2E);
-const _primary = Color(0xFF6C63FF);
-const _text    = Colors.white;
-const _text2   = Color(0xFFB0B0C8);
-const _text3   = Color(0xFF64748B);
-const _border  = Color(0xFF3A3A55);
+enum PolicyType { terms, privacy }
 
 class PolicyScreen extends StatefulWidget {
-  final String type; // 'terms' | 'privacy'
+  final PolicyType type;
   const PolicyScreen({super.key, required this.type});
 
   @override
@@ -24,12 +16,9 @@ class PolicyScreen extends StatefulWidget {
 }
 
 class _PolicyScreenState extends State<PolicyScreen> {
-  String? _content;
-  bool    _loading = true;
-  String? _error;
-
-  String get _title =>
-      widget.type == 'terms' ? '서비스 이용약관' : '개인정보 처리방침';
+  String _content = '';
+  bool _loading = true;
+  String _error = '';
 
   @override
   void initState() {
@@ -38,115 +27,58 @@ class _PolicyScreenState extends State<PolicyScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
     try {
-      final res = await http
-          .get(Uri.parse('$kBaseUrl/api/settings/${widget.type}'))
-          .timeout(const Duration(seconds: 15));
+      final endpoint = widget.type == PolicyType.terms
+          ? '$kBaseUrl/api/settings/terms'
+          : '$kBaseUrl/api/settings/privacy';
+      final res = await http.get(Uri.parse(endpoint))
+          .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final value = body['data']?['value']?.toString() ?? '';
-        setState(() {
-          _content = value.isNotEmpty ? value : '등록된 내용이 없습니다.';
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = '서버 오류 (${res.statusCode})';
-          _loading = false;
-        });
+        if (body['success'] == true) {
+          final data = body['data'];
+          final text = (data is Map ? data['content'] : data)?.toString() ?? '';
+          if (mounted) setState(() { _content = text; _loading = false; });
+          return;
+        }
       }
+      if (mounted) setState(() { _loading = false; _error = '불러오기 실패'; });
     } catch (e) {
-      setState(() {
-        _error = '불러오기 실패. 네트워크를 확인해주세요.';
-        _loading = false;
-      });
+      if (mounted) setState(() { _loading = false; _error = '네트워크 오류'; });
     }
   }
+
+  String get _title =>
+      widget.type == PolicyType.terms ? '서비스 이용약관' : '개인정보처리방침';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: _bg2,
-        title: Text(_title,
-            style: const TextStyle(color: _text, fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _text),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF333333)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(_title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF222222))),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, size: 56, color: Color(0xFFEF4444)),
-                      const SizedBox(height: 12),
-                      Text(_error!,
-                          style: const TextStyle(color: _text2, fontSize: 14),
-                          textAlign: TextAlign.center),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: _primary, foregroundColor: Colors.white),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('다시 시도'),
-                        onPressed: _load,
-                      ),
-                    ],
-                  ),
-                )
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(child: Text(_error, style: const TextStyle(color: Colors.grey)))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 제목 헤더
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _bg2,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _border),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              widget.type == 'terms'
-                                  ? Icons.description_outlined
-                                  : Icons.privacy_tip_outlined,
-                              color: _primary,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              _title,
-                              style: const TextStyle(
-                                  color: _text,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // 본문 텍스트
-                      SelectableText(
-                        _content ?? '',
-                        style: const TextStyle(
-                          color: _text2,
-                          fontSize: 14,
-                          height: 1.7,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  child: Text(
+                    _content.isNotEmpty ? _content : '$_title 내용을 불러오는 중...',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF333333),
+                      height: 1.7,
+                    ),
                   ),
                 ),
     );

@@ -214,7 +214,7 @@ class _PermissionScreenState extends State<PermissionScreen>
     if (!termsAccepted) {
       Navigator.of(context).pushReplacementNamed('/terms');
     } else {
-      Navigator.of(context).pushReplacementNamed('/main');
+      Navigator.of(context).pushReplacementNamed('/native_main');
     }
   }
 

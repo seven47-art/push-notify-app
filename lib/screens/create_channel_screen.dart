@@ -1,429 +1,317 @@
 // lib/screens/create_channel_screen.dart
+// 스크린샷 기준: 채널 만들기 바텀시트
+// 채널명(필수)/채널소개(필수)/홈페이지/대표이미지/비밀번호 + 확인/취소
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config.dart';
 
-class CreateChannelScreen extends StatefulWidget {
-  const CreateChannelScreen({super.key});
+const _primary = Color(0xFF6C63FF);
+const _teal    = Color(0xFF00BCD4);
+const _text    = Color(0xFF222222);
+const _text2   = Color(0xFF888888);
+const _border  = Color(0xFFEEEEEE);
+const _red     = Color(0xFFFF4444);
+
+// ── 바텀시트로 사용 ──────────────────────────────
+class CreateChannelSheet extends StatefulWidget {
+  const CreateChannelSheet({super.key});
 
   @override
-  State<CreateChannelScreen> createState() => _CreateChannelScreenState();
+  State<CreateChannelSheet> createState() => _CreateChannelSheetState();
 }
 
-class _CreateChannelScreenState extends State<CreateChannelScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _descController = TextEditingController();
-  final _homepageController = TextEditingController();
-
+class _CreateChannelSheetState extends State<CreateChannelSheet> {
+  final _nameCtrl     = TextEditingController();
+  final _descCtrl     = TextEditingController();
+  final _homepageCtrl = TextEditingController();
+  bool _isPrivate     = false;
   File? _selectedImage;
-  bool _isLoading = false;
+  bool _saving        = false;
+  String? _nameError;
+  String? _descError;
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    _descController.dispose();
-    _homepageController.dispose();
+    _nameCtrl.dispose();
+    _descCtrl.dispose();
+    _homepageCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E1E2E),
-      shape: const RoundedRectangleBorder(
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (xfile != null && mounted) {
+      setState(() => _selectedImage = File(xfile.path));
+    }
+  }
+
+  bool _validate() {
+    bool ok = true;
+    if (_nameCtrl.text.trim().isEmpty || _nameCtrl.text.trim().length > 10) {
+      setState(() => _nameError = '채널명을 10자 이내로 입력해주세요.');
+      ok = false;
+    } else {
+      setState(() => _nameError = null);
+    }
+    if (_descCtrl.text.trim().isEmpty || _descCtrl.text.trim().length > 50) {
+      setState(() => _descError = '채널 소개를 50자 이내로 입력해주세요.');
+      ok = false;
+    } else {
+      setState(() => _descError = null);
+    }
+    return ok;
+  }
+
+  Future<void> _submit() async {
+    if (!_validate()) return;
+    setState(() => _saving = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final body = {
+        'name': _nameCtrl.text.trim(),
+        'description': _descCtrl.text.trim(),
+        'homepage': _homepageCtrl.text.trim(),
+        'is_private': _isPrivate,
+      };
+      final res = await http.post(
+        Uri.parse('$kBaseUrl/api/channels'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('채널이 생성되었습니다.')),
+          );
+        }
+        return;
+      }
+      // 에러 처리
+      if (mounted) {
+        final errBody = jsonDecode(res.body) as Map<String, dynamic>?;
+        final msg = errBody?['error']?.toString() ?? '채널 생성에 실패했습니다.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('네트워크 오류가 발생했습니다.')),
+        );
+      }
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '사용할 애플리케이션',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildImageSourceButton(
-                  icon: Icons.photo_library,
-                  label: '갤러리',
-                  color: const Color(0xFFE91E63),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _getImage(ImageSource.gallery);
-                  },
-                ),
-                _buildImageSourceButton(
-                  icon: Icons.camera_alt,
-                  label: '카메라',
-                  color: const Color(0xFF2196F3),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _getImage(ImageSource.camera);
-                  },
-                ),
-              ],
-            ),
+            Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
+            const Text('채널 만들기', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text)),
+            const SizedBox(height: 16),
+
+            // 채널명 (필수)
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildImageSourceButton(
-                  icon: Icons.image,
-                  label: '포토',
-                  color: const Color(0xFF4CAF50),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _getImage(ImageSource.gallery);
-                  },
+                const Text('채널명 (필수)', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+                const Spacer(),
+                const Text('* 변경 불가', style: TextStyle(fontSize: 11, color: _red)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _nameCtrl,
+              maxLength: 10,
+              onChanged: (_) { if (_nameError != null) setState(() => _nameError = null); },
+              decoration: InputDecoration(
+                hintText: '10자 내로 적어주세요',
+                errorText: _nameError,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _border),
                 ),
-                _buildImageSourceButton(
-                  icon: Icons.cancel_outlined,
-                  label: '취소',
-                  color: Colors.grey,
-                  onTap: () => Navigator.pop(ctx),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _primary),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                counterText: '${_nameCtrl.text.length}/10',
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 채널 소개 (필수)
+            const Text('채널 소개 (필수)', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _descCtrl,
+              maxLines: 3,
+              maxLength: 50,
+              onChanged: (_) { if (_descError != null) setState(() => _descError = null); },
+              decoration: InputDecoration(
+                hintText: '50자 내로 적어주세요',
+                errorText: _descError,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _primary),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+                counterText: '${_descCtrl.text.length}/50',
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 채널 홈페이지
+            const Text('채널 홈페이지', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _homepageCtrl,
+              decoration: InputDecoration(
+                hintText: 'https://',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _primary),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 채널 대표이미지 선택
+            const Text('채널 대표이미지 선택', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _border),
+                ),
+                child: Row(
+                  children: [
+                    _selectedImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(_selectedImage!, width: 40, height: 40, fit: BoxFit.cover),
+                          )
+                        : Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(Icons.camera_alt_outlined, color: Colors.grey, size: 20),
+                          ),
+                    const SizedBox(width: 12),
+                    Text(
+                      _selectedImage != null ? _selectedImage!.path.split('/').last : '탭하여 이미지 선택',
+                      style: const TextStyle(fontSize: 13, color: _text2),
+                    ),
+                    const Spacer(),
+                    const Text('미선택시 기본 이미지 적용', style: TextStyle(fontSize: 11, color: _text2)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 비밀번호
+            const Text('비밀번호', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _border),
+              ),
+              child: Row(
+                children: [
+                  Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 18, color: _text2),
+                  const SizedBox(width: 8),
+                  const Text('비밀채널 미설정', style: TextStyle(fontSize: 13, color: _text2)),
+                  const Spacer(),
+                  Switch(
+                    value: _isPrivate,
+                    onChanged: (v) => setState(() => _isPrivate = v),
+                    activeColor: _primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _teal,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('확인'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: const BorderSide(color: _border),
+                    ),
+                    child: const Text('취소', style: TextStyle(color: _text2)),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildImageSourceButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-            ),
-            child: Icon(icon, color: color, size: 32),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(color: Colors.grey[300], fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _getImage(ImageSource source) async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: source,
-        imageQuality: 80,
-        maxWidth: 512,
-        maxHeight: 512,
-      );
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 선택 실패: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _createChannel() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // 홈페이지 URL https 검증
-    final homepage = _homepageController.text.trim();
-    if (homepage.isNotEmpty && !homepage.startsWith('https://')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final result = await ApiService.createChannel(
-      channelName: _nameController.text.trim(),
-      phoneNumber: _phoneController.text.trim(),
-      description: _descController.text.trim(),
-      homepageUrl: _homepageController.text.trim(),
-    );
-
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('채널이 생성되었습니다!'),
-          backgroundColor: Color(0xFF4CAF50),
-        ),
-      );
-      Navigator.pop(context, true); // true = 새로고침 필요
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['error'] ?? '채널 생성에 실패했습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
+// ── 기존 화면 방식 호환 (사용되지 않지만 유지) ────
+class CreateChannelScreen extends StatelessWidget {
+  const CreateChannelScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E2E),
-        foregroundColor: Colors.white,
-        title: const Text(
-          '채널 만들기',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 채널명
-              _buildLabel('채널명'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _nameController,
-                hint: '10자 내로 적어주세요',
-                maxLength: 10,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return '채널명을 입력하세요';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // 채널 전화번호
-              _buildLabel('채널 전화번호'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _phoneController,
-                hint: '',
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 20),
-
-              // 채널 소개
-              _buildLabel('채널 소개'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _descController,
-                hint: '50자 내로 적어주세요',
-                maxLength: 50,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 20),
-
-              // 채널 대표이미지 선택
-              _buildLabel('채널 대표이미지 선택'),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A3E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.grey[700]!,
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // 이미지 미리보기 or 기본 아이콘
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF3A3A4E),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: _selectedImage != null
-                            ? Image.file(
-                                _selectedImage!,
-                                fit: BoxFit.cover,
-                              )
-                            : const Icon(
-                                Icons.mic,
-                                color: Color(0xFF6C63FF),
-                                size: 36,
-                              ),
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        '미선택시 새이투두 이미지 적용',
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 채널 홈페이지
-              _buildLabel('채널 홈페이지'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _homepageController,
-                hint: 'https://',
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 12),
-
-              const SizedBox(height: 32),
-
-              // 확인 버튼
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createChannel,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF26D0CE),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          '확인',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    int? maxLength,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      maxLength: maxLength,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      validator: validator,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[600], fontSize: 13),
-        filled: true,
-        fillColor: const Color(0xFF2A2A3E),
-        counterStyle: TextStyle(color: Colors.grey[600]),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[700]!, width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[700]!, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
-    );
+    return const CreateChannelSheet();
   }
 }

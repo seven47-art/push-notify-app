@@ -1,20 +1,16 @@
 // lib/screens/notices_screen.dart
-// Phase 6-3: 공지사항 화면 — GET /api/notices, 아코디언 열람, 미열람 배지
+// 스크린샷 기준: ← 공지사항 + 확장가능한 목록 (빨간점 신규표시 + 날짜 + 체브론)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 
-const _bg      = Color(0xFF121212);
-const _bg2     = Color(0xFF1E1E2E);
-const _bg3     = Color(0xFF2A2A3E);
 const _primary = Color(0xFF6C63FF);
-const _text    = Colors.white;
-const _text2   = Color(0xFFB0B0C8);
-const _text3   = Color(0xFF64748B);
-const _border  = Color(0xFF3A3A55);
-const _red     = Color(0xFFEF4444);
+const _text    = Color(0xFF222222);
+const _text2   = Color(0xFF888888);
+const _border  = Color(0xFFEEEEEE);
+const _bg      = Color(0xFFFFFFFF);
 
 class NoticesScreen extends StatefulWidget {
   const NoticesScreen({super.key});
@@ -24,93 +20,71 @@ class NoticesScreen extends StatefulWidget {
 }
 
 class _NoticesScreenState extends State<NoticesScreen> {
-  List<Map<String, dynamic>> _items    = [];
-  bool   _loading  = true;
-  bool   _hasMore  = false;
-  int    _offset   = 0;
+  List<Map<String, dynamic>> _notices = [];
+  bool _loading = true;
   String? _error;
-
-  // 열린 공지 id 집합 (아코디언)
-  final Set<String> _expanded = {};
-  // 열람한 공지 id
-  Set<String> _seen = {};
-
-  static const int _limit = 20;
+  Set<String> _expanded = {};
+  Set<String> _seenIds  = {};
 
   @override
   void initState() {
     super.initState();
-    _loadSeen().then((_) => _load());
+    _load();
   }
 
-  Future<void> _loadSeen() async {
-    final prefs = await SharedPreferences.getInstance();
-    _seen = (prefs.getStringList('seen_notices') ?? []).toSet();
-  }
-
-  Future<void> _saveSeen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('seen_notices', _seen.toList());
-  }
-
-  Future<void> _load({bool refresh = true}) async {
-    if (refresh) {
-      setState(() { _loading = true; _error = null; _offset = 0; _items = []; });
-    }
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
-      final offset = refresh ? 0 : _offset;
-      final res = await http
-          .get(Uri.parse('$kBaseUrl/api/notices?limit=$_limit&offset=$offset'))
-          .timeout(const Duration(seconds: 15));
-      if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      _seenIds = Set.from(prefs.getStringList('seen_notice_ids') ?? []);
+
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/notices'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true) {
-          final newItems = (body['data'] as List? ?? [])
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-          setState(() {
-            if (refresh) {
-              _items = newItems;
-            } else {
-              _items = [..._items, ...newItems];
-            }
-            _hasMore = body['hasMore'] == true;
-            _offset  = _items.length;
-            _loading = false;
-          });
-        } else {
-          setState(() { _loading = false; _error = body['error']?.toString(); });
+          if (mounted) {
+            setState(() {
+              _notices = List<Map<String, dynamic>>.from(
+                (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+              _loading = false;
+            });
+          }
+          return;
         }
-      } else {
-        setState(() { _loading = false; _error = '서버 오류 (${res.statusCode})'; });
       }
-    } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = '연결 실패'; });
+      if (mounted) setState(() { _loading = false; _error = '공지사항을 불러올 수 없습니다.'; });
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _error = '네트워크 오류가 발생했습니다.'; });
     }
   }
 
-  void _toggle(String id) {
+  void _toggleExpand(String id) async {
     setState(() {
       if (_expanded.contains(id)) {
         _expanded.remove(id);
       } else {
         _expanded.add(id);
-        // 열람 처리
-        if (!_seen.contains(id)) {
-          _seen.add(id);
-          _saveSeen();
-        }
+        _seenIds.add(id);
       }
     });
+    // 읽음 처리 저장
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('seen_notice_ids', _seenIds.toList());
   }
 
-  String _formatDate(String? raw) {
-    if (raw == null || raw.isEmpty) return '';
+  String _formatDate(dynamic raw) {
+    if (raw == null) return '';
     try {
-      final dt = DateTime.parse(raw).toLocal();
-      return '${dt.year}.${dt.month.toString().padLeft(2,'0')}.${dt.day.toString().padLeft(2,'0')}';
-    } catch (_) { return raw.substring(0, 10); }
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return raw.toString();
+    }
   }
 
   @override
@@ -118,160 +92,96 @@ class _NoticesScreenState extends State<NoticesScreen> {
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg2,
-        title: const Text('공지사항',
-            style: TextStyle(color: _text, fontWeight: FontWeight.bold)),
+        backgroundColor: _bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _text),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.pop(context),
         ),
-        elevation: 0,
+        title: const Text('공지사항', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _text)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _primary))
           : _error != null
-              ? _buildError()
-              : _items.isEmpty
-                  ? _buildEmpty()
+              ? Center(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text(_error!, style: const TextStyle(color: _text2)),
+                    const SizedBox(height: 12),
+                    TextButton(onPressed: _load, child: const Text('다시 시도')),
+                  ],
+                ))
+              : _notices.isEmpty
+                  ? const Center(child: Text('공지사항이 없습니다.', style: TextStyle(color: _text2)))
                   : RefreshIndicator(
-                      onRefresh: _load,
                       color: _primary,
+                      onRefresh: _load,
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _items.length + (_hasMore ? 1 : 0),
-                        itemBuilder: (_, i) {
-                          if (i == _items.length) {
-                            return _buildMoreBtn();
-                          }
-                          return _buildNoticeItem(_items[i]);
+                        itemCount: _notices.length,
+                        itemBuilder: (context, index) {
+                          final notice = _notices[index];
+                          final id = notice['id']?.toString() ?? '$index';
+                          final title = notice['title']?.toString() ?? notice['content']?.toString() ?? '';
+                          final content = notice['content']?.toString() ?? '';
+                          final date = _formatDate(notice['created_at']);
+                          final isNew = !_seenIds.contains(id);
+                          final isExpanded = _expanded.contains(id);
+
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () => _toggleExpand(id),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.campaign, size: 18, color: _primary),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          title,
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _text),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (isNew) ...[
+                                        Container(
+                                          width: 8, height: 8,
+                                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      Text(date, style: const TextStyle(fontSize: 12, color: _text2)),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                                        size: 18,
+                                        color: _text2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (isExpanded)
+                                Container(
+                                  width: double.infinity,
+                                  color: const Color(0xFFF9F9F9),
+                                  padding: const EdgeInsets.fromLTRB(44, 12, 16, 16),
+                                  child: Text(
+                                    content,
+                                    style: const TextStyle(fontSize: 13, color: _text, height: 1.6),
+                                  ),
+                                ),
+                              const Divider(height: 1, color: _border),
+                            ],
+                          );
                         },
                       ),
                     ),
-    );
-  }
-
-  Widget _buildNoticeItem(Map<String, dynamic> item) {
-    final id       = item['id']?.toString() ?? '';
-    final title    = item['title']?.toString() ?? '공지';
-    final content  = item['content']?.toString() ?? '';
-    final date     = _formatDate(item['created_at']?.toString());
-    final isOpen   = _expanded.contains(id);
-    final isUnread = !_seen.contains(id);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: _bg2,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isOpen ? _primary.withOpacity(0.4) : _border),
-      ),
-      child: Column(
-        children: [
-          // 헤더 (탭으로 열기/닫기)
-          InkWell(
-            onTap: () => _toggle(id),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.campaign_rounded, color: _primary, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(title,
-                        style: const TextStyle(
-                            color: _text,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                  if (isUnread)
-                    Container(
-                      width: 8, height: 8, margin: const EdgeInsets.only(right: 8),
-                      decoration: const BoxDecoration(color: _red, shape: BoxShape.circle),
-                    ),
-                  Text(date, style: const TextStyle(color: _text3, fontSize: 11)),
-                  const SizedBox(width: 8),
-                  Icon(
-                    isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: _text3, size: 18),
-                ],
-              ),
-            ),
-          ),
-          // 내용 (펼쳐질 때만 표시)
-          if (isOpen)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Divider(height: 1, color: _border),
-                  const SizedBox(height: 12),
-                  SelectableText(content,
-                      style: const TextStyle(
-                          color: _text2, fontSize: 13, height: 1.7)),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMoreBtn() {
-    return GestureDetector(
-      onTap: () => _load(refresh: false),
-      child: Container(
-        margin: const EdgeInsets.only(top: 8),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-            color: _bg2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _border)),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline, color: _primary, size: 18),
-            SizedBox(width: 6),
-            Text('더보기', style: TextStyle(color: _primary, fontSize: 14, fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.campaign_outlined, size: 72, color: _text3),
-          SizedBox(height: 16),
-          Text('등록된 공지사항이 없습니다', style: TextStyle(color: _text3, fontSize: 15)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 56, color: _red),
-          const SizedBox(height: 12),
-          Text(_error ?? '', style: const TextStyle(color: _text2, fontSize: 14)),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
-            icon: const Icon(Icons.refresh),
-            label: const Text('다시 시도'),
-            onPressed: _load,
-          ),
-        ],
-      ),
     );
   }
 }

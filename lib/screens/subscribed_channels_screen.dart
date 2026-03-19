@@ -1,12 +1,12 @@
-// lib/screens/my_channels_screen.dart
-// 스크린샷 기준: ← 내 채널 제목 + + 채널 만들기 버튼 + 채널 목록
+// lib/screens/subscribed_channels_screen.dart
+// 스크린샷 기준: ← 구독 채널 제목 + 채널 목록 (채널이미지/이름/잠금아이콘/구독자수/채널소개)
+// 탭 버튼이 눌리면 채널 상세(구독자 뷰)로 이동
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import 'channel_detail_screen.dart';
-import 'create_channel_screen.dart';
 
 const _primary = Color(0xFF6C63FF);
 const _text    = Color(0xFF222222);
@@ -21,23 +21,34 @@ const List<Color> _avatarColors = [
   Color(0xFF607D8B), Color(0xFF4CAF50), Color(0xFF2196F3),
 ];
 
-class MyChannelsScreen extends StatefulWidget {
-  const MyChannelsScreen({super.key});
+class SubscribedChannelsScreen extends StatefulWidget {
+  const SubscribedChannelsScreen({super.key});
 
   @override
-  State<MyChannelsScreen> createState() => _MyChannelsScreenState();
+  State<SubscribedChannelsScreen> createState() => _SubscribedChannelsScreenState();
 }
 
-class _MyChannelsScreenState extends State<MyChannelsScreen> {
+class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
   bool _loading = true;
   String? _error;
   String _token = '';
 
+  // 검색
+  String _searchQuery = '';
+  final _searchCtrl = TextEditingController();
+  bool _showSearch = false;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -46,7 +57,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
       final res = await http.get(
-        Uri.parse('$kBaseUrl/api/channels/mine'),
+        Uri.parse('$kBaseUrl/api/channels/subscribed'),
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
 
@@ -63,33 +74,18 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
           return;
         }
       }
-      if (mounted) setState(() { _loading = false; _error = '채널 목록을 불러올 수 없습니다.'; });
-    } catch (e) {
+      if (mounted) setState(() { _loading = false; _error = '구독 채널을 불러올 수 없습니다.'; });
+    } catch (_) {
       if (mounted) setState(() { _loading = false; _error = '네트워크 오류가 발생했습니다.'; });
     }
   }
 
-  Future<void> _openChannel(Map<String, dynamic> channel) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChannelDetailScreen(
-          channelId: channel['id']?.toString() ?? '',
-          isOwner: true,
-        ),
-      ),
-    );
-    _load();
-  }
-
-  Future<void> _openCreateChannel() async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const CreateChannelSheet(),
-    );
-    _load();
+  List<Map<String, dynamic>> get _filtered {
+    if (_searchQuery.isEmpty) return _channels;
+    return _channels.where((ch) {
+      final name = ch['name']?.toString().toLowerCase() ?? '';
+      return name.contains(_searchQuery.toLowerCase());
+    }).toList();
   }
 
   @override
@@ -107,31 +103,49 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                 child: Row(
                   children: [
                     const Text(
-                      '내 채널',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _text,
-                      ),
+                      '구독 채널',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
                     ),
                     const Spacer(),
-                    OutlinedButton.icon(
-                      onPressed: _openCreateChannel,
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('채널 만들기', style: TextStyle(fontSize: 13)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _primary,
-                        side: const BorderSide(color: _primary),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+                    IconButton(
+                      icon: Icon(_showSearch ? Icons.close : Icons.search, color: _text, size: 22),
+                      onPressed: () {
+                        setState(() {
+                          _showSearch = !_showSearch;
+                          if (!_showSearch) {
+                            _searchQuery = '';
+                            _searchCtrl.clear();
+                          }
+                        });
+                      },
                     ),
                   ],
                 ),
               ),
             ),
+            if (_showSearch)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: '채널명으로 검색...',
+                      hintStyle: const TextStyle(color: _text2, fontSize: 14),
+                      prefixIcon: const Icon(Icons.search, color: _text2, size: 20),
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                  ),
+                ),
+              ),
             if (_loading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator(color: _primary)),
@@ -151,25 +165,17 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                   ),
                 ),
               )
-            else if (_channels.isEmpty)
+            else if (_filtered.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.wifi_tethering, size: 56, color: Colors.grey[300]),
+                      Icon(Icons.list_alt, size: 56, color: Colors.grey[300]),
                       const SizedBox(height: 12),
-                      const Text('운영 중인 채널이 없습니다.', style: TextStyle(color: _text2)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _openCreateChannel,
-                        icon: const Icon(Icons.add),
-                        label: const Text('채널 만들기'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
+                      Text(
+                        _searchQuery.isNotEmpty ? '검색 결과가 없습니다.' : '구독 중인 채널이 없습니다.',
+                        style: const TextStyle(color: _text2),
                       ),
                     ],
                   ),
@@ -179,14 +185,25 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    if (index >= _channels.length) return null;
+                    if (index >= _filtered.length) return null;
                     return _ChannelListTile(
-                      channel: _channels[index],
+                      channel: _filtered[index],
                       colorIndex: index % _avatarColors.length,
-                      onTap: () => _openChannel(_channels[index]),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChannelDetailScreen(
+                              channelId: _filtered[index]['id']?.toString() ?? '',
+                              isOwner: false,
+                            ),
+                          ),
+                        );
+                        _load();
+                      },
                     );
                   },
-                  childCount: _channels.length,
+                  childCount: _filtered.length,
                 ),
               ),
           ],
@@ -204,13 +221,13 @@ class _ChannelListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name       = channel['name']?.toString() ?? '';
-    final desc       = channel['description']?.toString() ?? '';
-    final imageUrl   = channel['image_url']?.toString();
+    final name        = channel['name']?.toString() ?? '';
+    final desc        = channel['description']?.toString() ?? '';
+    final imageUrl    = channel['image_url']?.toString();
     final memberCount = channel['member_count'] ?? channel['subscriber_count'] ?? 0;
-    final isPrivate  = channel['is_private'] == true || channel['is_private'] == 1;
+    final isPrivate   = channel['is_private'] == true || channel['is_private'] == 1;
     final avatarColor = _avatarColors[colorIndex];
-    final initial    = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initial     = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return InkWell(
       onTap: onTap,
