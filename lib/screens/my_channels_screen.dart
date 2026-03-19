@@ -265,6 +265,7 @@ class _ChannelListTile extends StatelessWidget {
                     Text(
                       desc,
                       style: const TextStyle(fontSize: 12, color: _text2),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
