@@ -9,6 +9,7 @@ import '../config.dart';
 import 'notices_screen.dart';
 import 'settings_screen.dart';
 import 'join_channel_screen.dart';
+import 'main_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
 const _bg      = Color(0xFFFFFFFF);
