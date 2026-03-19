@@ -4,9 +4,11 @@
 //   구독자 뷰: 채널헤더 + 공유📤/신고🚩/나가기🚪 버튼 + 채널소개 + 홈페이지
 //   초대코드 바텀시트 / 알람설정 바텀시트 / 채널설정 바텀시트 / 신고 바텀시트
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
@@ -15,8 +17,8 @@ import 'alarm_schedule_screen.dart';
 const _primary  = Color(0xFF6C63FF);
 const _teal     = Color(0xFF00BCD4);
 const _text     = Color(0xFF222222);
-const _text2    = Color(0xFF888888);
-const _border   = Color(0xFFEEEEEE);
+const _text2    = Color(0xFF555555);
+const _border   = Color(0xFFDDDDDD);
 const _bg       = Color(0xFFFFFFFF);
 const _red      = Color(0xFFFF4444);
 
@@ -457,15 +459,19 @@ class _ChannelSettingsSheet extends StatefulWidget {
 class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
   late final TextEditingController _descCtrl;
   late final TextEditingController _homepageCtrl;
-  bool _isPrivate = false;
-  bool _saving = false;
+  late final TextEditingController _passwordCtrl;
+  bool _isPrivate    = false;
+  bool _saving       = false;
+  bool _showPassword = false;
   String? _imageUrl;
+  File? _selectedImage;
 
   @override
   void initState() {
     super.initState();
     _descCtrl     = TextEditingController(text: widget.channel['description']?.toString() ?? '');
     _homepageCtrl = TextEditingController(text: widget.channel['homepage']?.toString() ?? widget.channel['website']?.toString() ?? '');
+    _passwordCtrl = TextEditingController();
     _isPrivate    = widget.channel['is_private'] == true || widget.channel['is_private'] == 1;
     _imageUrl     = widget.channel['image_url']?.toString();
   }
@@ -474,23 +480,35 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
   void dispose() {
     _descCtrl.dispose();
     _homepageCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final xfile  = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (xfile != null && mounted) {
+      setState(() { _selectedImage = File(xfile.path); _imageUrl = null; });
+    }
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      final body = <String, dynamic>{
+        'description': _descCtrl.text,
+        'homepage':    _homepageCtrl.text,
+        'is_private':  _isPrivate,
+        if (_isPrivate && _passwordCtrl.text.isNotEmpty)
+          'password': _passwordCtrl.text,
+      };
       await http.put(
         Uri.parse('$kBaseUrl/api/channels/${widget.channel['id']}'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'description': _descCtrl.text,
-          'homepage': _homepageCtrl.text,
-          'is_private': _isPrivate,
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
     } catch (_) {}
     if (mounted) {
@@ -572,29 +590,50 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             // 채널 대이미지
             const Text('채널 대표이미지', style: TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _border),
-              ),
-              child: Row(
-                children: [
-                  _imageUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(_imageUrl!, width: 40, height: 40, fit: BoxFit.cover),
-                        )
-                      : Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.camera_alt, color: Colors.grey, size: 20),
-                        ),
-                  const SizedBox(width: 12),
-                  const Text('탭하여 변경', style: TextStyle(fontSize: 13, color: _text2)),
-                ],
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _border),
+                ),
+                child: Row(
+                  children: [
+                    _selectedImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(_selectedImage!, width: 40, height: 40, fit: BoxFit.cover),
+                          )
+                        : _imageUrl != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(_imageUrl!, width: 40, height: 40, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                        width: 40, height: 40,
+                                        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(8)),
+                                        child: const Icon(Icons.camera_alt, color: Colors.grey, size: 20))),
+                              )
+                            : Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(8)),
+                                child: const Icon(Icons.camera_alt_outlined, color: Colors.grey, size: 20),
+                              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _selectedImage != null
+                            ? _selectedImage!.path.split('/').last
+                            : '탭하여 이미지 선택',
+                        style: const TextStyle(fontSize: 13, color: _text2),
+                      ),
+                    ),
+                    const Text('미선택시 기본 이미지 적용',
+                        style: TextStyle(fontSize: 11, color: _text2)),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -604,26 +643,60 @@ class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: _isPrivate ? const Color(0xFFEEEBFF) : const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _border),
+                border: Border.all(color: _isPrivate ? _primary : _border),
               ),
               child: Row(
                 children: [
-                  Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 18, color: _text2),
+                  Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 18,
+                      color: _isPrivate ? _primary : _text2),
                   const SizedBox(width: 8),
                   Text(_isPrivate ? '비밀채널 설정됨' : '비밀채널 미설정',
-                      style: const TextStyle(fontSize: 13, color: _text2)),
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: _isPrivate ? _primary : _text2,
+                          fontWeight: FontWeight.w600)),
                   const Spacer(),
                   Switch(
                     value: _isPrivate,
-                    onChanged: (v) => setState(() => _isPrivate = v),
+                    onChanged: (v) => setState(() { _isPrivate = v; if (!v) _passwordCtrl.clear(); }),
                     activeColor: _primary,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
               ),
             ),
+            if (_isPrivate) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: !_showPassword,
+                decoration: InputDecoration(
+                  hintText: '비밀번호를 입력하세요',
+                  hintStyle: const TextStyle(color: _text2, fontSize: 13),
+                  prefixIcon: const Icon(Icons.lock_outline, size: 18, color: _text2),
+                  suffixIcon: IconButton(
+                    icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility,
+                        size: 18, color: _text2),
+                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [

@@ -12,8 +12,8 @@ import '../config.dart';
 const _primary = Color(0xFF6C63FF);
 const _teal    = Color(0xFF00BCD4);
 const _text    = Color(0xFF222222);
-const _text2   = Color(0xFF888888);
-const _border  = Color(0xFFEEEEEE);
+const _text2   = Color(0xFF555555);  // 흐린 회색 → 진한 색으로 수정
+const _border  = Color(0xFFDDDDDD);
 const _red     = Color(0xFFFF4444);
 
 // ── 바텀시트로 사용 ──────────────────────────────
@@ -28,17 +28,20 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
   final _nameCtrl     = TextEditingController();
   final _descCtrl     = TextEditingController();
   final _homepageCtrl = TextEditingController();
-  bool _isPrivate     = false;
+  bool _isPrivate       = false;
   File? _selectedImage;
-  bool _saving        = false;
+  bool _saving           = false;
   String? _nameError;
   String? _descError;
+  final _passwordCtrl    = TextEditingController();
+  bool _showPassword     = false;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _homepageCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -80,6 +83,8 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
         'homepage': _homepageCtrl.text.trim(),
         'is_private': _isPrivate,
         'owner_id': userId,
+        if (_isPrivate && _passwordCtrl.text.isNotEmpty)
+          'password': _passwordCtrl.text,
       };
       final res = await http.post(
         Uri.parse('$kBaseUrl/api/channels'),
@@ -249,25 +254,61 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: _isPrivate ? const Color(0xFFEEEBFF) : const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _border),
+                border: Border.all(color: _isPrivate ? _primary : _border),
               ),
               child: Row(
                 children: [
-                  Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 18, color: _text2),
+                  Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 18,
+                      color: _isPrivate ? _primary : _text2),
                   const SizedBox(width: 8),
-                  const Text('비밀채널 미설정', style: TextStyle(fontSize: 13, color: _text2)),
+                  Text(_isPrivate ? '비밀채널 설정됨' : '비밀채널 미설정',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: _isPrivate ? _primary : _text2,
+                          fontWeight: FontWeight.w600)),
                   const Spacer(),
                   Switch(
                     value: _isPrivate,
-                    onChanged: (v) => setState(() => _isPrivate = v),
+                    onChanged: (v) => setState(() { _isPrivate = v; if (!v) _passwordCtrl.clear(); }),
                     activeColor: _primary,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
               ),
             ),
+            // 비밀번호 입력칸 (비밀채널 ON일 때만 표시)
+            if (_isPrivate) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: !_showPassword,
+                decoration: InputDecoration(
+                  hintText: '비밀번호를 입력하세요',
+                  hintStyle: const TextStyle(color: _text2, fontSize: 13),
+                  prefixIcon: const Icon(Icons.lock_outline, size: 18, color: _text2),
+                  suffixIcon: IconButton(
+                    icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility,
+                        size: 18, color: _text2),
+                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _primary),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             Row(
