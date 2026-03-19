@@ -226,7 +226,7 @@ class _ChannelListTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: _border, width: 0.5)),
         ),
@@ -236,7 +236,7 @@ class _ChannelListTile extends StatelessWidget {
             channelAvatar(
               imageUrl: imageUrl,
               name: name,
-              size: 48,
+              size: 40,
               bgColor: avatarColor,
               borderRadius: 12,
             ),
