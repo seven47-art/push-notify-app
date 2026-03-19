@@ -67,9 +67,13 @@ class _SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
         if (body['success'] == true) {
           if (mounted) {
             setState(() {
-              // subscribers API는 channel_name, image_url 등 포함
-              _channels = List<Map<String, dynamic>>.from(
+              // subscribers API는 channel_name, image_url, owner_id 등 포함
+              // 내가 만든 채널(owner_id == userId)은 구독채널 목록에서 제외
+              final all = List<Map<String, dynamic>>.from(
                 (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+              _channels = userId.isEmpty
+                  ? all
+                  : all.where((ch) => ch['owner_id']?.toString() != userId).toList();
               _loading = false;
             });
           }
