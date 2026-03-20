@@ -80,15 +80,13 @@ class MainScreenState extends State<MainScreen> {
   // ── 네이티브 화면용 FCM 이벤트 처리 ─────────────────────────────
   // lib/main.dart (WebView)의 FCM 핸들러와 별개로 네이티브 화면에서도 처리
   void _listenFcmForNative() {
+    // 포그라운드 메시지 처리
     FirebaseMessaging.onMessage.listen((message) async {
       final action = message.data['action'] ?? '';
 
       // ── channel_deleted: 해당 채널을 내채널/구독채널/수신함/발신함에서 즉시 제거 ──
       if (action == 'channel_deleted') {
-        _myChannelsKey.currentState?.reload();
-        _subscribedKey.currentState?.reload();
-        _inboxKey.currentState?.reload();
-        _outboxKey.currentState?.reload();
+        _reloadAllTabs();
         return;
       }
 
@@ -99,6 +97,40 @@ class MainScreenState extends State<MainScreen> {
         return;
       }
     });
+
+    // 백그라운드에서 알림 탭해서 앱 재개 시 처리
+    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+      final action = message.data['action'] ?? '';
+      if (action == 'channel_deleted') {
+        _reloadAllTabs();
+      } else if (action == 'force_logout') {
+        final reason = message.data['reason'] ?? 'deleted';
+        await _handleForceLogoutNative(reason);
+      }
+    });
+
+    // 종료 상태에서 알림 탭해서 앱 실행 시 처리
+    FirebaseMessaging.instance.getInitialMessage().then((message) async {
+      if (message == null) return;
+      final action = message.data['action'] ?? '';
+      if (action == 'channel_deleted') {
+        // 화면 빌드 완료 후 갱신
+        WidgetsBinding.instance.addPostFrameCallback((_) => _reloadAllTabs());
+      } else if (action == 'force_logout') {
+        final reason = message.data['reason'] ?? 'deleted';
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await _handleForceLogoutNative(reason);
+        });
+      }
+    });
+  }
+
+  // ── 전체 탭 데이터 갱신 ──────────────────────────────────────────
+  void _reloadAllTabs() {
+    _myChannelsKey.currentState?.reload();
+    _subscribedKey.currentState?.reload();
+    _inboxKey.currentState?.reload();
+    _outboxKey.currentState?.reload();
   }
 
   // ── 딥링크 초기화: pushapp://join?token=xxx → JoinChannelScreen ──────────
