@@ -1871,8 +1871,7 @@ async function uploadBannerImage(input) {
   const file = input.files?.[0]
   if (!file) return
   const statusEl = document.getElementById('banner-upload-status')
-  statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>업로드 중...'
-  statusEl.style.color = '#94a3b8'
+  if (statusEl) { statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>업로드 중...'; statusEl.style.color = '#94a3b8' }
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -1880,16 +1879,18 @@ async function uploadBannerImage(input) {
     const data = await res.json()
     if (data.success) {
       document.getElementById('banner-image-url').value = data.image_url
-      statusEl.innerHTML = '<i class="fas fa-check mr-1"></i>업로드 완료'
-      statusEl.style.color = '#6ee7b7'
+      if (statusEl) { statusEl.innerHTML = '<i class="fas fa-check mr-1"></i>업로드 완료'; statusEl.style.color = '#6ee7b7' }
       updateBannerPreviewFromInputs()
+      alert('✅ 업로드 완료! 아래 "배너 설정 저장" 버튼을 눌러 저장하세요.')
     } else {
-      statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + (data.message || '업로드 실패')
-      statusEl.style.color = '#f87171'
+      const msg = data.message || '업로드 실패'
+      if (statusEl) { statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + msg; statusEl.style.color = '#f87171' }
+      alert('❌ ' + msg)
     }
-  } catch(e) {
-    statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>오류: ' + e.message
-    statusEl.style.color = '#f87171'
+  } catch(e: any) {
+    const msg = '오류: ' + e.message
+    if (statusEl) { statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + msg; statusEl.style.color = '#f87171' }
+    alert('❌ ' + msg)
   }
   input.value = ''
 }
