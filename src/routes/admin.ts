@@ -1248,7 +1248,7 @@ function adminDashboardHTML() {
         <div class="flex items-center gap-2 mb-2">
           <label class="cursor-pointer btn-primary text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
             <i class="fas fa-upload"></i>파일 업로드
-            <input type="file" id="banner-image-file" accept="image/jpeg,image/jpg,image/webp,image/gif" class="hidden" onchange="uploadBannerImage(this)">
+            <input type="file" id="banner-image-file" accept=".jpg,.jpeg,.webp,.gif" class="hidden" onchange="uploadBannerImage(this)">
           </label>
           <span id="banner-upload-status" class="text-slate-500 text-xs"></span>
         </div>
