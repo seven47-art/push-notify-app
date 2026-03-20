@@ -1,7 +1,7 @@
 // lib/screens/my_channels_screen.dart
 // 스크린샷 기준: ← 내 채널 제목 + + 채널 만들기 버튼 + 채널 목록
 // 알람 배지: 알람 예약이 있는 채널에 빨간 카운트 배지 표시
-// 필터: 전체 / 알람설정 탭
+// 필터: 전체 / 예약알람 탭
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,10 +37,12 @@ class MyChannelsScreen extends StatefulWidget {
 class _MyChannelsScreenState extends State<MyChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
   Map<String, int> _alarmCounts = {}; // channelId → 알람 개수
+  List<Map<String, dynamic>> _allAlarms = []; // 전체 알람 상세 목록 (예약알람 탭용)
+  bool _loadingAlarms = false; // 알람 목록 로딩
   bool _loading = true;
   String? _error;
   String _token = '';
-  bool _showAlarmOnly = false; // 알람설정된 채널만 보기
+  bool _showAlarmOnly = false; // 예약알람 탭 선택 여부
 
   @override
   void initState() {
@@ -104,12 +106,85 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _filtered {
-    if (!_showAlarmOnly) return _channels;
-    return _channels.where((ch) {
-      final id = ch['id']?.toString() ?? '';
-      return (_alarmCounts[id] ?? 0) > 0;
-    }).toList();
+  // 전체 탭용 채널 목록 (알람 탭에선 _allAlarms 사용)
+  List<Map<String, dynamic>> get _filtered => _channels;
+
+  /// 채널별 알람 상세 목록 로드 (예약알람 탭 전환 시 호출)
+  Future<void> _loadAllAlarms() async {
+    if (_channels.isEmpty) return;
+    setState(() => _loadingAlarms = true);
+    try {
+      final prefs  = await SharedPreferences.getInstance();
+      final token  = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+
+      final List<Map<String, dynamic>> result = [];
+      // 채널별로 알람 조회 (알람 있는 채널만)
+      final alarmedChannels = _channels.where((ch) {
+        final id = ch['id']?.toString() ?? '';
+        return (_alarmCounts[id] ?? 0) > 0;
+      }).toList();
+
+      for (final ch in alarmedChannels) {
+        final channelId = ch['id']?.toString() ?? '';
+        if (channelId.isEmpty) continue;
+        try {
+          final res = await http.get(
+            Uri.parse('\$kBaseUrl/api/alarms?channel_id=\$channelId&created_by=\$userId'),
+            headers: {'Authorization': 'Bearer \$token'},
+          ).timeout(const Duration(seconds: 10));
+          if (res.statusCode == 200) {
+            final body = jsonDecode(res.body) as Map<String, dynamic>;
+            if (body['success'] == true) {
+              final alarms = List<Map<String, dynamic>>.from(
+                (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+              // 채널 정보를 알람에 합쳐서 저장
+              for (final alarm in alarms) {
+                result.add({
+                  ...alarm,
+                  '_channelName': ch['name']?.toString() ?? '',
+                  '_channelImageUrl': ch['image_url']?.toString(),
+                  '_channelColorIndex': _channels.indexOf(ch) % _avatarColors.length,
+                });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 날짜 오름차순 정렬
+      result.sort((a, b) {
+        final at = a['scheduled_at']?.toString() ?? '';
+        final bt = b['scheduled_at']?.toString() ?? '';
+        return at.compareTo(bt);
+      });
+
+      if (mounted) setState(() { _allAlarms = result; _loadingAlarms = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingAlarms = false);
+    }
+  }
+
+  /// 알람 삭제 (예약알람 탭에서 직접 삭제)
+  Future<void> _deleteAlarmDirect(String alarmId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final res = await http.delete(
+        Uri.parse('\$kBaseUrl/api/alarms/\$alarmId'),
+        headers: {'Authorization': 'Bearer \$token'},
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        if (mounted) {
+          setState(() => _allAlarms.removeWhere((a) => a['id']?.toString() == alarmId));
+          // 알람 카운트도 갱신
+          _load();
+          showCenterToast(context, '알람이 삭제되었습니다.');
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) showCenterToast(context, '알람 삭제에 실패했습니다.');
   }
 
   Future<void> _openChannel(Map<String, dynamic> channel) async {
@@ -155,13 +230,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
           }),
           _PopupItem(icon: Icons.edit_outlined, label: '채널수정', onTap: () async {
             Navigator.pop(context);
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChannelDetailScreen(channelId: channelId, isOwner: true),
-              ),
-            );
-            _load();
+            await _openChannelSettings(channelId);
           }),
           _PopupItem(
             icon: Icons.delete_outline,
@@ -176,6 +245,43 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       ),
       ),
     );
+  }
+
+  // 채널수정 → 채널 설정 바텀시트 직접 오픈
+  Future<void> _openChannelSettings(String channelId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+
+      // 채널 상세 정보 로드
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/channels/$channelId'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      if (res.statusCode != 200) {
+        showCenterToast(context, '채널 정보를 불러올 수 없습니다.');
+        return;
+      }
+
+      final channel = jsonDecode(res.body) as Map<String, dynamic>;
+
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => ChannelSettingsSheet(
+          channel: channel,
+          token: token,
+          onSaved: _load,
+        ),
+      );
+      _load();
+    } catch (e) {
+      if (mounted) showCenterToast(context, '오류가 발생했습니다.');
+    }
   }
 
   // 초대코드 바텀시트
@@ -283,7 +389,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayList = _filtered;
+    final displayList = _showAlarmOnly ? [] : _filtered;
     return Scaffold(
       backgroundColor: _bg,
       body: RefreshIndicator(
@@ -329,7 +435,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // 필터 탭: 전체 / 알람설정
+                    // 필터 탭: 전체 / 예약알람
                     Row(
                       children: [
                         _FilterChip(
@@ -339,9 +445,12 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                         ),
                         const SizedBox(width: 8),
                         _FilterChip(
-                          label: '알람설정',
+                          label: '예약알람',
                           selected: _showAlarmOnly,
-                          onTap: () => setState(() => _showAlarmOnly = true),
+                          onTap: () {
+                            setState(() => _showAlarmOnly = true);
+                            _loadAllAlarms();
+                          },
                           icon: Icons.alarm,
                         ),
                       ],
@@ -370,33 +479,61 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                   ),
                 ),
               )
+            // ── 예약알람 탭 ──────────────────────────────────────────────
+            else if (_showAlarmOnly)
+              _loadingAlarms
+                ? const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator(color: _primary)),
+                  )
+                : _allAlarms.isEmpty
+                  ? SliverFillRemaining(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.alarm_off_outlined, size: 56, color: Colors.grey[300]),
+                            const SizedBox(height: 12),
+                            const Text('예약된 알람이 없습니다.', style: TextStyle(color: _text2)),
+                          ],
+                        ),
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index >= _allAlarms.length) return null;
+                          return _AlarmListTile(
+                            alarm: _allAlarms[index],
+                            onDelete: () => _deleteAlarmDirect(
+                              _allAlarms[index]['id']?.toString() ?? ''),
+                          );
+                        },
+                        childCount: _allAlarms.length,
+                      ),
+                    )
+
+            // ── 전체 탭 ──────────────────────────────────────────────────
             else if (displayList.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _showAlarmOnly ? Icons.alarm_off : Icons.wifi_tethering,
-                        size: 56, color: Colors.grey[300]),
+                      Icon(Icons.wifi_tethering, size: 56, color: Colors.grey[300]),
                       const SizedBox(height: 12),
-                      Text(
-                        _showAlarmOnly ? '알람이 설정된 채널이 없습니다.' : '운영 중인 채널이 없습니다.',
-                        style: const TextStyle(color: _text2),
-                      ),
-                      if (!_showAlarmOnly) ...[
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _openCreateChannel,
-                          icon: const Icon(Icons.add),
-                          label: const Text('채널 만들기'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          ),
+                      const Text('운영 중인 채널이 없습니다.', style: TextStyle(color: _text2)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _openCreateChannel,
+                        icon: const Icon(Icons.add),
+                        label: const Text('채널 만들기'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
@@ -715,6 +852,131 @@ class _InviteCodeSheet extends StatelessWidget {
                 side: const BorderSide(color: Color(0xFFEEEEEE)),
               ),
               child: const Text('닫기', style: TextStyle(color: Color(0xFF888888))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 예약알람 탭: 알람 아이템 위젯 ────────────────────────────────────────────
+class _AlarmListTile extends StatelessWidget {
+  final Map<String, dynamic> alarm;
+  final VoidCallback onDelete;
+  const _AlarmListTile({required this.alarm, required this.onDelete});
+
+  String _formatScheduledAt(String? raw) {
+    if (raw == null) return '-';
+    try {
+      final dt   = DateTime.parse(raw).toLocal();
+      final ampm = dt.hour < 12 ? '오전' : '오후';
+      final h    = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m    = dt.minute.toString().padLeft(2, '0');
+      return '${dt.month}월 ${dt.day}일  $ampm $h:$m';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  String _msgTypeLabel(String msgType) {
+    switch (msgType) {
+      case 'youtube': return 'YouTube';
+      case 'video':   return '동영상';
+      case 'audio':   return '오디오';
+      default:        return msgType.isNotEmpty ? msgType : '파일';
+    }
+  }
+
+  IconData _msgTypeIcon(String msgType) {
+    switch (msgType) {
+      case 'youtube': return Icons.smart_display;
+      case 'video':   return Icons.videocam_outlined;
+      default:        return Icons.music_note_outlined;
+    }
+  }
+
+  Color _msgTypeColor(String msgType) {
+    switch (msgType) {
+      case 'youtube': return Colors.red;
+      case 'video':   return Colors.blue;
+      default:        return const Color(0xFF00BCD4);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final channelName     = alarm['_channelName']?.toString() ?? '';
+    final imageUrl        = alarm['_channelImageUrl']?.toString();
+    final colorIdx        = (alarm['_channelColorIndex'] as int?) ?? 0;
+    final scheduledAt     = _formatScheduledAt(alarm['scheduled_at']?.toString());
+    final msgType         = alarm['msg_type']?.toString() ?? '';
+    final typeLabel       = _msgTypeLabel(msgType);
+    final typeIcon        = _msgTypeIcon(msgType);
+    final typeColor       = _msgTypeColor(msgType);
+    final avatarBg        = _avatarColors[colorIdx % _avatarColors.length];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          // 채널 아바타
+          channelAvatar(
+            imageUrl: imageUrl,
+            name: channelName,
+            size: 46,
+            bgColor: avatarBg,
+            borderRadius: 12,
+          ),
+          const SizedBox(width: 12),
+          // 채널명 + 날짜/시간 + 콘텐츠 종류
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  channelName,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  scheduledAt,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _text),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(typeIcon, size: 13, color: typeColor),
+                    const SizedBox(width: 4),
+                    Text(typeLabel,
+                      style: const TextStyle(fontSize: 12, color: _text2)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 삭제 버튼
+          GestureDetector(
+            onTap: onDelete,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4444).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.delete_outline, size: 14, color: Color(0xFFFF4444)),
+                  SizedBox(width: 3),
+                  Text('삭제',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFFF4444), fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           ),
         ],
