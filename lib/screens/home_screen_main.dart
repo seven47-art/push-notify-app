@@ -183,8 +183,14 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
   }
 
   Widget _buildBanner() {
+    // 로딩 중이면 빈 공간 (레이아웃 튐 방지)
+    if (_bannerLoading) return const SizedBox.shrink();
+
+    // 서버에 설정값 없으면 배너 숨김 (하드코딩 기본 배너 표시 안 함)
+    if (_banner == null) return const SizedBox.shrink();
+
     // enabled == false 이면 배너 숨김
-    final enabled = _banner?['enabled'] as bool? ?? true;
+    final enabled = _banner!['enabled'] as bool? ?? true;
     if (!enabled) return const SizedBox.shrink();
 
     final bannerType = _banner?['type'] as String? ?? 'svg';
