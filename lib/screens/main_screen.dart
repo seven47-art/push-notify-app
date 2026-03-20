@@ -36,6 +36,7 @@ class MainScreen extends StatefulWidget {
 // 퍼블릭 State - 자식 위젯에서 findAncestorStateOfType<MainScreenState>() 로 접근
 class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  bool _hasUnreadNotice = false;
 
   // 구독채널 화면 reload를 위한 GlobalKey
   final GlobalKey<SubscribedChannelsScreenState> _subscribedKey = GlobalKey<SubscribedChannelsScreenState>();
@@ -63,8 +64,32 @@ class MainScreenState extends State<MainScreen> {
       const ChannelExploreScreen(), // index 5 - 검색 아이콘으로 전환
     ];
     _registerFcmToken();
+    _checkUnreadNotices();
     // 빌드 완료 후 terms 체크
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkTerms());
+  }
+
+  Future<void> _checkUnreadNotices() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$kBaseUrl/api/notices?limit=20&offset=0'))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = (body['data'] as List? ?? [])
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
+        if (list.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          final seen = prefs.getStringList('seen_notice_ids') ?? [];
+          final seenSet = seen.toSet();
+          final hasUnread = list.any((n) => !seenSet.contains(n['id']?.toString() ?? ''));
+          if (mounted) setState(() => _hasUnreadNotice = hasUnread);
+        } else {
+          if (mounted) setState(() => _hasUnreadNotice = false);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkTerms() async {
@@ -153,6 +178,8 @@ class MainScreenState extends State<MainScreen> {
           Navigator.pop(ctx);
           setState(() => _currentIndex = index);
         },
+        hasUnreadNotice: _hasUnreadNotice,
+        onNoticeRead: _checkUnreadNotices,
       ),
       transitionBuilder: (ctx, anim, secAnim, child) {
         final offset = Tween<Offset>(
@@ -202,11 +229,27 @@ class MainScreenState extends State<MainScreen> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
           },
         ),
-        IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF333333), size: 24),
-          padding: const EdgeInsets.only(left: 4, right: 12, top: 4, bottom: 4),
-          visualDensity: VisualDensity.compact,
-          onPressed: () => _openDrawer(context),
+        Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.menu, color: Color(0xFF333333), size: 24),
+              padding: const EdgeInsets.only(left: 4, right: 12, top: 4, bottom: 4),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _openDrawer(context),
+            ),
+            if (_hasUnreadNotice)
+              Positioned(
+                top: 8,
+                right: 12,
+                child: Container(
+                  width: 8, height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(width: 4),
       ],
@@ -284,7 +327,13 @@ class _TabItem {
 // ── 햄버거 드로어 (우측에서) ──────────────────────
 class _HamburgerDrawer extends StatefulWidget {
   final void Function(int) onTabSelect;
-  const _HamburgerDrawer({required this.onTabSelect});
+  final bool hasUnreadNotice;
+  final VoidCallback onNoticeRead;
+  const _HamburgerDrawer({
+    required this.onTabSelect,
+    this.hasUnreadNotice = false,
+    required this.onNoticeRead,
+  });
 
   @override
   State<_HamburgerDrawer> createState() => _HamburgerDrawerState();
@@ -353,9 +402,13 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
               _DrawerItem(
                 icon: Icons.campaign_outlined,
                 label: '공지사항',
+                badge: widget.hasUnreadNotice,
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const NoticesScreen()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NoticesScreen()),
+                  ).then((_) => widget.onNoticeRead());
                 },
               ),
               _DrawerItem(
