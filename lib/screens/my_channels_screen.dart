@@ -130,8 +130,8 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
         if (channelId.isEmpty) continue;
         try {
           final res = await http.get(
-            Uri.parse('\$kBaseUrl/api/alarms?channel_id=\$channelId&created_by=\$userId'),
-            headers: {'Authorization': 'Bearer \$token'},
+            Uri.parse('$kBaseUrl/api/alarms?channel_id=$channelId&created_by=$userId'),
+            headers: {'Authorization': 'Bearer $token'},
           ).timeout(const Duration(seconds: 10));
           if (res.statusCode == 200) {
             final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -171,8 +171,8 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('session_token') ?? '';
       final res = await http.delete(
-        Uri.parse('\$kBaseUrl/api/alarms/\$alarmId'),
-        headers: {'Authorization': 'Bearer \$token'},
+        Uri.parse('$kBaseUrl/api/alarms/$alarmId'),
+        headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200 || res.statusCode == 204) {
         if (mounted) {
@@ -185,6 +185,19 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       }
     } catch (_) {}
     if (mounted) showCenterToast(context, '알람 삭제에 실패했습니다.');
+  }
+
+  /// teal 알람 버튼 클릭 시 AlarmScheduleSheet 직접 열기
+  Future<void> _openAlarmSheet(Map<String, dynamic> channel) async {
+    final channelId   = channel['id']?.toString() ?? '';
+    final channelName = channel['name']?.toString() ?? '';
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AlarmScheduleSheet(channelId: channelId, channelName: channelName),
+    );
+    _load();
   }
 
   Future<void> _openChannel(Map<String, dynamic> channel) async {
@@ -417,14 +430,28 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                             ),
                           ),
                           const Spacer(),
+                          // 예약알람 버튼 (토글)
+                          _AlarmToggleButton(
+                            active: _showAlarmOnly,
+                            onTap: () {
+                              if (_showAlarmOnly) {
+                                setState(() => _showAlarmOnly = false);
+                              } else {
+                                setState(() => _showAlarmOnly = true);
+                                _loadAllAlarms();
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          // +채널 버튼
                           OutlinedButton.icon(
                             onPressed: _openCreateChannel,
                             icon: const Icon(Icons.add, size: 16),
-                            label: const Text('채널 만들기', style: TextStyle(fontSize: 13)),
+                            label: const Text('채널', style: TextStyle(fontSize: 13)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: _primary,
                               side: const BorderSide(color: _primary),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -433,27 +460,6 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    // 필터 탭: 전체 / 예약알람
-                    Row(
-                      children: [
-                        _FilterChip(
-                          label: '전체',
-                          selected: !_showAlarmOnly,
-                          onTap: () => setState(() => _showAlarmOnly = false),
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '예약알람',
-                          selected: _showAlarmOnly,
-                          onTap: () {
-                            setState(() => _showAlarmOnly = true);
-                            _loadAllAlarms();
-                          },
-                          icon: Icons.alarm,
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -552,6 +558,9 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                       alarmCount: alarmCount,
                       onTap: () => _openChannel(ch),
                       onLongPress: () => _showLongPressMenu(ch),
+                      onAlarmTap: alarmCount > 0
+                          ? () => _openAlarmSheet(ch)
+                          : null,
                     );
                   },
                   childCount: displayList.length,
@@ -564,38 +573,39 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
   }
 }
 
-// 필터 칩 위젯
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
+// 예약알람 토글 버튼 (상단 헤더용)
+class _AlarmToggleButton extends StatelessWidget {
+  final bool active;
   final VoidCallback onTap;
-  final IconData? icon;
-  const _FilterChip({required this.label, required this.selected, required this.onTap, this.icon});
+  const _AlarmToggleButton({required this.active, required this.onTap});
+
+  static const _teal = Color(0xFF00BCD4);
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: selected ? _primary : Colors.transparent,
-          border: Border.all(color: selected ? _primary : _border),
+          color: active ? _teal : Colors.white,
+          border: Border.all(color: _teal),
           borderRadius: BorderRadius.circular(20),
         ),
+        alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: 13, color: selected ? Colors.white : _text2),
-              const SizedBox(width: 4),
-            ],
+            Icon(Icons.alarm, size: 14,
+                color: active ? Colors.white : _teal),
+            const SizedBox(width: 4),
             Text(
-              label,
+              '예약알람',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: selected ? Colors.white : _text2,
+                color: active ? Colors.white : _teal,
               ),
             ),
           ],
@@ -611,12 +621,14 @@ class _ChannelListTile extends StatelessWidget {
   final int alarmCount;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onAlarmTap; // teal 알람 버튼 탭 콜백
   const _ChannelListTile({
     required this.channel,
     required this.colorIndex,
     required this.onTap,
     this.alarmCount = 0,
     this.onLongPress,
+    this.onAlarmTap,
   });
 
   @override
@@ -639,7 +651,7 @@ class _ChannelListTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // 아바타 + 알람 배지
+            // 아바타 + 알람 버튼 (teal)
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -652,25 +664,55 @@ class _ChannelListTile extends StatelessWidget {
                 ),
                 if (alarmCount > 0)
                   Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF4444),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Center(
-                        child: Text(
-                          '$alarmCount',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                    bottom: -6,
+                    right: -6,
+                    child: GestureDetector(
+                      onTap: onAlarmTap,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00BCD4),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.alarm, size: 14, color: Colors.white),
                           ),
-                        ),
+                          // 알람 카운트 배지
+                          Positioned(
+                            top: -6,
+                            right: -6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF4444),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                              child: Center(
+                                child: Text(
+                                  '$alarmCount',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -712,7 +754,6 @@ class _ChannelListTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: _text2, size: 20),
           ],
         ),
       ),
