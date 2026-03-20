@@ -370,7 +370,7 @@ class _JoinChannelScreenState extends State<JoinChannelScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ChannelDetailScreen(channelId: channelId),
+                    builder: (_) => ChannelDetailScreen(channelId: channelId, isOwner: false),
                   ),
                 );
               } else {
