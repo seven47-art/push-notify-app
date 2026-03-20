@@ -1816,7 +1816,10 @@ async function loadBannerSettings() {
   try {
     const res = await fetch('/api/settings/banner')
     const data = await res.json()
-    const banner = data?.data ? JSON.parse(data.data) : null
+    // API 응답: { success:true, data:{ value:"JSON문자열", updated_at:"..." } }
+    const raw = data?.data?.value || ''
+    let banner: any = null
+    if (raw) { try { banner = JSON.parse(raw) } catch(_) {} }
     const statusEl = document.getElementById('banner-current-status')
     if (banner) {
       const enabledBadge = banner.enabled
