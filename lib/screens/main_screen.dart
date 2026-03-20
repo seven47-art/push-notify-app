@@ -488,13 +488,20 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
     final topPad = MediaQuery.of(context).padding.top;
     return Material(
       color: Colors.transparent,
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.72,
-          height: double.infinity,
-          color: Colors.white,
-          padding: EdgeInsets.only(top: topPad),
+      child: GestureDetector(
+        // 드로어 바깥(왼쪽 빈 영역) 탭 시 닫기
+        onTap: () => Navigator.pop(context),
+        behavior: HitTestBehavior.opaque,
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            // 드로어 패널 내부 탭은 닫히지 않도록 이벤트 차단
+            onTap: () {},
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.72,
+              height: double.infinity,
+              color: Colors.white,
+              padding: EdgeInsets.only(top: topPad),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -575,10 +582,12 @@ class _HamburgerDrawerState extends State<_HamburgerDrawer> {
               ),
             ],
           ),
-        ),
-      ),
-    );   // Align
-  }   // Material 닫기
+        ),      // Container (드로어 패널)
+          ),    // GestureDetector (내부 탭 차단)
+        ),      // Align
+      ),        // GestureDetector (바깥 탭 → 닫기)
+    );          // Material
+  }
 }
 
 class _DrawerItem extends StatelessWidget {
