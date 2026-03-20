@@ -1240,15 +1240,24 @@ function adminDashboardHTML() {
 
       <!-- 이미지 URL (이미지 타입일 때만 표시) -->
       <div id="banner-image-url-wrap">
-        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지 URL</label>
-        <input type="url" id="banner-image-url" class="input-field text-sm" placeholder="https://example.com/banner.jpg">
+        <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지</label>
+        <!-- 파일 직접 업로드 -->
+        <div class="flex items-center gap-2 mb-2">
+          <label class="cursor-pointer btn-primary text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+            <i class="fas fa-upload"></i>파일 업로드
+            <input type="file" id="banner-image-file" accept="image/*" class="hidden" onchange="uploadBannerImage(this)">
+          </label>
+          <span id="banner-upload-status" class="text-slate-500 text-xs"></span>
+        </div>
+        <!-- 또는 URL 직접 입력 -->
+        <input type="url" id="banner-image-url" class="input-field text-sm" placeholder="또는 이미지 URL 직접 입력" oninput="updateBannerPreviewFromInputs()">
         <p class="text-slate-500 text-xs mt-1.5">권장 사이즈: 가로 전체 × 높이 120px (3:1 비율)</p>
       </div>
 
       <!-- 링크 URL -->
       <div>
         <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">클릭 링크 URL <span class="text-slate-500 font-normal normal-case">(선택사항)</span></label>
-        <input type="url" id="banner-link-url" class="input-field text-sm" placeholder="https://example.com (없으면 비워두세요)">
+        <input type="url" id="banner-link-url" class="input-field text-sm" placeholder="https://example.com (없으면 비워두세요)" oninput="updateBannerPreviewFromInputs()">
         <p class="text-slate-500 text-xs mt-1.5">배너 클릭 시 이동할 URL. 비워두면 클릭해도 아무 동작 안 함</p>
       </div>
 
@@ -1651,8 +1660,64 @@ async function uploadApkFile() {
   })
 }
 
-// ── 배너 관리 함수 ──────────────────────────────────
-async function loadBannerSettings() {
+// ── 개인정보처리방침 / 서비스 이용약관 관리 함수 ──────────────
+async function loadPrivacy() {
+  try {
+    const res  = await fetch('/api/settings/privacy')
+    const data = await res.json()
+    const text = data?.data?.value || ''
+    const el   = document.getElementById('privacy-editor')
+    if (el) el.value = text
+  } catch(e) {
+    console.error('loadPrivacy 오류:', e)
+  }
+}
+
+async function savePrivacy() {
+  const text = (document.getElementById('privacy-editor') as HTMLTextAreaElement)?.value || ''
+  try {
+    const res  = await fetch('/admin/privacy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: text }),
+    })
+    const data = await res.json()
+    if (data.success) alert('✅ 개인정보처리방침이 저장되었습니다.')
+    else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
+  } catch(e: any) {
+    alert('❌ 오류: ' + e.message)
+  }
+}
+
+async function loadTerms() {
+  try {
+    const res  = await fetch('/api/settings/terms')
+    const data = await res.json()
+    const text = data?.data?.value || ''
+    const el   = document.getElementById('terms-editor')
+    if (el) el.value = text
+  } catch(e) {
+    console.error('loadTerms 오류:', e)
+  }
+}
+
+async function saveTerms() {
+  const text = (document.getElementById('terms-editor') as HTMLTextAreaElement)?.value || ''
+  try {
+    const res  = await fetch('/admin/terms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: text }),
+    })
+    const data = await res.json()
+    if (data.success) alert('✅ 서비스 이용약관이 저장되었습니다.')
+    else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
+  } catch(e: any) {
+    alert('❌ 오류: ' + e.message)
+  }
+}
+
+// ── 배너 관리 함수 ──────────────────────────────────async function loadBannerSettings() {
   try {
     const res = await fetch('/api/settings/banner')
     const data = await res.json()
@@ -1701,6 +1766,40 @@ function updateBannerPreview(banner) {
       <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:6px;">채널을 만들고, 구독하고 원하는 시간에 알람을 예약하세요.</div>
     </div>\`
   }
+}
+
+async function uploadBannerImage(input) {
+  const file = input.files?.[0]
+  if (!file) return
+  const statusEl = document.getElementById('banner-upload-status')
+  statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>업로드 중...'
+  statusEl.style.color = '#94a3b8'
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res  = await fetch('/admin/upload-banner-image', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (data.success) {
+      document.getElementById('banner-image-url').value = data.image_url
+      statusEl.innerHTML = '<i class="fas fa-check mr-1"></i>업로드 완료'
+      statusEl.style.color = '#6ee7b7'
+      updateBannerPreviewFromInputs()
+    } else {
+      statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + (data.message || '업로드 실패')
+      statusEl.style.color = '#f87171'
+    }
+  } catch(e) {
+    statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>오류: ' + e.message
+    statusEl.style.color = '#f87171'
+  }
+  input.value = ''
+}
+
+function updateBannerPreviewFromInputs() {
+  const type      = document.getElementById('banner-type').value
+  const image_url = document.getElementById('banner-image-url').value.trim()
+  const link_url  = document.getElementById('banner-link-url').value.trim()
+  updateBannerPreview({ type, image_url, link_url })
 }
 
 async function saveBannerSettings() {
@@ -1801,6 +1900,93 @@ ${error ? `<p style="color:#fca5a5;">⚠️ ${error}</p>` : ''}
 ${success ? `<p style="color:#86efac;">✅ ${success}</p>` : ''}
 </body></html>`
 }
+
+// ── POST /admin/upload-banner-image ──────────────────────────
+// 배너 이미지를 Firebase Storage에 업로드 후 공개 URL 반환
+admin.post('/upload-banner-image', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.json({ success: false, message: '로그인이 필요합니다.' }, 401)
+  try {
+    const serviceAccountJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    if (!serviceAccountJson) return c.json({ success: false, message: 'Firebase 서비스 계정 미설정' }, 500)
+
+    const formData = await c.req.formData()
+    const file     = formData.get('file') as File | null
+    if (!file) return c.json({ success: false, message: '파일을 선택하세요.' })
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ success: false, message: 'JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.' })
+    }
+
+    const sa        = JSON.parse(serviceAccountJson)
+    const projectId = sa.project_id || c.env.FCM_PROJECT_ID
+    const bucket    = `${projectId}.firebasestorage.app`
+    const ext       = file.name.split('.').pop() || 'jpg'
+    const filePath  = `banners/banner_${Date.now()}.${ext}`
+
+    const accessToken = await getFirebaseStorageToken(serviceAccountJson)
+    const encodedPath = encodeURIComponent(filePath)
+    const uploadUrl   = `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodedPath}`
+    const fileBuffer  = await file.arrayBuffer()
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': file.type,
+      },
+      body: fileBuffer,
+    })
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text()
+      return c.json({ success: false, message: `업로드 실패: ${uploadRes.status} ${errText}` })
+    }
+
+    // 파일 공개 설정
+    const aclUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodedPath}/acl`
+    await fetch(aclUrl, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity: 'allUsers', role: 'READER' }),
+    }).catch(() => {})
+
+    const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`
+    return c.json({ success: true, image_url: imageUrl })
+  } catch (e: any) {
+    return c.json({ success: false, message: e.message }, 500)
+  }
+})
+
+// ── POST /admin/privacy ──────────────────────────────
+admin.post('/privacy', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const { value } = await c.req.json()
+    await c.env.DB.prepare(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('privacy', ?)"
+    ).bind(value ?? '').run()
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── POST /admin/terms ────────────────────────────────
+admin.post('/terms', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const { value } = await c.req.json()
+    await c.env.DB.prepare(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('terms', ?)"
+    ).bind(value ?? '').run()
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
 
 // ── POST /admin/banner ────────────────────────────────
 admin.post('/banner', async (c) => {

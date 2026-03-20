@@ -36,8 +36,14 @@ class _PolicyScreenState extends State<PolicyScreen> {
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true) {
+          // API 응답: { success: true, data: { value: "내용", updated_at: "..." } }
           final data = body['data'];
-          final text = (data is Map ? data['content'] : data)?.toString() ?? '';
+          String text = '';
+          if (data is Map) {
+            text = data['value']?.toString() ?? '';
+          } else {
+            text = data?.toString() ?? '';
+          }
           if (mounted) setState(() { _content = text; _loading = false; });
           return;
         }

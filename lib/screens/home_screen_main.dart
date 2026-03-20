@@ -109,8 +109,18 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
+        // API 응답: { success: true, data: { value: "JSON문자열", updated_at: "..." } }
+        // data.value 를 한 번 더 JSON 파싱해야 실제 배너 설정값을 얻을 수 있음
         if (body['success'] == true && body['data'] != null) {
-          if (mounted) setState(() => _banner = body['data'] as Map<String, dynamic>?);
+          final raw = body['data'];
+          Map<String, dynamic>? parsed;
+          if (raw is Map) {
+            final valueStr = raw['value']?.toString();
+            if (valueStr != null && valueStr.isNotEmpty) {
+              try { parsed = jsonDecode(valueStr) as Map<String, dynamic>; } catch (_) {}
+            }
+          }
+          if (mounted) setState(() => _banner = parsed);
         }
       }
     } catch (_) {}
@@ -173,11 +183,37 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
   }
 
   Widget _buildBanner() {
-    final bannerTitle   = _banner?['title'] as String? ?? '전화 방식의 새로운\n알람 앱, RinGo';
-    final bannerSubtitle = _banner?['subtitle'] as String? ?? '채널을 만들고, 구독하고\n원하는 시간에 알람을 예약하세요.';
-    final bannerTag     = _banner?['tag'] as String? ?? '스마트 알람 플랫폼';
-    final bannerLink    = _banner?['link'] as String?;
+    // enabled == false 이면 배너 숨김
+    final enabled = _banner?['enabled'] as bool? ?? true;
+    if (!enabled) return const SizedBox.shrink();
 
+    final bannerType = _banner?['type'] as String? ?? 'svg';
+    final bannerLink = (_banner?['link_url'] as String?)?.isNotEmpty == true
+        ? _banner!['link_url'] as String
+        : null;
+
+    // ── 이미지 배너 ──
+    if (bannerType == 'image') {
+      final imageUrl = _banner?['image_url'] as String? ?? '';
+      if (imageUrl.isNotEmpty) {
+        return GestureDetector(
+          onTap: bannerLink != null ? () => _openBannerLink(bannerLink) : null,
+          child: Image.network(
+            imageUrl,
+            width: double.infinity,
+            height: 120,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildDefaultBanner(bannerLink),
+          ),
+        );
+      }
+    }
+
+    // ── 기본 SVG(그라데이션) 배너 ──
+    return _buildDefaultBanner(bannerLink);
+  }
+
+  Widget _buildDefaultBanner(String? bannerLink) {
     return GestureDetector(
       onTap: bannerLink != null ? () => _openBannerLink(bannerLink) : null,
       child: Container(
@@ -205,9 +241,9 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    bannerTitle,
-                    style: const TextStyle(
+                  const Text(
+                    '전화 방식의 새로운\n알람 앱, RinGo',
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -215,9 +251,9 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    bannerSubtitle,
-                    style: const TextStyle(
+                  const Text(
+                    '채널을 만들고, 구독하고\n원하는 시간에 알람을 예약하세요.',
+                    style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
                       height: 1.4,
@@ -230,20 +266,22 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                       color: Colors.white24,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
+                        SizedBox(
                           width: 6, height: 6,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
-                          bannerTag,
-                          style: const TextStyle(
+                          '스마트 알람 플랫폼',
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
                             fontWeight: FontWeight.w500,

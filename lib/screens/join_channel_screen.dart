@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import 'channel_detail_screen.dart';
 
 class JoinChannelScreen extends StatefulWidget {
   final String? inviteToken;
@@ -361,7 +362,21 @@ class _JoinChannelScreenState extends State<JoinChannelScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              final channelId = _channelData?['channel_id']?.toString() ?? '';
+              if (channelId.isNotEmpty) {
+                // 현재 화면 닫고 채널 상세로 이동
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChannelDetailScreen(channelId: channelId),
+                  ),
+                );
+              } else {
+                Navigator.pop(context);
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6C63FF),
               foregroundColor: Colors.white,
@@ -370,7 +385,7 @@ class _JoinChannelScreenState extends State<JoinChannelScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('홈으로', style: TextStyle(fontSize: 16)),
+            child: const Text('채널 보러가기', style: TextStyle(fontSize: 16)),
           ),
         ),
       ],
