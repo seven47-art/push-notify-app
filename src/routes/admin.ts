@@ -1242,7 +1242,7 @@ function adminDashboardHTML() {
       </div>
 
       <!-- 이미지 URL (이미지 타입일 때만 표시) -->
-      <div id="banner-image-url-wrap">
+      <div id="banner-image-url-wrap" style="display:none">
         <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">이미지</label>
         <!-- 파일 직접 업로드 -->
         <div class="flex items-center gap-2 mb-2">
@@ -1839,7 +1839,8 @@ async function loadBannerSettings() {
       toggleBannerType()
       updateBannerPreview(banner)
     } else {
-      statusEl.innerHTML = '<p class="text-slate-500">설정된 배너가 없습니다. (기본 SVG 배너 표시 중)</p>'
+      statusEl.innerHTML = '<p class="text-slate-500">설정된 배너가 없습니다.</p>'
+      toggleBannerType()
     }
   } catch(e) {
     document.getElementById('banner-current-status').innerHTML = '<p class="text-red-400">불러오기 실패</p>'
