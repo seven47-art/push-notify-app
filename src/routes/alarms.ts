@@ -309,6 +309,8 @@ alarms.get('/', async (c) => {
 
     if (channelId) { where += ' AND a.channel_id = ?'; params.push(channelId) }
     if (userId)    { where += ' AND a.created_by = ?'; params.push(userId) }
+    // 미래 예약 알람만 반환 (scheduled_at > now 인 pending만)
+    where += " AND a.status = 'pending' AND a.scheduled_at > datetime('now')"
 
     const stmt = c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name
@@ -617,7 +619,14 @@ alarms.post('/trigger', async (c) => {
         } catch (_) {}
       }
 
-      if (callResults.length === 0) continue
+      // 수신자 없거나 처리 불가 → 시간이 지난 pending 알람은 즉시 삭제
+      if (callResults.length === 0) {
+        // scheduled_at이 현재 이전인 pending 알람은 삭제 (구독자 없는 채널 등)
+        await c.env.DB.prepare(
+          "DELETE FROM alarm_schedules WHERE id = ? AND status = 'pending'"
+        ).bind(alarm.id).run()
+        continue
+      }
 
       // ── 5) alarm_schedules 업데이트 ─────────────────────────────
       // 폴링 방식이 아닐 때(FCM/Twilio): 처음 발송 시 status → triggered
@@ -709,9 +718,9 @@ alarms.post('/cleanup', async (c) => {
       "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
     ).run()
 
-    // 3일 이전 alarm_schedules 삭제 (triggered/cancelled)
+    // 3일 이전 alarm_schedules 삭제 (triggered/cancelled/pending 모두 - 안전망)
     const schedulesResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled', 'pending')"
     ).run()
 
     return c.json({
