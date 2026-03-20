@@ -90,7 +90,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         final list = (body['data'] as List? ?? []).map((e) => e as Map<String, dynamic>).toList();
         if (list.isNotEmpty) {
           final prefs = await SharedPreferences.getInstance();
-          final seen = prefs.getStringList('seen_notices') ?? [];
+          final seen = prefs.getStringList('seen_notice_ids') ?? [];
           final seenSet = seen.toSet();
           final hasUnread = list.any((n) => !seenSet.contains(n['id']?.toString() ?? ''));
           if (mounted) setState(() => _hasUnreadNotice = hasUnread);

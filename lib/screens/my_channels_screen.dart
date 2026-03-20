@@ -391,6 +391,7 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
                           // 예약알람 버튼 → 바텀시트 오픈
                           _AlarmToggleButton(
                             onTap: _openAlarmListSheet,
+                            hasAlarm: _alarmCounts.values.any((c) => c > 0),
                           ),
                           const SizedBox(width: 8),
                           // +채널 버튼
@@ -498,7 +499,8 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
 // 예약알람 버튼 (상단 헤더용, 탭 → 바텀시트)
 class _AlarmToggleButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _AlarmToggleButton({required this.onTap});
+  final bool hasAlarm;
+  const _AlarmToggleButton({required this.onTap, this.hasAlarm = false});
 
   static const _teal = Color(0xFF00BCD4);
 
@@ -506,30 +508,48 @@ class _AlarmToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: _teal),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        alignment: Alignment.center,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.alarm, size: 14, color: _teal),
-            SizedBox(width: 4),
-            Text(
-              '예약알람',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: _teal,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _teal),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            alignment: Alignment.center,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.alarm, size: 14, color: _teal),
+                SizedBox(width: 4),
+                Text(
+                  '예약알람',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: _teal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasAlarm)
+            Positioned(
+              top: -3,
+              right: -3,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFF4444),
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
