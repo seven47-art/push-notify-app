@@ -191,7 +191,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ChannelSettingsSheet(channel: _channel!, token: _token, onSaved: _load),
+      builder: (_) => ChannelSettingsSheet(channel: _channel!, token: _token, onSaved: _load),
     );
   }
 
@@ -709,17 +709,17 @@ class _InviteCodeSheet extends StatelessWidget {
 }
 
 // ── 채널 설정 바텀시트 ─────────────────────────────
-class _ChannelSettingsSheet extends StatefulWidget {
+class ChannelSettingsSheet extends StatefulWidget {
   final Map<String, dynamic> channel;
   final String token;
   final VoidCallback onSaved;
-  const _ChannelSettingsSheet({required this.channel, required this.token, required this.onSaved});
+  const ChannelSettingsSheet({required this.channel, required this.token, required this.onSaved});
 
   @override
-  State<_ChannelSettingsSheet> createState() => _ChannelSettingsSheetState();
+  State<ChannelSettingsSheet> createState() => ChannelSettingsSheetState();
 }
 
-class _ChannelSettingsSheetState extends State<_ChannelSettingsSheet> {
+class ChannelSettingsSheetState extends State<ChannelSettingsSheet> {
   late final TextEditingController _descCtrl;
   late final TextEditingController _homepageCtrl;
   late final TextEditingController _passwordCtrl;

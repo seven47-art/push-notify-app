@@ -2,7 +2,7 @@
 // 스크린샷 기준: ← 구독 채널 제목 + 채널 목록 (채널이미지/이름/잠금아이콘/구독자수/채널소개)
 // 탭 버튼이 눌리면 채널 상세(구독자 뷰)로 이동
 // 알람 배지: 알람 예약이 있는 채널에 빨간 카운트 배지 표시
-// 필터: 전체 / 알람설정
+// 필터: 전체 (알람설정 필터 제거됨)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +39,6 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   bool _loading = true;
   String? _error;
   String _token = '';
-  bool _showAlarmOnly = false; // 알람설정된 채널만 보기
 
   // 외부에서 reload 호출 가능하도록 public 메서드
   void reload() => _load();
@@ -277,13 +276,6 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
 
   List<Map<String, dynamic>> get _filtered {
     var list = _channels;
-    // 알람설정 탭이면 알람 있는 채널만
-    if (_showAlarmOnly) {
-      list = list.where((ch) {
-        final id = (ch['channel_id'] ?? ch['id'])?.toString() ?? '';
-        return (_alarmCounts[id] ?? 0) > 0;
-      }).toList();
-    }
     // 검색
     if (_searchQuery.isNotEmpty) {
       list = list.where((ch) {
@@ -323,23 +315,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // 필터 탭: 전체 / 알람설정
-                    Row(
-                      children: [
-                        _FilterChip(
-                          label: '전체',
-                          selected: !_showAlarmOnly,
-                          onTap: () => setState(() => _showAlarmOnly = false),
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '알람설정',
-                          selected: _showAlarmOnly,
-                          onTap: () => setState(() => _showAlarmOnly = true),
-                          icon: Icons.alarm,
-                        ),
-                      ],
-                    ),
+
                   ],
                 ),
               ),
@@ -371,14 +347,10 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _showAlarmOnly ? Icons.alarm_off : Icons.list_alt,
-                        size: 56, color: Colors.grey[300]),
+                      Icon(Icons.list_alt, size: 56, color: Colors.grey[300]),
                       const SizedBox(height: 12),
                       Text(
-                        _showAlarmOnly
-                            ? '알람이 설정된 구독 채널이 없습니다.'
-                            : (_searchQuery.isNotEmpty ? '검색 결과가 없습니다.' : '구독 중인 채널이 없습니다.'),
+                        _searchQuery.isNotEmpty ? '검색 결과가 없습니다.' : '구독 중인 채널이 없습니다.',
                         style: const TextStyle(color: _text2),
                       ),
                     ],
@@ -416,47 +388,6 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                   childCount: displayList.length,
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// 필터 칩 위젯
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final IconData? icon;
-  const _FilterChip({required this.label, required this.selected, required this.onTap, this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? _primary : Colors.transparent,
-          border: Border.all(color: selected ? _primary : _border),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 13, color: selected ? Colors.white : _text2),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: selected ? Colors.white : _text2,
-              ),
-            ),
           ],
         ),
       ),
