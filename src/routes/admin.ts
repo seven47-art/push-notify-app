@@ -1757,7 +1757,56 @@ async function saveTerms() {
   }
 }
 
-// ── 배너 관리 함수 ──────────────────────────────────async function loadBannerSettings() {
+// ── 회사정보 관리 함수 ──────────────────────────────────
+async function loadCompany() {
+  try {
+    const res  = await fetch('/api/settings/company')
+    const data = await res.json()
+    const raw  = data?.data?.value || ''
+    let info: any = { name: '', content: '' }
+    if (raw) { try { info = JSON.parse(raw) } catch(_) {} }
+    const nameEl    = document.getElementById('company-name') as HTMLInputElement
+    const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+    if (nameEl)    nameEl.value    = info.name    || ''
+    if (contentEl) contentEl.value = info.content || ''
+    updateCompanyPreview()
+  } catch(e) {
+    console.error('loadCompany 오류:', e)
+  }
+}
+
+function updateCompanyPreview() {
+  const nameEl    = document.getElementById('company-name') as HTMLInputElement
+  const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+  const name    = (nameEl?.value    || '').trim()
+  const content = (contentEl?.value || '').trim()
+  const pName    = document.getElementById('company-preview-name')
+  const pContent = document.getElementById('company-preview-content')
+  if (pName)    pName.textContent    = name
+  if (pContent) pContent.textContent = content
+}
+
+async function saveCompany() {
+  const nameEl    = document.getElementById('company-name') as HTMLInputElement
+  const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+  const name    = (nameEl?.value    || '').trim()
+  const content = (contentEl?.value || '').trim()
+  try {
+    const res  = await fetch('/admin/company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, content }),
+    })
+    const data = await res.json()
+    if (data.success) alert('✅ 회사정보가 저장되었습니다.')
+    else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
+  } catch(e: any) {
+    alert('❌ 오류: ' + e.message)
+  }
+}
+
+// ── 배너 관리 함수 ──────────────────────────────────
+async function loadBannerSettings() {
   try {
     const res = await fetch('/api/settings/banner')
     const data = await res.json()
