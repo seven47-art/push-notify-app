@@ -279,7 +279,7 @@ alarms.get('/count', async (c) => {
       FROM alarm_schedules
       WHERE channel_id IN (${placeholders})
         AND status = 'pending'
-        AND scheduled_at > datetime('now')
+        AND replace(substr(scheduled_at,1,19),'T',' ') > datetime('now')
       GROUP BY channel_id
     `).bind(...channelIds).all()
 
@@ -310,7 +310,7 @@ alarms.get('/', async (c) => {
     if (channelId) { where += ' AND a.channel_id = ?'; params.push(channelId) }
     if (userId)    { where += ' AND a.created_by = ?'; params.push(userId) }
     // 미래 예약 알람만 반환 (scheduled_at > now 인 pending만)
-    where += " AND a.status = 'pending' AND a.scheduled_at > datetime('now')"
+    where += " AND a.status = 'pending' AND replace(substr(a.scheduled_at,1,19),'T',' ') > datetime('now')"
 
     const stmt = c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name
@@ -698,7 +698,7 @@ alarms.post('/cleanup', async (c) => {
         const projectId = sa.project_id || c.env.FCM_PROJECT_ID
         const bucket = `${projectId}.firebasestorage.app`
         const { results: oldFileAlarms } = await c.env.DB.prepare(
-          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
+          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
         ).all() as { results: any[] }
         for (const row of oldFileAlarms) {
           try {
@@ -720,7 +720,7 @@ alarms.post('/cleanup', async (c) => {
 
     // 3일 이전 alarm_schedules 삭제 (triggered/cancelled/pending 모두 - 안전망)
     const schedulesResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled', 'pending')"
+      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled', 'pending')"
     ).run()
 
     return c.json({
@@ -775,7 +775,7 @@ alarms.get('/pending', async (c) => {
         JOIN channels ch ON a.channel_id = ch.id
         JOIN subscribers s ON s.channel_id = a.channel_id
         WHERE a.status = 'pending'
-          AND a.scheduled_at > datetime('now')
+          AND replace(substr(a.scheduled_at,1,19),'T',' ') > datetime('now')
           AND s.user_id = ? AND s.is_active = 1
         ORDER BY a.scheduled_at ASC
         LIMIT 200
@@ -829,7 +829,7 @@ alarms.get('/logs', async (c) => {
       "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
     ).run()
     await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
     ).run()
 
     const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)
