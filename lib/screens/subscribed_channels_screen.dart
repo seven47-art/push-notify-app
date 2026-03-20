@@ -501,7 +501,6 @@ class _ChannelListTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: _text2, size: 20),
           ],
         ),
       ),
