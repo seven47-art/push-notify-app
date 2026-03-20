@@ -171,7 +171,7 @@ invites.get('/verify/:token', async (c) => {
 
     const link: any = await c.env.DB.prepare(`
       SELECT il.*, ch.name as channel_name, ch.description as channel_description, 
-             ch.image_url as channel_image_url
+             ch.image_url as channel_image_url, ch.public_id as channel_public_id
       FROM channel_invite_links il
       JOIN channels ch ON il.channel_id = ch.id
       WHERE il.invite_token = ? AND il.is_active = 1
@@ -203,6 +203,7 @@ invites.get('/verify/:token', async (c) => {
       data: {
         invite_id: link.id,
         channel_id: link.channel_id,
+        channel_public_id: link.channel_public_id,
         channel_name: link.channel_name,
         channel_description: link.channel_description,
         channel_image_url: link.channel_image_url,
