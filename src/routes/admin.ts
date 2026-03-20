@@ -1235,7 +1235,7 @@ function adminDashboardHTML() {
       <!-- 배너 타입 -->
       <div>
         <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">배너 타입</label>
-        <select id="banner-type" class="input-field text-sm" onchange="toggleBannerType()">
+        <select id="banner-type" class="input-field text-sm" onchange="document.getElementById('banner-image-url-wrap').style.display = this.value === 'image' ? 'block' : 'none'">
           <option value="svg">기본 SVG 배너 (내장)</option>
           <option value="image">이미지 URL 배너</option>
         </select>
