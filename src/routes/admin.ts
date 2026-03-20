@@ -1720,7 +1720,7 @@ async function loadPrivacy() {
 }
 
 async function savePrivacy() {
-  const text = (document.getElementById('privacy-editor') as HTMLTextAreaElement)?.value || ''
+  const text = (document.getElementById('privacy-editor'))?.value || ''
   try {
     const res  = await fetch('/admin/privacy', {
       method: 'POST',
@@ -1730,7 +1730,7 @@ async function savePrivacy() {
     const data = await res.json()
     if (data.success) alert('✅ 개인정보처리방침이 저장되었습니다.')
     else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
-  } catch(e: any) {
+  } catch(e) {
     alert('❌ 오류: ' + e.message)
   }
 }
@@ -1748,7 +1748,7 @@ async function loadTerms() {
 }
 
 async function saveTerms() {
-  const text = (document.getElementById('terms-editor') as HTMLTextAreaElement)?.value || ''
+  const text = (document.getElementById('terms-editor'))?.value || ''
   try {
     const res  = await fetch('/admin/terms', {
       method: 'POST',
@@ -1758,7 +1758,7 @@ async function saveTerms() {
     const data = await res.json()
     if (data.success) alert('✅ 서비스 이용약관이 저장되었습니다.')
     else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
-  } catch(e: any) {
+  } catch(e) {
     alert('❌ 오류: ' + e.message)
   }
 }
@@ -1769,10 +1769,10 @@ async function loadCompany() {
     const res  = await fetch('/api/settings/company')
     const data = await res.json()
     const raw  = data?.data?.value || ''
-    let info: any = { name: '', content: '' }
+    let info = { name: '', content: '' }
     if (raw) { try { info = JSON.parse(raw) } catch(_) {} }
-    const nameEl    = document.getElementById('company-name') as HTMLInputElement
-    const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+    const nameEl    = document.getElementById('company-name')
+    const contentEl = document.getElementById('company-content')
     if (nameEl)    nameEl.value    = info.name    || ''
     if (contentEl) contentEl.value = info.content || ''
     updateCompanyPreview()
@@ -1782,8 +1782,8 @@ async function loadCompany() {
 }
 
 function updateCompanyPreview() {
-  const nameEl    = document.getElementById('company-name') as HTMLInputElement
-  const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+  const nameEl    = document.getElementById('company-name')
+  const contentEl = document.getElementById('company-content')
   const name    = (nameEl?.value    || '').trim()
   const content = (contentEl?.value || '').trim()
   const pName    = document.getElementById('company-preview-name')
@@ -1793,8 +1793,8 @@ function updateCompanyPreview() {
 }
 
 async function saveCompany() {
-  const nameEl    = document.getElementById('company-name') as HTMLInputElement
-  const contentEl = document.getElementById('company-content') as HTMLTextAreaElement
+  const nameEl    = document.getElementById('company-name')
+  const contentEl = document.getElementById('company-content')
   const name    = (nameEl?.value    || '').trim()
   const content = (contentEl?.value || '').trim()
   try {
@@ -1806,7 +1806,7 @@ async function saveCompany() {
     const data = await res.json()
     if (data.success) alert('✅ 회사정보가 저장되었습니다.')
     else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
-  } catch(e: any) {
+  } catch(e) {
     alert('❌ 오류: ' + e.message)
   }
 }
@@ -1818,7 +1818,7 @@ async function loadBannerSettings() {
     const data = await res.json()
     // API 응답: { success:true, data:{ value:"JSON문자열", updated_at:"..." } }
     const raw = data?.data?.value || ''
-    let banner: any = null
+    let banner = null
     if (raw) { try { banner = JSON.parse(raw) } catch(_) {} }
     const statusEl = document.getElementById('banner-current-status')
     if (banner) {
@@ -1887,7 +1887,7 @@ async function uploadBannerImage(input) {
       if (statusEl) { statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + msg; statusEl.style.color = '#f87171' }
       alert('❌ ' + msg)
     }
-  } catch(e: any) {
+  } catch(e) {
     const msg = '오류: ' + e.message
     if (statusEl) { statusEl.innerHTML = '<i class="fas fa-times mr-1"></i>' + msg; statusEl.style.color = '#f87171' }
     alert('❌ ' + msg)
