@@ -100,7 +100,7 @@ function showPage(page) {
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
     'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그', 'download-mgmt': '다운로드 관리',
-    'banner-mgmt': '배너 관리', 'reports': '신고 관리', 'blocked': '계정 차단 관리'
+    'banner-mgmt': '배너 관리', 'reports': '신고 관리', 'blocked': '계정 차단 관리', 'company': '회사정보 관리'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -121,6 +121,7 @@ function showPage(page) {
   else if (page === 'admin-alarm') adminAlarmPageInit()
   else if (page === 'download-mgmt') loadCurrentApkInfo()
   else if (page === 'banner-mgmt') loadBannerSettings()
+  else if (page === 'company') loadCompany()
   else if (page === 'reports') loadReports()
   else if (page === 'blocked') loadBlockedAccounts()
 }
@@ -1803,6 +1804,52 @@ async function deleteNotice(id) {
     showToast('공지사항이 삭제되었습니다')
     loadNoticesAdmin()
   } catch (e) { showToast('삭제 실패: ' + e.message, 'error') }
+}
+
+// =============================================
+// 회사정보 관리
+// =============================================
+async function loadCompany() {
+  try {
+    const res  = await fetch('/api/settings/company')
+    const data = await res.json()
+    const raw  = data?.data?.value || ''
+    let info   = { name: '', content: '' }
+    if (raw) { try { info = JSON.parse(raw) } catch(_) {} }
+    const nameEl    = document.getElementById('company-name')
+    const contentEl = document.getElementById('company-content')
+    if (nameEl)    nameEl.value    = info.name    || ''
+    if (contentEl) contentEl.value = info.content || ''
+    updateCompanyPreview()
+  } catch(e) {
+    console.error('loadCompany 오류:', e)
+  }
+}
+
+function updateCompanyPreview() {
+  const name    = (document.getElementById('company-name')?.value    || '').trim()
+  const content = (document.getElementById('company-content')?.value || '').trim()
+  const pName    = document.getElementById('company-preview-name')
+  const pContent = document.getElementById('company-preview-content')
+  if (pName)    pName.textContent    = name
+  if (pContent) pContent.textContent = content
+}
+
+async function saveCompany() {
+  const name    = (document.getElementById('company-name')?.value    || '').trim()
+  const content = (document.getElementById('company-content')?.value || '').trim()
+  try {
+    const res  = await fetch('/admin/company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, content }),
+    })
+    const data = await res.json()
+    if (data.success) alert('✅ 회사정보가 저장되었습니다.')
+    else alert('❌ 저장 실패: ' + (data.error || '알 수 없는 오류'))
+  } catch(e) {
+    alert('❌ 오류: ' + e.message)
+  }
 }
 
 // =============================================

@@ -455,6 +455,9 @@ function adminDashboardHTML() {
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('banner-mgmt')">
       <i class="fas fa-image w-4 text-center text-pink-400"></i> 배너 관리
     </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('company')">
+      <i class="fas fa-building w-4 text-center text-indigo-400"></i> 회사정보 관리
+    </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('reports')">
       <i class="fas fa-flag w-4 text-center text-red-400"></i> 신고 관리
     </a>
@@ -1277,6 +1280,43 @@ function adminDashboardHTML() {
   </div>
 </div>
 
+    <!-- ===== 회사정보 관리 ===== -->
+    <div id="page-company" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center"><i class="fas fa-building text-indigo-400"></i></div>
+          <div><h2 class="text-xl font-bold text-white">회사정보 관리</h2><p class="text-slate-400 text-sm">앱 설정 화면 하단에 표시되는 회사 정보를 관리합니다</p></div>
+        </div>
+
+        <div class="card rounded-xl p-5 space-y-5">
+          <!-- 회사명 -->
+          <div>
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">회사명 <span class="text-slate-500 font-normal normal-case">(앱에서 굵게 표시)</span></label>
+            <input type="text" id="company-name" class="input-field text-sm" placeholder="예: (주)링고 / RinGo Inc." oninput="updateCompanyPreview()">
+          </div>
+          <!-- 내용 -->
+          <div>
+            <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">내용 <span class="text-slate-500 font-normal normal-case">(줄바꿈 지원)</span></label>
+            <textarea id="company-content" class="input-field text-sm resize-none" rows="6"
+              placeholder="대표: 홍길동&#10;사업자등록번호: 000-00-00000&#10;주소: 서울시 ...&#10;이메일: info@example.com&#10;전화: 02-0000-0000" oninput="updateCompanyPreview()"></textarea>
+          </div>
+          <!-- 저장 버튼 -->
+          <button onclick="saveCompany()" class="btn-primary text-white px-6 py-2.5 rounded-lg text-sm font-semibold">
+            <i class="fas fa-save mr-2"></i>저장
+          </button>
+        </div>
+
+        <!-- 미리보기 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-3"><i class="fas fa-eye mr-2 text-slate-400"></i>미리보기</h3>
+          <div class="bg-slate-800 rounded-xl p-4">
+            <p id="company-preview-name" class="text-white text-sm font-bold mb-1.5"></p>
+            <p id="company-preview-content" class="text-slate-400 text-xs leading-relaxed whitespace-pre-line"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== 신고 관리 ===== -->
     <div id="page-reports" class="page">
       <div class="space-y-6">
@@ -1982,6 +2022,23 @@ admin.post('/terms', async (c) => {
     await c.env.DB.prepare(
       "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('terms', ?)"
     ).bind(value ?? '').run()
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── POST /admin/company ────────────────────────────────
+// 회사정보 저장: { name, content }
+admin.post('/company', async (c) => {
+  const isLoggedIn = await verifySession(c)
+  if (!isLoggedIn) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const { name, content } = await c.req.json()
+    const payload = JSON.stringify({ name: name ?? '', content: content ?? '' })
+    await c.env.DB.prepare(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('company', ?)"
+    ).bind(payload).run()
     return c.json({ success: true })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

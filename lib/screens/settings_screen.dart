@@ -25,15 +25,43 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
   bool _isDark = false;
+  Map<String, dynamic>? _companyInfo;
 
   @override
   void initState() {
     super.initState();
     _loadInfo();
+    _loadCompanyInfo();
   }
 
   Future<void> _loadInfo() async {
     if (mounted) setState(() => _version = 'v3.5.0');
+  }
+
+  Future<void> _loadCompanyInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/settings/company'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && body['data'] != null) {
+          final raw = body['data'];
+          if (raw is Map) {
+            final valueStr = raw['value']?.toString();
+            if (valueStr != null && valueStr.isNotEmpty) {
+              try {
+                final parsed = jsonDecode(valueStr) as Map<String, dynamic>;
+                if (mounted) setState(() => _companyInfo = parsed);
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _logout() async {
@@ -203,6 +231,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: '버전',
             trailing: Text(_version, style: const TextStyle(fontSize: 13, color: _text2)),
           ),
+
+          // ── 회사 정보 영역 (버전 바로 아래) ──
+          if (_companyInfo != null && (_companyInfo!['name'] as String? ?? '').isNotEmpty) ...[  
+            const Divider(height: 1, color: _border),
+            _CompanyInfoSection(info: _companyInfo!),
+          ],
+
           const SizedBox(height: 24),
           // 로그아웃 버튼
           Padding(
@@ -234,6 +269,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -281,6 +318,53 @@ class _SettingsRow extends StatelessWidget {
               const Icon(Icons.chevron_right, color: _text2, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── 회사 정보 섹션 위젯 ──────────────────────────────────────────
+class _CompanyInfoSection extends StatelessWidget {
+  final Map<String, dynamic> info;
+  const _CompanyInfoSection({required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final name    = info['name'] as String? ?? '';
+    final content = info['content'] as String? ?? '';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (name.isNotEmpty)
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _text,
+              ),
+            ),
+          if (name.isNotEmpty && content.isNotEmpty)
+            const SizedBox(height: 6),
+          if (content.isNotEmpty)
+            Text(
+              content,
+              style: const TextStyle(
+                fontSize: 12,
+                color: _text2,
+                height: 1.6,
+              ),
+            ),
+        ],
       ),
     );
   }
