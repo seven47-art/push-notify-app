@@ -128,9 +128,16 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AlarmListSheet(
-        channels: _channels,
-        token: _token,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.88,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollController) => _AlarmListSheet(
+          channels: _channels,
+          token: _token,
+          scrollController: scrollController,
+        ),
       ),
     );
     // 시트 닫힌 후 알람 카운트 갱신
@@ -229,7 +236,8 @@ class _MyChannelsScreenState extends State<MyChannelsScreen> {
         return;
       }
 
-      final channel = jsonDecode(res.body) as Map<String, dynamic>;
+      final body    = jsonDecode(res.body) as Map<String, dynamic>;
+      final channel = (body['data'] ?? body) as Map<String, dynamic>;
 
       await showModalBottomSheet(
         context: context,
@@ -942,9 +950,11 @@ class _AlarmListTile extends StatelessWidget {
 class _AlarmListSheet extends StatefulWidget {
   final List<Map<String, dynamic>> channels;
   final String token;
+  final ScrollController? scrollController;
   const _AlarmListSheet({
     required this.channels,
     required this.token,
+    this.scrollController,
   });
 
   @override
@@ -968,35 +978,39 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
       final token  = prefs.getString('session_token') ?? widget.token;
       final userId = prefs.getString('user_id') ?? '';
 
-      final List<Map<String, dynamic>> result = [];
-
-      // 모든 채널 대상으로 알람 조회 (count 의존 제거)
+      // 모든 채널 병렬 요청 (Future.wait)
+      final futures = <Future<List<Map<String, dynamic>>>>[];
       for (int i = 0; i < widget.channels.length; i++) {
         final ch        = widget.channels[i];
         final channelId = ch['id']?.toString() ?? '';
         if (channelId.isEmpty) continue;
-        try {
-          final res = await http.get(
-            Uri.parse('$kBaseUrl/api/alarms?channel_id=$channelId&created_by=$userId'),
-            headers: {'Authorization': 'Bearer $token'},
-          ).timeout(const Duration(seconds: 10));
-          if (res.statusCode == 200) {
-            final body = jsonDecode(res.body) as Map<String, dynamic>;
-            if (body['success'] == true) {
-              final alarms = List<Map<String, dynamic>>.from(
-                (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
-              for (final alarm in alarms) {
-                result.add({
-                  ...alarm,
-                  '_channelName'      : ch['name']?.toString() ?? '',
-                  '_channelImageUrl'  : ch['image_url']?.toString(),
-                  '_channelColorIndex': i % _avatarColors.length,
-                });
+        final idx = i;
+        futures.add(() async {
+          try {
+            final res = await http.get(
+              Uri.parse('$kBaseUrl/api/alarms?channel_id=$channelId&user_id=$userId'),
+              headers: {'Authorization': 'Bearer $token'},
+            ).timeout(const Duration(seconds: 10));
+            if (res.statusCode == 200) {
+              final body = jsonDecode(res.body) as Map<String, dynamic>;
+              if (body['success'] == true) {
+                return List<Map<String, dynamic>>.from(
+                  (body['data'] as List? ?? []).map((e) => {
+                    ...Map<String, dynamic>.from(e),
+                    '_channelName'      : ch['name']?.toString() ?? '',
+                    '_channelImageUrl'  : ch['image_url']?.toString(),
+                    '_channelColorIndex': idx % _avatarColors.length,
+                  }),
+                );
               }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+          return <Map<String, dynamic>>[];
+        }());
       }
+
+      final nested = await Future.wait(futures);
+      final result = nested.expand((e) => e).toList();
 
       // 날짜 오름차순 정렬
       result.sort((a, b) {
@@ -1032,15 +1046,12 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final maxH = MediaQuery.of(context).size.height * 0.75;
     return Container(
-      constraints: BoxConstraints(maxHeight: maxH),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           // 드래그 핸들
           const SizedBox(height: 12),
@@ -1076,8 +1087,8 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
             ),
           ),
           const Divider(height: 1, thickness: 0.5, color: _border),
-          // 본문
-          Flexible(
+          // 본문 (스크롤 가능)
+          Expanded(
             child: _loading
               ? const Center(
                   child: Padding(
@@ -1100,7 +1111,7 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
                     ),
                   )
                 : ListView.builder(
-                    shrinkWrap: true,
+                    controller: widget.scrollController,
                     itemCount: _alarms.length,
                     itemBuilder: (_, i) => _AlarmListTile(
                       alarm: _alarms[i],

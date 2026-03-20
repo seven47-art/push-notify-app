@@ -35,7 +35,6 @@ class SubscribedChannelsScreen extends StatefulWidget {
 
 class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
-  Map<String, int> _alarmCounts = {}; // channelId → 알람 개수
   bool _loading = true;
   String? _error;
   String _token = '';
@@ -81,36 +80,9 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
               ? all
               : all.where((ch) => ch['owner_id']?.toString() != userId).toList();
 
-          // 알람 카운트 조회
-          Map<String, int> alarmCounts = {};
-          if (channels.isNotEmpty) {
-            try {
-              final ids = channels
-                  .map((c) => (c['channel_id'] ?? c['id'])?.toString() ?? '')
-                  .where((id) => id.isNotEmpty)
-                  .join(',');
-              if (ids.isNotEmpty) {
-                final alarmRes = await http.get(
-                  Uri.parse('$kBaseUrl/api/alarms/count?channel_ids=$ids'),
-                  headers: {'Authorization': 'Bearer $_token'},
-                ).timeout(const Duration(seconds: 10));
-                if (alarmRes.statusCode == 200) {
-                  final ab = jsonDecode(alarmRes.body) as Map<String, dynamic>;
-                  if (ab['success'] == true && ab['data'] != null) {
-                    final data = ab['data'] as Map<String, dynamic>;
-                    data.forEach((k, v) {
-                      alarmCounts[k] = (v as num).toInt();
-                    });
-                  }
-                }
-              }
-            } catch (_) {}
-          }
-
           if (mounted) {
             setState(() {
               _channels = channels;
-              _alarmCounts = alarmCounts;
               _loading = false;
             });
           }
@@ -363,12 +335,9 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                   (context, index) {
                     if (index >= displayList.length) return null;
                     final ch = displayList[index];
-                    final id = (ch['channel_id'] ?? ch['id'])?.toString() ?? '';
-                    final alarmCount = _alarmCounts[id] ?? 0;
                     return _ChannelListTile(
                       channel: ch,
                       colorIndex: index % _avatarColors.length,
-                      alarmCount: alarmCount,
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -398,14 +367,12 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
 class _ChannelListTile extends StatelessWidget {
   final Map<String, dynamic> channel;
   final int colorIndex;
-  final int alarmCount;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   const _ChannelListTile({
     required this.channel,
     required this.colorIndex,
     required this.onTap,
-    this.alarmCount = 0,
     this.onLongPress,
   });
 
@@ -428,42 +395,13 @@ class _ChannelListTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // 아바타 + 알람 배지
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                channelAvatar(
-                  imageUrl: imageUrl,
-                  name: name,
-                  size: 46,
-                  bgColor: avatarColor,
-                  borderRadius: 12,
-                ),
-                if (alarmCount > 0)
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF4444),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Center(
-                        child: Text(
-                          '$alarmCount',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            // 아바타
+            channelAvatar(
+              imageUrl: imageUrl,
+              name: name,
+              size: 46,
+              bgColor: avatarColor,
+              borderRadius: 12,
             ),
             const SizedBox(width: 12),
             Expanded(

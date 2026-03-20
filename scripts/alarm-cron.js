@@ -3,8 +3,10 @@
 // 서버와 별도로 실행되어 1분마다 알람 트리거를 폴링
 // PM2로 실행: pm2 start scripts/alarm-cron.js --name alarm-cron
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000'
+const SERVER_URL  = process.env.SERVER_URL  || 'http://localhost:3000'
 const INTERVAL_MS = 60 * 1000 // 1분
+// 만료 알람 정리: 매 10분마다 (조회 응답 지연 방지 - GET /api/alarms에서 분리)
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000
 
 console.log(`[AlarmCron] 시작 - 서버: ${SERVER_URL}, 인터벌: ${INTERVAL_MS/1000}초`)
 
@@ -27,8 +29,30 @@ async function triggerAlarms() {
   }
 }
 
+// 만료된 pending 알람 정리 (GET /api/alarms 응답 지연 방지용 분리)
+async function cleanupExpiredAlarms() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/alarms/cleanup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await res.json()
+    if (data.deleted_schedules > 0 || data.deleted_logs > 0) {
+      console.log(`[AlarmCron] 만료알람 정리 - schedules: ${data.deleted_schedules}, logs: ${data.deleted_logs}`)
+    }
+  } catch (e) {
+    // 조용히 무시
+  }
+}
+
 // 서버 준비 대기 후 시작 (10초 후 첫 실행)
 setTimeout(() => {
   triggerAlarms()
   setInterval(triggerAlarms, INTERVAL_MS)
+
+  // 10분 후 첫 정리 실행, 이후 10분 간격
+  setTimeout(() => {
+    cleanupExpiredAlarms()
+    setInterval(cleanupExpiredAlarms, CLEANUP_INTERVAL_MS)
+  }, CLEANUP_INTERVAL_MS)
 }, 10 * 1000)

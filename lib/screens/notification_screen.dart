@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/image_helper.dart';
+import '../utils/toast_helper.dart';
 import 'content_player_screen.dart';
 
 enum NotificationMode { inbox, outbox }
@@ -169,21 +170,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Future<void> _deleteSelected() async {
     if (_selectedIds.isEmpty) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('삭제'),
-        content: Text('선택한 ${_selectedIds.length}개 항목을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('삭제', style: TextStyle(color: _red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
+    final count = _selectedIds.length;
 
     final endpoint = widget.mode == NotificationMode.inbox
         ? '$kBaseUrl/api/alarms/inbox/bulk-delete'
@@ -197,7 +184,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
       ).timeout(const Duration(seconds: 10));
     } catch (_) {}
 
-    if (mounted) _load();
+    if (mounted) {
+      showCenterToast(context, '$count개 항목이 삭제되었습니다.');
+      _load();
+    }
   }
 
   void _onItemTap(Map<String, dynamic> item) {
