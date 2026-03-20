@@ -1248,13 +1248,19 @@ function adminDashboardHTML() {
         <div class="flex items-center gap-2 mb-2">
           <label class="cursor-pointer btn-primary text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
             <i class="fas fa-upload"></i>파일 업로드
-            <input type="file" id="banner-image-file" accept="image/*" class="hidden" onchange="uploadBannerImage(this)">
+            <input type="file" id="banner-image-file" accept="image/jpeg,image/jpg,image/webp,image/gif" class="hidden" onchange="uploadBannerImage(this)">
           </label>
           <span id="banner-upload-status" class="text-slate-500 text-xs"></span>
         </div>
         <!-- 또는 URL 직접 입력 -->
         <input type="url" id="banner-image-url" class="input-field text-sm" placeholder="또는 이미지 URL 직접 입력" oninput="updateBannerPreviewFromInputs()">
-        <p class="text-slate-500 text-xs mt-1.5">권장 사이즈: 가로 전체 × 높이 120px (3:1 비율)</p>
+        <div class="mt-2 p-3 rounded-lg bg-slate-800/60 border border-slate-700/50 text-xs space-y-1">
+          <p class="text-slate-300 font-semibold"><i class="fas fa-info-circle mr-1 text-indigo-400"></i>이미지 업로드 스펙</p>
+          <p class="text-slate-400">· 권장 사이즈: <span class="text-slate-300">1080 × 360px (3:1 비율)</span></p>
+          <p class="text-slate-400">· 지원 형식: <span class="text-slate-300">WebP (권장) · JPG · Animated WebP</span></p>
+          <p class="text-slate-400">· 정적 이미지: <span class="text-green-400">200KB 이하</span> / 애니메이션: <span class="text-yellow-400">500KB 이하</span></p>
+          <p class="text-slate-500">※ Animated WebP는 앱에서 별도 코드 수정 없이 자동 재생됩니다</p>
+        </div>
       </div>
 
       <!-- 링크 URL -->
@@ -2003,9 +2009,17 @@ admin.post('/upload-banner-image', async (c) => {
     const file     = formData.get('file') as File | null
     if (!file) return c.json({ success: false, message: '파일을 선택하세요.' })
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/webp', 'image/gif']
     if (!allowedTypes.includes(file.type)) {
-      return c.json({ success: false, message: 'JPG, PNG, GIF, WEBP 파일만 업로드 가능합니다.' })
+      return c.json({ success: false, message: 'JPG, WebP, Animated WebP(GIF) 파일만 업로드 가능합니다.' })
+    }
+
+    // 파일 크기 제한: 애니메이션(GIF) 500KB / 정적 이미지 200KB
+    const isAnimated = file.type === 'image/gif'
+    const maxSize    = isAnimated ? 500 * 1024 : 200 * 1024
+    if (file.size > maxSize) {
+      const limit = isAnimated ? '500KB' : '200KB'
+      return c.json({ success: false, message: `파일 크기 초과: ${isAnimated ? '애니메이션' : '정적'} 이미지는 ${limit} 이하만 업로드 가능합니다.` })
     }
 
     const sa        = JSON.parse(serviceAccountJson)
