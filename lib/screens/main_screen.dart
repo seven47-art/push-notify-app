@@ -3,6 +3,7 @@
 // 상단 앱바: RinGo 로고 + 검색/설정/햄버거 아이콘
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import 'settings_screen.dart';
 import 'notices_screen.dart';
 import 'channel_explore_screen.dart';
 import 'auth_screen.dart';
+import 'join_channel_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
 const _grey    = Color(0xFF9E9E9E);
@@ -70,6 +72,7 @@ class MainScreenState extends State<MainScreen> {
     _registerFcmToken();
     _checkUnreadNotices();
     _listenFcmForNative(); // channel_deleted / force_logout FCM 처리
+    _initDeepLink();       // 딥링크(초대코드) 수신 처리
     // 빌드 완료 후 terms 체크
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkTerms());
   }
@@ -95,6 +98,49 @@ class MainScreenState extends State<MainScreen> {
         await _handleForceLogoutNative(reason);
         return;
       }
+    });
+  }
+
+  // ── 딥링크 초기화: pushapp://join?token=xxx → JoinChannelScreen ──────────
+  static const _deepLinkChannel = MethodChannel('com.pushnotify.push_notify_app/deeplink');
+
+  void _initDeepLink() {
+    // 앱 실행 중 딥링크 수신 (Kotlin → Flutter)
+    _deepLinkChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onDeepLink') {
+        final token = call.arguments as String?;
+        if (token != null && token.isNotEmpty) {
+          debugPrint('[DeepLink][Native] onDeepLink 수신: $token');
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) _openJoinScreen(token);
+        }
+      }
+    });
+
+    // 콜드스타트: Kotlin에 pending 토큰 요청
+    Future.delayed(const Duration(milliseconds: 1000), () async {
+      try {
+        final token = await _deepLinkChannel.invokeMethod<String?>('getInitialToken');
+        if (token != null && token.isNotEmpty) {
+          debugPrint('[DeepLink][Native] getInitialToken: $token');
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) _openJoinScreen(token);
+        }
+      } catch (e) {
+        debugPrint('[DeepLink][Native] getInitialToken 오류: $e');
+      }
+    });
+  }
+
+  void _openJoinScreen(String token) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JoinChannelScreen(inviteToken: token),
+      ),
+    ).then((_) {
+      // 채널 참여 완료 후 구독채널 탭 갱신
+      _subscribedKey.currentState?.reload();
     });
   }
 
