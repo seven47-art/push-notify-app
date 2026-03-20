@@ -2,14 +2,15 @@
 // 수신함(inbox) / 발신함(outbox)
 // - API 페이지네이션(limit/offset) 기반 무한스크롤
 // - 채널 필터 탭(가로스크롤) + 선택/삭제 모드
+// - 리스트 탭 → 팝업 다이얼로그 (알람재생 / 신고하기 / 삭제하기)
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/image_helper.dart';
 import '../utils/toast_helper.dart';
-import 'content_player_screen.dart';
 
 enum NotificationMode { inbox, outbox }
 
@@ -20,6 +21,19 @@ const _text2   = Color(0xFF888888);
 const _border  = Color(0xFFEEEEEE);
 const _primary = Color(0xFF6C63FF);
 const _red     = Color(0xFFFF4444);
+
+// ── MethodChannel (Kotlin ContentPlayerActivity 호출) ──
+const _scheduleChannel = MethodChannel('com.pushnotify.push_notify_app/alarm');
+
+// 콘텐츠 타입 라벨
+String _typeLabel(String type) {
+  switch (type) {
+    case 'youtube': return 'YouTube';
+    case 'audio':   return '오디오';
+    case 'video':   return '비디오';
+    default:        return '알람';
+  }
+}
 
 // 콘텐츠 타입별 아이콘 색상
 Color _typeColor(String type) {
@@ -54,10 +68,11 @@ class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key, required this.mode});
 
   @override
-  State<NotificationScreen> createState() => _NotificationScreenState();
+  State<NotificationScreen> createState() => NotificationScreenState();
 }
 
-class _NotificationScreenState extends State<NotificationScreen> {
+// 퍼블릭 State - 외부(MainScreenState)에서 GlobalKey로 reload() 호출 가능
+class NotificationScreenState extends State<NotificationScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _loading     = true;
   bool _loadingMore = false;
@@ -67,8 +82,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
   String _token     = '';
 
   // 채널 필터
-  List<Map<String, dynamic>> _channels    = []; // [{id, name, image_url}]
-  String _selectedChannel = '전체';             // '전체' 또는 channel_name
+  List<Map<String, dynamic>> _channels = [];
+  String _selectedChannel = '전체';
 
   // 선택 모드
   bool _selectMode         = false;
@@ -76,6 +91,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   // 스크롤 컨트롤러 (무한스크롤)
   final ScrollController _scrollController = ScrollController();
+
+  // 외부에서 reload 호출 가능하도록 public 메서드
+  void reload() => _load(refresh: true);
 
   @override
   void initState() {
@@ -93,9 +111,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      if (!_loadingMore && _hasMore) {
-        _loadMore();
-      }
+      if (!_loadingMore && _hasMore) _loadMore();
     }
   }
 
@@ -103,13 +119,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Future<void> _load({bool refresh = false}) async {
     if (refresh) {
       setState(() {
-        _loading    = true;
-        _error      = null;
-        _selectMode = false;
+        _loading     = true;
+        _error       = null;
+        _selectMode  = false;
         _selectedIds = {};
-        _offset     = 0;
-        _items      = [];
-        _hasMore    = false;
+        _offset      = 0;
+        _items       = [];
+        _hasMore     = false;
       });
     }
     try {
@@ -120,18 +136,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (!mounted) return;
 
       if (result != null) {
-        // 첫 로드 시 채널 필터 목록 갱신 (offset=0일 때만 서버가 channels 반환)
         final newChannels = result['channels'] as List<Map<String, dynamic>>? ?? [];
-
         setState(() {
-          _items    = result['data'] as List<Map<String, dynamic>>;
-          _hasMore  = result['hasMore'] as bool;
-          _offset   = _items.length;
-          _loading  = false;
-          if (newChannels.isNotEmpty) {
-            _channels = newChannels;
-          }
-          // 선택 중인 채널이 목록에 없으면 전체로 초기화
+          _items   = result['data'] as List<Map<String, dynamic>>;
+          _hasMore = result['hasMore'] as bool;
+          _offset  = _items.length;
+          _loading = false;
+          if (newChannels.isNotEmpty) _channels = newChannels;
           if (_selectedChannel != '전체' &&
               !_channels.any((c) => c['name'] == _selectedChannel)) {
             _selectedChannel = '전체';
@@ -149,16 +160,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
-
     try {
       final result = await _fetchPage(offset: _offset);
       if (!mounted) return;
-
       if (result != null) {
         setState(() {
           _items.addAll(result['data'] as List<Map<String, dynamic>>);
-          _hasMore = result['hasMore'] as bool;
-          _offset  = _items.length;
+          _hasMore     = result['hasMore'] as bool;
+          _offset      = _items.length;
           _loadingMore = false;
         });
       } else {
@@ -175,7 +184,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ? '$kBaseUrl/api/alarms/inbox'
         : '$kBaseUrl/api/alarms/outbox';
 
-    // 채널 필터 적용 시 channel_id 파라미터 추가
     final selectedChannelId = _channels
         .where((c) => c['name'] == _selectedChannel)
         .map((c) => c['id']?.toString() ?? '')
@@ -197,7 +205,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     if (body['success'] != true) return null;
 
-    // data: 플랫 배열
     final rawData = body['data'];
     final List<Map<String, dynamic>> items = [];
     if (rawData is List) {
@@ -206,7 +213,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
       }
     }
 
-    // channels: 첫 로드 시만 반환됨
     final rawChannels = body['channels'];
     final List<Map<String, dynamic>> channels = [];
     if (rawChannels is List) {
@@ -218,18 +224,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final total   = (body['total'] as num?)?.toInt() ?? 0;
     final hasMore = body['hasMore'] == true || (offset + items.length) < total;
 
-    return {
-      'data':     items,
-      'channels': channels,
-      'hasMore':  hasMore,
-      'total':    total,
-    };
+    return {'data': items, 'channels': channels, 'hasMore': hasMore, 'total': total};
   }
 
   // ── 채널 필터 변경 ──────────────────────────────────
   void _onChannelFilter(String name) {
     if (_selectedChannel == name) return;
-    setState(() { _selectedChannel = name; });
+    setState(() => _selectedChannel = name);
     _load(refresh: true);
   }
 
@@ -237,7 +238,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   String _formatDate(dynamic raw) {
     if (raw == null) return '';
     try {
-      final dt = DateTime.parse(raw.toString()).toLocal();
+      final dt    = DateTime.parse(raw.toString()).toLocal();
       final now   = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final day   = DateTime(dt.year, dt.month, dt.day);
@@ -250,31 +251,79 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // ── 선택 삭제 ──────────────────────────────────────
+  // ── 선택 삭제 (상단 선택모드) ───────────────────────
   Future<void> _deleteSelected() async {
     if (_selectedIds.isEmpty) return;
     final count = _selectedIds.length;
-
-    final endpoint = widget.mode == NotificationMode.inbox
-        ? '$kBaseUrl/api/alarms/inbox/bulk-delete'
-        : '$kBaseUrl/api/alarms/outbox/bulk-delete';
-
-    try {
-      await http.post(
-        Uri.parse(endpoint),
-        headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
-        body: jsonEncode({'log_ids': _selectedIds.toList()}),
-      ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
-
+    await _deleteLogIds(_selectedIds.toList());
     if (mounted) {
       showCenterToast(context, '$count개 항목이 삭제되었습니다.');
       _load(refresh: true);
     }
   }
 
-  // ── 아이템 탭 ──────────────────────────────────────
-  void _onItemTap(Map<String, dynamic> item) {
+  // ── 단건 삭제 (다이얼로그에서 호출) ────────────────
+  Future<void> _deleteSingle(String logId) async {
+    await _deleteLogIds([logId]);
+    if (mounted) {
+      showCenterToast(context, '삭제되었습니다.');
+      _load(refresh: true);
+    }
+  }
+
+  // ── bulk-delete 공통 호출 ──────────────────────────
+  Future<void> _deleteLogIds(List<String> ids) async {
+    final endpoint = widget.mode == NotificationMode.inbox
+        ? '$kBaseUrl/api/alarms/inbox/bulk-delete'
+        : '$kBaseUrl/api/alarms/outbox/bulk-delete';
+    try {
+      await http.post(
+        Uri.parse(endpoint),
+        headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'log_ids': ids}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  // ── 알람 재생 (Kotlin ContentPlayerActivity) ───────
+  Future<void> _playAlarm(Map<String, dynamic> item) async {
+    final msgType     = item['msg_type']?.toString()      ?? '';
+    final msgValue    = item['msg_value']?.toString()     ?? '';
+    final channelName = item['channel_name']?.toString()  ?? '';
+    final channelImg  = item['channel_image']?.toString() ?? '';
+    final linkUrl     = item['link_url']?.toString()      ?? '';
+    try {
+      await _scheduleChannel.invokeMethod('openContentPlayer', {
+        'msg_type':      msgType,
+        'msg_value':     msgValue,
+        'channel_name':  channelName,
+        'channel_image': channelImg,
+        'link_url':      linkUrl,
+      });
+    } catch (e) {
+      if (mounted) showCenterToast(context, '재생을 시작할 수 없습니다.');
+    }
+  }
+
+  // ── 신고 다이얼로그 ────────────────────────────────
+  void _showReportDialog(Map<String, dynamic> item) {
+    final channelId   = item['channel_id']?.toString()   ?? '';
+    final channelName = item['channel_name']?.toString() ?? '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReportSheet(
+        channelId:   channelId,
+        channelName: channelName,
+        token:       _token,
+      ),
+    );
+  }
+
+  // ── 아이템 탭 → 팝업 다이얼로그 ───────────────────
+  void _onItemTap(Map<String, dynamic> item, int colorIndex) {
+    // 선택 모드 중이면 체크 토글
     if (_selectMode) {
       final id = item['id']?.toString() ?? '';
       setState(() {
@@ -286,13 +335,39 @@ class _NotificationScreenState extends State<NotificationScreen> {
       });
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ContentPlayerScreen(alarm: item)),
+
+    // 팝업 다이얼로그 표시
+    final channelName = item['channel_name']?.toString() ?? '';
+    final contentType = item['msg_type']?.toString() ?? '';
+    final logId       = item['id']?.toString() ?? '';
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: _AlarmActionMenu(
+          channelName:  channelName,
+          contentType:  contentType,
+          colorIndex:   colorIndex,
+          onPlay: () {
+            Navigator.pop(context);
+            _playAlarm(item);
+          },
+          onReport: () {
+            Navigator.pop(context);
+            _showReportDialog(item);
+          },
+          onDelete: () {
+            Navigator.pop(context);
+            _deleteSingle(logId);
+          },
+        ),
+      ),
     );
   }
 
-  // ── 현재 보이는 아이템 목록 (채널 필터는 서버에서 처리) ──
   List<Map<String, dynamic>> get _displayed => _items;
 
   @override
@@ -370,7 +445,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _channels.length + 1, // +1: '전체' 탭
+                itemCount: _channels.length + 1,
                 itemBuilder: (context, i) {
                   final name     = i == 0 ? '전체' : (_channels[i - 1]['name']?.toString() ?? '');
                   final selected = name == _selectedChannel;
@@ -383,9 +458,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         decoration: BoxDecoration(
                           color: selected ? _primary : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: selected ? _primary : _border,
-                          ),
+                          border: Border.all(color: selected ? _primary : _border),
                         ),
                         child: Text(
                           name,
@@ -431,8 +504,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               children: [
                                 Icon(
                                   widget.mode == NotificationMode.inbox
-                                      ? Icons.inbox
-                                      : Icons.send,
+                                      ? Icons.inbox : Icons.send,
                                   size: 56, color: Colors.grey[300],
                                 ),
                                 const SizedBox(height: 12),
@@ -450,28 +522,26 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             onRefresh: () => _load(refresh: true),
                             child: ListView.builder(
                               controller: _scrollController,
-                              // hasMore이면 마지막에 로딩 인디케이터 추가
                               itemCount: _displayed.length + (_hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
-                                // 맨 마지막 → 로딩 인디케이터
                                 if (index == _displayed.length) {
                                   return const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 16),
                                     child: Center(
                                       child: CircularProgressIndicator(
-                                        color: _primary, strokeWidth: 2,
-                                      ),
+                                          color: _primary, strokeWidth: 2),
                                     ),
                                   );
                                 }
                                 final item = _displayed[index];
+                                final ci   = index % _avatarColors.length;
                                 return _AlarmListTile(
-                                  item:        item,
-                                  colorIndex:  index % _avatarColors.length,
-                                  selectMode:  _selectMode,
-                                  selected:    _selectedIds.contains(item['id']?.toString() ?? ''),
-                                  onTap:       () => _onItemTap(item),
-                                  formatDate:  _formatDate,
+                                  item:       item,
+                                  colorIndex: ci,
+                                  selectMode: _selectMode,
+                                  selected:   _selectedIds.contains(item['id']?.toString() ?? ''),
+                                  onTap:      () => _onItemTap(item, ci),
+                                  formatDate: _formatDate,
                                 );
                               },
                             ),
@@ -483,12 +553,356 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 }
 
-// ── 알람 아이템 타일 ──────────────────────────────────
+// ════════════════════════════════════════════════════════
+// 알람 액션 팝업 메뉴 (subscribed_channels_screen의 _ChannelPopupMenu 스타일 동일)
+// ════════════════════════════════════════════════════════
+class _AlarmActionMenu extends StatelessWidget {
+  final String      channelName;
+  final String      contentType;
+  final int         colorIndex;
+  final VoidCallback onPlay;
+  final VoidCallback onReport;
+  final VoidCallback onDelete;
+
+  const _AlarmActionMenu({
+    required this.channelName,
+    required this.contentType,
+    required this.colorIndex,
+    required this.onPlay,
+    required this.onReport,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final typeLabel = _typeLabel(contentType);
+    final typeColor = _typeColor(contentType);
+    final typeIco   = _typeIcon(contentType);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 헤더: 채널명 + 콘텐츠 타입 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  channelName.isEmpty ? '(채널 없음)' : channelName,
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF222222)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: typeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(typeIco, size: 12, color: typeColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            typeLabel,
+                            style: TextStyle(
+                                fontSize: 12, color: typeColor, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+
+          // ── 알람 재생 ──
+          _MenuItem(
+            icon:  Icons.play_circle_outline,
+            label: '알람 재생',
+            onTap: onPlay,
+          ),
+
+          // ── 신고하기 ──
+          _MenuItem(
+            icon:  Icons.flag_outlined,
+            label: '신고하기',
+            onTap: onReport,
+          ),
+
+          // ── 삭제하기 ──
+          _MenuItem(
+            icon:  Icons.delete_outline,
+            label: '삭제하기',
+            color: _red,
+            onTap: onDelete,
+          ),
+
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+}
+
+// 메뉴 항목 위젯
+class _MenuItem extends StatelessWidget {
+  final IconData   icon;
+  final String     label;
+  final Color?     color;
+  final VoidCallback onTap;
+
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? const Color(0xFF444444);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: c),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                  fontSize: 15, color: color ?? const Color(0xFF222222), fontWeight: FontWeight.w400),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// 신고 바텀시트 (channel_detail_screen의 _ReportSheet 동일 구조)
+// ════════════════════════════════════════════════════════
+class _ReportSheet extends StatefulWidget {
+  final String channelId;
+  final String channelName;
+  final String token;
+  const _ReportSheet({
+    required this.channelId,
+    required this.channelName,
+    required this.token,
+  });
+
+  @override
+  State<_ReportSheet> createState() => _ReportSheetState();
+}
+
+class _ReportSheetState extends State<_ReportSheet> {
+  String? _selectedReason;
+  final _detailCtrl = TextEditingController();
+  bool _submitting  = false;
+
+  static const _reasons = [
+    '불법 광고 / 스팸',
+    '사기 / 피싱',
+    '음란 / 선정적 콘텐츠',
+    '괴롭힘 / 혐오',
+    '저작권 / 도용 의심',
+    '기타',
+  ];
+
+  @override
+  void dispose() {
+    _detailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_selectedReason == null) {
+      showCenterToast(context, '신고 사유를 선택해주세요.');
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final res = await http.post(
+        Uri.parse('$kBaseUrl/api/reports'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'report_type':  'channel',
+          'reason':       _selectedReason,
+          'description':  _detailCtrl.text.trim(),
+          'channel_id':   int.tryParse(widget.channelId) ?? widget.channelId,
+          'channel_name': widget.channelName,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final resBody = jsonDecode(res.body) as Map<String, dynamic>;
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      if (resBody['success'] == true) {
+        showCenterToast(context, '신고가 접수되었습니다.');
+      } else {
+        final errMsg  = resBody['error']?.toString() ?? '신고 처리 중 오류가 발생했습니다.';
+        final already = errMsg.contains('already') || errMsg.contains('이미') ||
+                        errMsg.contains('동일한') || errMsg.contains('duplicate');
+        showCenterToast(context, already ? '이미 신고한 채널입니다.' : errMsg);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      showCenterToast(context, '오류가 발생했습니다. 다시 시도해주세요.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 핸들
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 타이틀
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('신고하기',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700, color: _text)),
+                    Text(widget.channelName,
+                        style: const TextStyle(fontSize: 13, color: _text2)),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: _text2),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 사유 선택
+            const Text('신고 사유 선택',
+                style: TextStyle(
+                    fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            ..._reasons.map((reason) => RadioListTile<String>(
+                  value:      reason,
+                  groupValue: _selectedReason,
+                  onChanged:  (v) => setState(() => _selectedReason = v),
+                  title: Text(reason,
+                      style: const TextStyle(fontSize: 14, color: _text)),
+                  activeColor:    _primary,
+                  contentPadding: EdgeInsets.zero,
+                  dense:          true,
+                )),
+            const SizedBox(height: 12),
+
+            // 상세 내용
+            TextField(
+              controller: _detailCtrl,
+              maxLines:   3,
+              maxLength:  200,
+              decoration: InputDecoration(
+                hintText:    '추가 내용을 입력해주세요 (선택)',
+                hintStyle:   const TextStyle(fontSize: 13, color: _text2),
+                filled:      true,
+                fillColor:   const Color(0xFFF8F8F8),
+                border:      OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:   const BorderSide(color: _border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:   const BorderSide(color: _border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:   const BorderSide(color: _primary),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 신고 버튼
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  minimumSize:     const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('신고하기',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// 알람 아이템 타일
+// ════════════════════════════════════════════════════════
 class _AlarmListTile extends StatelessWidget {
   final Map<String, dynamic> item;
-  final int colorIndex;
-  final bool selectMode;
-  final bool selected;
+  final int         colorIndex;
+  final bool        selectMode;
+  final bool        selected;
   final VoidCallback onTap;
   final String Function(dynamic) formatDate;
 
@@ -552,11 +966,7 @@ class _AlarmListTile extends StatelessWidget {
                 color: _typeColor(contentType).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Icon(
-                _typeIcon(contentType),
-                size:  16,
-                color: _typeColor(contentType),
-              ),
+              child: Icon(_typeIcon(contentType), size: 16, color: _typeColor(contentType)),
             ),
             const SizedBox(width: 10),
             // 채널명
@@ -570,10 +980,8 @@ class _AlarmListTile extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             // 날짜
-            Text(
-              formatDate(scheduledAt),
-              style: const TextStyle(fontSize: 12, color: _text2),
-            ),
+            Text(formatDate(scheduledAt),
+                style: const TextStyle(fontSize: 12, color: _text2)),
           ],
         ),
       ),

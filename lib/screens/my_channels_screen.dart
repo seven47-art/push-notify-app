@@ -31,15 +31,19 @@ class MyChannelsScreen extends StatefulWidget {
   const MyChannelsScreen({super.key});
 
   @override
-  State<MyChannelsScreen> createState() => _MyChannelsScreenState();
+  State<MyChannelsScreen> createState() => MyChannelsScreenState();
 }
 
-class _MyChannelsScreenState extends State<MyChannelsScreen> {
+// 퍼블릭 State - 외부(MainScreenState)에서 GlobalKey로 reload() 호출 가능
+class MyChannelsScreenState extends State<MyChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
   Map<String, int> _alarmCounts = {}; // channelId → 알람 개수
   bool _loading = true;
   String? _error;
   String _token = '';
+
+  // 외부에서 reload 호출 가능하도록 public 메서드
+  void reload() => _load();
 
   @override
   void initState() {

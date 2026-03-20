@@ -1,6 +1,62 @@
 // src/routes/channels.ts
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
+import { sendFCMMulticast } from './fcm'
+
+// ── 채널 1개 완전 삭제 헬퍼 (DB + 구독자 FCM 전송) ──────────────
+// users.ts의 deleteUserFully 채널 처리 로직과 동일하게 맞춤
+async function deleteChannelFully(db: any, env: any, channelId: string | number) {
+  const chId = Number(channelId)
+  const serviceAccount = (env as any).FCM_SERVICE_ACCOUNT_JSON || ''
+  const projectId      = (env as any).FCM_PROJECT_ID           || ''
+
+  // 1. 구독자 FCM 토큰 수집 → channel_deleted 전송
+  const subRows = await db.prepare(
+    `SELECT COALESCE(s.fcm_token, u.fcm_token) as fcm_token
+     FROM subscribers s
+     LEFT JOIN users u ON u.user_id = s.user_id
+     WHERE s.channel_id = ? AND COALESCE(s.fcm_token, u.fcm_token) IS NOT NULL`
+  ).bind(chId).all()
+  const subTokens = (subRows.results as { fcm_token: string }[])
+    .map(r => r.fcm_token).filter(Boolean)
+
+  if (subTokens.length > 0 && serviceAccount && projectId) {
+    try {
+      await sendFCMMulticast(
+        subTokens,
+        { action: 'channel_deleted', channel_id: String(chId) },
+        serviceAccount,
+        projectId
+      )
+    } catch (_) { /* FCM 실패해도 DB 삭제 계속 */ }
+  }
+
+  // 2. notification_batches / logs 삭제
+  const batches = await db.prepare(
+    `SELECT id FROM notification_batches WHERE channel_id = ?`
+  ).bind(chId).all()
+  for (const b of (batches.results as { id: number }[])) {
+    await db.prepare(`DELETE FROM notification_logs WHERE batch_id = ?`).bind(b.id).run()
+  }
+  await db.prepare(`DELETE FROM notification_batches WHERE channel_id = ?`).bind(chId).run()
+
+  // 3. alarm_schedules / alarm_logs 삭제
+  const alarmSchedules = await db.prepare(
+    `SELECT id FROM alarm_schedules WHERE channel_id = ?`
+  ).bind(chId).all()
+  for (const a of (alarmSchedules.results as { id: number }[])) {
+    await db.prepare(`DELETE FROM alarm_logs WHERE alarm_id = ?`).bind(a.id).run()
+  }
+  await db.prepare(`DELETE FROM alarm_schedules WHERE channel_id = ?`).bind(chId).run()
+
+  // 4. 나머지 관련 데이터 삭제
+  await db.prepare(`DELETE FROM subscribers WHERE channel_id = ?`).bind(chId).run()
+  await db.prepare(`DELETE FROM contents WHERE channel_id = ?`).bind(chId).run()
+  await db.prepare(`DELETE FROM channel_invite_links WHERE channel_id = ?`).bind(chId).run()
+
+  // 5. 채널 본체 삭제
+  await db.prepare(`DELETE FROM channels WHERE id = ?`).bind(chId).run()
+}
 
 const channels = new Hono<{ Bindings: Bindings }>()
 
@@ -439,9 +495,7 @@ channels.post('/:id/verify-password', async (c) => {
 channels.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
-    // alarm_logs 명시적 삭제 (D1 FK CASCADE 미동작 대비)
-    await c.env.DB.prepare('DELETE FROM alarm_logs WHERE channel_id = ?').bind(id).run()
-    await c.env.DB.prepare('DELETE FROM channels WHERE id = ?').bind(id).run()
+    await deleteChannelFully(c.env.DB, c.env, id)
     return c.json({ success: true, message: 'Channel deleted' })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
@@ -454,10 +508,9 @@ channels.post('/bulk-delete', async (c) => {
     const { ids } = await c.req.json()
     if (!Array.isArray(ids) || ids.length === 0)
       return c.json({ success: false, error: 'ids 필수' }, 400)
-    const placeholders = ids.map(() => '?').join(',')
-    // alarm_logs 명시적 삭제 (D1 FK CASCADE 미동작 대비)
-    await c.env.DB.prepare(`DELETE FROM alarm_logs WHERE channel_id IN (${placeholders})`).bind(...ids).run()
-    await c.env.DB.prepare(`DELETE FROM channels WHERE id IN (${placeholders})`).bind(...ids).run()
+    for (const id of ids) {
+      await deleteChannelFully(c.env.DB, c.env, id)
+    }
     return c.json({ success: true, deleted: ids.length })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)

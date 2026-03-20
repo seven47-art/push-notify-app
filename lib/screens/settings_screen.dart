@@ -91,22 +91,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm != true) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
+      final prefs   = await SharedPreferences.getInstance();
+      final token   = prefs.getString('session_token') ?? '';
+      final userId  = prefs.getString('user_id') ?? '';
+
+      // FCM 토큰 서버 해제 (실패해도 탈퇴 진행)
+      try {
+        final fcmToken = prefs.getString('fcm_token') ?? '';
+        if (fcmToken.isNotEmpty) {
+          await http.post(
+            Uri.parse('$kBaseUrl/api/fcm/unregister'),
+            headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+            body: jsonEncode({'fcm_token': fcmToken}),
+          ).timeout(const Duration(seconds: 5));
+        }
+      } catch (_) {}
+
+      // 회원 탈퇴 API: DELETE /api/users/me (body: user_id + session_token)
       final res = await http.delete(
-        Uri.parse('$kBaseUrl/api/auth/delete'),
-        headers: {'Authorization': 'Bearer $token'},
+        Uri.parse('$kBaseUrl/api/users/me'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': userId, 'session_token': token}),
       ).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 && body['success'] == true) {
         await prefs.clear();
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
         return;
       }
-    } catch (_) {}
-
-    if (mounted) {
-      showCenterToast(context, '탈퇴 처리 중 오류가 발생했습니다.');
+      // 서버 오류 메시지 표시
+      final errMsg = body['error']?.toString() ?? '탈퇴 처리 중 오류가 발생했습니다.';
+      if (mounted) showCenterToast(context, errMsg);
+    } catch (_) {
+      if (mounted) showCenterToast(context, '탈퇴 처리 중 오류가 발생했습니다.');
     }
   }
 

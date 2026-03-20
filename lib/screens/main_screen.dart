@@ -15,6 +15,7 @@ import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'notices_screen.dart';
 import 'channel_explore_screen.dart';
+import 'auth_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
 const _grey    = Color(0xFF9E9E9E);
@@ -38,8 +39,11 @@ class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   bool _hasUnreadNotice = false;
 
-  // 구독채널 화면 reload를 위한 GlobalKey
-  final GlobalKey<SubscribedChannelsScreenState> _subscribedKey = GlobalKey<SubscribedChannelsScreenState>();
+  // 각 네이티브 화면 reload를 위한 GlobalKey
+  final GlobalKey<SubscribedChannelsScreenState> _subscribedKey  = GlobalKey<SubscribedChannelsScreenState>();
+  final GlobalKey<MyChannelsScreenState>         _myChannelsKey  = GlobalKey<MyChannelsScreenState>();
+  final GlobalKey<NotificationScreenState>       _inboxKey       = GlobalKey<NotificationScreenState>();
+  final GlobalKey<NotificationScreenState>       _outboxKey      = GlobalKey<NotificationScreenState>();
 
   final List<_TabItem> _tabs = const [
     _TabItem(icon: Icons.home_outlined,      activeIcon: Icons.home,            label: '홈'),
@@ -57,16 +61,91 @@ class MainScreenState extends State<MainScreen> {
     _currentIndex = widget.initialTab;
     _screens = [
       const HomeScreenMain(),
-      const MyChannelsScreen(),
+      MyChannelsScreen(key: _myChannelsKey),
       SubscribedChannelsScreen(key: _subscribedKey),
-      const NotificationScreen(mode: NotificationMode.inbox),
-      const NotificationScreen(mode: NotificationMode.outbox),
+      NotificationScreen(key: _inboxKey,  mode: NotificationMode.inbox),
+      NotificationScreen(key: _outboxKey, mode: NotificationMode.outbox),
       const ChannelExploreScreen(), // index 5 - 검색 아이콘으로 전환
     ];
     _registerFcmToken();
     _checkUnreadNotices();
+    _listenFcmForNative(); // channel_deleted / force_logout FCM 처리
     // 빌드 완료 후 terms 체크
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkTerms());
+  }
+
+  // ── 네이티브 화면용 FCM 이벤트 처리 ─────────────────────────────
+  // lib/main.dart (WebView)의 FCM 핸들러와 별개로 네이티브 화면에서도 처리
+  void _listenFcmForNative() {
+    FirebaseMessaging.onMessage.listen((message) async {
+      final action = message.data['action'] ?? '';
+
+      // ── channel_deleted: 해당 채널을 내채널/구독채널/수신함/발신함에서 즉시 제거 ──
+      if (action == 'channel_deleted') {
+        _myChannelsKey.currentState?.reload();
+        _subscribedKey.currentState?.reload();
+        _inboxKey.currentState?.reload();
+        _outboxKey.currentState?.reload();
+        return;
+      }
+
+      // ── force_logout: 관리자 삭제/차단 → 세션 초기화 후 로그인 화면으로 ──
+      if (action == 'force_logout') {
+        final reason = message.data['reason'] ?? 'deleted';
+        await _handleForceLogoutNative(reason);
+        return;
+      }
+    });
+  }
+
+  Future<void> _handleForceLogoutNative(String reason) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('session_token');
+    await prefs.remove('user_id');
+    await prefs.remove('email');
+    await prefs.remove('user_email');
+    await prefs.remove('display_name');
+    if (!mounted) return;
+
+    final isDeleted = reason == 'deleted';
+    final title   = isDeleted ? '계정 삭제됨' : '계정 사용 불가';
+    final content = isDeleted
+        ? '관리자에 의해 계정이 삭제되었습니다.\n다시 가입하실 수 있습니다.'
+        : '이 계정은 사용할 수 없습니다.\n다른 계정을 선택해주세요.';
+    final icon      = isDeleted ? Icons.person_remove : Icons.block;
+    final iconColor = isDeleted ? const Color(0xFFF59E0B) : const Color(0xFFEF4444);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(
+            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ]),
+        content: Text(
+          content,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('확인',
+              style: TextStyle(color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (route) => false,
+    );
   }
 
   Future<void> _checkUnreadNotices() async {
@@ -155,10 +234,11 @@ class MainScreenState extends State<MainScreen> {
   void navigateToTab(int index) {
     if (mounted) {
       setState(() => _currentIndex = index);
-      // 구독채널 탭으로 이동 시 목록 갱신
-      if (index == 2) {
-        _subscribedKey.currentState?.reload();
-      }
+      // 탭 전환 시 해당 화면 목록 갱신
+      if (index == 1) _myChannelsKey.currentState?.reload();
+      if (index == 2) _subscribedKey.currentState?.reload();
+      if (index == 3) _inboxKey.currentState?.reload();
+      if (index == 4) _outboxKey.currentState?.reload();
     }
   }
 
