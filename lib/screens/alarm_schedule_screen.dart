@@ -403,6 +403,96 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     );
   }
 
+  /// 알람 설정 안내 다이얼로그
+  void _showAlarmGuide() {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 타이틀
+              const Text(
+                '알람 설정 안내',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text),
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, thickness: 0.5, color: _border),
+              const SizedBox(height: 14),
+              // 본문 스크롤
+              SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    // 서두
+                    Text(
+                      '알람을 설정하면 설정한 시간에 선택한 콘텐츠가 채널 구독자에게 전화 방식으로 알람이 전송됩니다.',
+                      style: TextStyle(fontSize: 13, color: _text2, height: 1.55),
+                    ),
+                    SizedBox(height: 16),
+                    // 콘텐츠 선택
+                    Text(
+                      '콘텐츠 선택',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _text),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '선택한 콘텐츠(유튜브/영상/오디오)가 알람에 포함됩니다.\n링크를 입력하면 해당 콘텐츠로 연결됩니다.',
+                      style: TextStyle(fontSize: 13, color: _text2, height: 1.55),
+                    ),
+                    SizedBox(height: 14),
+                    // 연결 URL
+                    Text(
+                      '연결 URL',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _text),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '알람 클릭 시 이동할 링크를 설정합니다.\n입력하지 않아도 알람 전송은 가능합니다.',
+                      style: TextStyle(fontSize: 13, color: _text2, height: 1.55),
+                    ),
+                    SizedBox(height: 14),
+                    // 날짜/시간 선택
+                    Text(
+                      '날짜 / 시간 선택',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _text),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '선택한 시간에 알람이 자동 전송됩니다.',
+                      style: TextStyle(fontSize: 13, color: _text2, height: 1.55),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // 확인 버튼
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    backgroundColor: _teal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('확인', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 기존 알람 목록 위젯 (웹뷰 스타일)
   Widget _buildAlarmList() {
     if (_loadingAlarms) {
@@ -580,7 +670,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
             Center(child: Container(width: 40, height: 4,
               decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
-            // 뒤로가기 + 제목
+            // 뒤로가기 + 제목 + 안내 버튼
             Row(
               children: [
                 IconButton(
@@ -596,6 +686,12 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text),
                     overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.info_outline, size: 22, color: _text2),
+                  onPressed: _showAlarmGuide,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
