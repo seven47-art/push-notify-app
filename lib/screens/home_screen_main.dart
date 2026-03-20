@@ -207,7 +207,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
           child: Image.network(
             imageUrl,
             width: double.infinity,
-            height: 120,
+            height: 160,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _buildDefaultBanner(bannerLink),
           ),
