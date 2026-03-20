@@ -61,7 +61,7 @@ class _CenterToastState extends State<_CenterToast>
               decoration: BoxDecoration(
                 color: widget.isError
                     ? const Color(0xFFFF4444)
-                    : Colors.white,
+                    : const Color(0xFFF0F0F0),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(

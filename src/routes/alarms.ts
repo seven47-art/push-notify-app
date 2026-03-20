@@ -264,13 +264,46 @@ alarms.post('/', async (c) => {
 })
 
 // =============================================
+// GET /api/alarms/count?channel_ids=id1,id2,...  - 채널별 pending 알람 개수 조회
+// 내채널 리스트 알람 아이콘/배지 표시용
+// =============================================
+alarms.get('/count', async (c) => {
+  try {
+    const channelIds = (c.req.query('channel_ids') || '').split(',').map(s => s.trim()).filter(Boolean)
+    if (channelIds.length === 0) return c.json({ success: true, data: {} })
+
+    // 채널별 pending 알람 개수 집계
+    const placeholders = channelIds.map(() => '?').join(',')
+    const { results } = await c.env.DB.prepare(`
+      SELECT channel_id, COUNT(*) as count
+      FROM alarm_schedules
+      WHERE channel_id IN (${placeholders})
+        AND status = 'pending'
+        AND scheduled_at > datetime('now')
+      GROUP BY channel_id
+    `).bind(...channelIds).all()
+
+    // { channelId: count } 형태로 변환
+    const data: Record<string, number> = {}
+    for (const row of results as any[]) {
+      data[row.channel_id] = row.count
+    }
+
+    return c.json({ success: true, data })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // GET /api/alarms?channel_id=X&user_id=Y  - 알람 목록 조회
 // 조회 시 이미 지난 pending/triggered 알람은 자동 삭제 후 반환
 // =============================================
 alarms.get('/', async (c) => {
   try {
-    const channelId = c.req.query('channel_id')
-    const userId    = c.req.query('user_id')
+    const channelId  = c.req.query('channel_id')
+    // created_by, user_id 둘 다 수락 (프론트 호환)
+    const userId     = c.req.query('user_id') || c.req.query('created_by')
     const params: any[] = []
     let where = 'WHERE 1=1'
 
@@ -286,29 +319,7 @@ alarms.get('/', async (c) => {
     `)
     const { results } = params.length ? await stmt.bind(...params).all() : await stmt.all()
 
-    // ── 지난 알람 자동 삭제 ──────────────────────────────────────────
-    // scheduled_at이 현재 시각보다 과거이고, status가 pending/triggered인 알람은
-    // 이미 울렸거나 울려야 했지만 남아있는 것 → 자동 삭제 처리
-    const now = new Date()
-    const expiredAlarms = (results as any[]).filter(a => {
-      const scheduledAt = new Date(a.scheduled_at)
-      return scheduledAt < now && (a.status === 'pending' || a.status === 'triggered')
-    })
-
-    if (expiredAlarms.length > 0) {
-      // 지난 알람 삭제 (alarm_logs는 이력 보존, alarm_schedules만 삭제)
-      for (const alarm of expiredAlarms) {
-        try {
-          await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
-        } catch (_) { /* 삭제 실패 무시 */ }
-      }
-      // 삭제 후 남은 알람만 반환
-      const expiredIds = new Set(expiredAlarms.map((a: any) => a.id))
-      const activeResults = (results as any[]).filter(a => !expiredIds.has(a.id))
-      return c.json({ success: true, data: activeResults })
-    }
-    // ────────────────────────────────────────────────────────────────
-
+    // 지난 알람 자동 삭제는 alarm-cron.js 에서 처리 (조회 응답 지연 방지)
     return c.json({ success: true, data: results })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
