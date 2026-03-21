@@ -716,12 +716,10 @@ alarms.post('/trigger', async (c) => {
         ).bind(realSentCount, recipientMap.size, alarm.id).run()
       }
 
-      // ── 발송 완료된 알람 자동 삭제 ──────────────────────────────────
-      // triggered 상태가 되고 모든 수신자에게 발송 완료된 알람은 DB에서 정리
-      // (alarm_logs는 수신 이력으로 보존, alarm_schedules만 삭제)
-      try {
-        await c.env.DB.prepare('DELETE FROM alarm_schedules WHERE id = ?').bind(alarm.id).run()
-      } catch (_) { /* 삭제 실패 무시 — 다음 조회 시 GET에서 처리됨 */ }
+      // ── 발송 완료된 알람: 즉시 삭제하지 않음 ──────────────────────────
+      // alarm_logs FK(ON DELETE CASCADE)로 인해 alarm_schedules 삭제 시
+      // alarm_logs까지 연쇄 삭제되어 수신함/발신함에 이력이 안 남는 문제 해결
+      // → status='triggered'로만 변경, 실제 삭제는 3일 후 cleanup에서 처리
       // ────────────────────────────────────────────────────────────────
 
       totalTriggered++
