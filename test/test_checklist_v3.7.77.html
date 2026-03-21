@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ringo v3.7.77+126 Test Checklist</title>
+<style>
+  :root {
+    --pass: #22c55e;
+    --fail: #ef4444;
+    --skip: #f59e0b;
+    --pending: #94a3b8;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-sub: #64748b;
+    --accent: #3b82f6;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 16px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+  .header {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--text-sub);
+  }
+  .header-meta label { font-weight: 600; margin-right: 4px; }
+  .header-meta input, .header-meta select {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+  }
+  .summary-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .stat .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .stat .dot.pass { background: var(--pass); }
+  .stat .dot.fail { background: var(--fail); }
+  .stat .dot.skip { background: var(--skip); }
+  .stat .dot.pending { background: var(--pending); }
+  .progress-bar {
+    flex: 1;
+    min-width: 200px;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    align-self: center;
+  }
+  .progress-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s;
+  }
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    background: #f1f5f9;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header:hover { background: #e2e8f0; }
+  .section-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .section-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+  }
+  .section-body { padding: 0; }
+  .section-body.collapsed { display: none; }
+
+  .test-case {
+    display: grid;
+    grid-template-columns: 80px 1fr 120px;
+    gap: 8px;
+    align-items: start;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .test-case:last-child { border-bottom: none; }
+  .test-case:hover { background: #f8fafc; }
+  .test-case.result-pass { background: #f0fdf4; }
+  .test-case.result-fail { background: #fef2f2; }
+  .test-case.result-skip { background: #fffbeb; }
+
+  .tc-id {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--accent);
+    padding-top: 2px;
+  }
+  .tc-content { }
+  .tc-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+  .tc-steps {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+    margin-bottom: 4px;
+  }
+  .tc-steps ol { padding-left: 18px; }
+  .tc-steps li { margin-bottom: 2px; }
+  .tc-expected {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+    background: #f1f5f9;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-top: 4px;
+  }
+  .tc-expected strong { color: var(--text); }
+  .tc-note {
+    margin-top: 4px;
+  }
+  .tc-note textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    resize: vertical;
+    min-height: 32px;
+    font-family: inherit;
+  }
+  .tc-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 2px;
+  }
+  .btn-result {
+    border: none;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-result:hover { opacity: 0.8; }
+  .btn-result.active { opacity: 1; transform: scale(1.05); }
+  .btn-pass { background: var(--pass); color: white; }
+  .btn-fail { background: var(--fail); color: white; }
+  .btn-skip { background: var(--skip); color: white; }
+
+  .actions-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .action-btn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .action-btn:hover { background: #f1f5f9; }
+  .action-btn.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .action-btn.primary:hover { background: #2563eb; }
+  .action-btn.danger {
+    background: var(--fail);
+    color: white;
+    border-color: var(--fail);
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    .test-case {
+      grid-template-columns: 1fr;
+    }
+    .tc-id { margin-bottom: -4px; }
+  }
+
+  .export-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+  }
+  .export-modal.open { display: flex; }
+  .export-content {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .export-content textarea {
+    width: 100%;
+    min-height: 300px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Ringo v3.7.77+126 - Test Checklist</h1>
+  <p style="color:var(--text-sub); font-size:0.85rem;">
+    perf: Skeleton UI + Cache + Debounce / fix: Banner AspectRatio + Thumbnail overflow
+  </p>
+  <div class="header-meta">
+    <div>
+      <label>Tester:</label>
+      <input type="text" id="testerName" placeholder="Name" style="width:120px;">
+    </div>
+    <div>
+      <label>Device:</label>
+      <input type="text" id="deviceInfo" placeholder="e.g. Galaxy S24" style="width:150px;">
+    </div>
+    <div>
+      <label>Date:</label>
+      <input type="date" id="testDate">
+    </div>
+    <div>
+      <label>Build:</label>
+      <span style="font-weight:600;">v3.7.77+126</span>
+    </div>
+  </div>
+</div>
+
+<div class="summary-bar" id="summaryBar">
+  <div class="stat"><span class="dot pending"></span> <span id="statTotal">0</span> Total</div>
+  <div class="stat"><span class="dot pass"></span> <span id="statPass">0</span> Pass</div>
+  <div class="stat"><span class="dot fail"></span> <span id="statFail">0</span> Fail</div>
+  <div class="stat"><span class="dot skip"></span> <span id="statSkip">0</span> Skip</div>
+  <div class="stat"><span class="dot pending"></span> <span id="statPending">0</span> Pending</div>
+  <div class="progress-bar">
+    <div class="fill" id="progressFill" style="width:0%; background: linear-gradient(90deg, var(--pass), var(--pass));"></div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="pending">Pending</button>
+  <button class="filter-btn" data-filter="pass">Pass</button>
+  <button class="filter-btn" data-filter="fail">Fail</button>
+  <button class="filter-btn" data-filter="skip">Skip</button>
+</div>
+
+<div class="actions-bar">
+  <button class="action-btn primary" onclick="exportResults()">Export Report</button>
+  <button class="action-btn" onclick="saveToLocal()">Save Progress</button>
+  <button class="action-btn" onclick="loadFromLocal()">Load Progress</button>
+  <button class="action-btn danger" onclick="resetAll()">Reset All</button>
+</div>
+
+<div id="testSections"></div>
+
+<!-- Export Modal -->
+<div class="export-modal" id="exportModal">
+  <div class="export-content">
+    <h3 style="margin-bottom:8px;">Test Report</h3>
+    <button class="action-btn" onclick="copyReport()" style="margin-bottom:8px;">Copy to Clipboard</button>
+    <button class="action-btn" onclick="downloadReport()" style="margin-bottom:8px;">Download .md</button>
+    <button class="action-btn" onclick="closeExport()">Close</button>
+    <textarea id="reportOutput" readonly></textarea>
+  </div>
+</div>
+
+<script>
+// =============================================
+// TEST CASE DATA
+// =============================================
+const TEST_DATA = [
+  {
+    id: "A",
+    title: "A. Regression - Previous Build (v3.7.76)",
+    priority: "high",
+    cases: [
+      {
+        id: "A-1",
+        title: "Banner Image - Responsive AspectRatio",
+        precondition: "Server banner image registered, app freshly launched",
+        steps: [
+          "Launch app on narrow device (360px width)",
+          "Verify banner displays without cropping (21:9 ratio)",
+          "Launch on wider device (412px+ width)",
+          "Verify banner maintains same ratio, no white space",
+          "Tap banner image",
+          "Verify external link opens correctly (WebView or browser)"
+        ],
+        expected: "Banner displays at 21:9 aspect ratio on all device widths. No cropping, no white gaps. 360px -> ~154px height, 412px -> ~177px height. Tap opens target URL."
+      },
+      {
+        id: "A-2",
+        title: "Channel Thumbnail - Long Filename Overflow",
+        precondition: "Channel creation screen accessible",
+        steps: [
+          "Navigate to channel creation screen",
+          "Select an image with very long filename (e.g., 'this_is_a_very_long_image_filename_2026.jpg')",
+          "Verify filename display area",
+          "Select an image with short filename (e.g., 'img.png')",
+          "Verify filename display area"
+        ],
+        expected: "Long filename is truncated with ellipsis (...) and no yellow/black overflow warning stripe appears. Short filename displays in full."
+      },
+      {
+        id: "A-3",
+        title: "Alarm Inbox/Outbox Accumulation (New Device)",
+        precondition: "Two devices available, new account on test device",
+        steps: [
+          "Sign up new account on device A",
+          "Join a channel on device A",
+          "Send 3 push notifications from channel owner (device B)",
+          "On device A, open Inbox tab",
+          "Verify all 3 notifications appear",
+          "On device B (sender), open Outbox tab",
+          "Verify all 3 sent notifications appear"
+        ],
+        expected: "All 3 push notifications appear in Inbox of device A. All 3 sent notifications appear in Outbox of device B. Order: newest first."
+      }
+    ]
+  },
+  {
+    id: "B",
+    title: "B. Skeleton UI - First Install (No Cache)",
+    priority: "high",
+    cases: [
+      {
+        id: "B-1",
+        title: "My Channel Tab - Skeleton Display",
+        precondition: "Clear app data (Settings > Apps > Ringo > Clear Data) or fresh install",
+        steps: [
+          "Launch app and login",
+          "Navigate to My Channel tab",
+          "Observe the screen during loading (first 1-3 seconds)",
+          "Wait for API data to load"
+        ],
+        expected: "5 grey animated skeleton card placeholders appear INSTANTLY (0ms delay). After 1-3s, real channel data replaces skeletons. If no channels exist, empty state message is shown. NO white/blank screen at any point."
+      },
+      {
+        id: "B-2",
+        title: "Subscribed Channels Tab - Skeleton Display",
+        precondition: "Clear app data or fresh install",
+        steps: [
+          "Launch app and login",
+          "Navigate to Subscribed Channels tab",
+          "Observe the screen during loading (first 1-3 seconds)",
+          "Wait for API data to load"
+        ],
+        expected: "5 grey animated skeleton card placeholders appear INSTANTLY. After 1-3s, real subscribed channel list replaces skeletons. If no subscriptions, empty state message shown. NO white/blank screen."
+      },
+      {
+        id: "B-3",
+        title: "Inbox Tab - Skeleton Display",
+        precondition: "Clear app data or fresh install",
+        steps: [
+          "Launch app and login",
+          "Navigate to Inbox tab (via bottom nav or home shortcut)",
+          "Observe the screen during loading",
+          "Wait for API data to load"
+        ],
+        expected: "8 grey animated skeleton list-item placeholders appear INSTANTLY. After 1-3s, real inbox notifications replace skeletons. If inbox empty, empty state message shown. NO white/blank screen."
+      },
+      {
+        id: "B-4",
+        title: "Outbox Tab - Skeleton Display",
+        precondition: "Clear app data or fresh install",
+        steps: [
+          "Launch app and login",
+          "Navigate to Outbox tab",
+          "Observe the screen during loading",
+          "Wait for API data to load"
+        ],
+        expected: "8 grey animated skeleton list-item placeholders appear INSTANTLY. After 1-3s, real outbox notifications replace skeletons. If outbox empty, empty state message shown. NO white/blank screen."
+      },
+      {
+        id: "B-5",
+        title: "Search Tab - Skeleton Display (Popular/Best)",
+        precondition: "Clear app data or fresh install",
+        steps: [
+          "Launch app and login",
+          "Navigate to Search tab",
+          "Observe Popular Channels and Best Channels sections during loading",
+          "Wait for API data to load"
+        ],
+        expected: "Skeleton placeholders appear for both Popular and Best channel sections INSTANTLY. After 1-3s, real channel lists replace skeletons. NO white/blank screen."
+      }
+    ]
+  },
+  {
+    id: "C",
+    title: "C. Cache Behavior - Second+ Run",
+    priority: "high",
+    cases: [
+      {
+        id: "C-1",
+        title: "My Channel - Cache Instant Display",
+        precondition: "App has been opened once (cache populated), channels exist",
+        steps: [
+          "Open app (2nd+ launch)",
+          "Navigate to My Channel tab",
+          "Observe: previous channel list should appear instantly",
+          "Wait 1-3s for background refresh",
+          "Verify data updates if server data changed"
+        ],
+        expected: "Cached channel list appears INSTANTLY (0ms) with no white flash. Background refresh updates data within 1-3s. Tab switching also shows cached data immediately."
+      },
+      {
+        id: "C-2",
+        title: "Subscribed Channels - Cache Instant Display",
+        precondition: "App has been opened once, subscriptions exist",
+        steps: [
+          "Open app (2nd+ launch)",
+          "Navigate to Subscribed Channels tab",
+          "Observe: previous subscription list should appear instantly",
+          "Wait for background refresh"
+        ],
+        expected: "Cached subscription list appears INSTANTLY. Background refresh updates data within 1-3s. No white flash."
+      },
+      {
+        id: "C-3",
+        title: "Inbox - Cache Instant Display",
+        precondition: "App has been opened once, inbox has items",
+        steps: [
+          "Open app (2nd+ launch)",
+          "Navigate to Inbox tab",
+          "Observe: previous inbox items should appear instantly",
+          "Wait for background refresh"
+        ],
+        expected: "Cached inbox list appears INSTANTLY. Background refresh updates within 1-3s. No white flash."
+      },
+      {
+        id: "C-4",
+        title: "Outbox - Cache Instant Display",
+        precondition: "App has been opened once, outbox has items",
+        steps: [
+          "Open app (2nd+ launch)",
+          "Navigate to Outbox tab",
+          "Observe: previous outbox items should appear instantly",
+          "Wait for background refresh"
+        ],
+        expected: "Cached outbox list appears INSTANTLY. Background refresh updates within 1-3s. No white flash."
+      },
+      {
+        id: "C-5",
+        title: "Search - Popular/Best Cache",
+        precondition: "App has been opened once, search tab visited",
+        steps: [
+          "Open app (2nd+ launch)",
+          "Navigate to Search tab",
+          "Observe Popular and Best channel sections",
+          "Wait for background refresh"
+        ],
+        expected: "Cached Popular/Best channel lists appear INSTANTLY. Background refresh updates within 1-3s."
+      },
+      {
+        id: "C-6",
+        title: "Cross-Device Sync - Cache + Refresh",
+        precondition: "Two devices, same account. Cache exists on device A",
+        steps: [
+          "On device B, create a new channel or join a channel",
+          "On device A, open corresponding tab",
+          "Observe: cached (old) data appears first",
+          "Wait 1-3s for background refresh",
+          "Verify new channel/subscription now appears"
+        ],
+        expected: "Device A shows cached data INSTANTLY, then updates with new data from server after 1-3s background refresh. New channel/subscription becomes visible after refresh."
+      }
+    ]
+  },
+  {
+    id: "D",
+    title: "D. Search Debounce Improvements",
+    priority: "medium",
+    cases: [
+      {
+        id: "D-1",
+        title: "Debounce - No Flicker During Fast Typing",
+        precondition: "Search tab open, network available",
+        steps: [
+          "Tap search input field",
+          "Type 'ringo' quickly (all characters within 300ms)",
+          "Observe the results area during and after typing"
+        ],
+        expected: "NO intermediate/flickering results shown. Only final 'ringo' search results appear. Single result set displayed smoothly."
+      },
+      {
+        id: "D-2",
+        title: "Debounce - 350ms Delay Before API Call",
+        precondition: "Search tab open",
+        steps: [
+          "Type a search term (e.g., 'test')",
+          "Observe timing: results should appear ~350ms after last keystroke",
+          "Delete all text and type another term",
+          "Verify same debounce behavior"
+        ],
+        expected: "Results appear approximately 0.35 seconds after typing stops. No API call during active typing. Skeleton placeholder shown during wait."
+      },
+      {
+        id: "D-3",
+        title: "Search Clear (X) Button - Instant Return",
+        precondition: "Search results currently showing",
+        steps: [
+          "With search results visible, tap the X (clear) button",
+          "Observe: input should clear immediately",
+          "Observe: Popular/Best channel view should return"
+        ],
+        expected: "Search input clears INSTANTLY. Popular/Best channels view returns IMMEDIATELY without delay or extra loading. No debounce applied to clear action."
+      },
+      {
+        id: "D-4",
+        title: "Search Loading - Skeleton (Not Spinner)",
+        precondition: "Search tab open",
+        steps: [
+          "Type a search term",
+          "During the loading period (after debounce, before results arrive)",
+          "Observe the loading indicator type"
+        ],
+        expected: "Skeleton placeholder is shown during search loading, NOT a circular spinner. Skeleton matches the shape of search result items."
+      }
+    ]
+  },
+  {
+    id: "E",
+    title: "E. Regression / Functional Verification",
+    priority: "medium",
+    cases: [
+      {
+        id: "E-1",
+        title: "Channel Detail Navigation & Back",
+        precondition: "My Channel tab, at least 1 channel exists",
+        steps: [
+          "Tap a channel in My Channel list",
+          "Verify channel detail screen opens",
+          "Press back button",
+          "Verify My Channel list is preserved (no reload flash)"
+        ],
+        expected: "Channel detail opens correctly. On back, previous list is preserved from cache. No white flash or full reload."
+      },
+      {
+        id: "E-2",
+        title: "My Channel - Long Press Popup Menu",
+        precondition: "My Channel tab, at least 1 channel exists",
+        steps: [
+          "Long-press on a channel item",
+          "Verify popup menu appears with options:",
+          "- Alarm schedule",
+          "- Invite code",
+          "- Edit",
+          "- Delete",
+          "Tap each option and verify it opens correct screen/dialog"
+        ],
+        expected: "Long-press popup shows all 4 options. Each option navigates to the correct function. Cancel/back returns to list."
+      },
+      {
+        id: "E-3",
+        title: "Channel Creation Flow",
+        precondition: "My Channel tab",
+        steps: [
+          "Tap '+Channel' button (FAB or header button)",
+          "Fill in channel name and description",
+          "Optionally add an image",
+          "Submit creation",
+          "Verify return to My Channel list",
+          "Verify new channel appears in list"
+        ],
+        expected: "Channel creation completes without error. Returns to My Channel list. New channel appears at top of list. Cache is updated."
+      },
+      {
+        id: "E-4",
+        title: "Subscribed Channel - Detail View & Back",
+        precondition: "Subscribed Channels tab, at least 1 subscription",
+        steps: [
+          "Tap a subscribed channel",
+          "Verify detail view opens",
+          "Press back",
+          "Verify list preserved"
+        ],
+        expected: "Detail view opens. Back returns to preserved list with no flash."
+      },
+      {
+        id: "E-5",
+        title: "Subscribed Channel - Long Press Menu",
+        precondition: "Subscribed Channels tab, at least 1 subscription",
+        steps: [
+          "Long-press on a subscribed channel",
+          "Verify popup menu:",
+          "- Copy invite link",
+          "- Report channel",
+          "- Leave channel",
+          "Test each option"
+        ],
+        expected: "Popup shows all 3 options. Copy invite shows toast. Report opens report sheet. Leave shows confirmation then removes channel."
+      },
+      {
+        id: "E-6",
+        title: "Inbox - Multi-Select Delete",
+        precondition: "Inbox tab, multiple notifications exist",
+        steps: [
+          "Long-press to enter selection mode",
+          "Select 2-3 items (checkboxes)",
+          "Tap delete button",
+          "Confirm deletion"
+        ],
+        expected: "Selection mode activates. Multiple items can be selected. Bulk delete removes all selected items. Toast shows success. List updates correctly."
+      },
+      {
+        id: "E-7",
+        title: "Inbox - Channel Filter Chips",
+        precondition: "Inbox tab, notifications from multiple channels",
+        steps: [
+          "Observe channel filter chips at top",
+          "Tap a specific channel chip",
+          "Verify list filters to that channel only",
+          "Tap 'All' chip to clear filter",
+          "Verify full list returns"
+        ],
+        expected: "Channel chips display correctly. Tapping a chip filters the list. 'All' chip resets filter. Filter state persists during scroll."
+      },
+      {
+        id: "E-8",
+        title: "Inbox - Infinite Scroll (Pagination)",
+        precondition: "Inbox has >30 notifications",
+        steps: [
+          "Open Inbox tab",
+          "Scroll to the bottom of loaded items",
+          "Verify more items load automatically",
+          "Continue scrolling until all items loaded",
+          "Verify 'no more items' state at the end"
+        ],
+        expected: "Initial page (30 items) loads. Scrolling near bottom triggers next page load. Additional items append to list smoothly. Stops loading when all items fetched."
+      },
+      {
+        id: "E-9",
+        title: "Inbox - Alarm Playback & Report",
+        precondition: "Inbox has at least 1 alarm notification",
+        steps: [
+          "Tap the play button on an alarm item",
+          "Verify alarm sound plays",
+          "Tap popup menu on an item",
+          "Select 'Report'",
+          "Verify report sheet opens",
+          "Submit a report"
+        ],
+        expected: "Alarm playback works correctly via MethodChannel. Report sheet opens with categories. Report submission succeeds with toast confirmation."
+      },
+      {
+        id: "E-10",
+        title: "Outbox - Full Functionality",
+        precondition: "Outbox has notifications, user is channel owner",
+        steps: [
+          "Open Outbox tab",
+          "Verify sent notifications display",
+          "Test multi-select delete (same as E-6)",
+          "Test channel filter chips (same as E-7)",
+          "Test infinite scroll if >30 items (same as E-8)",
+          "Test alarm playback (same as E-9)"
+        ],
+        expected: "All Inbox features (E-6 through E-9) work identically in Outbox mode."
+      },
+      {
+        id: "E-11",
+        title: "Search > Channel Join Flow",
+        precondition: "Search tab, not subscribed to target channel",
+        steps: [
+          "Open Search tab",
+          "Search for a channel or browse Popular/Best",
+          "Tap a channel to view detail",
+          "Tap 'Join' button",
+          "Verify join success toast",
+          "Navigate to Subscribed Channels tab",
+          "Verify joined channel appears"
+        ],
+        expected: "Search -> detail -> join flow works without error. Subscribed Channels tab shows newly joined channel (after cache refresh)."
+      },
+      {
+        id: "E-12",
+        title: "Pull-to-Refresh - All Tabs",
+        precondition: "All tabs accessible",
+        steps: [
+          "On My Channel tab, pull down to refresh",
+          "Verify data reloads",
+          "Repeat on Subscribed Channels tab",
+          "Repeat on Inbox tab",
+          "Repeat on Outbox tab",
+          "Repeat on Search tab (Popular/Best)"
+        ],
+        expected: "Pull-to-refresh works on ALL tabs. Refresh indicator shows. Data reloads from server. Cache is updated after refresh."
+      },
+      {
+        id: "E-13",
+        title: "WebView (/main) - No Regression",
+        precondition: "App homepage with WebView",
+        steps: [
+          "Open app to home/main screen",
+          "Verify WebView loads the /main page",
+          "Check banner, menu items display",
+          "Navigate via bottom tabs and return to home"
+        ],
+        expected: "WebView loads correctly. No JavaScript errors. Banner and menu items display. Navigation works smoothly."
+      }
+    ]
+  }
+];
+
+// =============================================
+// STATE MANAGEMENT
+// =============================================
+const STORAGE_KEY = 'ringo_test_v3.7.77';
+let results = {}; // { 'A-1': { status: 'pass'|'fail'|'skip'|'pending', note: '' } }
+let currentFilter = 'all';
+
+function initResults() {
+  TEST_DATA.forEach(section => {
+    section.cases.forEach(tc => {
+      if (!results[tc.id]) {
+        results[tc.id] = { status: 'pending', note: '' };
+      }
+    });
+  });
+}
+
+// =============================================
+// RENDERING
+// =============================================
+function renderAll() {
+  const container = document.getElementById('testSections');
+  container.innerHTML = '';
+
+  TEST_DATA.forEach(section => {
+    const filteredCases = section.cases.filter(tc => {
+      if (currentFilter === 'all') return true;
+      return results[tc.id]?.status === currentFilter;
+    });
+
+    if (filteredCases.length === 0) return;
+
+    const sectionEl = document.createElement('div');
+    sectionEl.className = 'section';
+
+    const sectionPass = section.cases.filter(tc => results[tc.id]?.status === 'pass').length;
+    const sectionTotal = section.cases.length;
+    const badgeColor = sectionPass === sectionTotal ? 'var(--pass)' :
+                       section.cases.some(tc => results[tc.id]?.status === 'fail') ? 'var(--fail)' : 'var(--pending)';
+
+    sectionEl.innerHTML = `
+      <div class="section-header" onclick="toggleSection('${section.id}')">
+        <span class="section-title">${section.title}</span>
+        <span class="section-badge" style="background:${badgeColor}">${sectionPass}/${sectionTotal}</span>
+      </div>
+      <div class="section-body" id="body-${section.id}">
+        ${filteredCases.map(tc => renderTestCase(tc)).join('')}
+      </div>
+    `;
+    container.appendChild(sectionEl);
+  });
+
+  updateSummary();
+}
+
+function renderTestCase(tc) {
+  const r = results[tc.id] || { status: 'pending', note: '' };
+  const resultClass = r.status !== 'pending' ? `result-${r.status}` : '';
+
+  return `
+    <div class="test-case ${resultClass}" id="tc-${tc.id}">
+      <div class="tc-id">${tc.id}</div>
+      <div class="tc-content">
+        <div class="tc-title">${tc.title}</div>
+        ${tc.precondition ? `<div class="tc-steps" style="margin-bottom:6px;"><strong>Precondition:</strong> ${tc.precondition}</div>` : ''}
+        <div class="tc-steps">
+          <strong>Steps:</strong>
+          <ol>${tc.steps.map(s => `<li>${s}</li>`).join('')}</ol>
+        </div>
+        <div class="tc-expected">
+          <strong>Expected:</strong> ${tc.expected}
+        </div>
+        <div class="tc-note">
+          <textarea placeholder="Notes / Bug description..." 
+                    oninput="updateNote('${tc.id}', this.value)">${r.note}</textarea>
+        </div>
+      </div>
+      <div class="tc-actions">
+        <button class="btn-result btn-pass ${r.status === 'pass' ? 'active' : ''}" 
+                onclick="setResult('${tc.id}', 'pass')">PASS</button>
+        <button class="btn-result btn-fail ${r.status === 'fail' ? 'active' : ''}" 
+                onclick="setResult('${tc.id}', 'fail')">FAIL</button>
+        <button class="btn-result btn-skip ${r.status === 'skip' ? 'active' : ''}" 
+                onclick="setResult('${tc.id}', 'skip')">SKIP</button>
+      </div>
+    </div>
+  `;
+}
+
+function updateSummary() {
+  const all = Object.values(results);
+  const total = all.length;
+  const pass = all.filter(r => r.status === 'pass').length;
+  const fail = all.filter(r => r.status === 'fail').length;
+  const skip = all.filter(r => r.status === 'skip').length;
+  const pending = all.filter(r => r.status === 'pending').length;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statPass').textContent = pass;
+  document.getElementById('statFail').textContent = fail;
+  document.getElementById('statSkip').textContent = skip;
+  document.getElementById('statPending').textContent = pending;
+
+  const pct = total > 0 ? ((pass + fail + skip) / total * 100) : 0;
+  const fill = document.getElementById('progressFill');
+  fill.style.width = pct + '%';
+
+  if (fail > 0) {
+    fill.style.background = `linear-gradient(90deg, var(--pass) ${pass/(pass+fail+skip)*100}%, var(--fail) ${pass/(pass+fail+skip)*100}%)`;
+  } else {
+    fill.style.background = 'var(--pass)';
+  }
+}
+
+// =============================================
+// INTERACTIONS
+// =============================================
+function setResult(id, status) {
+  if (results[id].status === status) {
+    results[id].status = 'pending';
+  } else {
+    results[id].status = status;
+  }
+  renderAll();
+  autoSave();
+}
+
+function updateNote(id, value) {
+  results[id].note = value;
+  autoSave();
+}
+
+function toggleSection(sectionId) {
+  const body = document.getElementById(`body-${sectionId}`);
+  body.classList.toggle('collapsed');
+}
+
+// Filter
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderAll();
+  });
+});
+
+// =============================================
+// PERSISTENCE
+// =============================================
+function autoSave() {
+  const data = {
+    results,
+    tester: document.getElementById('testerName').value,
+    device: document.getElementById('deviceInfo').value,
+    date: document.getElementById('testDate').value,
+    savedAt: new Date().toISOString()
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function saveToLocal() {
+  autoSave();
+  alert('Progress saved to browser storage.');
+}
+
+function loadFromLocal() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    alert('No saved progress found.');
+    return;
+  }
+  const data = JSON.parse(raw);
+  results = data.results || {};
+  if (data.tester) document.getElementById('testerName').value = data.tester;
+  if (data.device) document.getElementById('deviceInfo').value = data.device;
+  if (data.date) document.getElementById('testDate').value = data.date;
+  initResults();
+  renderAll();
+  alert('Progress loaded.');
+}
+
+function resetAll() {
+  if (!confirm('Reset all test results? This cannot be undone.')) return;
+  results = {};
+  initResults();
+  document.getElementById('testerName').value = '';
+  document.getElementById('deviceInfo').value = '';
+  document.getElementById('testDate').value = '';
+  localStorage.removeItem(STORAGE_KEY);
+  renderAll();
+}
+
+// =============================================
+// EXPORT
+// =============================================
+function exportResults() {
+  const tester = document.getElementById('testerName').value || 'N/A';
+  const device = document.getElementById('deviceInfo').value || 'N/A';
+  const date = document.getElementById('testDate').value || new Date().toISOString().split('T')[0];
+
+  const all = Object.values(results);
+  const total = all.length;
+  const pass = all.filter(r => r.status === 'pass').length;
+  const fail = all.filter(r => r.status === 'fail').length;
+  const skip = all.filter(r => r.status === 'skip').length;
+  const pending = all.filter(r => r.status === 'pending').length;
+
+  let md = `# Ringo v3.7.77+126 - Test Report\n\n`;
+  md += `| Field | Value |\n|---|---|\n`;
+  md += `| Tester | ${tester} |\n`;
+  md += `| Device | ${device} |\n`;
+  md += `| Date | ${date} |\n`;
+  md += `| Build | v3.7.77+126 |\n\n`;
+
+  md += `## Summary\n\n`;
+  md += `| Status | Count |\n|---|---|\n`;
+  md += `| Total | ${total} |\n`;
+  md += `| **PASS** | ${pass} |\n`;
+  md += `| **FAIL** | ${fail} |\n`;
+  md += `| SKIP | ${skip} |\n`;
+  md += `| Pending | ${pending} |\n`;
+  md += `| Pass Rate | ${total > 0 ? ((pass/total)*100).toFixed(1) : 0}% |\n\n`;
+
+  // Failed items first
+  const failedItems = [];
+  TEST_DATA.forEach(section => {
+    section.cases.forEach(tc => {
+      if (results[tc.id]?.status === 'fail') {
+        failedItems.push({ section: section.title, ...tc, note: results[tc.id].note });
+      }
+    });
+  });
+
+  if (failedItems.length > 0) {
+    md += `## Failed Items\n\n`;
+    failedItems.forEach(item => {
+      md += `### ${item.id}: ${item.title}\n`;
+      md += `- **Section**: ${item.section}\n`;
+      md += `- **Expected**: ${item.expected}\n`;
+      md += `- **Bug Note**: ${item.note || 'No description'}\n\n`;
+    });
+  }
+
+  // Full results table
+  md += `## Detailed Results\n\n`;
+  md += `| ID | Title | Result | Note |\n|---|---|---|---|\n`;
+  TEST_DATA.forEach(section => {
+    section.cases.forEach(tc => {
+      const r = results[tc.id] || { status: 'pending', note: '' };
+      const icon = r.status === 'pass' ? 'PASS' : r.status === 'fail' ? 'FAIL' : r.status === 'skip' ? 'SKIP' : '-';
+      const note = r.note ? r.note.replace(/\n/g, ' ').substring(0, 80) : '';
+      md += `| ${tc.id} | ${tc.title} | ${icon} | ${note} |\n`;
+    });
+  });
+
+  md += `\n---\n*Generated: ${new Date().toLocaleString('ko-KR')}*\n`;
+
+  document.getElementById('reportOutput').value = md;
+  document.getElementById('exportModal').classList.add('open');
+}
+
+function copyReport() {
+  const textarea = document.getElementById('reportOutput');
+  textarea.select();
+  document.execCommand('copy');
+  alert('Report copied to clipboard!');
+}
+
+function downloadReport() {
+  const content = document.getElementById('reportOutput').value;
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ringo_test_report_v3.7.77_${new Date().toISOString().split('T')[0]}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function closeExport() {
+  document.getElementById('exportModal').classList.remove('open');
+}
+
+// =============================================
+// INIT
+// =============================================
+(function init() {
+  document.getElementById('testDate').value = new Date().toISOString().split('T')[0];
+
+  // Try to load saved progress
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try {
+      const data = JSON.parse(raw);
+      results = data.results || {};
+      if (data.tester) document.getElementById('testerName').value = data.tester;
+      if (data.device) document.getElementById('deviceInfo').value = data.device;
+      if (data.date) document.getElementById('testDate').value = data.date;
+    } catch (e) { /* ignore */ }
+  }
+
+  initResults();
+  renderAll();
+})();
+</script>
+
+</body>
+</html>

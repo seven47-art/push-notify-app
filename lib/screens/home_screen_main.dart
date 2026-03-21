@@ -313,14 +313,11 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       if (imageUrl.isNotEmpty) {
         return GestureDetector(
           onTap: bannerLink != null ? () => _openBannerLink(bannerLink) : null,
-          child: AspectRatio(
-            aspectRatio: 21 / 9,
-            child: Image.network(
-              imageUrl,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _buildDefaultBanner(bannerLink),
-            ),
+          child: Image.network(
+            imageUrl,
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            errorBuilder: (_, __, ___) => _buildDefaultBanner(bannerLink),
           ),
         );
       }
