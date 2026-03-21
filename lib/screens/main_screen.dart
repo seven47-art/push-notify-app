@@ -18,6 +18,7 @@ import 'notices_screen.dart';
 import 'channel_explore_screen.dart';
 import 'auth_screen.dart';
 import 'join_channel_screen.dart';
+import 'channel_detail_screen.dart';
 
 // ── 색상 상수 ─────────────────────────────────────
 const _grey    = Color(0xFF9E9E9E);
@@ -164,16 +165,62 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  void _openJoinScreen(String token) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => JoinChannelScreen(inviteToken: token),
+  // 초대링크 → 팝업/JoinChannelScreen 없이 채널 소개 페이지로 바로 이동
+  Future<void> _openJoinScreen(String token) async {
+    // 로딩 표시
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+        ),
       ),
-    ).then((_) {
-      // 채널 참여 완료 후 구독채널 탭 갱신
+    );
+
+    // 채널 정보 조회
+    Map<String, dynamic>? channelData;
+    try {
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/invites/verify/$token'),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && body['valid'] == true) {
+          channelData = body['data'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (e) {
+      debugPrint('[DeepLink] 채널 정보 조회 실패: $e');
+    }
+
+    // 로딩 닫기
+    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+
+    if (channelData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('유효하지 않은 초대 링크입니다'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    // 채널 소개 페이지로 바로 이동
+    final channelId = channelData['channel_id']?.toString() ?? '';
+    if (channelId.isNotEmpty) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChannelDetailScreen(
+            channelId: channelId,
+            isOwner: false,
+          ),
+        ),
+      );
+      // 채널 소개 페이지 닫힌 후 구독채널 탭 갱신
       _subscribedKey.currentState?.reload();
-    });
+    }
   }
 
   Future<void> _handleForceLogoutNative(String reason) async {
