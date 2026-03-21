@@ -2824,12 +2824,24 @@ const App = {
     const linkUrlNorm = normalizeUrl(linkUrlVal)
     if (!linkUrlNorm.ok) { toast('연결 URL 형식이 올바르지 않습니다 (예: example.com)', 3000); return }
 
-    // 채널당 알람 3개 제한 사전 체크
+    // 채널당 알람 3개 제한 + 5분 간격 사전 체크
     try {
       const alarmListRes = await API.get('/alarms?channel_id=' + currentAlarmChId)
       const currentAlarms = (alarmListRes.data?.data || []).filter(a => a.status === 'pending')
       if (currentAlarms.length >= 3) {
         toast('채널당 최대 3개까지 알람을 예약할 수 있습니다. 기존 알람을 삭제 후 다시 시도해 주세요.', 3500)
+        return
+      }
+      // 5분 이내 중복 예약 방지
+      const newMs = dt.getTime()
+      const conflict = currentAlarms.find(a => {
+        const existMs = new Date(a.scheduled_at).getTime()
+        return Math.abs(newMs - existMs) < 5 * 60 * 1000
+      })
+      if (conflict) {
+        const t = new Date(conflict.scheduled_at)
+        const label = `${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`
+        toast(`이미 근접한 시간(${label})에 예약된 알람이 있습니다. 5분 이상 간격으로 예약해 주세요.`, 3500)
         return
       }
     } catch (_) {}

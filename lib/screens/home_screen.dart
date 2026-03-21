@@ -1049,11 +1049,34 @@ class _AlarmSheetState extends State<_AlarmSheet> {
     final prefs        = await SharedPreferences.getInstance();
     final sessionToken = prefs.getString('session_token') ?? '';
     if (sessionToken.isEmpty) {
-      if (mounted) {
-        showCenterToast(context, '로그인이 필요합니다');
-      }
+      if (mounted) showCenterToast(context, '로그인이 필요합니다');
       return;
     }
+
+    // 5분 이내 중복 예약 방지 — 기존 pending 알람과 시간 비교
+    try {
+      final listRes = await http.get(
+        Uri.parse('$kBaseUrl/api/alarms?channel_id=${widget.channelId}'),
+        headers: {'Authorization': 'Bearer $sessionToken'},
+      ).timeout(const Duration(seconds: 8));
+      if (listRes.statusCode == 200) {
+        final listBody = jsonDecode(listRes.body) as Map<String, dynamic>;
+        final alarms = (listBody['data'] as List<dynamic>? ?? [])
+            .where((a) => a['status'] == 'pending')
+            .toList();
+        final newDt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _hour, _min);
+        for (final a in alarms) {
+          final existing = DateTime.tryParse(a['scheduled_at']?.toString() ?? '');
+          if (existing != null && existing.difference(newDt).abs() < const Duration(minutes: 5)) {
+            final label = '${existing.toLocal().month}/${existing.toLocal().day} '
+                '${existing.toLocal().hour.toString().padLeft(2,'0')}:'
+                '${existing.toLocal().minute.toString().padLeft(2,'0')}';
+            if (mounted) showCenterToast(context, '이미 근접한 시간($label)에 예약된 알람이 있습니다. 5분 이상 간격으로 예약해 주세요.');
+            return;
+          }
+        }
+      }
+    } catch (_) {} // 사전 체크 실패 시 서버 검증에 위임
 
     // 저장 중 표시
     setState(() => _isSaving = true);

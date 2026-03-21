@@ -164,6 +164,20 @@ alarms.post('/', async (c) => {
       return c.json({ success: false, error: `채널당 최대 ${MAX_ALARMS_PER_CHANNEL}개까지 알람을 예약할 수 있습니다. 기존 알람을 삭제 후 다시 시도해 주세요.` }, 400)
     }
 
+    // 5분 이내 중복 예약 방지 (기존 pending 알람과 ±5분 미만이면 차단)
+    const MIN_INTERVAL_MINUTES = 5
+    const conflictCheck: any = await c.env.DB.prepare(`
+      SELECT scheduled_at FROM alarm_schedules
+      WHERE channel_id = ? AND status = 'pending'
+        AND scheduled_at > datetime('now')
+        AND ABS((strftime('%s', scheduled_at) - strftime('%s', ?)) / 60.0) < ?
+      LIMIT 1
+    `).bind(channel_id, scheduled_at, MIN_INTERVAL_MINUTES).first()
+    if (conflictCheck) {
+      const conflictTime = conflictCheck.scheduled_at.replace('T', ' ').slice(0, 16)
+      return c.json({ success: false, error: `이미 근접한 시간(${conflictTime} UTC)에 예약된 알람이 있습니다. 5분 이상 간격으로 예약해 주세요.` }, 400)
+    }
+
     // 구독자 수 조회
     const subCount: any = await c.env.DB.prepare(
       'SELECT COUNT(*) as cnt FROM subscribers WHERE channel_id = ? AND is_active = 1'
