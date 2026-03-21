@@ -961,27 +961,29 @@ alarms.get('/inbox', async (c) => {
 
     const channelId = c.req.query('channel_id') || ''
 
-    let query = `
-      SELECT
-        l.id, l.alarm_id, l.channel_id, l.channel_name,
-        l.msg_type, l.msg_value, l.status, l.received_at,
-        l.scheduled_at, l.link_url
-      FROM alarm_logs l
-      WHERE l.receiver_id = ?
-    `
     const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
     const offset = Number(c.req.query('offset') || 0)
     const params: any[] = [user.id]
+
+    // INNER JOIN channels: 삭제된 채널 로그 자동 제외
+    let query = `
+      SELECT
+        l.id, l.alarm_id, l.channel_id, ch.name as channel_name,
+        l.msg_type, l.msg_value, l.status, l.received_at,
+        l.scheduled_at, l.link_url, ch.image_url as channel_image
+      FROM alarm_logs l
+      INNER JOIN channels ch ON ch.id = l.channel_id
+      WHERE l.receiver_id = ?
+    `
     if (channelId) {
       query += ` AND l.channel_id = ?`
       params.push(Number(channelId))
     }
+
     // 전체 카운트
-    const countQuery = query.replace(
-      'SELECT\n        l.id, l.alarm_id, l.channel_id, l.channel_name,\n        l.msg_type, l.msg_value, l.status, l.received_at,\n        l.scheduled_at, l.link_url\n      FROM alarm_logs l',
-      'SELECT COUNT(*) as total FROM alarm_logs l'
-    )
-    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first() as any
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id WHERE l.receiver_id = ?${channelId ? ' AND l.channel_id = ?' : ''}`
+    ).bind(...params).first() as any
     const total = countResult?.total || 0
 
     query += ` ORDER BY l.received_at DESC LIMIT ? OFFSET ?`
@@ -989,35 +991,28 @@ alarms.get('/inbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 채널 ID 목록 추출 → 최신 채널명/이미지 조회
-    const channelIds = [...new Set(results.map((r: any) => r.channel_id).filter(Boolean))]
-    const channelInfoMap: Record<string, { name: string; image_url: string }> = {}
-    if (channelIds.length > 0) {
-      const placeholders = channelIds.map(() => '?').join(',')
-      const { results: chRows } = await c.env.DB.prepare(
-        `SELECT id, name, image_url FROM channels WHERE id IN (${placeholders})`
-      ).bind(...channelIds).all() as { results: any[] }
-      for (const ch of chRows) {
-        channelInfoMap[String(ch.id)] = { name: ch.name, image_url: ch.image_url || '' }
-      }
-    }
+    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 필터 선택과 무관)
+    const channels = offset === 0 ? (() => {
+      return c.env.DB.prepare(
+        `SELECT DISTINCT ch.id, ch.name, ch.image_url
+         FROM alarm_logs l
+         INNER JOIN channels ch ON ch.id = l.channel_id
+         WHERE l.receiver_id = ?
+         ORDER BY ch.name ASC`
+      ).bind(user.id).all()
+    })() : Promise.resolve({ results: [] })
 
-    // 채널 목록 (필터용) - offset=0일 때만 반환 (첫 로드 시)
-    const channels = offset === 0 ? channelIds.map(id => ({
-      id: Number(id),
-      name: channelInfoMap[String(id)]?.name || '',
-      image_url: channelInfoMap[String(id)]?.image_url || ''
+    const chResult = await channels as { results: any[] }
+    const channelList = offset === 0 ? chResult.results.map((ch: any) => ({
+      id: ch.id,
+      name: ch.name,
+      image_url: ch.image_url || ''
     })) : undefined
 
-    // 결과에 최신 채널명/이미지 반영
-    const data = results.map((r: any) => ({
-      ...r,
-      channel_name:  channelInfoMap[String(r.channel_id)]?.name  || r.channel_name,
-      channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
-    }))
+    const data = results.map((r: any) => ({ ...r }))
 
     const hasMore = offset + limit < total
-    return c.json({ success: true, data, channels, total, hasMore })
+    return c.json({ success: true, data, channels: channelList, total, hasMore })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
@@ -1056,6 +1051,7 @@ alarms.get('/outbox', async (c) => {
     const channelId = c.req.query('channel_id') || ''
 
     // alarm_logs는 수신자마다 1행 → GROUP BY alarm_id 로 묶어 발신 단위로 1건만 표시
+    // INNER JOIN channels: 삭제된 채널 로그 자동 제외
     let whereClause = `WHERE l.sender_id = ?`
     const params: any[] = [user.id]
     if (channelId) {
@@ -1065,23 +1061,24 @@ alarms.get('/outbox', async (c) => {
     const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
     const offset = Number(c.req.query('offset') || 0)
 
-    // 전체 카운트 (alarm_id 기준 중복 제거)
+    // 전체 카운트 (alarm_id 기준 중복 제거, 삭제된 채널 제외)
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT l.alarm_id) as total FROM alarm_logs l ${whereClause}`
+      `SELECT COUNT(DISTINCT l.alarm_id) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id ${whereClause}`
     ).bind(...params).first() as any
     const total = countResult?.total || 0
 
-    // GROUP BY alarm_id: 수신자 수만큼 중복되던 문제 해결
-    // receiver_count: 총 수신자 수, status: 가장 최근 상태
+    // GROUP BY alarm_id + INNER JOIN channels: 삭제된 채널 자동 제외
     const query = `
       SELECT
-        MIN(l.id) as id, l.alarm_id, l.channel_id, l.channel_name,
+        MIN(l.id) as id, l.alarm_id, l.channel_id, ch.name as channel_name,
         l.msg_type, l.msg_value,
         MAX(l.status) as status,
         MIN(l.received_at) as received_at,
         l.scheduled_at, l.link_url,
+        ch.image_url as channel_image,
         COUNT(l.id) as receiver_count
       FROM alarm_logs l
+      INNER JOIN channels ch ON ch.id = l.channel_id
       ${whereClause}
       GROUP BY l.alarm_id
       ORDER BY MIN(l.received_at) DESC
@@ -1091,35 +1088,27 @@ alarms.get('/outbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 채널 ID 목록 추출 → 최신 채널명/이미지 조회
-    const channelIds = [...new Set(results.map((r: any) => r.channel_id).filter(Boolean))]
-    const channelInfoMap: Record<string, { name: string; image_url: string }> = {}
-    if (channelIds.length > 0) {
-      const placeholders = channelIds.map(() => '?').join(',')
-      const { results: chRows } = await c.env.DB.prepare(
-        `SELECT id, name, image_url FROM channels WHERE id IN (${placeholders})`
-      ).bind(...channelIds).all() as { results: any[] }
-      for (const ch of chRows) {
-        channelInfoMap[String(ch.id)] = { name: ch.name, image_url: ch.image_url || '' }
-      }
-    }
+    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 필터 선택과 무관)
+    const chResult = offset === 0
+      ? await c.env.DB.prepare(
+          `SELECT DISTINCT ch.id, ch.name, ch.image_url
+           FROM alarm_logs l
+           INNER JOIN channels ch ON ch.id = l.channel_id
+           WHERE l.sender_id = ?
+           ORDER BY ch.name ASC`
+        ).bind(user.id).all() as { results: any[] }
+      : { results: [] }
 
-    // 채널 목록 (필터용) - offset=0일 때만 반환
-    const channels = offset === 0 ? channelIds.map(id => ({
-      id: Number(id),
-      name: channelInfoMap[String(id)]?.name || '',
-      image_url: channelInfoMap[String(id)]?.image_url || ''
+    const channelList = offset === 0 ? chResult.results.map((ch: any) => ({
+      id: ch.id,
+      name: ch.name,
+      image_url: ch.image_url || ''
     })) : undefined
 
-    // 결과에 최신 채널명/이미지 반영
-    const data = results.map((r: any) => ({
-      ...r,
-      channel_name:  channelInfoMap[String(r.channel_id)]?.name  || r.channel_name,
-      channel_image: channelInfoMap[String(r.channel_id)]?.image_url || ''
-    }))
+    const data = results.map((r: any) => ({ ...r }))
 
     const hasMore = offset + limit < total
-    return c.json({ success: true, data, channels, total, hasMore })
+    return c.json({ success: true, data, channels: channelList, total, hasMore })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

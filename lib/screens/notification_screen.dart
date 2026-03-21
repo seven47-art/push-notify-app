@@ -142,7 +142,10 @@ class NotificationScreenState extends State<NotificationScreen> {
           _hasMore = result['hasMore'] as bool;
           _offset  = _items.length;
           _loading = false;
-          if (newChannels.isNotEmpty) _channels = newChannels;
+          // 채널 목록은 첫 로드(전체 조회)일 때만 갱신 → 필터 선택해도 칩 목록 유지
+          if (newChannels.isNotEmpty && _selectedChannel == '전체') {
+            _channels = newChannels;
+          }
           if (_selectedChannel != '전체' &&
               !_channels.any((c) => c['name'] == _selectedChannel)) {
             _selectedChannel = '전체';
