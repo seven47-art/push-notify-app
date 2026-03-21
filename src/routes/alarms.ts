@@ -3,6 +3,24 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { sendFCMDataMessage, sendFCMMulticast } from './fcm'
+
+// ── URL 형식 검증 헬퍼 ───────────────────────────────────────────
+function validateUrl(raw: string | undefined | null): { ok: boolean; error?: string } {
+  if (!raw || !raw.trim()) return { ok: true }
+  const url = raw.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return { ok: false, error: '연결 URL은 http:// 또는 https://로 시작해야 합니다' }
+  }
+  try {
+    const parsed = new URL(url)
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+    }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+  }
+}
 import { deleteFromFirebaseStorage } from './uploads'
 
 const alarms = new Hono<{ Bindings: Bindings }>()
@@ -122,6 +140,10 @@ alarms.post('/', async (c) => {
     if (safeValue.length > 2000) {
       return c.json({ success: false, error: '메시지 소스 값이 너무 큽니다. 파일명 또는 URL만 저장 가능합니다.' }, 400)
     }
+
+    // link_url 형식 검증
+    const linkCheck = validateUrl(link_url)
+    if (!linkCheck.ok) return c.json({ success: false, error: linkCheck.error }, 400)
 
     // 채널 존재 확인 (public_id 포함)
     const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()

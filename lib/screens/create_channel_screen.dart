@@ -34,6 +34,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
   bool _saving           = false;
   String? _nameError;
   String? _descError;
+  String? _homepageError;
   final _passwordCtrl    = TextEditingController();
   bool _showPassword     = false;
 
@@ -72,6 +73,22 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
       ok = false;
     } else {
       setState(() => _descError = null);
+    }
+    // homepage_url 형식 검증 (입력된 경우만)
+    final hp = _homepageCtrl.text.trim();
+    if (hp.isNotEmpty) {
+      final uri = Uri.tryParse(hp);
+      if (uri == null ||
+          (!hp.startsWith('http://') && !hp.startsWith('https://')) ||
+          uri.host.isEmpty ||
+          !uri.host.contains('.')) {
+        setState(() => _homepageError = 'URL은 https://example.com 형식으로 입력하세요.');
+        ok = false;
+      } else {
+        setState(() => _homepageError = null);
+      }
+    } else {
+      setState(() => _homepageError = null);
     }
     return ok;
   }
@@ -212,6 +229,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
               style: const TextStyle(fontSize: 14, color: _text),
               decoration: InputDecoration(
                 hintText: 'https://',
+                errorText: _homepageError,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: _border),

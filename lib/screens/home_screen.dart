@@ -1557,11 +1557,17 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
       showCenterToast(context, '채널명을 입력하세요');
       return;
     }
-    // 홈페이지 URL https 검증
+    // 홈페이지 URL 형식 검증
     final homepage = _hpCtrl.text.trim();
-    if (homepage.isNotEmpty && !homepage.startsWith('https://')) {
-      showCenterToast(context, '등록이 불가능한 URL 주소입니다. https:// 로 시작하는 주소만 사용할 수 있습니다.');
-      return;
+    if (homepage.isNotEmpty) {
+      final uri = Uri.tryParse(homepage);
+      if (uri == null ||
+          (!homepage.startsWith('http://') && !homepage.startsWith('https://')) ||
+          uri.host.isEmpty ||
+          !uri.host.contains('.')) {
+        showCenterToast(context, 'URL은 https://example.com 형식으로 입력하세요.');
+        return;
+      }
     }
     setState(() => _saving = true);
     await ApiService.updateChannel(

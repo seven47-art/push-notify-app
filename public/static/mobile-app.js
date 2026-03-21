@@ -4,6 +4,17 @@
 const API = axios.create({ baseURL: '/api' })
 const MAX_PREVIEW = 3   // 홈화면 최대 미리보기 개수
 
+// ── URL 형식 검증 헬퍼 ──────────────────────────────────────────
+function isValidUrl(raw) {
+  if (!raw || !raw.trim()) return true // 비어있으면 통과 (선택 입력)
+  const url = raw.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return false
+  try {
+    const parsed = new URL(url)
+    return !!(parsed.hostname && parsed.hostname.includes('.'))
+  } catch { return false }
+}
+
 // ─────────────────────────────────────────────
 // 스토어 (세션 기반 인증 통합)
 // ─────────────────────────────────────────────
@@ -2006,6 +2017,8 @@ const App = {
     if (invalidChars.test(name)) { toast('채널명에 특수문자를 사용할 수 없습니다'); return }
     if (!desc) { toast('채널 소개를 입력하세요'); return }
     if (isSecret && !password) { toast('비밀채널은 비밀번호를 입력하세요'); return }
+    const homepageVal = document.getElementById('create-homepage').value.trim()
+    if (homepageVal && !isValidUrl(homepageVal)) { toast('홈페이지 URL은 https://example.com 형식으로 입력하세요', 3000); return }
 
     try {
       const res = await API.post('/channels', {
@@ -2084,6 +2097,8 @@ const App = {
     const id       = document.getElementById('edit-channel-id').value
     const isSecret = document.getElementById('edit-is-secret').value === '1'
     const password = document.getElementById('edit-password').value.trim()
+    const editHomepageVal = document.getElementById('edit-homepage').value.trim()
+    if (editHomepageVal && !isValidUrl(editHomepageVal)) { toast('홈페이지 URL은 https://example.com 형식으로 입력하세요', 3000); return }
 
     try {
       await API.put('/channels/' + id, {
@@ -2797,6 +2812,10 @@ const App = {
     if (!alarmDate) { toast('날짜를 선택하세요'); return }
     const dt = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate(), alarmHour, alarmMin)
     if (dt <= new Date()) { toast('현재 시각 이후를 선택하세요', 2500); return }
+
+    // 연결 URL 형식 검증
+    const linkUrlVal = document.getElementById('alarm-link-url')?.value.trim() || ''
+    if (linkUrlVal && !isValidUrl(linkUrlVal)) { toast('연결 URL은 https://example.com 형식으로 입력하세요', 3000); return }
 
     // 채널당 알람 3개 제한 사전 체크
     try {

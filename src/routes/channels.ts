@@ -3,6 +3,25 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { sendFCMMulticast } from './fcm'
 
+// ── URL 형식 검증 헬퍼 ───────────────────────────────────────────
+// 비어있으면 통과, 입력된 경우 http(s):// + 유효한 hostname + 점(.) 포함 필수
+function validateUrl(raw: string | undefined | null): { ok: boolean; error?: string } {
+  if (!raw || !raw.trim()) return { ok: true } // 선택 입력이므로 비어있으면 통과
+  const url = raw.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return { ok: false, error: 'URL은 http:// 또는 https://로 시작해야 합니다' }
+  }
+  try {
+    const parsed = new URL(url)
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+    }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+  }
+}
+
 // ── 채널 1개 완전 삭제 헬퍼 (DB + 구독자 FCM 전송) ──────────────
 // users.ts의 deleteUserFully 채널 처리 로직과 동일하게 맞춤
 async function deleteChannelFully(db: any, env: any, channelId: string | number) {
@@ -327,6 +346,10 @@ channels.post('/', async (c) => {
       return c.json({ success: false, error: '비밀채널은 비밀번호가 필수입니다' }, 400)
     }
 
+    // homepage_url 형식 검증
+    const hpCheck = validateUrl(homepage_url)
+    if (!hpCheck.ok) return c.json({ success: false, error: hpCheck.error }, 400)
+
     // 채널명 중복 체크 (활성 채널만, 대소문자 구분 없이)
     const existing = await c.env.DB.prepare(
       'SELECT id FROM channels WHERE LOWER(name) = LOWER(?) AND is_active = 1')
@@ -403,6 +426,12 @@ channels.put('/:id', async (c) => {
     // image_url이 너무 크면 에러 반환 (D1 SQLITE_TOOBIG 방지, 한도 800KB)
     if (image_url && image_url.length > 819200) {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
+    }
+
+    // homepage_url 형식 검증 (요청에 포함된 경우에만)
+    if ('homepage_url' in body) {
+      const hpCheck = validateUrl(homepage_url)
+      if (!hpCheck.ok) return c.json({ success: false, error: hpCheck.error }, 400)
     }
 
     // 채널명 중복 체크 (변경하는 경우에만)

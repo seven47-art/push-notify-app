@@ -801,6 +801,18 @@ class ChannelSettingsSheetState extends State<ChannelSettingsSheet> {
   }
 
   Future<void> _save() async {
+    // homepage_url 형식 검증
+    final hp = _homepageCtrl.text.trim();
+    if (hp.isNotEmpty) {
+      final uri = Uri.tryParse(hp);
+      if (uri == null ||
+          (!hp.startsWith('http://') && !hp.startsWith('https://')) ||
+          uri.host.isEmpty ||
+          !uri.host.contains('.')) {
+        showCenterToast(context, 'URL은 https://example.com 형식으로 입력하세요.');
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
       // 이미지 선택 시 base64로 변환 (웹뷰와 동일 방식)
