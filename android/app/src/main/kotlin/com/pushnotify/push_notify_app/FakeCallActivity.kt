@@ -175,6 +175,9 @@ class FakeCallActivity : Activity() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         scope.cancel()
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
+        // 풀스크린 알람 종료 → 플래그 해제 (다음 알람이 다시 풀스크린 가능하도록)
+        AlarmPollingService.setFakeCallShowing(false)
+        Log.d(TAG, "FakeCallActivity 종료 → isFakeCallShowing = false")
         super.onDestroy()
     }
 

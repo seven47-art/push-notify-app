@@ -12,6 +12,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AlarmPollingService : Service() {
 
@@ -24,9 +25,24 @@ class AlarmPollingService : Service() {
         const val EXTRA_TOKEN     = "session_token"
         const val EXTRA_BASE_URL  = "base_url"
 
+        // 상태바 알림 채널
+        const val NOTIF_CHANNEL_ID   = "ringo_secondary_alarm_channel"
+        const val NOTIF_CHANNEL_NAME = "RinGo 동시 알람"
+
         private const val PREF_NAME        = "ringo_alarm_prefs"
         private const val PREF_KEY_HANDLED = "handled_alarm_ids"
         private val fcmLock = Any()
+
+        // ── 풀스크린 알람 표시 중 여부 플래그 ──────────────────────────
+        // FCM 수신 순서 기준: 첫 번째 알람은 풀스크린, 이후는 상태바
+        private val isFakeCallShowing = AtomicBoolean(false)
+
+        fun setFakeCallShowing(showing: Boolean) {
+            isFakeCallShowing.set(showing)
+            Log.d(TAG, "isFakeCallShowing = $showing")
+        }
+
+        fun isFakeCallActive(): Boolean = isFakeCallShowing.get()
 
         fun markFcmHandled(context: Context, alarmId: Int) {
             synchronized(fcmLock) {
@@ -81,13 +97,95 @@ class AlarmPollingService : Service() {
                 }
             }
             Log.d(TAG, "triggerAlarm: $channelName (id=$alarmId)")
-            CallForegroundService.start(
-                context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+
+            // ── 풀스크린 vs 상태바 분기 ────────────────────────────────
+            // FCM 수신 순서 기준: 첫 번째 알람 → 풀스크린, 이후 → 상태바
+            if (isFakeCallShowing.compareAndSet(false, true)) {
+                // 첫 번째 알람 → 풀스크린 FakeCallActivity
+                Log.d(TAG, "triggerAlarm: 풀스크린 알람 표시 [$channelName]")
+                CallForegroundService.start(
+                    context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl
+                )
+                FakeCallActivity.start(
+                    context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
+                    channelPublicId = channelPublicId, linkUrl = linkUrl
+                )
+            } else {
+                // 이후 알람 → 상태바 알림
+                Log.d(TAG, "triggerAlarm: 상태바 알림 표시 [$channelName]")
+                showStatusBarAlarm(
+                    context, channelName, alarmId, msgType, msgValue,
+                    contentUrl, homepageUrl, channelPublicId, linkUrl
+                )
+            }
+        }
+
+        // ── 상태바 알림 발송 ─────────────────────────────────────────────
+        // 수신함으로 이동하는 PendingIntent 포함
+        fun showStatusBarAlarm(
+            context: Context,
+            channelName: String,
+            alarmId: Int,
+            msgType: String,
+            msgValue: String,
+            contentUrl: String,
+            homepageUrl: String,
+            channelPublicId: String,
+            linkUrl: String
+        ) {
+            createNotifChannel(context)
+
+            // 수신함으로 이동 Intent (MainActivity + 수신함 탭 플래그)
+            val intent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra("open_tab", "inbox")
+                    putExtra("alarm_id",          alarmId)
+                    putExtra("channel_name",       channelName)
+                    putExtra("msg_type",           msgType)
+                    putExtra("msg_value",          msgValue)
+                    putExtra("content_url",        contentUrl)
+                    putExtra("homepage_url",       homepageUrl)
+                    putExtra("channel_public_id",  channelPublicId)
+                    putExtra("link_url",           linkUrl)
+                } ?: Intent()
+
+            val pi = PendingIntent.getActivity(
+                context,
+                alarmId + 20000,  // 고유 requestCode (풀스크린 알람과 충돌 방지)
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            FakeCallActivity.start(
-                context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
-                channelPublicId = channelPublicId, linkUrl = linkUrl
-            )
+
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notif = NotificationCompat.Builder(context, NOTIF_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("📢 $channelName")
+                .setContentText("RinGo 알람이 도착했습니다. 탭하여 수신함에서 확인하세요.")
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .build()
+
+            nm.notify(alarmId + 20000, notif)
+            Log.d(TAG, "상태바 알림 발송: $channelName (notifId=${alarmId + 20000})")
+        }
+
+        private fun createNotifChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (nm.getNotificationChannel(NOTIF_CHANNEL_ID) != null) return
+            NotificationChannel(
+                NOTIF_CHANNEL_ID,
+                NOTIF_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "풀스크린 알람과 동시에 도착한 추가 알람"
+                enableVibration(true)
+                nm.createNotificationChannel(this)
+            }
         }
     }
 
