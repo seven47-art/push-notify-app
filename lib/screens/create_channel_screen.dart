@@ -269,11 +269,15 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
                             child: const Icon(Icons.camera_alt_outlined, color: Colors.grey, size: 20),
                           ),
                     const SizedBox(width: 12),
-                    Text(
-                      _selectedImage != null ? _selectedImage!.path.split('/').last : '탭하여 이미지 선택',
-                      style: const TextStyle(fontSize: 13, color: _text2),
+                    Expanded(
+                      child: Text(
+                        _selectedImage != null ? _selectedImage!.path.split('/').last : '탭하여 이미지 선택',
+                        style: const TextStyle(fontSize: 13, color: _text2),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     const Text('미선택시 기본 이미지 적용', style: TextStyle(fontSize: 11, color: _text2)),
                   ],
                 ),

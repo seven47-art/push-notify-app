@@ -7,4 +7,4 @@ const String kBaseUrl =
 const String kAppUrl = '$kBaseUrl/app';
 
 // 앱 버전 (pubspec.yaml version 과 동기화)
-const String kAppVersion = '3.7.75';
+const String kAppVersion = '3.7.76';
