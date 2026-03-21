@@ -136,7 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0C29),
+      backgroundColor: const Color(0xFF000000),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -314,7 +314,7 @@ class _ManualEmailForm extends StatelessWidget {
             hintText: 'example@gmail.com',
             hintStyle: const TextStyle(color: Color(0xFF4B5563)),
             filled: true,
-            fillColor: const Color(0xFF0F0C29),
+            fillColor: const Color(0xFF000000),
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(color: Color(0xFF3730A3))),
