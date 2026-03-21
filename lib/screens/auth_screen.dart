@@ -269,7 +269,7 @@ class _GoogleSignInButton extends StatelessWidget {
           children: [
             SizedBox(
               width: 24, height: 24,
-              child: CustomPaint(painter: _GIconPainter()),
+              child: Image.asset('assets/images/google_logo.png', width: 24, height: 24),
             ),
             const SizedBox(width: 12),
             const Text(
