@@ -151,14 +151,16 @@ alarms.post('/', async (c) => {
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
 
     // 예약 시간이 이미 지난 pending 알람을 triggered로 자동 전환
+    // ★ scheduled_at에 ISO 'T' 구분자가 포함될 수 있어 replace()로 정규화
     await c.env.DB.prepare(
-      "UPDATE alarm_schedules SET status = 'triggered' WHERE channel_id = ? AND status = 'pending' AND scheduled_at <= datetime('now')"
+      "UPDATE alarm_schedules SET status = 'triggered' WHERE channel_id = ? AND status = 'pending' AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')"
     ).bind(channel_id).run()
 
     // 채널당 pending 알람 최대 3개 제한 (미래 예약만 카운트)
+    // ★ scheduled_at에 ISO 'T' 구분자가 포함될 수 있어 replace()로 정규화
     const MAX_ALARMS_PER_CHANNEL = 3
     const alarmCount: any = await c.env.DB.prepare(
-      "SELECT COUNT(*) as cnt FROM alarm_schedules WHERE channel_id = ? AND status = 'pending' AND scheduled_at > datetime('now')"
+      "SELECT COUNT(*) as cnt FROM alarm_schedules WHERE channel_id = ? AND status = 'pending' AND replace(substr(scheduled_at,1,19),'T',' ') > datetime('now')"
     ).bind(channel_id).first()
     if ((alarmCount?.cnt || 0) >= MAX_ALARMS_PER_CHANNEL) {
       return c.json({ success: false, error: `채널당 최대 ${MAX_ALARMS_PER_CHANNEL}개까지 알람을 예약할 수 있습니다. 기존 알람을 삭제 후 다시 시도해 주세요.` }, 400)
@@ -166,11 +168,12 @@ alarms.post('/', async (c) => {
 
     // 5분 이내 중복 예약 방지 (기존 pending 알람과 ±5분 미만이면 차단)
     const MIN_INTERVAL_MINUTES = 5
+    // ★ scheduled_at에 ISO 'T' 구분자가 포함될 수 있어 replace()로 정규화
     const conflictCheck: any = await c.env.DB.prepare(`
       SELECT scheduled_at FROM alarm_schedules
       WHERE channel_id = ? AND status = 'pending'
-        AND scheduled_at > datetime('now')
-        AND ABS((strftime('%s', scheduled_at) - strftime('%s', ?)) / 60.0) < ?
+        AND replace(substr(scheduled_at,1,19),'T',' ') > datetime('now')
+        AND ABS((strftime('%s', replace(substr(scheduled_at,1,19),'T',' ')) - strftime('%s', replace(substr(?,1,19),'T',' '))) / 60.0) < ?
       LIMIT 1
     `).bind(channel_id, scheduled_at, MIN_INTERVAL_MINUTES).first()
     if (conflictCheck) {
@@ -475,7 +478,7 @@ alarms.post('/trigger', async (c) => {
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status IN ('pending', 'triggered')
-        AND replace(substr(a.scheduled_at, 1, 16), 'Z', '') <= ?
+        AND replace(replace(substr(a.scheduled_at, 1, 19), 'T', ' '), 'Z', '') <= ?
       ORDER BY a.scheduled_at ASC
     `).bind(now).all() as { results: any[] }
 
