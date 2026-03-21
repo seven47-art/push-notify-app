@@ -546,15 +546,29 @@ alarms.post('/trigger', async (c) => {
       let sentCount = 0, failedCount = 0
       const callResults: any[] = []
 
+      // ── 중복 수신자 배치 조회 (개별 루프 → 1회 IN 쿼리로 최적화) ──────
+      // 이미 alarm_logs에 기록된 receiver_id를 한 번에 조회
+      const allUserIds = recipients.map(r => r.user_id).filter(Boolean)
+      const alreadySentSet = new Set<string>()
+      if (!isPollingMode && allUserIds.length > 0) {
+        // D1은 prepared statement 파라미터 바인딩을 지원하므로
+        // IN 절을 동적으로 생성 (최대 수천 개 처리 가능)
+        const placeholders = allUserIds.map(() => '?').join(',')
+        const { results: sentRows } = await c.env.DB.prepare(
+          `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${placeholders})`
+        ).bind(alarm.id, ...allUserIds).all() as { results: any[] }
+        for (const row of sentRows) alreadySentSet.add(row.receiver_id)
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       if (useTwilio) {
         // ── Twilio 음성 통화 (순차 발송) ──
         for (const recipient of recipients) {
           if (!recipient.phone_number) continue
           if (!isPollingMode && recipient.user_id) {
-            const alreadyLogged: any = await c.env.DB.prepare(
-              'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
-            ).bind(alarm.id, recipient.user_id).first()
-            if (alreadyLogged) { callResults.push({ user_id: recipient.user_id, mode: 'skipped', success: true }); continue }
+            if (alreadySentSet.has(recipient.user_id)) {
+              callResults.push({ user_id: recipient.user_id, mode: 'skipped', success: true }); continue
+            }
           }
           const callRes = await makeTwilioCall(
             recipient.phone_number, alarm.channel_name, alarm.msg_type,
@@ -566,17 +580,12 @@ alarms.post('/trigger', async (c) => {
 
       } else if (useFCM) {
         // ── FCM Multicast 발송 ──
-        // 이미 발송된 수신자 제외 (alarm_logs 기준 중복 방지)
+        // 이미 발송된 수신자 제외 (alreadySentSet 기준 — 위에서 배치 조회 완료)
         const notYetSent: typeof recipients = []
         for (const recipient of recipients) {
-          if (recipient.user_id) {
-            const alreadyLogged: any = await c.env.DB.prepare(
-              'SELECT id FROM alarm_logs WHERE alarm_id = ? AND receiver_id = ?'
-            ).bind(alarm.id, recipient.user_id).first()
-            if (alreadyLogged) {
-              callResults.push({ user_id: recipient.user_id, display_name: recipient.display_name, role: recipient.role, mode: 'skipped', success: true, message: '이미 발송됨 (alarm_logs 기준)' })
-              continue
-            }
+          if (recipient.user_id && alreadySentSet.has(recipient.user_id)) {
+            callResults.push({ user_id: recipient.user_id, display_name: recipient.display_name, role: recipient.role, mode: 'skipped', success: true, message: '이미 발송됨 (alarm_logs 기준)' })
+            continue
           }
           notYetSent.push(recipient)
         }
@@ -607,12 +616,12 @@ alarms.post('/trigger', async (c) => {
           sentCount  += multiRes.successCount
           failedCount += multiRes.failureCount
 
-          // invalid token 즉시 비활성화
+          // invalid token 즉시 비활성화 (배치 처리)
           if (multiRes.invalidTokens.length > 0) {
-            for (const badToken of multiRes.invalidTokens) {
-              await c.env.DB.prepare("UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?")
-                .bind(badToken).run().catch(() => {})
-            }
+            const ph = multiRes.invalidTokens.map(() => '?').join(',')
+            await c.env.DB.prepare(
+              `UPDATE subscribers SET fcm_token = NULL WHERE fcm_token IN (${ph})`
+            ).bind(...multiRes.invalidTokens).run().catch(() => {})
           }
 
           // callResults 구성 (토큰 있는 수신자)
@@ -636,17 +645,32 @@ alarms.post('/trigger', async (c) => {
         }
       }
 
-      // ★ alarm_logs 업데이트 (skipped 제외)
-      for (const r of callResults) {
-        if (r.mode === 'skipped' || !r.user_id) continue
-        try {
-          const newStatus = r.success ? 'received' : 'failed'
-          const updated = await c.env.DB.prepare(`
-            UPDATE alarm_logs SET status = ?
-            WHERE alarm_id = ? AND receiver_id = ? AND status = 'pending'
-          `).bind(newStatus, alarm.id, r.user_id).run()
+      // ★ alarm_logs 배치 업데이트 (개별 루프 → 그룹별 1회 쿼리로 최적화)
+      const toUpdate = callResults.filter(r => r.mode !== 'skipped' && r.user_id)
+      if (toUpdate.length > 0) {
+        // 성공/실패 그룹으로 분리
+        const receivedIds = toUpdate.filter(r => r.success).map(r => r.user_id)
+        const failedIds   = toUpdate.filter(r => !r.success).map(r => r.user_id)
 
-          if ((updated.meta.changes ?? 0) === 0) {
+        // 그룹별 배치 UPDATE
+        for (const [ids, status] of [[receivedIds, 'received'], [failedIds, 'failed']] as [string[], string][]) {
+          if (ids.length === 0) continue
+          const ph = ids.map(() => '?').join(',')
+          await c.env.DB.prepare(
+            `UPDATE alarm_logs SET status = ? WHERE alarm_id = ? AND receiver_id IN (${ph}) AND status = 'pending'`
+          ).bind(status, alarm.id, ...ids).run().catch(() => {})
+        }
+
+        // UPDATE로 변경 안 된 행(alarm_logs에 없는 신규 수신자) → 배치 INSERT
+        // 알람 생성 시 alarm_logs 껍데기를 미리 INSERT하므로 여기서는 누락분만 처리
+        const { results: existingRows } = await c.env.DB.prepare(
+          `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${toUpdate.map(() => '?').join(',')})`
+        ).bind(alarm.id, ...toUpdate.map(r => r.user_id)).all() as { results: any[] }
+        const existingSet = new Set(existingRows.map((r: any) => r.receiver_id))
+
+        for (const r of toUpdate) {
+          if (existingSet.has(r.user_id)) continue  // 이미 존재 → UPDATE로 처리됨
+          try {
             await c.env.DB.prepare(`
               INSERT OR IGNORE INTO alarm_logs
                 (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
@@ -654,11 +678,12 @@ alarms.post('/trigger', async (c) => {
             `).bind(
               alarm.id, alarm.channel_id, alarm.channel_name || '알람',
               r.user_id, alarm.msg_type || 'youtube', alarm.msg_value || '',
-              newStatus, alarm.created_by || null, alarm.scheduled_at || null,
+              r.success ? 'received' : 'failed',
+              alarm.created_by || null, alarm.scheduled_at || null,
               alarm.alarm_link_url || alarm.channel_homepage_url || null
             ).run()
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
       }
 
       // 수신자 없거나 처리 불가 → 시간이 지난 pending 알람은 즉시 삭제
