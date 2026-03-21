@@ -453,8 +453,10 @@ class ContentPlayerActivity : Activity() {
         if (effectiveType == "youtube") {
             val youtubeUrl = msgValue.ifEmpty { contentUrl }
             if (youtubeUrl.isNotEmpty()) {
-                bottomBar.addView(TextView(this).apply {
-                    text = "▶"; textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                bottomBar.addView(ImageView(this).apply {
+                    setImageResource(R.drawable.youtube_icon)
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    setPadding(dp(7), dp(7), dp(7), dp(7))
                     background = GradientDrawable().apply {
                         cornerRadius = dp(19).toFloat()
                         setColor(Color.parseColor("#40FFFFFF"))
