@@ -165,15 +165,21 @@ class AlarmPollingService : Service() {
             val currentNames = synchronized(fcmLock) { pendingChannelNames.toList() }
             val timeStr = SimpleDateFormat("a h:mm", Locale.KOREA).format(Date())
 
-            // ── 수신함 이동 PendingIntent (BroadcastReceiver 방식) ──────────
-            // AlarmDismissReceiver: 알림 취소 + 앱 수신함 탭 이동을 함께 처리
-            val dismissIntent = Intent(context, AlarmDismissReceiver::class.java).apply {
-                action = AlarmDismissReceiver.ACTION_OPEN_INBOX
-            }
-            val inboxPi = PendingIntent.getBroadcast(
+            // ── 수신함 이동 PendingIntent (Activity 직접 실행 방식) ──────────
+            // PendingIntent.getActivity() → OS가 알림 패널을 자동으로 닫아줌 (카톡 등과 동일)
+            val launchIntent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("open_tab", "inbox")
+                    putExtra("from_notification", true)  // MainActivity에서 알림 정리용 플래그
+                }
+            val inboxPi = PendingIntent.getActivity(
                 context,
                 GROUP_NOTIF_ID,
-                dismissIntent,
+                launchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -198,7 +204,7 @@ class AlarmPollingService : Service() {
                 .setContentText(currentNames.joinToString(", ") { "📢$it" })
                 .setStyle(inboxStyle)
                 .setContentIntent(inboxPi)          // 알림 탭 → Receiver → 수신함 이동 + 알림 닫힘
-                .setAutoCancel(false)               // Receiver에서 직접 cancel()
+                .setAutoCancel(true)                // 알림 탭 시 자동 제거
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setGroup(GROUP_KEY)

@@ -338,6 +338,15 @@ class MainActivity : FlutterActivity() {
     private fun handleOpenTabIntent(intent: Intent?) {
         val tab = intent?.getStringExtra("open_tab") ?: return
         Log.d("MainActivity", "[OpenTab] tab=$tab, navChannel=${navChannel != null}")
+
+        // 알림에서 온 경우: 그룹 알림 취소 + 채널명 목록 초기화
+        if (intent.getBooleanExtra("from_notification", false)) {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(AlarmPollingService.GROUP_NOTIF_ID)
+            AlarmPollingService.clearPendingChannels()
+            Log.d("MainActivity", "[OpenTab] 알림 정리 완료")
+        }
+
         if (navChannel != null) {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 navChannel?.invokeMethod("openTab", tab)
