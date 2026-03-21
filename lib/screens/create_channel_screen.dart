@@ -74,17 +74,17 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
     } else {
       setState(() => _descError = null);
     }
-    // homepage_url 형식 검증 (입력된 경우만)
+    // homepage_url 정규화 (http(s):// 없으면 https:// 자동 추가) + 형식 검증
     final hp = _homepageCtrl.text.trim();
     if (hp.isNotEmpty) {
-      final uri = Uri.tryParse(hp);
-      if (uri == null ||
-          (!hp.startsWith('http://') && !hp.startsWith('https://')) ||
-          uri.host.isEmpty ||
-          !uri.host.contains('.')) {
-        setState(() => _homepageError = 'URL은 https://example.com 형식으로 입력하세요.');
+      final normalized = hp.startsWith('http://') || hp.startsWith('https://')
+          ? hp : 'https://$hp';
+      final uri = Uri.tryParse(normalized);
+      if (uri == null || uri.host.isEmpty || !uri.host.contains('.')) {
+        setState(() => _homepageError = 'URL 형식이 올바르지 않습니다 (예: example.com)');
         ok = false;
       } else {
+        _homepageCtrl.text = normalized; // 자동 보정값으로 교체
         setState(() => _homepageError = null);
       }
     } else {

@@ -4,21 +4,22 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { sendFCMDataMessage, sendFCMMulticast } from './fcm'
 
-// ── URL 형식 검증 헬퍼 ───────────────────────────────────────────
-function validateUrl(raw: string | undefined | null): { ok: boolean; error?: string } {
-  if (!raw || !raw.trim()) return { ok: true }
-  const url = raw.trim()
+// ── URL 정규화 + 형식 검증 헬퍼 ─────────────────────────────────
+// 비어있으면 null 반환, http(s):// 없으면 https:// 자동 추가, 유효하지 않으면 에러 반환
+function normalizeUrl(raw: string | undefined | null): { ok: boolean; value: string | null; error?: string } {
+  if (!raw || !raw.trim()) return { ok: true, value: null }
+  let url = raw.trim()
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return { ok: false, error: '연결 URL은 http:// 또는 https://로 시작해야 합니다' }
+    url = 'https://' + url
   }
   try {
     const parsed = new URL(url)
     if (!parsed.hostname || !parsed.hostname.includes('.')) {
-      return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+      return { ok: false, value: null, error: '올바른 URL 형식이 아닙니다 (예: example.com)' }
     }
-    return { ok: true }
+    return { ok: true, value: url }
   } catch {
-    return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+    return { ok: false, value: null, error: '올바른 URL 형식이 아닙니다 (예: example.com)' }
   }
 }
 import { deleteFromFirebaseStorage } from './uploads'
@@ -141,9 +142,9 @@ alarms.post('/', async (c) => {
       return c.json({ success: false, error: '메시지 소스 값이 너무 큽니다. 파일명 또는 URL만 저장 가능합니다.' }, 400)
     }
 
-    // link_url 형식 검증
-    const linkCheck = validateUrl(link_url)
-    if (!linkCheck.ok) return c.json({ success: false, error: linkCheck.error }, 400)
+    // link_url 정규화 (http(s):// 없으면 https:// 자동 추가) + 형식 검증
+    const linkNorm = normalizeUrl(link_url)
+    if (!linkNorm.ok) return c.json({ success: false, error: linkNorm.error }, 400)
 
     // 채널 존재 확인 (public_id 포함)
     const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
@@ -168,7 +169,7 @@ alarms.post('/', async (c) => {
       'SELECT COUNT(*) as cnt FROM subscribers WHERE channel_id = ? AND is_active = 1'
     ).bind(channel_id).first()
 
-    const safeLinkUrl = (link_url || '').toString().trim() || (channel as any).homepage_url || null
+    const safeLinkUrl = linkNorm.value || (channel as any).homepage_url || null
 
     const result = await c.env.DB.prepare(`
       INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets, link_url)

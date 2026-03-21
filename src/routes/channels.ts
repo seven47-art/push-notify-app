@@ -3,22 +3,23 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { sendFCMMulticast } from './fcm'
 
-// ── URL 형식 검증 헬퍼 ───────────────────────────────────────────
-// 비어있으면 통과, 입력된 경우 http(s):// + 유효한 hostname + 점(.) 포함 필수
-function validateUrl(raw: string | undefined | null): { ok: boolean; error?: string } {
-  if (!raw || !raw.trim()) return { ok: true } // 선택 입력이므로 비어있으면 통과
-  const url = raw.trim()
+// ── URL 정규화 + 형식 검증 헬퍼 ─────────────────────────────────
+// 비어있으면 null 반환, http(s):// 없으면 https:// 자동 추가, 유효하지 않으면 에러 반환
+function normalizeUrl(raw: string | undefined | null): { ok: boolean; value: string | null; error?: string } {
+  if (!raw || !raw.trim()) return { ok: true, value: null }
+  let url = raw.trim()
+  // http(s):// 없으면 https:// 자동 추가
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return { ok: false, error: 'URL은 http:// 또는 https://로 시작해야 합니다' }
+    url = 'https://' + url
   }
   try {
     const parsed = new URL(url)
     if (!parsed.hostname || !parsed.hostname.includes('.')) {
-      return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+      return { ok: false, value: null, error: '올바른 URL 형식이 아닙니다 (예: example.com)' }
     }
-    return { ok: true }
+    return { ok: true, value: url }
   } catch {
-    return { ok: false, error: '올바른 URL 형식이 아닙니다 (예: https://example.com)' }
+    return { ok: false, value: null, error: '올바른 URL 형식이 아닙니다 (예: example.com)' }
   }
 }
 
@@ -346,9 +347,10 @@ channels.post('/', async (c) => {
       return c.json({ success: false, error: '비밀채널은 비밀번호가 필수입니다' }, 400)
     }
 
-    // homepage_url 형식 검증
-    const hpCheck = validateUrl(homepage_url)
-    if (!hpCheck.ok) return c.json({ success: false, error: hpCheck.error }, 400)
+    // homepage_url 정규화 (http(s):// 없으면 https:// 자동 추가) + 형식 검증
+    const hpNorm = normalizeUrl(homepage_url)
+    if (!hpNorm.ok) return c.json({ success: false, error: hpNorm.error }, 400)
+    const safeHomepageUrl = hpNorm.value
 
     // 채널명 중복 체크 (활성 채널만, 대소문자 구분 없이)
     const existing = await c.env.DB.prepare(
@@ -370,7 +372,7 @@ channels.post('/', async (c) => {
     const result = await c.env.DB.prepare(`
       INSERT INTO channels (name, description, image_url, owner_id, public_id, homepage_url, is_secret, password_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId, homepage_url || null, isSecret, passwordHash).run()
+    `).bind(name.trim(), description.trim(), safeImageUrl || null, finalOwnerId, publicId, safeHomepageUrl || null, isSecret, passwordHash).run()
 
     const newChannelId = result.meta.last_row_id as number
 
@@ -428,10 +430,12 @@ channels.put('/:id', async (c) => {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
     }
 
-    // homepage_url 형식 검증 (요청에 포함된 경우에만)
+    // homepage_url 정규화 (요청에 포함된 경우만)
+    let safeHomepageUrl = homepage_url ?? null
     if ('homepage_url' in body) {
-      const hpCheck = validateUrl(homepage_url)
-      if (!hpCheck.ok) return c.json({ success: false, error: hpCheck.error }, 400)
+      const hpNorm = normalizeUrl(homepage_url)
+      if (!hpNorm.ok) return c.json({ success: false, error: hpNorm.error }, 400)
+      safeHomepageUrl = hpNorm.value
     }
 
     // 채널명 중복 체크 (변경하는 경우에만)
@@ -480,7 +484,7 @@ channels.put('/:id', async (c) => {
       description || null,
       image_url || null,
       hasHomepage ? 1 : 0,
-      homepage_url || null,
+      safeHomepageUrl,
       is_active ?? null,
       isSecretVal ?? null,
       passwordHash !== undefined ? passwordHash : null,
