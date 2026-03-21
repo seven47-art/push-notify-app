@@ -703,6 +703,48 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
             // ── 알람 없거나 _showAddForm일 때 입력 폼 표시 ──────────
             if (showForm) ...[
 
+            // ── 날짜/시간 선택 ─────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                border: Border.all(color: _border),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('날짜 / 시간 선택',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: _pickDateTime,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            color: _primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.access_time, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _formatDateTime(_scheduledAt),
+                            style: const TextStyle(
+                              fontSize: 13, color: _primary, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        const Icon(Icons.keyboard_arrow_down, color: _text2),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // ── 콘텐츠 선택 섹션 ───────────────────────────────
             Container(
               padding: const EdgeInsets.all(14),
@@ -965,48 +1007,6 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // ── 날짜/시간 선택 ─────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                border: Border.all(color: _border),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('날짜 / 시간 선택',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: _pickDateTime,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44, height: 44,
-                          decoration: BoxDecoration(
-                            color: _primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.access_time, color: Colors.white, size: 22),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _formatDateTime(_scheduledAt),
-                            style: const TextStyle(
-                              fontSize: 13, color: _primary, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                        const Icon(Icons.keyboard_arrow_down, color: _text2),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
 
             // ── 취소 / 확인 버튼 ───────────────────────────────
             Row(
