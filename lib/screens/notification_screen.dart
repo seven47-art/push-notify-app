@@ -92,6 +92,12 @@ class NotificationScreenState extends State<NotificationScreen> {
   // 스크롤 컨트롤러 (무한스크롤)
   final ScrollController _scrollController = ScrollController();
 
+  // 캐시 키 (수신함/발신함 별도)
+  String get _cacheKey => widget.mode == NotificationMode.inbox
+      ? 'cache_notif_inbox' : 'cache_notif_outbox';
+  String get _cacheKeyChannels => widget.mode == NotificationMode.inbox
+      ? 'cache_notif_inbox_ch' : 'cache_notif_outbox_ch';
+
   // 외부에서 reload 호출 가능하도록 public 메서드
   void reload() => _load(refresh: true);
 
@@ -99,13 +105,46 @@ class NotificationScreenState extends State<NotificationScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _load(refresh: true);
+    _loadCacheThenFetch();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // 캐시 먼저 표시 → 백그라운드 API 갱신
+  Future<void> _loadCacheThenFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_cacheKey);
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        final list = (jsonDecode(cached) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        final cachedCh = prefs.getString(_cacheKeyChannels);
+        List<Map<String, dynamic>> channels = [];
+        if (cachedCh != null && cachedCh.isNotEmpty) {
+          channels = (jsonDecode(cachedCh) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+        if (mounted && list.isNotEmpty) {
+          setState(() {
+            _items = list;
+            _channels = channels;
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
+    _load(refresh: true);
+  }
+
+  // 캐시 저장
+  Future<void> _saveCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      await prefs.setString(_cacheKey, jsonEncode(_items));
+      await prefs.setString(_cacheKeyChannels, jsonEncode(_channels));
+    } catch (_) {}
   }
 
   void _onScroll() {
@@ -118,15 +157,25 @@ class NotificationScreenState extends State<NotificationScreen> {
   // ── 초기/새로고침 로드 ──────────────────────────────
   Future<void> _load({bool refresh = false}) async {
     if (refresh) {
-      setState(() {
-        _loading     = true;
-        _error       = null;
-        _selectMode  = false;
-        _selectedIds = {};
-        _offset      = 0;
-        _items       = [];
-        _hasMore     = false;
-      });
+      // 캐시에 데이터가 있으면 로딩 스피너 표시 안 함
+      if (_items.isEmpty) {
+        setState(() {
+          _loading     = true;
+          _error       = null;
+          _selectMode  = false;
+          _selectedIds = {};
+          _offset      = 0;
+          _hasMore     = false;
+        });
+      } else {
+        setState(() {
+          _error       = null;
+          _selectMode  = false;
+          _selectedIds = {};
+          _offset      = 0;
+          _hasMore     = false;
+        });
+      }
     }
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -151,6 +200,7 @@ class NotificationScreenState extends State<NotificationScreen> {
             _selectedChannel = '전체';
           }
         });
+        _saveCache();
       } else {
         setState(() { _loading = false; _error = '목록을 불러올 수 없습니다.'; });
       }
@@ -483,7 +533,10 @@ class NotificationScreenState extends State<NotificationScreen> {
           // ── 목록 ──
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: _primary))
+                ? ListView.builder(
+                    itemCount: 8,
+                    itemBuilder: (_, __) => const _NotifSkeletonTile(),
+                  )
                 : _error != null
                     ? Center(
                         child: Column(
@@ -987,6 +1040,61 @@ class _AlarmListTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: _text2)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── 스켈레톤 로딩 타일 ─────────────────────────────────────────────────
+class _NotifSkeletonTile extends StatelessWidget {
+  const _NotifSkeletonTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          // 아바타 스켈레톤
+          Container(
+            width: 42, height: 42,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 타입 아이콘 스켈레톤
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 텍스트 스켈레톤
+          Expanded(
+            child: Container(
+              width: 100, height: 14,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 50, height: 11,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
       ),
     );
   }

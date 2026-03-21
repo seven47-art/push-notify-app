@@ -33,6 +33,9 @@ class SubscribedChannelsScreen extends StatefulWidget {
   State<SubscribedChannelsScreen> createState() => SubscribedChannelsScreenState();
 }
 
+// 캐시 키
+const _cacheKeySubChannels = 'cache_sub_channels';
+
 class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
   bool _loading = true;
@@ -49,7 +52,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadCacheThenFetch();
   }
 
   @override
@@ -58,8 +61,39 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     super.dispose();
   }
 
+  // 캐시 먼저 표시 → 백그라운드 API 갱신
+  Future<void> _loadCacheThenFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_cacheKeySubChannels);
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        final list = (jsonDecode(cached) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        if (mounted) {
+          setState(() {
+            _channels = list;
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
+    _load();
+  }
+
+  // 캐시 저장
+  Future<void> _saveCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      await prefs.setString(_cacheKeySubChannels, jsonEncode(_channels));
+    } catch (_) {}
+  }
+
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    // 캐시에 데이터가 있으면 로딩 스피너 표시 안 함 (백그라운드 갱신)
+    if (_channels.isEmpty) {
+      setState(() { _loading = true; _error = null; });
+    } else {
+      setState(() { _error = null; });
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
@@ -85,6 +119,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
               _channels = channels;
               _loading = false;
             });
+            _saveCache();
           }
           return;
         }
@@ -294,9 +329,11 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
             ),
 
             if (_loading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: SizedBox.shrink(),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, __) => const _ChannelSkeletonTile(),
+                  childCount: 5,
+                ),
               )
             else if (_error != null)
               SliverFillRemaining(
@@ -578,6 +615,55 @@ class _InviteCodeSheet extends StatelessWidget {
                 side: const BorderSide(color: Color(0xFFEEEEEE)),
               ),
               child: const Text('닫기', style: TextStyle(color: Color(0xFF888888))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 스켈레톤 로딩 타일 ─────────────────────────────────────────────────
+class _ChannelSkeletonTile extends StatelessWidget {
+  const _ChannelSkeletonTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120, height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 180, height: 11,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

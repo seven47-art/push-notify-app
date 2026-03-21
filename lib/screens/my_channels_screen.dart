@@ -34,6 +34,10 @@ class MyChannelsScreen extends StatefulWidget {
   State<MyChannelsScreen> createState() => MyChannelsScreenState();
 }
 
+// 캐시 키
+const _cacheKeyChannels = 'cache_my_channels';
+const _cacheKeyAlarmCounts = 'cache_my_alarm_counts';
+
 // 퍼블릭 State - 외부(MainScreenState)에서 GlobalKey로 reload() 호출 가능
 class MyChannelsScreenState extends State<MyChannelsScreen> {
   List<Map<String, dynamic>> _channels = [];
@@ -48,11 +52,51 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCacheThenFetch();
+  }
+
+  // 캐시 먼저 표시 → 백그라운드 API 갱신
+  Future<void> _loadCacheThenFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_cacheKeyChannels);
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        final list = (jsonDecode(cached) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        final cachedCounts = prefs.getString(_cacheKeyAlarmCounts);
+        Map<String, int> counts = {};
+        if (cachedCounts != null && cachedCounts.isNotEmpty) {
+          final raw = jsonDecode(cachedCounts) as Map<String, dynamic>;
+          raw.forEach((k, v) => counts[k] = v is int ? v : int.tryParse(v.toString()) ?? 0);
+        }
+        if (mounted) {
+          setState(() {
+            _channels = list;
+            _alarmCounts = counts;
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
+    // 백그라운드에서 최신 데이터 로드
     _load();
   }
 
+  // 캐시 저장
+  Future<void> _saveCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      await prefs.setString(_cacheKeyChannels, jsonEncode(_channels));
+      await prefs.setString(_cacheKeyAlarmCounts, jsonEncode(_alarmCounts));
+    } catch (_) {}
+  }
+
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    // 캐시에 데이터가 있으면 로딩 스피너 표시 안 함 (백그라운드 갱신)
+    if (_channels.isEmpty) {
+      setState(() { _loading = true; _error = null; });
+    } else {
+      setState(() { _error = null; });
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
@@ -112,6 +156,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
               _alarmCounts = alarmCounts;
               _loading = false;
             });
+            _saveCache();
           }
           return;
         }
@@ -427,9 +472,11 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
               ),
             ),
             if (_loading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: SizedBox.shrink(),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, __) => const _ChannelSkeletonTile(),
+                  childCount: 5,
+                ),
               )
             else if (_error != null)
               SliverFillRemaining(
@@ -1144,6 +1191,56 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
                   ),
           ),
           SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 스켈레톤 로딩 타일 ─────────────────────────────────────────────────
+class _ChannelSkeletonTile extends StatelessWidget {
+  const _ChannelSkeletonTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          // 아바타 스켈레톤
+          Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120, height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 180, height: 11,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

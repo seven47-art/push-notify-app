@@ -1,5 +1,6 @@
 // lib/screens/channel_explore_screen.dart
 // 스크린샷 기준: 흰 배경 / 검색바 / 인기채널 / 베스트채널 섹션
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -23,6 +24,10 @@ const _avatarColors = [
   Color(0xFFEF4444), Color(0xFF3B82F6), Color(0xFF10B981),
 ];
 
+// 캐시 키
+const _cacheKeyPopular = 'cache_explore_popular';
+const _cacheKeyBest    = 'cache_explore_best';
+
 class ChannelExploreScreen extends StatefulWidget {
   const ChannelExploreScreen({super.key});
 
@@ -44,24 +49,53 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
 
   final _searchCtrl  = TextEditingController();
   final _searchFocus = FocusNode();
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _loadCacheThenFetch();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _searchFocus.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _init() async {
+  // 캐시 먼저 표시 → 백그라운드 API 갱신
+  Future<void> _loadCacheThenFetch() async {
     final prefs = await SharedPreferences.getInstance();
     _myUserId = prefs.getString('user_id') ?? '';
+    final cachedPop = prefs.getString(_cacheKeyPopular);
+    final cachedBest = prefs.getString(_cacheKeyBest);
+    if (cachedPop != null && cachedPop.isNotEmpty) {
+      try {
+        final pop = (jsonDecode(cachedPop) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        final best = cachedBest != null && cachedBest.isNotEmpty
+            ? (jsonDecode(cachedBest) as List).map((e) => Map<String, dynamic>.from(e)).toList()
+            : <Map<String, dynamic>>[];
+        if (mounted) {
+          setState(() {
+            _popular = pop;
+            _best = best;
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
     await Future.wait([_loadChannels(), _loadSubscribedIds()]);
+  }
+
+  // 캐시 저장
+  Future<void> _saveCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      await prefs.setString(_cacheKeyPopular, jsonEncode(_popular));
+      await prefs.setString(_cacheKeyBest, jsonEncode(_best));
+    } catch (_) {}
   }
 
   Future<void> _loadSubscribedIds() async {
@@ -90,7 +124,11 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
   }
 
   Future<void> _loadChannels() async {
-    setState(() { _loading = true; _error = null; });
+    if (_popular.isEmpty && _best.isEmpty) {
+      setState(() { _loading = true; _error = null; });
+    } else {
+      setState(() { _error = null; });
+    }
     try {
       final results = await Future.wait([
         http.get(Uri.parse('$kBaseUrl/api/channels/popular'))
@@ -106,18 +144,29 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
         _best    = List<Map<String, dynamic>>.from(bestBody['data'] ?? []);
         _loading = false;
       });
+      _saveCache();
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = '채널 목록을 불러올 수 없습니다'; });
     }
   }
 
-  Future<void> _doSearch(String query) async {
+  // debounce 적용 검색
+  void _onSearchChanged(String query) {
     final q = query.trim();
     setState(() { _searchQuery = q; });
     if (q.isEmpty) {
+      _debounceTimer?.cancel();
       setState(() { _search = []; _searching = false; });
       return;
     }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 350), () {
+      _doSearch(q);
+    });
+  }
+
+  Future<void> _doSearch(String q) async {
+    if (!mounted) return;
     setState(() { _searching = true; });
     try {
       final res = await http
@@ -172,13 +221,13 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear, color: _text2, size: 18),
-                    onPressed: () { _searchCtrl.clear(); _doSearch(''); },
+                    onPressed: () { _searchCtrl.clear(); _onSearchChanged(''); },
                   )
                 : null,
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 12),
           ),
-          onChanged: _doSearch,
+          onChanged: _onSearchChanged,
           textInputAction: TextInputAction.search,
         ),
       ),
@@ -195,7 +244,16 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
           _buildSearchBar(),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: _primary))
+                ? ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    children: [
+                      _sectionHeader('\u2B50 인기 채널'),
+                      ...List.generate(3, (_) => const _ExploreSkeletonTile()),
+                      const SizedBox(height: 16),
+                      _sectionHeader('\uD83C\uDFC6 베스트 채널'),
+                      ...List.generate(3, (_) => const _ExploreSkeletonTile()),
+                    ],
+                  )
                 : _error != null
                     ? _buildError()
                     : isSearching
@@ -238,7 +296,10 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
 
   Widget _buildSearchResults() {
     if (_searching) {
-      return const Center(child: CircularProgressIndicator(color: _primary));
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: List.generate(5, (_) => const _ExploreSkeletonTile()),
+      );
     }
     if (_search.isEmpty) {
       return Center(
@@ -253,16 +314,19 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
         ),
       );
     }
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text('검색 결과 ${_search.length}건',
-              style: const TextStyle(color: _text2, fontSize: 13)),
-        ),
-        ..._search.map((ch) => _buildChannelTile(ch)),
-      ],
+      itemCount: _search.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text('검색 결과 ${_search.length}건',
+                style: const TextStyle(color: _text2, fontSize: 13)),
+          );
+        }
+        return _buildChannelTile(_search[index - 1]);
+      },
     );
   }
 
@@ -386,6 +450,63 @@ class _ChannelExploreScreenState extends State<ChannelExploreScreen> {
             icon: const Icon(Icons.refresh),
             label: const Text('다시 시도'),
             onPressed: _loadChannels,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 스켈레톤 로딩 타일 ─────────────────────────────────────────────────
+class _ExploreSkeletonTile extends StatelessWidget {
+  const _ExploreSkeletonTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120, height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 80, height: 11,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 20, height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
           ),
         ],
       ),
