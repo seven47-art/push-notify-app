@@ -1132,10 +1132,10 @@ const App = {
 
   // ── 공통 아이콘/상태 맵 ────────────────────────────────────
   _msgIconMap: {
-    youtube: '<svg width="22" height="16" viewBox="0 0 22 16"><rect rx="4" width="22" height="16" fill="#FF0000"/><polygon points="9,3.5 9,12.5 16,8" fill="#FFF"/></svg>',
-    audio:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="#4FC3F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" fill="#4FC3F7"/><circle cx="18" cy="16" r="3" fill="#4FC3F7"/></svg>',
-    video:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="15" height="16" rx="3" stroke="#66BB6A" stroke-width="2"/><path d="M17 9.5l5-3v11l-5-3" fill="#66BB6A"/></svg>',
-    file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
+    youtube: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#FF0000"/><polygon points="10,7.5 10,16.5 17,12" fill="#FFF"/></svg>',
+    audio:   '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#4FC3F7"/><path d="M10 17V7l2-1v10" stroke="#FFF" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="17" r="2.5" fill="#FFF"/><circle cx="14" cy="16" r="2.5" fill="#FFF"/></svg>',
+    video:   '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#66BB6A"/><rect x="6" y="8" width="9" height="8" rx="1.5" fill="#FFF"/><path d="M15 10l3.5-2v8l-3.5-2z" fill="#FFF"/></svg>',
+    file:    '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#90A4AE"/><path d="M9 6h4l4 4v8a1 1 0 01-1 1H9a1 1 0 01-1-1V7a1 1 0 011-1z" fill="#FFF"/><path d="M13 6v4h4" fill="none" stroke="#90A4AE" stroke-width="1"/></svg>'
   },
   _statusLabelMap: { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' },
   _statusColorMap: { pending:'#90A4AE', received:'#4FC3F7', accepted:'#66BB6A', rejected:'#FF5252', timeout:'#FFA726', failed:'#FFA726' },
@@ -1163,7 +1163,7 @@ const App = {
     }
 
     const rows = items.map(item => {
-      const typeIcon = this._msgIconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+      const typeIcon = this._msgIconMap[item.msg_type] || '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#90A4AE"/><path d="M12 6a5 5 0 015 5v3l1 2H6l1-2v-3a5 5 0 015-5z" fill="#FFF"/><circle cx="12" cy="18" r="1.5" fill="#FFF"/></svg>'
       const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.received_at)
       const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
@@ -1439,7 +1439,7 @@ const App = {
 
     const iconMap    = this._msgIconMap
     const rows = items.map(item => {
-      const typeIcon = iconMap[item.msg_type] || '<i class="fas fa-bell" style="color:#90A4AE;font-size:20px;"></i>'
+      const typeIcon = iconMap[item.msg_type] || '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#90A4AE"/><path d="M12 6a5 5 0 015 5v3l1 2H6l1-2v-3a5 5 0 015-5z" fill="#FFF"/><circle cx="12" cy="18" r="1.5" fill="#FFF"/></svg>'
       const timeStr  = this._fmtAlarmTime(item.scheduled_at || item.sent_at)
       const chImg    = item.channel_image
         ? `<img src="${item.channel_image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`

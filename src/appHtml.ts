@@ -1335,6 +1335,6 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Noto 
   </div>
 </div>
 
-<script src="/static/mobile-app.js?v=202603212200"></script>
+<script src="/static/mobile-app.js?v=202603212300"></script>
 </body>
 </html>`;
