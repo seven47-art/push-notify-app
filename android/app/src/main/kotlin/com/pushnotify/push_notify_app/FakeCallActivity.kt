@@ -30,11 +30,12 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity v3.0
- * 카카오톡 전화 수신 스타일 UI (정밀 매칭)
- * - 2톤 배경: 상단 다크카드(#1A1A2E) / 하단 블랙(#0D0D12)
- * - 프로필: 큰 원형 이미지 (140dp), 로드 전 링고 아이콘 + 로드 후 crossfade
- * - 하단: 거절(빨강 72dp) / 수락(초록 72dp) 채움형 전화 아이콘
+ * FakeCallActivity v4.0
+ * 카카오톡 전화 수신 화면 1:1 복제
+ * - 배경: 상단 카드(#222222) / 하단 순수블랙(#000000)
+ * - 프로필: 130dp 원형, 얇은 회색 테두리만 (glow 없음)
+ * - 하단: 거절(#FF3B30, 64dp) / 수락(#34C759, 64dp) + vector drawable 아이콘
+ * - 라벨 없음 (카카오톡 동일)
  */
 class FakeCallActivity : Activity() {
 
@@ -257,10 +258,10 @@ class FakeCallActivity : Activity() {
     // UI 구성 (카카오톡 영상통화 수신 스타일)
     // ─────────────────────────────────────────────────────────────────────
     private fun buildUi() {
-        val bgDark    = Color.parseColor("#0D0D12")
-        val bgCard    = Color.parseColor("#1A1A2E")
+        val bgDark    = Color.BLACK
+        val bgCard    = Color.parseColor("#222222")
         val textWhite = Color.WHITE
-        val textGray  = Color.parseColor("#8E8EA0")
+        val textGray  = Color.parseColor("#AAAAAA")
         val accentRed   = Color.parseColor("#FF3B30")
         val accentGreen = Color.parseColor("#34C759")
 
@@ -279,43 +280,40 @@ class FakeCallActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
             background = GradientDrawable().apply {
                 setColor(bgCard)
-                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(24f), dp(24f), dp(24f), dp(24f))
+                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(28f), dp(28f), dp(28f), dp(28f))
             }
-            setPadding(dp(24).toInt(), dp(60).toInt(), dp(24).toInt(), dp(44).toInt())
+            setPadding(dp(24).toInt(), dp(48).toInt(), dp(24).toInt(), dp(36).toInt())
         }
 
-        // 채널명 (큰 볼드)
+        // 채널명
         topCard.addView(TextView(this).apply {
             text = channelName
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             setTextColor(textWhite)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(4).toInt())
         })
 
-        // "전화 수신 중..." 상태
+        // "연결 중" 상태 텍스트
         topCard.addView(TextView(this).apply {
-            text = "전화 수신 중..."
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            text = "연결 중"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setTextColor(textGray)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(6).toInt())
+            setPadding(0, 0, 0, dp(8).toInt())
         })
 
         // 연결 중 점 애니메이션 (● ● ●)
         val dotsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(32).toInt())
+            setPadding(0, 0, 0, dp(24).toInt())
         }
-        val dotColors = listOf(
-            Color.parseColor("#FFD60A"),
-            Color.parseColor("#FFD60A"),
-            Color.parseColor("#FFD60A")
-        )
+        val dotColor = Color.parseColor("#F5D442")
         val dotViews = mutableListOf<View>()
-        dotColors.forEachIndexed { i, color ->
+        (0 until 3).forEachIndexed { i, _ ->
+            val color = dotColor
             if (i > 0) {
                 dotsLayout.addView(View(this).apply {
                     layoutParams = LinearLayout.LayoutParams(dp(8).toInt(), 1)
@@ -337,43 +335,12 @@ class FakeCallActivity : Activity() {
         // 점 애니메이션 시작
         startDotAnimation(dotViews)
 
-        // ── 프로필 이미지 (140dp 원형) ──
-        val profileSize = dp(140).toInt()
+        // ── 프로필 이미지 (130dp 원형, 얇은 테두리만 - 카카오톡 동일) ──
+        val profileSize = dp(130).toInt()
         val profileContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(profileSize + dp(16).toInt(), profileSize + dp(16).toInt()).apply {
+            layoutParams = LinearLayout.LayoutParams(profileSize + dp(8).toInt(), profileSize + dp(8).toInt()).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
-        }
-
-        // 은은한 glow 링 (프로필 뒤)
-        val glowRing = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setStroke(dp(2).toInt(), Color.parseColor("#33FFFFFF"))
-                setColor(Color.TRANSPARENT)
-            }
-            layoutParams = FrameLayout.LayoutParams(
-                profileSize + dp(16).toInt(),
-                profileSize + dp(16).toInt(),
-                Gravity.CENTER
-            )
-        }
-        profileContainer.addView(glowRing)
-
-        // glow 링 pulse 애니메이션
-        val scaleX = ObjectAnimator.ofFloat(glowRing, "scaleX", 1f, 1.15f, 1f)
-        val scaleY = ObjectAnimator.ofFloat(glowRing, "scaleY", 1f, 1.15f, 1f)
-        val alphaAnim = ObjectAnimator.ofFloat(glowRing, "alpha", 0.6f, 1f, 0.6f)
-        pulseAnimator = AnimatorSet().apply {
-            playTogether(scaleX, scaleY, alphaAnim)
-            duration = 2000L
-            interpolator = AccelerateDecelerateInterpolator()
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) {
-                    if (!isFinishing) start()
-                }
-            })
-            start()
         }
 
         // 프로필 이미지 (기본: 링고 아이콘)
@@ -382,7 +349,8 @@ class FakeCallActivity : Activity() {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#2A2A42"))
+                setColor(Color.parseColor("#333333"))
+                setStroke(dp(1).toInt(), Color.parseColor("#444444"))
             }
             clipToOutline = true
             outlineProvider = object : android.view.ViewOutlineProvider() {
@@ -396,13 +364,25 @@ class FakeCallActivity : Activity() {
 
         topCard.addView(profileContainer)
 
-        // ── 알람 타입 배지 ──
+        // ── 알람 타입 배지 (카카오 통화녹음 버튼 스타일) ──
         topCard.addView(TextView(this).apply {
             text = getMsgTypeLabel()
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            setTextColor(Color.parseColor("#B0B0C8"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(dp(14).toInt(), dp(16).toInt(), dp(14).toInt(), 0)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16f)
+                setColor(Color.parseColor("#44FFFFFF"))
+            }
+            setPadding(dp(16).toInt(), dp(8).toInt(), dp(16).toInt(), dp(8).toInt())
+            val badgeParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(16).toInt()
+            }
+            layoutParams = badgeParams
         })
 
         // 상단 카드를 루트에 추가
@@ -423,7 +403,7 @@ class FakeCallActivity : Activity() {
 
         // 간격
         btnLayout.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(80).toInt(), 1)
+            layoutParams = LinearLayout.LayoutParams(dp(48).toInt(), 1)
         })
 
         // 수락 버튼
@@ -434,159 +414,39 @@ class FakeCallActivity : Activity() {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(80).toInt()
+            bottomMargin = dp(50).toInt()
         }
         root.addView(btnLayout, btnParams)
 
         setContentView(root)
     }
 
-    // ── 액션 버튼 생성 (카카오 스타일 원형 72dp) ──
-    private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+    // ── 액션 버튼 생성 (카카오톡 동일: 64dp 원형, 라벨 없음) ──
+    private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): FrameLayout {
+        val btnSize = dp(64).toInt()
+        return FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+            }
             setOnClickListener { onClick() }
 
-            // 원형 버튼 (72dp - 카카오톡 크기 매칭)
-            val btnSize = dp(72).toInt()
-            val circle = FrameLayout(this@FakeCallActivity).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(color)
-                }
-                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
-            }
-
-            // 전화 아이콘 (채움형)
+            // vector drawable 아이콘 사용 (확실한 전화 아이콘)
             val iconView = ImageView(this@FakeCallActivity).apply {
-                setImageDrawable(if (isDecline) createDeclineIcon() else createAcceptIcon())
-                scaleType = ImageView.ScaleType.CENTER
+                setImageResource(
+                    if (isDecline) R.drawable.ic_call_decline
+                    else R.drawable.ic_call_accept
+                )
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                val iconPad = dp(16).toInt()
+                setPadding(iconPad, iconPad, iconPad, iconPad)
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 )
             }
-            circle.addView(iconView)
-
-            // 라벨
-            val label = TextView(this@FakeCallActivity).apply {
-                text = if (isDecline) "거절" else "수락"
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                setTextColor(Color.parseColor("#8E8EA0"))
-                gravity = Gravity.CENTER
-                setPadding(0, dp(12).toInt(), 0, 0)
-            }
-
-            addView(circle)
-            addView(label)
-        }
-    }
-
-    // ── 거절 아이콘 (채움형 전화기, 135도 회전 - 카카오톡 스타일) ──
-    private fun createDeclineIcon(): Drawable {
-        return object : Drawable() {
-            override fun draw(canvas: Canvas) {
-                val b = bounds
-                val cx = b.exactCenterX()
-                val cy = b.exactCenterY()
-                val s = b.width() * 0.16f
-
-                canvas.save()
-                canvas.rotate(135f, cx, cy)
-
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.WHITE
-                    style = Paint.Style.FILL
-                }
-
-                // 수화기 왼쪽 이어피스
-                val leftEar = Path().apply {
-                    moveTo(cx - s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx - s * 1.7f, cy - s * 0.6f, cx - s * 1.5f, cy - s * 1.5f, cx - s * 0.7f, cy - s * 1.6f)
-                    lineTo(cx - s * 0.3f, cy - s * 1.3f)
-                    cubicTo(cx - s * 0.8f, cy - s * 1.1f, cx - s * 1.0f, cy - s * 0.4f, cx - s * 0.8f, cy + s * 0.2f)
-                    close()
-                }
-                canvas.drawPath(leftEar, paint)
-
-                // 수화기 오른쪽 이어피스
-                val rightEar = Path().apply {
-                    moveTo(cx + s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx + s * 1.7f, cy - s * 0.6f, cx + s * 1.5f, cy - s * 1.5f, cx + s * 0.7f, cy - s * 1.6f)
-                    lineTo(cx + s * 0.3f, cy - s * 1.3f)
-                    cubicTo(cx + s * 0.8f, cy - s * 1.1f, cx + s * 1.0f, cy - s * 0.4f, cx + s * 0.8f, cy + s * 0.2f)
-                    close()
-                }
-                canvas.drawPath(rightEar, paint)
-
-                // 수화기 몸체 (아래쪽 커브)
-                val body = Path().apply {
-                    moveTo(cx - s * 0.9f, cy + s * 0.1f)
-                    cubicTo(cx - s * 0.6f, cy + s * 0.8f, cx + s * 0.6f, cy + s * 0.8f, cx + s * 0.9f, cy + s * 0.1f)
-                    lineTo(cx + s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx + s * 1.1f, cy + s * 1.2f, cx - s * 1.1f, cy + s * 1.2f, cx - s * 1.5f, cy + s * 0.1f)
-                    close()
-                }
-                canvas.drawPath(body, paint)
-
-                canvas.restore()
-            }
-            override fun setAlpha(alpha: Int) {}
-            override fun setColorFilter(cf: ColorFilter?) {}
-            @Suppress("OVERRIDE_DEPRECATION")
-            override fun getOpacity() = PixelFormat.TRANSLUCENT
-        }
-    }
-
-    // ── 수락 아이콘 (채움형 전화기, 정방향 - 카카오톡 스타일) ──
-    private fun createAcceptIcon(): Drawable {
-        return object : Drawable() {
-            override fun draw(canvas: Canvas) {
-                val b = bounds
-                val cx = b.exactCenterX()
-                val cy = b.exactCenterY()
-                val s = b.width() * 0.16f
-
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.WHITE
-                    style = Paint.Style.FILL
-                }
-
-                // 수화기 왼쪽 이어피스
-                val leftEar = Path().apply {
-                    moveTo(cx - s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx - s * 1.7f, cy - s * 0.6f, cx - s * 1.5f, cy - s * 1.5f, cx - s * 0.7f, cy - s * 1.6f)
-                    lineTo(cx - s * 0.3f, cy - s * 1.3f)
-                    cubicTo(cx - s * 0.8f, cy - s * 1.1f, cx - s * 1.0f, cy - s * 0.4f, cx - s * 0.8f, cy + s * 0.2f)
-                    close()
-                }
-                canvas.drawPath(leftEar, paint)
-
-                // 수화기 오른쪽 이어피스
-                val rightEar = Path().apply {
-                    moveTo(cx + s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx + s * 1.7f, cy - s * 0.6f, cx + s * 1.5f, cy - s * 1.5f, cx + s * 0.7f, cy - s * 1.6f)
-                    lineTo(cx + s * 0.3f, cy - s * 1.3f)
-                    cubicTo(cx + s * 0.8f, cy - s * 1.1f, cx + s * 1.0f, cy - s * 0.4f, cx + s * 0.8f, cy + s * 0.2f)
-                    close()
-                }
-                canvas.drawPath(rightEar, paint)
-
-                // 수화기 몸체 (아래쪽 커브)
-                val body = Path().apply {
-                    moveTo(cx - s * 0.9f, cy + s * 0.1f)
-                    cubicTo(cx - s * 0.6f, cy + s * 0.8f, cx + s * 0.6f, cy + s * 0.8f, cx + s * 0.9f, cy + s * 0.1f)
-                    lineTo(cx + s * 1.5f, cy + s * 0.1f)
-                    cubicTo(cx + s * 1.1f, cy + s * 1.2f, cx - s * 1.1f, cy + s * 1.2f, cx - s * 1.5f, cy + s * 0.1f)
-                    close()
-                }
-                canvas.drawPath(body, paint)
-            }
-            override fun setAlpha(alpha: Int) {}
-            override fun setColorFilter(cf: ColorFilter?) {}
-            @Suppress("OVERRIDE_DEPRECATION")
-            override fun getOpacity() = PixelFormat.TRANSLUCENT
+            addView(iconView)
         }
     }
 

@@ -1,8 +1,8 @@
-// lib/fake_call_screen.dart  v18
-// 카카오톡 전화 수신 스타일 UI (정밀 매칭 v3.0)
-// - 2톤 배경: 상단 다크카드(#1A1A2E) / 하단 블랙(#0D0D12)
-// - 프로필: 큰 원형 아이콘 (140dp) + 은은한 glow 링
-// - 하단: 거절(빨강 72dp) / 수락(초록 72dp) 채움형 전화 아이콘
+// lib/fake_call_screen.dart  v19
+// 카카오톡 전화 수신 화면 1:1 복제
+// - 배경: 상단 카드(#222222) / 하단 순수블랙(#000000)
+// - 프로필: 130dp 원형, 얇은 회색 테두리만 (glow 없음)
+// - 하단: 거절(64dp) / 수락(64dp) Material Icons + 라벨 없음
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,8 +35,6 @@ class FakeCallScreen extends StatefulWidget {
 class _FakeCallScreenState extends State<FakeCallScreen>
     with TickerProviderStateMixin {
 
-  late AnimationController _pulseController;
-  late Animation<double>   _pulseAnimation;
   late AnimationController _dotController;
 
   // 알람 벨소리 플레이어
@@ -51,15 +49,6 @@ class _FakeCallScreenState extends State<FakeCallScreen>
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-    // glow 링 pulse
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat();
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
 
     // 점 애니메이션용
     _dotController = AnimationController(
@@ -77,7 +66,6 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
   @override
   void dispose() {
-    _pulseController.dispose();
     _dotController.dispose();
     _autoDeclineTimer?.cancel();
     _vibrateTimer?.cancel();
@@ -130,7 +118,6 @@ class _FakeCallScreenState extends State<FakeCallScreen>
   void _stopRinging() {
     _bellPlayer.stop();
     _vibrateTimer?.cancel();
-    _pulseController.stop();
   }
 
   // ── 통화 수락 ─────────────────────────────────────────────────────
@@ -269,13 +256,13 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     }
   }
 
-  // ── UI ────────────────────────────────────────────────────────────
+  // ── UI (카카오톡 전화 수신 화면 1:1 복제) ─────────────────────────
   @override
   Widget build(BuildContext context) {
-    const bgDark    = Color(0xFF0D0D12);
-    const bgCard    = Color(0xFF1A1A2E);
+    const bgDark    = Colors.black;
+    const bgCard    = Color(0xFF222222);
     const textWhite = Colors.white;
-    const textGray  = Color(0xFF8E8EA0);
+    const textGray  = Color(0xFFAAAAAA);
     const accentRed   = Color(0xFFFF3B30);
     const accentGreen = Color(0xFF34C759);
 
@@ -283,20 +270,20 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       backgroundColor: bgDark,
       body: Column(
         children: [
-          // ── 상단 카드 영역 ──
+          // ── 상단 카드 영역 (카카오톡 동일) ──
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
               color: bgCard,
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
               ),
             ),
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 44, 24, 40),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
                 child: Column(
                   children: [
                     // 채널명
@@ -304,15 +291,15 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                       widget.channelName,
                       style: const TextStyle(
                         color: textWhite,
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 6),
-                    // "전화 수신 중..."
+                    const SizedBox(height: 4),
+                    // "연결 중"
                     const Text(
-                      '전화 수신 중...',
+                      '연결 중',
                       style: TextStyle(color: textGray, fontSize: 14),
                     ),
                     const SizedBox(height: 10),
@@ -329,75 +316,58 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                                 ? 0.3 + 0.7 * (progress * 2)
                                 : 1.0 - 0.7 * ((progress - 0.5) * 2);
                             return Container(
-                              width: 8,
-                              height: 8,
+                              width: 7,
+                              height: 7,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: const Color(0xFFFFD60A).withOpacity(opacity.clamp(0.3, 1.0)),
+                                color: const Color(0xFFF5D442).withOpacity(opacity.clamp(0.3, 1.0)),
                               ),
                             );
                           }),
                         );
                       },
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
 
-                    // 프로필 이미지 + glow 링
-                    AnimatedBuilder(
-                      animation: _pulseAnimation,
-                      builder: (context, child) {
-                        return Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // glow 링
-                            Transform.scale(
-                              scale: _pulseAnimation.value,
-                              child: Container(
-                                width: 156,
-                                height: 156,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(
-                                      0.15 + 0.1 * (1.15 - _pulseAnimation.value) / 0.15,
-                                    ),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // 프로필 (링고 아이콘)
-                            Container(
-                              width: 140,
-                              height: 140,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF2A2A42),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Image.asset(
-                                'assets/images/ringo_icon.png',
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.notifications_active,
-                                  color: Colors.white70,
-                                  size: 56,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    // 프로필 이미지 (130dp, 얇은 테두리만, glow 없음)
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF333333),
+                        border: Border.all(
+                          color: const Color(0xFF444444),
+                          width: 1,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Image.asset(
+                        'assets/images/ringo_icon.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.notifications_active,
+                          color: Colors.white70,
+                          size: 52,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
-                    // 알람 타입 라벨
-                    Text(
-                      _getMsgTypeLabel(),
-                      style: const TextStyle(
-                        color: Color(0xFFB0B0C8),
-                        fontSize: 12,
+                    // 알람 타입 배지 (카카오 통화녹음 스타일 pill)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        _getMsgTypeLabel(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -406,30 +376,28 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             ),
           ),
 
-          // ── 하단: 여백 + 버튼 ──
+          // ── 하단: 여백 + 버튼 (라벨 없음 - 카카오톡 동일) ──
           const Spacer(),
 
           // 수락/거절 버튼
           Padding(
-            padding: const EdgeInsets.only(bottom: 80),
+            padding: const EdgeInsets.only(bottom: 50),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 거절
+                // 거절 (라벨 없음)
                 _buildActionButton(
                   color: accentRed,
                   icon: Icons.call_end_rounded,
-                  label: '거절',
                   onTap: _decline,
                 ),
-                const SizedBox(width: 80),
-                // 수락
+                const SizedBox(width: 48),
+                // 수락 (라벨 없음)
                 _isAnswered
                     ? _buildLoadingButton()
                     : _buildActionButton(
                         color: accentGreen,
                         icon: Icons.call_rounded,
-                        label: '수락',
                         onTap: _answer,
                       ),
               ],
@@ -443,71 +411,40 @@ class _FakeCallScreenState extends State<FakeCallScreen>
   Widget _buildActionButton({
     required Color color,
     required IconData icon,
-    required String label,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 34),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF8E8EA0),
-              fontSize: 13,
-            ),
-          ),
-        ],
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+        ),
+        child: Icon(icon, color: Colors.white, size: 32),
       ),
     );
   }
 
   Widget _buildLoadingButton() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF34C759).withOpacity(0.5),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 30,
-              height: 30,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
-              ),
-            ),
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF34C759).withOpacity(0.5),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            valueColor: AlwaysStoppedAnimation(Colors.white),
           ),
         ),
-        const SizedBox(height: 12),
-        const Text(
-          '수락',
-          style: TextStyle(color: Color(0xFF8E8EA0), fontSize: 13),
-        ),
-      ],
+      ),
     );
   }
 }
