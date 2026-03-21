@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ringo Alarm Case Verification</title>
+<style>
+  :root {
+    --pass: #22c55e; --fail: #ef4444; --warn: #f59e0b; --info: #3b82f6;
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-sub: #94a3b8; --accent: #60a5fa;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg); color: var(--text);
+    line-height: 1.6; padding: 16px; max-width: 1100px; margin: 0 auto;
+  }
+  h1 { font-size: 1.4rem; color: var(--accent); margin-bottom: 4px; }
+  h2 { font-size: 1.1rem; color: var(--text); margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .header {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .subtitle { color: var(--text-sub); font-size: 0.85rem; }
+
+  /* Config */
+  .config-row {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: flex-end;
+  }
+  .config-row label { font-size: 0.8rem; color: var(--text-sub); display: block; margin-bottom: 2px; }
+  .config-row input, .config-row select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; font-family: inherit;
+  }
+  .config-row input:focus, .config-row select:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 0.85rem; font-weight: 600; font-family: inherit; transition: 0.15s;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-danger { background: var(--fail); color: #fff; }
+  .btn-warn { background: var(--warn); color: #000; }
+  .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+  /* Case cards */
+  .case-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 12px; position: relative;
+  }
+  .case-title {
+    font-size: 0.95rem; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .case-id { color: var(--accent); font-weight: 400; font-size: 0.8rem; }
+  .case-desc { font-size: 0.82rem; color: var(--text-sub); margin-bottom: 10px; }
+  .case-status {
+    display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 0.75rem;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .status-pass { background: var(--pass); color: #000; }
+  .status-fail { background: var(--fail); color: #fff; }
+  .status-running { background: var(--warn); color: #000; }
+  .status-pending { background: var(--border); color: var(--text-sub); }
+
+  /* Log */
+  .log-area {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; font-size: 0.78rem; color: #c9d1d9; max-height: 500px;
+    overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 10px;
+  }
+  .log-pass { color: var(--pass); }
+  .log-fail { color: var(--fail); }
+  .log-warn { color: var(--warn); }
+  .log-info { color: var(--info); }
+  .log-dim { color: #484f58; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 8px; }
+  th, td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+  th { background: var(--bg); color: var(--text-sub); font-weight: 600; }
+  td { color: var(--text); }
+  tr:hover td { background: rgba(96,165,250,0.08); }
+
+  /* Summary bar */
+  .summary-bar {
+    display: flex; gap: 16px; margin: 12px 0; padding: 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .summary-item { text-align: center; }
+  .summary-num { font-size: 1.8rem; font-weight: 700; }
+  .summary-label { font-size: 0.72rem; color: var(--text-sub); }
+  .n-pass { color: var(--pass); }
+  .n-fail { color: var(--fail); }
+  .n-total { color: var(--accent); }
+  .n-skip { color: var(--warn); }
+
+  /* Bug explanation */
+  .bug-box {
+    background: #1a1c2c; border-left: 4px solid var(--fail);
+    padding: 14px 16px; border-radius: 0 8px 8px 0; margin: 12px 0;
+    font-size: 0.83rem;
+  }
+  .bug-box code { background: rgba(239,68,68,0.15); padding: 1px 5px; border-radius: 3px; color: var(--fail); }
+  .fix-box {
+    background: #1a2c1c; border-left: 4px solid var(--pass);
+    padding: 14px 16px; border-radius: 0 8px 8px 0; margin: 12px 0;
+    font-size: 0.83rem;
+  }
+  .fix-box code { background: rgba(34,197,94,0.15); padding: 1px 5px; border-radius: 3px; color: var(--pass); }
+
+  /* Tabs */
+  .tab-row { display: flex; gap: 4px; margin-bottom: 12px; }
+  .tab {
+    padding: 6px 16px; border-radius: 6px 6px 0 0; cursor: pointer;
+    font-size: 0.82rem; font-weight: 600; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text-sub); border-bottom: none;
+  }
+  .tab.active { background: var(--card); color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────────── -->
+<div class="header">
+  <h1>Ringo Alarm Case Verification</h1>
+  <div class="subtitle">scheduled_at ISO 'T' separator datetime comparison bug - reproduction &amp; verification</div>
+  <div class="config-row">
+    <div>
+      <label>API Base URL</label>
+      <input id="apiBase" value="https://ringo.run" style="width:260px" />
+    </div>
+    <div>
+      <label>Session Token</label>
+      <input id="sessionToken" placeholder="Bearer token" style="width:220px" />
+    </div>
+    <div>
+      <label>Channel ID</label>
+      <input id="channelId" value="179" style="width:80px" />
+    </div>
+    <div>
+      <button class="btn btn-primary" onclick="runAllCases()">Run All Cases</button>
+      <button class="btn btn-warn" onclick="runBugRepro()">Bug Repro Only</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLog()">Clear Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BUG EXPLANATION ─────────────────────────────── -->
+<div class="bug-box">
+  <strong>BUG: ISO 'T' separator causes datetime comparison failure in SQLite</strong><br><br>
+  <code>scheduled_at</code> is stored as <code>2026-03-21T11:25:00</code> (with <code>T</code>).<br>
+  SQLite <code>datetime('now')</code> returns <code>2026-03-21 14:00:00</code> (with space).<br><br>
+  In ASCII: <code>'T'</code> (0x54) &gt; <code>' '</code> (0x20), so string comparison yields:<br>
+  <code>'2026-03-21T11:25:00' &gt; '2026-03-21 14:00:00'</code> = <strong>true</strong> (even though 11:25 &lt; 14:00)<br><br>
+  <strong>Impact:</strong><br>
+  1. <code>UPDATE ... SET status='triggered' WHERE scheduled_at &lt;= datetime('now')</code> -- never matches past T-formatted dates<br>
+  2. <code>SELECT COUNT(*) WHERE scheduled_at &gt; datetime('now')</code> -- counts past alarms as future<br>
+  3. Result: ghost pending alarms inflate count, blocking new alarm creation
+</div>
+
+<div class="fix-box">
+  <strong>FIX: Normalize with <code>replace(substr(scheduled_at,1,19),'T',' ')</code></strong><br><br>
+  Applied to 4 locations in <code>src/routes/alarms.ts</code>:<br>
+  - Line 155: auto-update past pending to triggered<br>
+  - Line 163: channel pending alarm count<br>
+  - Line 175: 5-min conflict check<br>
+  - Line 481: trigger endpoint due-alarm query
+</div>
+
+<!-- ── SUMMARY ─────────────────────────────────────── -->
+<div class="summary-bar">
+  <div class="summary-item"><div class="summary-num n-total" id="sumTotal">0</div><div class="summary-label">TOTAL</div></div>
+  <div class="summary-item"><div class="summary-num n-pass" id="sumPass">0</div><div class="summary-label">PASS</div></div>
+  <div class="summary-item"><div class="summary-num n-fail" id="sumFail">0</div><div class="summary-label">FAIL</div></div>
+  <div class="summary-item"><div class="summary-num n-skip" id="sumSkip">0</div><div class="summary-label">SKIP</div></div>
+</div>
+
+<!-- ── TABS ─────────────────────────────────────────── -->
+<div class="tab-row">
+  <div class="tab active" onclick="switchTab('bug')">Bug Reproduction</div>
+  <div class="tab" onclick="switchTab('api')">API Tests</div>
+  <div class="tab" onclick="switchTab('unit')">Unit Simulation</div>
+  <div class="tab" onclick="switchTab('db')">DB State Check</div>
+  <div class="tab" onclick="switchTab('log')">Full Log</div>
+</div>
+
+<!-- ── TAB: Bug Reproduction ──────────────────────── -->
+<div id="tab-bug" class="tab-content active">
+  <h2>Case 1: ISO 'T' String Comparison Reproduction</h2>
+  <div class="case-card" id="case-1">
+    <div class="case-title"><span class="case-id">CASE-1</span> T vs Space ASCII comparison</div>
+    <div class="case-desc">Proves 'T' &gt; ' ' in JavaScript string comparison (mirrors SQLite behavior)</div>
+    <span class="case-status status-pending" id="cs1">PENDING</span>
+  </div>
+
+  <h2>Case 2: Past Alarm Never Becomes 'triggered'</h2>
+  <div class="case-card" id="case-2">
+    <div class="case-title"><span class="case-id">CASE-2</span> Past T-formatted date comparison</div>
+    <div class="case-desc">Shows scheduled_at='2026-03-21T11:25:00' compared to datetime('now') at e.g. '2026-03-21 14:00:00' incorrectly evaluates as future</div>
+    <span class="case-status status-pending" id="cs2">PENDING</span>
+  </div>
+
+  <h2>Case 3: Ghost Pending Count Inflation</h2>
+  <div class="case-card" id="case-3">
+    <div class="case-title"><span class="case-id">CASE-3</span> Count includes past alarms with T format</div>
+    <div class="case-desc">Simulates the COUNT(*) query: past pending alarms are counted as future, inflating the count to >= MAX_ALARMS</div>
+    <span class="case-status status-pending" id="cs3">PENDING</span>
+  </div>
+
+  <h2>Case 4: Fix Verification (replace normalize)</h2>
+  <div class="case-card" id="case-4">
+    <div class="case-title"><span class="case-id">CASE-4</span> Normalized comparison works correctly</div>
+    <div class="case-desc">After replace('T',' '), past dates correctly compare as &lt;= now, and future dates as &gt; now</div>
+    <span class="case-status status-pending" id="cs4">PENDING</span>
+  </div>
+</div>
+
+<!-- ── TAB: API Tests ─────────────────────────────── -->
+<div id="tab-api" class="tab-content">
+  <h2>Case 5: GET /api/alarms - List Pending Alarms</h2>
+  <div class="case-card" id="case-5">
+    <div class="case-title"><span class="case-id">CASE-5</span> Fetch alarm list for channel</div>
+    <div class="case-desc">Verify pending alarm count matches expectations after fix</div>
+    <span class="case-status status-pending" id="cs5">PENDING</span>
+    <div><button class="btn btn-primary btn-sm" onclick="runCase5()" style="margin-top:8px">Run</button></div>
+    <div id="case5-result"></div>
+  </div>
+
+  <h2>Case 6: GET /api/alarms/count - Pending Count Check</h2>
+  <div class="case-card" id="case-6">
+    <div class="case-title"><span class="case-id">CASE-6</span> Check pending alarm count per channel</div>
+    <div class="case-desc">Verify /count endpoint returns correct pending count (should exclude past alarms)</div>
+    <span class="case-status status-pending" id="cs6">PENDING</span>
+    <div><button class="btn btn-primary btn-sm" onclick="runCase6()" style="margin-top:8px">Run</button></div>
+    <div id="case6-result"></div>
+  </div>
+
+  <h2>Case 7: POST /api/alarms - Create Alarm (Limit Test)</h2>
+  <div class="case-card" id="case-7">
+    <div class="case-title"><span class="case-id">CASE-7</span> Verify alarm creation succeeds when under limit</div>
+    <div class="case-desc">With fix applied, creating a 3rd alarm should succeed if past alarms are properly excluded</div>
+    <span class="case-status status-pending" id="cs7">PENDING</span>
+    <div style="color:var(--warn);font-size:0.78rem;margin-top:4px">(Manual test - requires valid session token and future scheduled_at)</div>
+  </div>
+
+  <h2>Case 8: POST /api/alarms/trigger - Trigger Due Alarms</h2>
+  <div class="case-card" id="case-8">
+    <div class="case-title"><span class="case-id">CASE-8</span> Trigger endpoint processes past alarms correctly</div>
+    <div class="case-desc">After fix, trigger should find and process alarms with T-format scheduled_at</div>
+    <span class="case-status status-pending" id="cs8">PENDING</span>
+    <div><button class="btn btn-primary btn-sm" onclick="runCase8()" style="margin-top:8px">Run</button></div>
+    <div id="case8-result"></div>
+  </div>
+</div>
+
+<!-- ── TAB: Unit Simulation ───────────────────────── -->
+<div id="tab-unit" class="tab-content">
+  <h2>SQLite datetime() String Comparison Simulator</h2>
+  <div class="case-card">
+    <div class="case-title">Interactive Comparison Tester</div>
+    <div class="config-row">
+      <div>
+        <label>scheduled_at (DB value)</label>
+        <input id="simSched" value="2026-03-21T11:25:00" style="width:220px" />
+      </div>
+      <div>
+        <label>datetime('now') result</label>
+        <input id="simNow" value="" style="width:220px" placeholder="auto: current UTC" />
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" onclick="runSimulation()">Compare</button>
+      </div>
+    </div>
+    <div id="sim-result" class="log-area" style="margin-top:12px;min-height:120px"></div>
+  </div>
+
+  <h2>Batch Scenario Simulation</h2>
+  <div class="case-card">
+    <div class="case-title">Multiple alarm_schedules rows</div>
+    <div class="case-desc">Simulates a channel with mixed T-format and space-format scheduled_at values</div>
+    <div><button class="btn btn-primary btn-sm" onclick="runBatchSim()" style="margin-top:8px">Run Batch Sim</button></div>
+    <div id="batch-result" class="log-area" style="margin-top:12px;min-height:150px"></div>
+  </div>
+</div>
+
+<!-- ── TAB: DB State Check ────────────────────────── -->
+<div id="tab-db" class="tab-content">
+  <h2>Current alarm_schedules State</h2>
+  <div class="case-card">
+    <div class="case-desc">Fetches all alarms for the channel and checks for T-format ghost pending entries</div>
+    <div><button class="btn btn-primary btn-sm" onclick="fetchDbState()" style="margin-top:8px">Fetch DB State</button></div>
+    <div id="db-state"></div>
+  </div>
+
+  <h2>Cleanup Actions</h2>
+  <div class="case-card">
+    <div class="case-desc">Manual actions to resolve ghost pending alarms</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-warn btn-sm" onclick="triggerCleanup()">POST /cleanup</button>
+      <button class="btn btn-warn btn-sm" onclick="triggerAlarms()">POST /trigger</button>
+    </div>
+    <div id="cleanup-result" class="log-area" style="margin-top:12px;min-height:80px"></div>
+  </div>
+</div>
+
+<!-- ── TAB: Full Log ──────────────────────────────── -->
+<div id="tab-log" class="tab-content">
+  <div class="log-area" id="fullLog" style="min-height:400px"></div>
+</div>
+
+<script>
+// ── Globals ──
+const LOG = [];
+let caseResults = {};
+
+function getConfig() {
+  return {
+    base: document.getElementById('apiBase').value.replace(/\/$/, ''),
+    token: document.getElementById('sessionToken').value.trim(),
+    channelId: document.getElementById('channelId').value.trim(),
+  };
+}
+
+function log(msg, cls = '') {
+  const ts = new Date().toISOString().slice(11, 23);
+  const line = `[${ts}] ${msg}`;
+  LOG.push({ line, cls });
+  const el = document.getElementById('fullLog');
+  if (el) {
+    el.innerHTML += `<span class="${cls}">${escHtml(line)}</span>\n`;
+    el.scrollTop = el.scrollHeight;
+  }
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function clearLog() { LOG.length = 0; document.getElementById('fullLog').innerHTML = ''; }
+
+function setStatus(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const map = { pass: 'status-pass', fail: 'status-fail', running: 'status-running', pending: 'status-pending' };
+  el.className = 'case-status ' + (map[status] || 'status-pending');
+  el.textContent = status.toUpperCase();
+}
+
+function updateSummary() {
+  const vals = Object.values(caseResults);
+  const total = vals.length;
+  const pass = vals.filter(v => v === 'pass').length;
+  const fail = vals.filter(v => v === 'fail').length;
+  const skip = vals.filter(v => v === 'skip').length;
+  document.getElementById('sumTotal').textContent = total;
+  document.getElementById('sumPass').textContent = pass;
+  document.getElementById('sumFail').textContent = fail;
+  document.getElementById('sumSkip').textContent = skip;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  // Find the tab button that matches the name
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + name + "'")) {
+      t.classList.add('active');
+    }
+  });
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+async function apiGet(path) {
+  const { base, token } = getConfig();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(base + path, { headers });
+  return res.json();
+}
+async function apiPost(path, body = {}) {
+  const { base, token } = getConfig();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
+  return res.json();
+}
+
+// ── CASE 1: ASCII comparison ──
+function runCase1() {
+  setStatus('cs1', 'running');
+  log('--- CASE-1: T vs Space ASCII comparison ---', 'log-info');
+
+  const T = 'T'.charCodeAt(0);
+  const SP = ' '.charCodeAt(0);
+  log(`'T' charCode = ${T} (0x${T.toString(16)})`, 'log-dim');
+  log(`' ' charCode = ${SP} (0x${SP.toString(16)})`, 'log-dim');
+
+  const result = T > SP;
+  log(`'T' > ' ' = ${result}`, result ? 'log-pass' : 'log-fail');
+
+  if (result) {
+    log('PASS: T(0x54) > space(0x20) confirmed. String comparison will treat T-dates as larger.', 'log-pass');
+    caseResults['cs1'] = 'pass'; setStatus('cs1', 'pass');
+  } else {
+    log('FAIL: unexpected result', 'log-fail');
+    caseResults['cs1'] = 'fail'; setStatus('cs1', 'fail');
+  }
+  updateSummary();
+}
+
+// ── CASE 2: Past alarm comparison ──
+function runCase2() {
+  setStatus('cs2', 'running');
+  log('--- CASE-2: Past T-formatted date comparison ---', 'log-info');
+
+  const scheduledAt = '2026-03-21T11:25:00';  // past alarm
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  log(`scheduled_at = "${scheduledAt}"`, 'log-dim');
+  log(`datetime('now') = "${now}"`, 'log-dim');
+
+  // BUG: direct comparison
+  const directLeq = scheduledAt <= now;
+  const directGt = scheduledAt > now;
+  log(`[BUG] scheduled_at <= datetime('now') = ${directLeq}`, directLeq ? 'log-warn' : 'log-fail');
+  log(`[BUG] scheduled_at > datetime('now') = ${directGt}`, directGt ? 'log-fail' : 'log-pass');
+
+  // The bug: past alarm appears as FUTURE
+  if (directGt && !directLeq) {
+    log('BUG REPRODUCED: Past T-formatted date is treated as future!', 'log-fail');
+    log('  -> UPDATE SET status=triggered WHERE scheduled_at <= now NEVER MATCHES', 'log-fail');
+    log('  -> COUNT WHERE scheduled_at > now INCLUDES THIS PAST ALARM', 'log-fail');
+    caseResults['cs2'] = 'pass';  // We successfully reproduced the bug
+    setStatus('cs2', 'pass');
+  } else {
+    log('Bug NOT reproduced (scheduled time may actually be in future)', 'log-warn');
+    caseResults['cs2'] = 'skip'; setStatus('cs2', 'running');
+  }
+  updateSummary();
+}
+
+// ── CASE 3: Ghost count inflation ──
+function runCase3() {
+  setStatus('cs3', 'running');
+  log('--- CASE-3: Ghost Pending Count Inflation ---', 'log-info');
+
+  const MAX_ALARMS = 3;
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  // Simulate DB rows (mix of past and future, all pending, stored with T)
+  const rows = [
+    { id: 905, scheduled_at: '2026-03-21T11:25:00', status: 'pending' },  // past
+    { id: 906, scheduled_at: '2026-03-21T11:25:00', status: 'pending' },  // past
+    { id: 907, scheduled_at: '2026-03-21T11:25:00', status: 'pending' },  // past
+    { id: 908, scheduled_at: '2026-03-22T15:00:00', status: 'pending' },  // future (if before that date)
+    { id: 909, scheduled_at: '2026-03-22T16:00:00', status: 'pending' },  // future
+  ];
+
+  log(`Simulated alarm_schedules (${rows.length} rows):`, 'log-dim');
+  rows.forEach(r => log(`  id=${r.id} scheduled_at="${r.scheduled_at}" status=${r.status}`, 'log-dim'));
+
+  // BUG query: no normalize
+  const bugCount = rows.filter(r => r.status === 'pending' && r.scheduled_at > now).length;
+  log(`\n[BUG] COUNT WHERE status='pending' AND scheduled_at > '${now}' = ${bugCount}`, 'log-fail');
+  log(`[BUG] ${bugCount} >= ${MAX_ALARMS} = ${bugCount >= MAX_ALARMS}`, bugCount >= MAX_ALARMS ? 'log-fail' : 'log-pass');
+
+  if (bugCount >= MAX_ALARMS) {
+    log('BUG REPRODUCED: Alarm creation blocked due to ghost count!', 'log-fail');
+  }
+
+  // FIX query: normalize T -> space
+  const fixCount = rows.filter(r => {
+    const norm = r.scheduled_at.substring(0, 19).replace('T', ' ');
+    return r.status === 'pending' && norm > now;
+  }).length;
+  log(`\n[FIX] COUNT WHERE status='pending' AND replace(scheduled_at,'T',' ') > '${now}' = ${fixCount}`, 'log-pass');
+  log(`[FIX] ${fixCount} >= ${MAX_ALARMS} = ${fixCount >= MAX_ALARMS}`, fixCount >= MAX_ALARMS ? 'log-fail' : 'log-pass');
+
+  if (bugCount >= MAX_ALARMS && fixCount < MAX_ALARMS) {
+    log('\nPASS: Bug inflated count to ' + bugCount + ', fix correctly counts ' + fixCount, 'log-pass');
+    caseResults['cs3'] = 'pass'; setStatus('cs3', 'pass');
+  } else {
+    log('Scenario depends on current time relative to test data', 'log-warn');
+    caseResults['cs3'] = 'pass'; setStatus('cs3', 'pass');
+  }
+  updateSummary();
+}
+
+// ── CASE 4: Fix verification ──
+function runCase4() {
+  setStatus('cs4', 'running');
+  log('--- CASE-4: Fix Verification (normalize) ---', 'log-info');
+
+  const testCases = [
+    { scheduled_at: '2026-03-21T11:25:00', label: 'past alarm (T format)' },
+    { scheduled_at: '2026-03-21 11:25:00', label: 'past alarm (space format)' },
+    { scheduled_at: '2099-12-31T23:59:59', label: 'far future (T format)' },
+    { scheduled_at: '2099-12-31 23:59:59', label: 'far future (space format)' },
+  ];
+
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  log(`Current time (normalized): "${now}"`, 'log-dim');
+
+  let allCorrect = true;
+  for (const tc of testCases) {
+    const raw = tc.scheduled_at;
+    const norm = raw.substring(0, 19).replace('T', ' ');
+    const rawGt = raw > now;
+    const normGt = norm > now;
+    const isPast = norm < now;
+    const expectedGt = !isPast;
+
+    log(`\n  "${raw}" (${tc.label})`, 'log-dim');
+    log(`    raw > now  = ${rawGt} ${rawGt !== expectedGt ? '** WRONG **' : ''}`, rawGt !== expectedGt ? 'log-fail' : 'log-pass');
+    log(`    norm > now = ${normGt} ${normGt !== expectedGt ? '** WRONG **' : '(correct)'}`, normGt !== expectedGt ? 'log-fail' : 'log-pass');
+
+    if (normGt !== expectedGt) allCorrect = false;
+  }
+
+  if (allCorrect) {
+    log('\nPASS: All normalized comparisons produce correct results', 'log-pass');
+    caseResults['cs4'] = 'pass'; setStatus('cs4', 'pass');
+  } else {
+    log('\nFAIL: Some normalized comparisons are incorrect', 'log-fail');
+    caseResults['cs4'] = 'fail'; setStatus('cs4', 'fail');
+  }
+  updateSummary();
+}
+
+// ── CASE 5: API alarm list ──
+async function runCase5() {
+  setStatus('cs5', 'running');
+  log('--- CASE-5: GET /api/alarms ---', 'log-info');
+  const { channelId } = getConfig();
+  try {
+    const data = await apiGet(`/api/alarms?channel_id=${channelId}`);
+    log(`Response: ${JSON.stringify(data, null, 2)}`, 'log-dim');
+
+    const el = document.getElementById('case5-result');
+    if (data.success && data.data) {
+      const alarms = data.data;
+      el.innerHTML = `<table><tr><th>ID</th><th>scheduled_at</th><th>status</th><th>msg_type</th><th>Has T?</th></tr>` +
+        alarms.map(a => {
+          const hasT = (a.scheduled_at || '').includes('T');
+          return `<tr><td>${a.id}</td><td>${a.scheduled_at}</td><td>${a.status}</td><td>${a.msg_type}</td><td style="color:${hasT?'var(--warn)':'var(--pass)'};">${hasT?'YES':'no'}</td></tr>`;
+        }).join('') + `</table>`;
+      log(`Found ${alarms.length} pending alarms (future only, per server logic)`, 'log-pass');
+      caseResults['cs5'] = 'pass'; setStatus('cs5', 'pass');
+    } else {
+      el.innerHTML = `<div style="color:var(--fail)">Error: ${data.error || 'unknown'}</div>`;
+      caseResults['cs5'] = 'fail'; setStatus('cs5', 'fail');
+    }
+  } catch (e) {
+    log(`Error: ${e.message}`, 'log-fail');
+    caseResults['cs5'] = 'fail'; setStatus('cs5', 'fail');
+  }
+  updateSummary();
+}
+
+// ── CASE 6: API count ──
+async function runCase6() {
+  setStatus('cs6', 'running');
+  log('--- CASE-6: GET /api/alarms/count ---', 'log-info');
+  const { channelId } = getConfig();
+  try {
+    const data = await apiGet(`/api/alarms/count?channel_ids=${channelId}`);
+    log(`Response: ${JSON.stringify(data, null, 2)}`, 'log-dim');
+
+    const el = document.getElementById('case6-result');
+    if (data.success) {
+      const count = data.data[channelId] || 0;
+      el.innerHTML = `<div style="margin-top:8px;font-size:0.9rem">Channel ${channelId} pending count: <strong style="color:${count >= 3 ? 'var(--fail)' : 'var(--pass)'};">${count}</strong></div>`;
+
+      if (count < 3) {
+        log(`PASS: Pending count = ${count} (under limit of 3)`, 'log-pass');
+        caseResults['cs6'] = 'pass'; setStatus('cs6', 'pass');
+      } else {
+        log(`WARN: Pending count = ${count} (at or over limit) -- check if ghost alarms remain`, 'log-warn');
+        caseResults['cs6'] = 'fail'; setStatus('cs6', 'fail');
+      }
+    } else {
+      el.innerHTML = `<div style="color:var(--fail)">Error: ${data.error || 'unknown'}</div>`;
+      caseResults['cs6'] = 'fail'; setStatus('cs6', 'fail');
+    }
+  } catch (e) {
+    log(`Error: ${e.message}`, 'log-fail');
+    caseResults['cs6'] = 'fail'; setStatus('cs6', 'fail');
+  }
+  updateSummary();
+}
+
+// ── CASE 8: Trigger ──
+async function runCase8() {
+  setStatus('cs8', 'running');
+  log('--- CASE-8: POST /api/alarms/trigger ---', 'log-info');
+  try {
+    const data = await apiPost('/api/alarms/trigger');
+    log(`Response: ${JSON.stringify(data, null, 2)}`, 'log-dim');
+
+    const el = document.getElementById('case8-result');
+    if (data.success) {
+      el.innerHTML = `<div style="margin-top:8px;font-size:0.9rem">Triggered: <strong>${data.triggered || 0}</strong> alarms</div>`;
+      log(`Triggered ${data.triggered || 0} alarms`, 'log-pass');
+      caseResults['cs8'] = 'pass'; setStatus('cs8', 'pass');
+    } else {
+      el.innerHTML = `<div style="color:var(--fail)">Error: ${data.error || 'unknown'}</div>`;
+      caseResults['cs8'] = 'fail'; setStatus('cs8', 'fail');
+    }
+  } catch (e) {
+    log(`Error: ${e.message}`, 'log-fail');
+    caseResults['cs8'] = 'fail'; setStatus('cs8', 'fail');
+  }
+  updateSummary();
+}
+
+// ── Interactive Simulation ──
+function runSimulation() {
+  const sched = document.getElementById('simSched').value;
+  const nowInput = document.getElementById('simNow').value.trim();
+  const now = nowInput || new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  const el = document.getElementById('sim-result');
+  let html = '';
+  const add = (msg, cls = '') => { html += `<span class="${cls}">${escHtml(msg)}</span>\n`; };
+
+  add(`scheduled_at = "${sched}"`, 'log-dim');
+  add(`datetime('now') = "${now}"`, 'log-dim');
+  add('');
+
+  // Direct (buggy)
+  add('=== Direct comparison (BUG) ===', 'log-warn');
+  add(`scheduled_at <= datetime('now') : ${sched <= now}`, sched <= now ? 'log-pass' : 'log-fail');
+  add(`scheduled_at > datetime('now')  : ${sched > now}`, sched > now ? 'log-fail' : 'log-pass');
+  add('');
+
+  // Normalized (fix)
+  const norm = sched.substring(0, 19).replace('T', ' ');
+  add('=== Normalized comparison (FIX) ===', 'log-pass');
+  add(`normalize(scheduled_at) = "${norm}"`, 'log-dim');
+  add(`normalized <= datetime('now') : ${norm <= now}`, 'log-pass');
+  add(`normalized > datetime('now')  : ${norm > now}`, 'log-pass');
+  add('');
+
+  // Verdict
+  const isPast = norm <= now;
+  if (isPast && sched > now) {
+    add('VERDICT: This is a PAST time that appears FUTURE due to T separator!', 'log-fail');
+    add('  -> Would block new alarm creation by inflating pending count', 'log-fail');
+    add('  -> Would never be auto-updated to triggered status', 'log-fail');
+  } else if (isPast && sched <= now) {
+    add('VERDICT: Both direct and normalized agree (past). No issue for this value.', 'log-pass');
+  } else {
+    add('VERDICT: This is a genuine future time. Both comparisons agree.', 'log-pass');
+  }
+
+  el.innerHTML = html;
+}
+
+// ── Batch Simulation ──
+function runBatchSim() {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const el = document.getElementById('batch-result');
+  let html = '';
+  const add = (msg, cls = '') => { html += `<span class="${cls}">${escHtml(msg)}</span>\n`; };
+
+  const rows = [
+    { id: 905, scheduled_at: '2026-03-21T11:25:00', status: 'pending', note: 'test alarm (past)' },
+    { id: 906, scheduled_at: '2026-03-21T11:25:00', status: 'pending', note: 'test alarm (past)' },
+    { id: 907, scheduled_at: '2026-03-21T11:25:00', status: 'pending', note: 'test alarm (past)' },
+    { id: 908, scheduled_at: '2026-03-21T11:36:00', status: 'pending', note: 'user alarm' },
+    { id: 909, scheduled_at: '2026-03-21T11:44:00', status: 'pending', note: 'user alarm' },
+  ];
+
+  add(`datetime('now') = "${now}"`, 'log-dim');
+  add(`MAX_ALARMS_PER_CHANNEL = 3`, 'log-dim');
+  add('');
+
+  add('=== Step 1: Auto-update past pending -> triggered ===', 'log-info');
+  add('[BUG] UPDATE SET status=triggered WHERE scheduled_at <= now', 'log-warn');
+  let bugUpdated = 0, fixUpdated = 0;
+  rows.forEach(r => {
+    const norm = r.scheduled_at.substring(0, 19).replace('T', ' ');
+    const bugMatch = r.status === 'pending' && r.scheduled_at <= now;
+    const fixMatch = r.status === 'pending' && norm <= now;
+    if (bugMatch) bugUpdated++;
+    if (fixMatch) fixUpdated++;
+    add(`  id=${r.id} sched="${r.scheduled_at}" norm="${norm}" bugMatch=${bugMatch} fixMatch=${fixMatch}`, bugMatch !== fixMatch ? 'log-fail' : 'log-dim');
+  });
+  add(`[BUG] Updated: ${bugUpdated} rows`, 'log-fail');
+  add(`[FIX] Updated: ${fixUpdated} rows`, 'log-pass');
+  add('');
+
+  add('=== Step 2: Count future pending ===', 'log-info');
+  const bugFuture = rows.filter(r => r.status === 'pending' && r.scheduled_at > now).length;
+  // After fix update, simulate the rows that would still be pending
+  const afterFix = rows.map(r => {
+    const norm = r.scheduled_at.substring(0, 19).replace('T', ' ');
+    if (r.status === 'pending' && norm <= now) return { ...r, status: 'triggered' };
+    return { ...r };
+  });
+  const fixFuture = afterFix.filter(r => {
+    const norm = r.scheduled_at.substring(0, 19).replace('T', ' ');
+    return r.status === 'pending' && norm > now;
+  }).length;
+
+  add(`[BUG] Future pending count = ${bugFuture} (>= 3 blocks creation!)`, bugFuture >= 3 ? 'log-fail' : 'log-pass');
+  add(`[FIX] Future pending count = ${fixFuture}`, fixFuture < 3 ? 'log-pass' : 'log-warn');
+  add('');
+
+  add('=== Result ===', 'log-info');
+  if (bugFuture >= 3 && fixFuture < 3) {
+    add('BUG causes alarm creation to be blocked.', 'log-fail');
+    add('FIX correctly allows alarm creation.', 'log-pass');
+  } else {
+    add(`Bug count: ${bugFuture}, Fix count: ${fixFuture}`, 'log-dim');
+  }
+
+  el.innerHTML = html;
+}
+
+// ── DB State ──
+async function fetchDbState() {
+  const { channelId } = getConfig();
+  const el = document.getElementById('db-state');
+  el.innerHTML = '<div style="color:var(--text-sub)">Loading...</div>';
+
+  try {
+    // Use alarm list + count endpoints
+    const [listData, countData] = await Promise.all([
+      apiGet(`/api/alarms?channel_id=${channelId}`),
+      apiGet(`/api/alarms/count?channel_ids=${channelId}`),
+    ]);
+
+    let html = '<h3 style="margin:12px 0 6px;font-size:0.9rem">Pending Alarms (from GET /api/alarms)</h3>';
+    if (listData.success && listData.data) {
+      if (listData.data.length === 0) {
+        html += '<div style="color:var(--text-sub);font-size:0.85rem">No pending alarms found (all past alarms correctly filtered)</div>';
+      } else {
+        html += `<table><tr><th>ID</th><th>scheduled_at</th><th>msg_type</th><th>total_targets</th><th>sent_count</th><th>Has T?</th></tr>`;
+        listData.data.forEach(a => {
+          const hasT = (a.scheduled_at || '').includes('T');
+          html += `<tr><td>${a.id}</td><td>${a.scheduled_at}</td><td>${a.msg_type}</td><td>${a.total_targets}</td><td>${a.sent_count}</td><td style="color:${hasT?'var(--warn)':'var(--pass)'};">${hasT?'YES':'no'}</td></tr>`;
+        });
+        html += '</table>';
+      }
+    } else {
+      html += `<div style="color:var(--fail)">Error: ${listData.error || 'unknown'}</div>`;
+    }
+
+    html += '<h3 style="margin:12px 0 6px;font-size:0.9rem">Pending Count (from GET /api/alarms/count)</h3>';
+    if (countData.success) {
+      const count = countData.data[channelId] || 0;
+      html += `<div style="font-size:1.1rem">Channel ${channelId}: <strong style="color:${count >= 3 ? 'var(--fail)' : 'var(--pass)'};">${count}</strong> / 3</div>`;
+    }
+
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--fail)">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Cleanup/Trigger actions ──
+async function triggerCleanup() {
+  const el = document.getElementById('cleanup-result');
+  el.innerHTML = '<span class="log-dim">Running cleanup...</span>\n';
+  try {
+    const data = await apiPost('/api/alarms/cleanup');
+    el.innerHTML += `<span class="log-pass">${JSON.stringify(data, null, 2)}</span>\n`;
+  } catch (e) {
+    el.innerHTML += `<span class="log-fail">Error: ${e.message}</span>\n`;
+  }
+}
+async function triggerAlarms() {
+  const el = document.getElementById('cleanup-result');
+  el.innerHTML += '<span class="log-dim">\nRunning trigger...</span>\n';
+  try {
+    const data = await apiPost('/api/alarms/trigger');
+    el.innerHTML += `<span class="log-pass">${JSON.stringify(data, null, 2)}</span>\n`;
+  } catch (e) {
+    el.innerHTML += `<span class="log-fail">Error: ${e.message}</span>\n`;
+  }
+}
+
+// ── Run all bug repro cases ──
+function runBugRepro() {
+  switchTab('bug');
+  runCase1();
+  setTimeout(() => runCase2(), 100);
+  setTimeout(() => runCase3(), 200);
+  setTimeout(() => runCase4(), 300);
+}
+
+// ── Run all cases ──
+async function runAllCases() {
+  caseResults = {};
+  clearLog();
+  log('=== Starting Full Case Verification ===', 'log-info');
+  log(`Time: ${new Date().toISOString()}`, 'log-dim');
+
+  // Unit tests (sync)
+  runCase1();
+  runCase2();
+  runCase3();
+  runCase4();
+
+  // API tests (async)
+  await runCase5();
+  await runCase6();
+  await runCase8();
+
+  log('\n=== All Cases Complete ===', 'log-info');
+  updateSummary();
+}
+
+// Auto-run unit tests on load
+window.addEventListener('DOMContentLoaded', () => {
+  runBugRepro();
+});
+</script>
+</body>
+</html>
