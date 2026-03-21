@@ -29,14 +29,13 @@ import java.net.URL
  *
  * 알람 수락 후 콘텐츠 재생 화면
  *
- * ┌────────────────────────────┐  ← 화면 너비 기준 16:9 비율 자동 계산
- * │  콘텐츠 실행 영역              │
+ * ┌────────────────────────────┐
+ * │                            │
+ * │   콘텐츠 FULL SCREEN       │  ← 전체 화면 사용
  * │  (YouTube / Audio / Video) │
- * ├────────────────────────────┤  ← 나머지 공간 자동 채움
- * │  [채널 대표이미지 - 원형]       │
- * │  채널명                      │
- * │  🌐 홈페이지 버튼 (있을 때만)   │
- * │  🔴 종료 버튼                 │
+ * │                            │
+ * │ ▓▓▓ 반투명 그라데이션 ▓▓▓▓▓▓ │  ← 하단 오버레이
+ * │ [img] 채널명  [▶앱] [🔗] [✕]│  ← 한줄 바
  * └────────────────────────────┘
  */
 class ContentPlayerActivity : Activity() {
@@ -112,6 +111,7 @@ class ContentPlayerActivity : Activity() {
         setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl))
     }
 
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun buildUI(
         channelName: String,
@@ -124,9 +124,8 @@ class ContentPlayerActivity : Activity() {
         linkUrl: String = ""
     ): View {
 
-        // ── 루트: 세로 LinearLayout ──
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        // ── 루트: FrameLayout (콘텐츠 풀스크린 + 하단 오버레이) ──
+        val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -135,25 +134,23 @@ class ContentPlayerActivity : Activity() {
         }
 
         // ════════════════════════════════════════════════
-        // 상단: 콘텐츠 재생 영역 — weight=1f (하단바 제외 전체 공간)
+        // 콘텐츠 재생 영역 — MATCH_PARENT (전체 화면)
         // ════════════════════════════════════════════════
-        // weight=1f 로 하단바를 제외한 전체 공간을 채움
-        val playerParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        val playerParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
         )
 
-        // msg_type 기준으로 판별 (DB에 "audio"/"video" 정확히 저장됨)
         val effectiveType = msgType
 
         when (effectiveType) {
 
-            // ── YouTube IFrame API 방식 (세이투두 youtubehelp.html 동일 로직) ──
+            // ── YouTube ──
             "youtube" -> {
                 val videoId = extractYoutubeId(msgValue).ifEmpty { extractYoutubeId(contentUrl) }
                 webView = WebView(this).apply {
                     layoutParams = playerParams
                     settings.apply {
-                        // 세이투두 VideoPlayActivity WebView 설정과 완전 동일
                         javaScriptEnabled = true
                         @Suppress("DEPRECATION")
                         pluginState = WebSettings.PluginState.ON
@@ -165,7 +162,6 @@ class ContentPlayerActivity : Activity() {
                         mediaPlaybackRequiresUserGesture = false
                     }
                     webChromeClient = object : WebChromeClient() {
-                        // 전체화면(onShowCustomView) 지원
                         private var customView: View? = null
                         private var customViewCallback: CustomViewCallback? = null
 
@@ -173,7 +169,6 @@ class ContentPlayerActivity : Activity() {
                             customView?.let { root.removeView(it) }
                             customView = view
                             customViewCallback = callback
-                            // 전체화면: root 전체를 덮음
                             root.addView(view, ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -189,13 +184,9 @@ class ContentPlayerActivity : Activity() {
                             webView?.visibility = View.VISIBLE
                         }
 
-                        // window.prompt() 를 커스텀 다이얼로그로 교체 (URL 노출 방지)
                         override fun onJsPrompt(
-                            view: WebView?,
-                            url: String?,
-                            message: String?,
-                            defaultValue: String?,
-                            result: JsPromptResult?
+                            view: WebView?, url: String?, message: String?,
+                            defaultValue: String?, result: JsPromptResult?
                         ): Boolean {
                             val ctx = this@ContentPlayerActivity
                             val input = EditText(ctx).apply {
@@ -217,27 +208,18 @@ class ContentPlayerActivity : Activity() {
                                 addView(input)
                             }
                             AlertDialog.Builder(ctx)
-                                .setTitle("🔒 비밀번호 확인")
+                                .setTitle("비밀번호 확인")
                                 .setMessage(message ?: "비밀번호를 입력하세요")
                                 .setView(container)
-                                .setPositiveButton("확인") { _, _ ->
-                                    result?.confirm(input.text.toString())
-                                }
-                                .setNegativeButton("취소") { _, _ ->
-                                    result?.cancel()
-                                }
-                                .setOnCancelListener {
-                                    result?.cancel()
-                                }
+                                .setPositiveButton("확인") { _, _ -> result?.confirm(input.text.toString()) }
+                                .setNegativeButton("취소") { _, _ -> result?.cancel() }
+                                .setOnCancelListener { result?.cancel() }
                                 .show()
                                 .apply {
-                                    // 다이얼로그 배경 다크 테마
-                                    window?.setBackgroundDrawable(
-                                        GradientDrawable().apply {
-                                            setColor(Color.parseColor("#1E293B"))
-                                            cornerRadius = dp(16).toFloat()
-                                        }
-                                    )
+                                    window?.setBackgroundDrawable(GradientDrawable().apply {
+                                        setColor(Color.parseColor("#1E293B"))
+                                        cornerRadius = dp(16).toFloat()
+                                    })
                                 }
                             return true
                         }
@@ -245,7 +227,6 @@ class ContentPlayerActivity : Activity() {
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val url = request?.url?.toString() ?: return false
-                            // youtube.com / youtu.be / googlevideo.com / ringo-server.pages.dev 은 WebView 내에서 처리
                             return if (url.contains("youtube.com") || url.contains("youtu.be")
                                 || url.contains("googlevideo.com") || url.contains("ringo-server.pages.dev")) {
                                 false
@@ -256,26 +237,21 @@ class ContentPlayerActivity : Activity() {
                         }
                     }
                     if (videoId.isNotEmpty()) {
-                        // 세이투두와 동일한 loadUrl 방식
-                        // saytodo.io/youtubehelp.html?id=VIDEO_ID → ringo-server.pages.dev/static/youtubehelp.html?id=VIDEO_ID
                         val prefs = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
                         val baseUrl = prefs.getString("base_url", "")
-                            ?.takeIf { it.isNotEmpty() }
-                            ?: "https://ringo-server.pages.dev"
+                            ?.takeIf { it.isNotEmpty() } ?: "https://ringo-server.pages.dev"
                         loadUrl("$baseUrl/static/youtubehelp.html?id=$videoId")
                     } else {
-                        // videoId 추출 실패 시 안내 메시지
                         val errorHtml = """
                             <!DOCTYPE html><html><head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
                             <style>* { margin:0; padding:0; background:#000; } body { display:flex; align-items:center; justify-content:center; height:100vh; }</style>
                             </head><body>
                             <div style="color:#fff; font-size:14px; text-align:center; padding:20px; line-height:1.8;">
-                                ⚠️ 영상 URL을 확인할 수 없습니다.<br><br>
+                                영상 URL을 확인할 수 없습니다.<br><br>
                                 올바른 YouTube URL을 등록해 주세요.<br>
                                 (예: youtu.be/xxxxx 또는 youtube.com/watch?v=xxxxx)
-                            </div>
-                            </body></html>
+                            </div></body></html>
                         """.trimIndent()
                         loadDataWithBaseURL("https://www.youtube.com", errorHtml, "text/html", "UTF-8", null)
                     }
@@ -283,33 +259,24 @@ class ContentPlayerActivity : Activity() {
                 root.addView(webView)
             }
 
-            // ── 오디오 (WebView 재생 + 이퀄라이저 애니메이션 UI) ─────────────────────
+            // ── 오디오 ──
             "audio" -> {
-                // 정책: processed URL(m4a)만 재생 — contentUrl 우선, 없으면 msgValue
                 val audioUrl = contentUrl.ifEmpty { msgValue }
-                Log.d(TAG, "오디오 WebView URL: $audioUrl (processed m4a)")
+                Log.d(TAG, "오디오 WebView URL: $audioUrl")
 
-                // 배경: 딥 퍼플 그라디언트 컨테이너
                 val audioContainer = FrameLayout(this).apply {
                     layoutParams = playerParams
                     background = GradientDrawable().apply {
                         gradientType = GradientDrawable.LINEAR_GRADIENT
                         orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                        colors = intArrayOf(
-                            Color.parseColor("#1A0533"),
-                            Color.parseColor("#0F0C29")
-                        )
+                        colors = intArrayOf(Color.parseColor("#1A0533"), Color.parseColor("#0F0C29"))
                     }
                 }
 
-                // 숨겨진 WebView (오디오만 재생, 화면 표시 없음 1x1dp)
                 audioWebView = WebView(this).apply {
                     layoutParams = FrameLayout.LayoutParams(dp(1), dp(1))
                     visibility = View.INVISIBLE
-                    settings.apply {
-                        javaScriptEnabled = true
-                        mediaPlaybackRequiresUserGesture = false
-                    }
+                    settings.apply { javaScriptEnabled = true; mediaPlaybackRequiresUserGesture = false }
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
                     }
@@ -317,319 +284,239 @@ class ContentPlayerActivity : Activity() {
                 }
                 audioContainer.addView(audioWebView)
 
-                // 중앙 컨테이너 (이퀄라이저 + 상태 텍스트)
                 val centerLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                    layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
                 }
 
-                // ── 이퀄라이저 막대 컨테이너 ──
                 val eqContainer = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        dp(60)
-                    ).also { it.bottomMargin = dp(8) }
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(60)).also { it.bottomMargin = dp(8) }
                 }
 
-                val barColors = listOf(
-                    "#7C3AED", "#8B5CF6", "#A78BFA", "#8B5CF6",
-                    "#7C3AED", "#A78BFA", "#8B5CF6", "#7C3AED",
-                    "#A78BFA", "#8B5CF6", "#7C3AED", "#8B5CF6"
-                )
-                val barWidth = dp(6)
-                val barMargin = dp(3)
-                val maxBarHeight = dp(50)
-                val minBarHeight = dp(6)
-                val barAnimators = mutableListOf<ValueAnimator>()
-                val barViews = mutableListOf<View>()
+                val barColors = listOf("#7C3AED","#8B5CF6","#A78BFA","#8B5CF6","#7C3AED","#A78BFA","#8B5CF6","#7C3AED","#A78BFA","#8B5CF6","#7C3AED","#8B5CF6")
+                val barWidth = dp(6); val barMargin = dp(3); val maxBarHeight = dp(50); val minBarHeight = dp(6)
+                val barAnimators = mutableListOf<ValueAnimator>(); val barViews = mutableListOf<View>()
 
                 barColors.forEachIndexed { index, colorHex ->
                     val bar = View(this).apply {
-                        background = GradientDrawable().apply {
-                            shape = GradientDrawable.RECTANGLE
-                            cornerRadius = dp(3).toFloat()
-                            setColor(Color.parseColor(colorHex))
-                        }
-                        layoutParams = LinearLayout.LayoutParams(barWidth, minBarHeight).also {
-                            it.marginStart = if (index == 0) 0 else barMargin
-                        }
+                        background = GradientDrawable().apply { shape = GradientDrawable.RECTANGLE; cornerRadius = dp(3).toFloat(); setColor(Color.parseColor(colorHex)) }
+                        layoutParams = LinearLayout.LayoutParams(barWidth, minBarHeight).also { it.marginStart = if (index == 0) 0 else barMargin }
                     }
-                    eqContainer.addView(bar)
-                    barViews.add(bar)
+                    eqContainer.addView(bar); barViews.add(bar)
                     val randomHeight = minBarHeight + (Math.random() * (maxBarHeight - minBarHeight)).toInt()
                     val duration = 300L + (index * 80L) + (Math.random() * 200).toLong()
-                    val animator = ValueAnimator.ofInt(minBarHeight, randomHeight).apply {
-                        this.duration = duration
-                        repeatCount = ValueAnimator.INFINITE
-                        repeatMode = ValueAnimator.REVERSE
+                    barAnimators.add(ValueAnimator.ofInt(minBarHeight, randomHeight).apply {
+                        this.duration = duration; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE
                         interpolator = DecelerateInterpolator()
-                        addUpdateListener { anim ->
-                            val h = anim.animatedValue as Int
-                            bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = h }
-                            bar.requestLayout()
-                        }
-                    }
-                    barAnimators.add(animator)
+                        addUpdateListener { anim -> bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = anim.animatedValue as Int }; bar.requestLayout() }
+                    })
                 }
                 centerLayout.addView(eqContainer)
 
                 val statusText = TextView(this).apply {
-                    text = "♪ 오디오 재생 중"
-                    textSize = 14f
-                    setTextColor(Color.parseColor("#A78BFA"))
-                    gravity = Gravity.CENTER
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.topMargin = dp(12) }
+                    text = "♪ 오디오 재생 중"; textSize = 14f; setTextColor(Color.parseColor("#A78BFA")); gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(12) }
                 }
                 centerLayout.addView(statusText)
                 audioContainer.addView(centerLayout)
 
-                // 재생/일시정지 버튼 (WebView JS로 제어)
                 val playBtn = TextView(this).apply {
-                    text = "⏸ 일시정지"
-                    textSize = 16f
-                    setTextColor(Color.WHITE)
-                    gravity = Gravity.CENTER
+                    text = "⏸ 일시정지"; textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
                     setPadding(dp(32), dp(14), dp(32), dp(14))
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(30).toFloat()
-                        setColor(Color.parseColor("#7C3AED"))
-                    }
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                    ).also { it.bottomMargin = dp(28) }
+                    background = GradientDrawable().apply { cornerRadius = dp(30).toFloat(); setColor(Color.parseColor("#7C3AED")) }
+                    layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(100) }
                 }
                 audioContainer.addView(playBtn)
                 root.addView(audioContainer)
 
-                // 이퀄라이저 시작/정지
-                fun startEqualizer() {
-                    barAnimators.forEachIndexed { i, anim ->
-                        if (!anim.isRunning) { anim.startDelay = (i * 40L); anim.start() }
-                    }
-                }
-                fun stopEqualizer() {
-                    barAnimators.forEach { it.cancel() }
-                    barViews.forEach { bar ->
-                        bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = minBarHeight }
-                        bar.requestLayout()
-                    }
-                }
+                fun startEqualizer() { barAnimators.forEachIndexed { i, anim -> if (!anim.isRunning) { anim.startDelay = (i * 40L); anim.start() } } }
+                fun stopEqualizer() { barAnimators.forEach { it.cancel() }; barViews.forEach { bar -> bar.layoutParams = (bar.layoutParams as LinearLayout.LayoutParams).also { lp -> lp.height = minBarHeight }; bar.requestLayout() } }
 
-                // 페이지 로드 완료 후 이퀄라이저 시작
                 audioWebView?.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        startEqualizer()
-                        statusText.text = "♪ 오디오 재생 중"
-                    }
+                    override fun onPageFinished(view: WebView?, url: String?) { startEqualizer(); statusText.text = "♪ 오디오 재생 중" }
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
                 }
 
                 var isPlaying = true
                 playBtn.setOnClickListener {
                     if (isPlaying) {
-                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.pause();})()")  
-                        playBtn.text = "▶ 재생"
-                        statusText.text = "일시정지"
-                        stopEqualizer()
-                        isPlaying = false
+                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.pause();})()")
+                        playBtn.text = "▶ 재생"; statusText.text = "일시정지"; stopEqualizer(); isPlaying = false
                     } else {
-                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.play();})()")  
-                        playBtn.text = "⏸ 일시정지"
-                        statusText.text = "♪ 오디오 재생 중"
-                        startEqualizer()
-                        isPlaying = true
+                        audioWebView?.loadUrl("javascript:(function(){var a=document.querySelector('audio,video');if(a)a.play();})()")
+                        playBtn.text = "⏸ 일시정지"; statusText.text = "♪ 오디오 재생 중"; startEqualizer(); isPlaying = true
                     }
                 }
             }
 
-            // ── 비디오 (WebView로 직접 재생 - 세이투두 방식) ─────────────────────────
+            // ── 비디오 ──
             "video" -> {
-                // 정책: processed URL(mp4 + faststart)만 재생 — contentUrl 우선, 없으면 msgValue
                 val videoUrl = contentUrl.ifEmpty { msgValue }
-                Log.d(TAG, "비디오 WebView URL: $videoUrl (processed mp4+faststart)")
-
+                Log.d(TAG, "비디오 WebView URL: $videoUrl")
                 webView = WebView(this).apply {
-                    layoutParams = playerParams
-                    setBackgroundColor(Color.BLACK)
+                    layoutParams = playerParams; setBackgroundColor(Color.BLACK)
                     settings.apply {
-                        javaScriptEnabled = true
-                        @Suppress("DEPRECATION")
-                        pluginState = WebSettings.PluginState.ON
-                        javaScriptCanOpenWindowsAutomatically = true
-                        setSupportMultipleWindows(true)
-                        setSupportZoom(true)
-                        builtInZoomControls = true
-                        allowFileAccess = true
-                        mediaPlaybackRequiresUserGesture = false
+                        javaScriptEnabled = true; @Suppress("DEPRECATION") pluginState = WebSettings.PluginState.ON
+                        javaScriptCanOpenWindowsAutomatically = true; setSupportMultipleWindows(true)
+                        setSupportZoom(true); builtInZoomControls = true; allowFileAccess = true; mediaPlaybackRequiresUserGesture = false
                     }
                     webChromeClient = object : WebChromeClient() {
-                        private var customView: View? = null
-                        private var customViewCallback: CustomViewCallback? = null
+                        private var customView: View? = null; private var customViewCallback: CustomViewCallback? = null
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                            customView?.let { root.removeView(it) }
-                            customView = view
-                            customViewCallback = callback
+                            customView?.let { root.removeView(it) }; customView = view; customViewCallback = callback
                             root.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
                             webView?.visibility = View.GONE
                         }
                         override fun onHideCustomView() {
-                            customView?.let { root.removeView(it) }
-                            customView = null
-                            customViewCallback?.onCustomViewHidden()
-                            customViewCallback = null
-                            webView?.visibility = View.VISIBLE
+                            customView?.let { root.removeView(it) }; customView = null
+                            customViewCallback?.onCustomViewHidden(); customViewCallback = null; webView?.visibility = View.VISIBLE
                         }
                     }
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
-                    }
+                    webViewClient = object : WebViewClient() { override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false }
                     loadUrl(videoUrl)
                 }
                 root.addView(webView)
             }
 
-            // ── 기타 파일 (지원 불가 안내) ────────────────────────
+            // ── 기타 ──
             else -> {
                 val msgView = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    layoutParams = playerParams
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; layoutParams = playerParams
                     setBackgroundColor(Color.parseColor("#0F0C29"))
                 }
-                msgView.addView(TextView(this).apply {
-                    text = "⚠️"
-                    textSize = 60f
-                    gravity = Gravity.CENTER
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                })
-                msgView.addView(TextView(this).apply {
-                    text = "지원하지 않는 파일 형식입니다\n(mp4, m4a만 지원)"
-                    textSize = 15f
-                    setTextColor(Color.parseColor("#94A3B8"))
-                    gravity = Gravity.CENTER
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                })
+                msgView.addView(TextView(this).apply { text = "⚠️"; textSize = 60f; gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) })
+                msgView.addView(TextView(this).apply { text = "지원하지 않는 파일 형식입니다\n(mp4, m4a만 지원)"; textSize = 15f; setTextColor(Color.parseColor("#94A3B8")); gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) })
                 root.addView(msgView)
             }
         }
 
-        // ════════════════════════════════════════════════
-        // 하단: 고정 바 — 가로 배치 (채널이미지 | 채널명 | 홈페이지아이콘 | X버튼)
-        // ════════════════════════════════════════════════
-        val bottomBarHeight = dp(72)
+        // ════════════════════════════════════════════════════════════
+        // 하단 오버레이: 반투명 그라데이션 + 한줄 바 (콘텐츠 위에 떠있음)
+        // ════════════════════════════════════════════════════════════
+        val overlayContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+            )
+        }
+
+        // ── 그라데이션 페이드 (투명 → 반투명 검정) ──
+        overlayContainer.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(40))
+            background = GradientDrawable().apply {
+                gradientType = GradientDrawable.LINEAR_GRADIENT
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                colors = intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000"))
+            }
+        })
+
+        // ── 한줄 바 ──
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.parseColor("#0D0D1A"))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, bottomBarHeight
-            )
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setBackgroundColor(Color.parseColor("#CC000000"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60))
+            setPadding(dp(16), dp(6), dp(12), dp(6))
         }
 
-        // ── 채널 대표이미지 (원형, 48dp) ─────────────────────────
-        val thumbSize = dp(48)
+        // ── 채널 이미지 (원형, 38dp) ──
+        val thumbSize = dp(38)
         val channelThumb = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#3D2F6E"))
+                setColor(Color.parseColor("#2A2A3E"))
+                setStroke(dp(1), Color.parseColor("#40FFFFFF"))
             }
             setImageResource(R.drawable.ringo_icon)
-            layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also {
-                it.marginEnd = dp(10)
-            }
+            layoutParams = LinearLayout.LayoutParams(thumbSize, thumbSize).also { it.marginEnd = dp(10) }
         }
         bottomBar.addView(channelThumb)
+        if (channelImage.isNotEmpty()) loadImageUrlIntoView(channelImage, channelThumb)
+        else if (channelPublicId.isNotEmpty()) loadChannelImageIntoView(channelPublicId, channelThumb)
 
-        // 채널 이미지 로드 (직접 전달된 URL 우선, 없으면 publicId로 API 조회)
-        if (channelImage.isNotEmpty()) {
-            loadImageUrlIntoView(channelImage, channelThumb)
-        } else if (channelPublicId.isNotEmpty()) {
-            loadChannelImageIntoView(channelPublicId, channelThumb)
-        }
-
-        // ── 채널명 (weight=1f 로 남은 공간 채움) ─────────────────
-        val channelNameView = TextView(this).apply {
-            text = channelName
-            textSize = 15f
-            setTextColor(Color.WHITE)
+        // ── 채널명 ──
+        bottomBar.addView(TextView(this).apply {
+            text = channelName; textSize = 14f; setTextColor(Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
-                it.marginEnd = dp(8)
+            setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) }
+        })
+
+        // ── YouTube 앱으로 열기 버튼 (youtube 타입일 때만) ──
+        if (effectiveType == "youtube") {
+            val youtubeUrl = msgValue.ifEmpty { contentUrl }
+            if (youtubeUrl.isNotEmpty()) {
+                bottomBar.addView(TextView(this).apply {
+                    text = "▶"; textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(19).toFloat()
+                        setColor(Color.parseColor("#40FFFFFF"))
+                        setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).also { it.marginEnd = dp(10) }
+                    setOnClickListener {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl)).apply {
+                                setPackage("com.google.android.youtube")
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            })
+                        } catch (_: Exception) {
+                            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }) }
+                            catch (_: Exception) { Log.e(TAG, "YouTube URL 열기 실패") }
+                        }
+                    }
+                })
             }
         }
-        bottomBar.addView(channelNameView)
 
-        // ── 링크 버튼 (우선순위: link_url → homepage_url → 없으면 숨김) ──────────
+        // ── 링크 버튼 ──
         val effectiveLinkUrl = when {
-            linkUrl.isNotEmpty()      -> linkUrl
-            homepageUrl.isNotEmpty()  -> homepageUrl
-            else                      -> ""
+            linkUrl.isNotEmpty() -> linkUrl
+            homepageUrl.isNotEmpty() -> homepageUrl
+            else -> ""
         }
         if (effectiveLinkUrl.isNotEmpty()) {
             val fullLinkUrl = if (effectiveLinkUrl.startsWith("http")) effectiveLinkUrl else "https://$effectiveLinkUrl"
-            val iconSize = dp(44)
-            val linkBtn = ImageView(this).apply {
+            bottomBar.addView(ImageView(this).apply {
                 setImageResource(R.drawable.link_icon)
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
-                setPadding(dp(10), dp(10), dp(10), dp(10))
+                setPadding(dp(9), dp(9), dp(9), dp(9))
                 background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#3B82F6"))
+                    cornerRadius = dp(19).toFloat()
+                    setColor(Color.parseColor("#40FFFFFF"))
+                    setStroke(dp(1), Color.parseColor("#33FFFFFF"))
                 }
-                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
-                    it.marginEnd = dp(8)
-                }
+                layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).also { it.marginEnd = dp(10) }
                 setOnClickListener {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fullLinkUrl)).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
-                    } catch (e: Exception) {
-                        Log.e(TAG, "링크 열기 실패: ${e.message}")
-                    }
+                    try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fullLinkUrl)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }) }
+                    catch (e: Exception) { Log.e(TAG, "링크 열기 실패: ${e.message}") }
                 }
-            }
-            bottomBar.addView(linkBtn)
+            })
         }
 
-        // ── X (종료) 버튼 ──────────────────────────────────────────
-        val closeSize = dp(44)
-        val closeBtn = ImageView(this).apply {
+        // ── 종료 버튼 ──
+        bottomBar.addView(ImageView(this).apply {
             setImageResource(R.drawable.close_icon)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setPadding(dp(9), dp(9), dp(9), dp(9))
             background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FF3B30"))
+                cornerRadius = dp(19).toFloat()
+                setColor(Color.parseColor("#55FF4444"))
+                setStroke(dp(1), Color.parseColor("#44FF6666"))
             }
-            layoutParams = LinearLayout.LayoutParams(closeSize, closeSize)
+            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38))
             setOnClickListener { closePlayer() }
-        }
-        bottomBar.addView(closeBtn)
+        })
 
-        root.addView(bottomBar)
+        overlayContainer.addView(bottomBar)
+        root.addView(overlayContainer)
         return root
     }
 
