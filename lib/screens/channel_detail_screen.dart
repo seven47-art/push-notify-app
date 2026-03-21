@@ -162,14 +162,40 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     }
   }
 
-  void _shareChannel() {
+  Future<void> _shareChannel() async {
     final name = _channel?['name'] ?? '';
-    final inviteLink = _channel?['invite_link'] ?? 'https://ringo.run/join/${widget.channelId}';
+    String inviteLink = 'https://ringo.run/join/${widget.channelId}'; // 폴백
+
+    try {
+      final res = await http.get(
+        Uri.parse('$kBaseUrl/api/invites?channel_id=${widget.channelId}'),
+        headers: {'Authorization': 'Bearer $_token'},
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = (body['data'] as List? ?? []);
+        final now = DateTime.now();
+        Map<String, dynamic>? active;
+        for (final inv in list) {
+          final isActive = inv['is_active'] == true || inv['is_active'] == 1;
+          final expiresAt = inv['expires_at'];
+          final notExpired = expiresAt == null ||
+              DateTime.tryParse(expiresAt.toString())?.isAfter(now) == true;
+          if (isActive && notExpired) { active = inv as Map<String, dynamic>; break; }
+        }
+        if (active != null) {
+          final token = active['invite_token']?.toString() ?? '';
+          if (token.isNotEmpty) inviteLink = 'https://ringo.run/join/$token';
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _InviteCodeSheet(channelName: name.toString(), inviteLink: inviteLink.toString()),
+      builder: (_) => _InviteCodeSheet(channelName: name.toString(), inviteLink: inviteLink),
     );
   }
 
