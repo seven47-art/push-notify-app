@@ -16,6 +16,7 @@ import android.os.*
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -29,11 +30,11 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity v1.0.55
- * - 카카오톡 전화 스타일 UI
- * - 상단: 발신자 이름 + "RinGo 알람" 부제목
- * - 중앙: 채널 대표 이미지 원형 아이콘 (없으면 링고 기본 아이콘) + 파동 링 애니메이션
- * - 하단: 거절(빨강 왼쪽) / 수락(초록 오른쪽) 버튼
+ * FakeCallActivity v2.0
+ * 카카오톡 영상통화 수신 스타일 UI
+ * - 2톤 배경: 상단 다크카드(#222236) / 하단 블랙(#111118)
+ * - 프로필: 큰 원형 이미지 (140dp), 로드 전 링고 아이콘 + 로드 후 crossfade
+ * - 하단: 거절(빨강) / 수락(초록) Material 아이콘 버튼
  */
 class FakeCallActivity : Activity() {
 
@@ -96,7 +97,7 @@ class FakeCallActivity : Activity() {
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
-    private var rippleAnimators = mutableListOf<Animator>()
+    private var pulseAnimator: Animator? = null
 
     // 채널 이미지를 표시할 ImageView (API 응답 후 업데이트)
     private var profileIcon: ImageView? = null
@@ -152,7 +153,7 @@ class FakeCallActivity : Activity() {
         buildUi()
         startRinging()
 
-        // 채널 이미지 로드 (public_id 있으면 API 호출, 없으면 바로 링고 아이콘)
+        // 채널 이미지 로드
         loadChannelImage(channelPublicId)
 
         if (autoAccept) {
@@ -169,13 +170,11 @@ class FakeCallActivity : Activity() {
     }
 
     override fun onDestroy() {
-        rippleAnimators.forEach { it.cancel() }
-        rippleAnimators.clear()
+        pulseAnimator?.cancel()
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         scope.cancel()
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
-        // 풀스크린 알람 종료 → 플래그 해제 (다음 알람이 다시 풀스크린 가능하도록)
         AlarmPollingService.setFakeCallShowing(false)
         Log.d(TAG, "FakeCallActivity 종료 → isFakeCallShowing = false")
         super.onDestroy()
@@ -185,16 +184,11 @@ class FakeCallActivity : Activity() {
     // 채널 이미지 비동기 로드 (API 호출)
     // ─────────────────────────────────────────────────────────────────────
     private fun loadChannelImage(publicId: String) {
+        if (publicId.isEmpty()) return  // 기본 링고 아이콘 유지
+
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
         val savedUrl = prefs.getString("base_url", "") ?: ""
-        // base_url이 저장되지 않은 경우 고정 서버 URL을 폴백으로 사용
         val baseUrl = if (savedUrl.isNotEmpty()) savedUrl else "https://ringo-server.pages.dev"
-
-        // public_id 없으면 바로 링고 아이콘
-        if (publicId.isEmpty()) {
-            showRingoIcon()
-            return
-        }
 
         scope.launch {
             try {
@@ -205,74 +199,42 @@ class FakeCallActivity : Activity() {
                         .build()
                 ).execute()
 
-                if (!response.isSuccessful) {
-                    withContext(Dispatchers.Main) { showRingoIcon() }
-                    return@launch
-                }
-                val body = response.body?.string() ?: run {
-                    withContext(Dispatchers.Main) { showRingoIcon() }
-                    return@launch
-                }
+                if (!response.isSuccessful) return@launch
+                val body = response.body?.string() ?: return@launch
                 val json = JSONObject(body)
-                val data = json.optJSONObject("data") ?: run {
-                    withContext(Dispatchers.Main) { showRingoIcon() }
-                    return@launch
-                }
+                val data = json.optJSONObject("data") ?: return@launch
                 val imageUrl = data.optString("image_url", "")
 
-                if (imageUrl.isNotEmpty()) {
-                    // base64 데이터 URL 파싱 (data:image/jpeg;base64,xxxx)
-                    val bitmap = if (imageUrl.startsWith("data:")) {
-                        val base64Part = imageUrl.substringAfter(",")
-                        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    } else {
-                        // 일반 URL인 경우
-                        val imgResponse = http.newCall(
-                            Request.Builder().url(imageUrl).get().build()
-                        ).execute()
-                        val imgBytes = imgResponse.body?.bytes() ?: run {
-                            withContext(Dispatchers.Main) { showRingoIcon() }
-                            return@launch
-                        }
-                        BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
-                    }
+                if (imageUrl.isEmpty()) return@launch
 
-                    if (bitmap != null) {
-                        val circularBitmap = toCircularBitmap(bitmap)
-                        withContext(Dispatchers.Main) {
-                            profileIcon?.apply {
-                                background = GradientDrawable().apply {
-                                    shape = GradientDrawable.OVAL
-                                    setColor(Color.TRANSPARENT)
-                                }
-                                setImageBitmap(circularBitmap)
-                                scaleType = ImageView.ScaleType.CENTER_CROP
-                            }
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) { showRingoIcon() }
-                    }
+                val bitmap = if (imageUrl.startsWith("data:")) {
+                    val base64Part = imageUrl.substringAfter(",")
+                    val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 } else {
-                    // image_url이 비어있으면 링고 아이콘 표시
-                    withContext(Dispatchers.Main) { showRingoIcon() }
+                    val imgResponse = http.newCall(
+                        Request.Builder().url(imageUrl).get().build()
+                    ).execute()
+                    val imgBytes = imgResponse.body?.bytes() ?: return@launch
+                    BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
+                }
+
+                if (bitmap != null) {
+                    val circularBitmap = toCircularBitmap(bitmap)
+                    withContext(Dispatchers.Main) {
+                        // crossfade 전환
+                        profileIcon?.apply {
+                            alpha = 0f
+                            setImageBitmap(circularBitmap)
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            background = null
+                            animate().alpha(1f).setDuration(400).start()
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "채널 이미지 로드 실패: ${e.message}")
-                withContext(Dispatchers.Main) { showRingoIcon() }
             }
-        }
-    }
-
-    // 내장 링고 아이콘 표시
-    private fun showRingoIcon() {
-        profileIcon?.apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FEE500"))
-            }
-            setImageResource(R.drawable.ringo_icon)
-            scaleType = ImageView.ScaleType.CENTER_CROP
         }
     }
 
@@ -292,285 +254,264 @@ class FakeCallActivity : Activity() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // UI 구성 (카카오톡 전화 스타일)
+    // UI 구성 (카카오톡 영상통화 수신 스타일)
     // ─────────────────────────────────────────────────────────────────────
     private fun buildUi() {
+        val bgDark    = Color.parseColor("#111118")
+        val bgCard    = Color.parseColor("#1E1E30")
+        val textWhite = Color.WHITE
+        val textGray  = Color.parseColor("#9A9AB0")
+        val accentRed   = Color.parseColor("#FF3B30")
+        val accentGreen = Color.parseColor("#34C759")
+
+        // ── 루트: 어두운 배경 ──
         val root = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#1A1A2E"))  // 카카오 스타일 어두운 배경
+            setBackgroundColor(bgDark)
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
 
-        // ── 중앙 컨텐츠 (이름 + 아이콘 + 파동) ──────────────────────────
-        val centerLayout = LinearLayout(this).apply {
+        // ── 상단 카드 영역 (카카오 스타일 다크 카드) ──
+        val topCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity     = Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = GradientDrawable().apply {
+                setColor(bgCard)
+                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(24f), dp(24f), dp(24f), dp(24f))
+            }
+            setPadding(dp(24).toInt(), dp(56).toInt(), dp(24).toInt(), dp(40).toInt())
         }
 
-        // 수신 타입 텍스트 (상단 안내)
-        val incomingLabel = TextView(this).apply {
-            text      = "RinGo 알람"
-            textSize  = 14f
-            setTextColor(Color.parseColor("#AAAAAA"))
-            gravity   = Gravity.CENTER
-            setPadding(0, 0, 0, dpToPx(8))
-        }
-
-        // 발신자 이름
-        val nameText = TextView(this).apply {
-            text     = channelName
-            textSize = 28f
-            setTextColor(Color.WHITE)
-            gravity  = Gravity.CENTER
+        // 채널명 (큰 볼드)
+        topCard.addView(TextView(this).apply {
+            text = channelName
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+            setTextColor(textWhite)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dpToPx(6))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(6).toInt())
+        })
+
+        // "연결 중..." 상태
+        topCard.addView(TextView(this).apply {
+            text = "전화 수신 중..."
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(textGray)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(8).toInt())
+        })
+
+        // 연결 중 점 애니메이션 (● ● ●)
+        val dotsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(28).toInt())
         }
-
-        // "전화 수신 중" 상태 텍스트
-        val statusText = TextView(this).apply {
-            text      = "전화 수신 중..."
-            textSize  = 15f
-            setTextColor(Color.parseColor("#AAAAAA"))
-            gravity   = Gravity.CENTER
-            setPadding(0, 0, 0, dpToPx(40))
-        }
-
-        // 프로필 아이콘 컨테이너 (파동 + 원형 아이콘)
-        val profileContainer = FrameLayout(this).apply {
-            val size = dpToPx(220)
-            layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = dpToPx(50)
-            }
-        }
-
-        val iconSize = dpToPx(130)
-
-        // 파동 원 3개
-        val rippleColors = listOf(
-            Color.parseColor("#3A3A5C"),
-            Color.parseColor("#2D2D4E"),
-            Color.parseColor("#232340")
+        val dotColors = listOf(
+            Color.parseColor("#FFD60A"),
+            Color.parseColor("#FFD60A"),
+            Color.parseColor("#FFD60A")
         )
-        val ripleSizes = listOf(dpToPx(210), dpToPx(180), dpToPx(150))
-        val rippleViews = ripleSizes.mapIndexed { i, size ->
-            View(this).apply {
-                background = createCircleDrawable(rippleColors[i])
-                alpha = 0f
-                layoutParams = FrameLayout.LayoutParams(size, size, Gravity.CENTER)
+        val dotViews = mutableListOf<View>()
+        dotColors.forEachIndexed { i, color ->
+            if (i > 0) {
+                dotsLayout.addView(View(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(8).toInt(), 1)
+                })
+            }
+            val dot = View(this).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(8).toInt(), dp(8).toInt())
+                alpha = 0.3f
+            }
+            dotViews.add(dot)
+            dotsLayout.addView(dot)
+        }
+        topCard.addView(dotsLayout)
+
+        // 점 애니메이션 시작
+        startDotAnimation(dotViews)
+
+        // ── 프로필 이미지 (140dp 원형) ──
+        val profileSize = dp(140).toInt()
+        val profileContainer = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(profileSize + dp(16).toInt(), profileSize + dp(16).toInt()).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
             }
         }
-        rippleViews.forEach { profileContainer.addView(it) }
 
-        // 프로필 원형 아이콘 (기본: 링고 아이콘 / API 응답 후 채널 이미지로 교체)
-        profileIcon = ImageView(this).apply {
-            val drawable = GradientDrawable().apply {
+        // 은은한 glow 링 (프로필 뒤)
+        val glowRing = View(this).apply {
+            background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FEE500"))  // 기본 카카오 노란색
+                setStroke(dp(2).toInt(), Color.parseColor("#33FFFFFF"))
+                setColor(Color.TRANSPARENT)
             }
-            background = drawable
-            setImageDrawable(createPhoneIconDrawable())
-            scaleType = ImageView.ScaleType.CENTER
-            layoutParams = FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER)
+            layoutParams = FrameLayout.LayoutParams(
+                profileSize + dp(16).toInt(),
+                profileSize + dp(16).toInt(),
+                Gravity.CENTER
+            )
+        }
+        profileContainer.addView(glowRing)
+
+        // glow 링 pulse 애니메이션
+        val scaleX = ObjectAnimator.ofFloat(glowRing, "scaleX", 1f, 1.15f, 1f)
+        val scaleY = ObjectAnimator.ofFloat(glowRing, "scaleY", 1f, 1.15f, 1f)
+        val alphaAnim = ObjectAnimator.ofFloat(glowRing, "alpha", 0.6f, 1f, 0.6f)
+        pulseAnimator = AnimatorSet().apply {
+            playTogether(scaleX, scaleY, alphaAnim)
+            duration = 2000L
+            interpolator = AccelerateDecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!isFinishing) start()
+                }
+            })
+            start()
+        }
+
+        // 프로필 이미지 (기본: 링고 아이콘)
+        profileIcon = ImageView(this).apply {
+            setImageResource(R.drawable.ringo_icon)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#2A2A42"))
+            }
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            layoutParams = FrameLayout.LayoutParams(profileSize, profileSize, Gravity.CENTER)
         }
         profileContainer.addView(profileIcon)
 
-        // 파동 애니메이션 시작
-        startRippleAnimation(rippleViews)
+        topCard.addView(profileContainer)
 
-        centerLayout.addView(incomingLabel)
-        centerLayout.addView(nameText)
-        centerLayout.addView(statusText)
-        centerLayout.addView(profileContainer)
+        // ── 알람 타입 배지 ──
+        topCard.addView(TextView(this).apply {
+            text = getMsgTypeLabel()
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextColor(Color.parseColor("#B0B0C8"))
+            gravity = Gravity.CENTER
+            setPadding(dp(14).toInt(), dp(16).toInt(), dp(14).toInt(), 0)
+        })
 
-        // ── 하단 버튼 (거절 왼쪽 / 수락 오른쪽) ─────────────────────────
+        // 상단 카드를 루트에 추가
+        val topParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply { gravity = Gravity.TOP }
+        root.addView(topCard, topParams)
+
+        // ── 하단 버튼 영역 ──
         val btnLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity     = Gravity.CENTER
-            weightSum   = 2f
+            gravity = Gravity.CENTER
         }
 
         // 거절 버튼
-        val declineBtn = createCallButton(
-            iconColor  = Color.parseColor("#FF3B30"),
-            iconType   = "decline",
-            label      = "거절"
-        ) { handleDecline() }
+        btnLayout.addView(createActionButton(accentRed, true) { handleDecline() })
+
+        // 간격
+        btnLayout.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(60).toInt(), 1)
+        })
 
         // 수락 버튼
-        val acceptBtn = createCallButton(
-            iconColor  = Color.parseColor("#34C759"),
-            iconType   = "accept",
-            label      = "수락"
-        ) { handleAccept() }
+        btnLayout.addView(createActionButton(accentGreen, false) { handleAccept() })
 
-        val btnParam = LinearLayout.LayoutParams(0,
-            LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginStart = dpToPx(30)
-            marginEnd   = dpToPx(30)
-        }
-        declineBtn.layoutParams = btnParam
-        acceptBtn.layoutParams  = LinearLayout.LayoutParams(
-            btnParam.width, btnParam.height, btnParam.weight
-        ).apply {
-            marginStart = dpToPx(30)
-            marginEnd   = dpToPx(30)
-        }
-
-        btnLayout.addView(declineBtn)
-        btnLayout.addView(acceptBtn)
-
-        // ── 루트에 배치 ───────────────────────────────────────────────
-        // 중앙 콘텐츠
-        val centerParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            topMargin = dpToPx(-40)
-        }
-        root.addView(centerLayout, centerParams)
-
-        // 하단 버튼
         val btnParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity      = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            bottomMargin = dpToPx(60)
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(70).toInt()
         }
         root.addView(btnLayout, btnParams)
 
         setContentView(root)
     }
 
-    // 파동(Ripple) 애니메이션
-    private fun startRippleAnimation(views: List<View>) {
-        views.forEachIndexed { index, view ->
-            val delay = (index * 400L)
-            val scaleX = ObjectAnimator.ofFloat(view, "scaleX", 0.5f, 1f)
-            val scaleY = ObjectAnimator.ofFloat(view, "scaleY", 0.5f, 1f)
-            val alpha  = ObjectAnimator.ofFloat(view, "alpha", 0.8f, 0f)
-            AnimatorSet().apply {
-                playTogether(scaleX, scaleY, alpha)
-                duration    = 1500L
-                startDelay  = delay
-                interpolator = AccelerateDecelerateInterpolator()
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) {
-                        view.scaleX = 0.5f
-                        view.scaleY = 0.5f
-                        view.alpha  = 0f
-                        start()  // 반복
-                    }
-                })
-                rippleAnimators.add(this)
-                start()
+    // ── 액션 버튼 생성 (카카오 스타일 원형) ──
+    private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setOnClickListener { onClick() }
+
+            // 원형 버튼 (64dp)
+            val btnSize = dp(64).toInt()
+            val circle = FrameLayout(this@FakeCallActivity).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                }
+                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
             }
+
+            // 전화 아이콘 (Canvas로 깔끔하게)
+            val iconView = ImageView(this@FakeCallActivity).apply {
+                setImageDrawable(if (isDecline) createDeclineIcon() else createAcceptIcon())
+                scaleType = ImageView.ScaleType.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+            circle.addView(iconView)
+
+            // 라벨
+            val label = TextView(this@FakeCallActivity).apply {
+                text = if (isDecline) "거절" else "수락"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(Color.parseColor("#9A9AB0"))
+                gravity = Gravity.CENTER
+                setPadding(0, dp(10).toInt(), 0, 0)
+            }
+
+            addView(circle)
+            addView(label)
         }
     }
 
-    // 전화 아이콘 Drawable 생성
-    private fun createPhoneIconDrawable(): Drawable {
+    // ── 거절 아이콘 (수평 전화기, 135도 회전) ──
+    private fun createDeclineIcon(): Drawable {
         return object : Drawable() {
             override fun draw(canvas: Canvas) {
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.parseColor("#1A1A2E")
-                    style = Paint.Style.FILL
+                    color = Color.WHITE
+                    style = Paint.Style.STROKE
+                    strokeWidth = bounds.width() * 0.055f
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
                 }
                 val b = bounds
                 val cx = b.exactCenterX()
                 val cy = b.exactCenterY()
-                val r  = b.width() * 0.28f
+                val s = b.width() * 0.18f
 
-                val path = Path().apply {
-                    // 간단한 전화기 모양
-                    moveTo(cx - r * 0.8f, cy - r * 1.2f)
-                    cubicTo(cx - r, cy - r * 1.5f, cx - r * 1.5f, cy - r, cx - r * 1.2f, cy - r * 0.5f)
-                    lineTo(cx - r * 0.6f, cy + r * 0.1f)
-                    cubicTo(cx - r * 0.3f, cy + r * 0.4f, cx, cy + r * 0.3f, cx + r * 0.3f, cy + r * 0.6f)
-                    lineTo(cx + r, cy + r * 1.2f)
-                    cubicTo(cx + r * 1.5f, cy + r * 1.5f, cx + r, cy + r * 2f, cx + r * 0.5f, cy + r * 1.8f)
-                    cubicTo(cx - r * 1.5f, cy + r * 1.2f, cx - r * 2.2f, cy - r * 0.5f, cx - r * 0.8f, cy - r * 1.2f)
-                    close()
-                }
-                canvas.drawPath(path, paint)
-            }
-            override fun setAlpha(alpha: Int) {}
-            override fun setColorFilter(cf: ColorFilter?) {}
-            @Suppress("OVERRIDE_DEPRECATION")
-            override fun getOpacity() = PixelFormat.TRANSLUCENT
-        }
-    }
-
-    // 버튼 생성 헬퍼
-    private fun createCallButton(
-        iconColor: Int,
-        iconType: String,
-        label: String,
-        onClick: () -> Unit
-    ): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity     = Gravity.CENTER
-            setOnClickListener { onClick() }
-
-            // 원형 버튼
-            val circle = ImageView(this@FakeCallActivity).apply {
-                background = GradientDrawable().apply {
-                    shape    = GradientDrawable.OVAL
-                    setColor(iconColor)
-                }
-                val phoneDrawable = if (iconType == "decline") {
-                    createEndCallDrawable(Color.WHITE)
-                } else {
-                    createAcceptCallDrawable(Color.WHITE)
-                }
-                setImageDrawable(phoneDrawable)
-                scaleType = ImageView.ScaleType.CENTER
-                val btnSize = dpToPx(68)
-                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
-            }
-
-            // 버튼 레이블
-            val labelText = TextView(this@FakeCallActivity).apply {
-                text      = label
-                textSize  = 13f
-                setTextColor(Color.parseColor("#CCCCCC"))
-                gravity   = Gravity.CENTER
-                setPadding(0, dpToPx(8), 0, 0)
-            }
-
-            addView(circle)
-            addView(labelText)
-        }
-    }
-
-    // 통화 종료(거절) 아이콘
-    private fun createEndCallDrawable(color: Int): Drawable {
-        return object : Drawable() {
-            override fun draw(canvas: Canvas) {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    this.color = color
-                    style = Paint.Style.FILL
-                }
-                val b  = bounds
-                val cx = b.exactCenterX()
-                val cy = b.exactCenterY()
-                val r  = b.width() * 0.22f
-                // 수평 전화기 (끊기 아이콘)
-                val path = Path().apply {
-                    moveTo(cx - r * 1.8f, cy + r * 0.3f)
-                    cubicTo(cx - r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy + r * 0.3f)
-                    lineTo(cx + r, cy + r * 0.3f)
-                    cubicTo(cx + r, cy - r * 0.3f, cx + r * 0.3f, cy - r * 0.6f, cx, cy - r * 0.6f)
-                    cubicTo(cx - r * 0.3f, cy - r * 0.6f, cx - r, cy - r * 0.3f, cx - r, cy + r * 0.3f)
-                    close()
-                }
                 canvas.save()
                 canvas.rotate(135f, cx, cy)
+                val path = Path().apply {
+                    // 수화기 왼쪽 부분
+                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
+                    cubicTo(cx - s * 1.6f, cy - s * 1.6f, cx - s * 0.5f, cy - s * 1.8f, cx, cy - s * 1.4f)
+                    // 수화기 오른쪽 부분
+                    moveTo(cx, cy - s * 1.4f)
+                    cubicTo(cx + s * 0.5f, cy - s * 1.8f, cx + s * 1.6f, cy - s * 1.6f, cx + s * 1.6f, cy - s * 0.2f)
+                    // 수화기 몸체 (아래쪽 곡선)
+                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
+                    cubicTo(cx - s * 1.2f, cy + s * 0.6f, cx + s * 1.2f, cy + s * 0.6f, cx + s * 1.6f, cy - s * 0.2f)
+                }
                 canvas.drawPath(path, paint)
                 canvas.restore()
             }
@@ -581,25 +522,32 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    // 통화 수락 아이콘
-    private fun createAcceptCallDrawable(color: Int): Drawable {
+    // ── 수락 아이콘 (전화기, 정방향) ──
+    private fun createAcceptIcon(): Drawable {
         return object : Drawable() {
             override fun draw(canvas: Canvas) {
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    this.color = color
-                    style = Paint.Style.FILL
+                    color = Color.WHITE
+                    style = Paint.Style.STROKE
+                    strokeWidth = bounds.width() * 0.055f
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
                 }
-                val b  = bounds
+                val b = bounds
                 val cx = b.exactCenterX()
                 val cy = b.exactCenterY()
-                val r  = b.width() * 0.22f
+                val s = b.width() * 0.18f
+
                 val path = Path().apply {
-                    moveTo(cx - r * 1.8f, cy + r * 0.3f)
-                    cubicTo(cx - r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy - r * 1.2f, cx + r * 1.8f, cy + r * 0.3f)
-                    lineTo(cx + r, cy + r * 0.3f)
-                    cubicTo(cx + r, cy - r * 0.3f, cx + r * 0.3f, cy - r * 0.6f, cx, cy - r * 0.6f)
-                    cubicTo(cx - r * 0.3f, cy - r * 0.6f, cx - r, cy - r * 0.3f, cx - r, cy + r * 0.3f)
-                    close()
+                    // 수화기 왼쪽 부분
+                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
+                    cubicTo(cx - s * 1.6f, cy - s * 1.6f, cx - s * 0.5f, cy - s * 1.8f, cx, cy - s * 1.4f)
+                    // 수화기 오른쪽 부분
+                    moveTo(cx, cy - s * 1.4f)
+                    cubicTo(cx + s * 0.5f, cy - s * 1.8f, cx + s * 1.6f, cy - s * 1.6f, cx + s * 1.6f, cy - s * 0.2f)
+                    // 수화기 몸체 (아래쪽 곡선)
+                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
+                    cubicTo(cx - s * 1.2f, cy + s * 0.6f, cx + s * 1.2f, cy + s * 0.6f, cx + s * 1.6f, cy - s * 0.2f)
                 }
                 canvas.drawPath(path, paint)
             }
@@ -610,12 +558,42 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    private fun createCircleDrawable(color: Int): Drawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(color)
+    // 점 애니메이션 (카카오 스타일 연결 중...)
+    private fun startDotAnimation(dots: List<View>) {
+        fun animateDot(index: Int) {
+            if (isFinishing) return
+            val dot = dots[index]
+            dot.animate()
+                .alpha(1f)
+                .setDuration(300)
+                .withEndAction {
+                    dot.animate()
+                        .alpha(0.3f)
+                        .setDuration(300)
+                        .setStartDelay(200)
+                        .withEndAction {
+                            if (!isFinishing) {
+                                animateDot((index + 1) % dots.size)
+                            }
+                        }
+                        .start()
+                }
+                .start()
+        }
+        animateDot(0)
+    }
+
+    private fun getMsgTypeLabel(): String {
+        return when (msgType) {
+            "youtube" -> "📺 YouTube 알람"
+            "audio"   -> "🎵 오디오 알람"
+            "video"   -> "🎬 비디오 알람"
+            else      -> "📎 파일 알람"
         }
     }
+
+    private fun dp(dp: Float): Float = dp * resources.displayMetrics.density
+    private fun dp(dp: Int): Float = dp.toFloat() * resources.displayMetrics.density
 
     // ─────────────────────────────────────────────────────────────────────
     // 벨소리 / 진동
@@ -638,7 +616,7 @@ class FakeCallActivity : Activity() {
                 when (am.ringerMode) {
                     AudioManager.RINGER_MODE_NORMAL  -> rt.play()
                     AudioManager.RINGER_MODE_VIBRATE -> Unit
-                    else -> Unit  // SILENT
+                    else -> Unit
                 }
             }
         } catch (e: Exception) { Log.e(TAG, "벨소리 오류: ${e.message}") }
@@ -671,7 +649,6 @@ class FakeCallActivity : Activity() {
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
-        // ContentPlayerActivity로 바로 이동 (콘텐츠 재생 화면)
         ContentPlayerActivity.start(
             context          = this,
             msgType          = msgType,
@@ -719,7 +696,4 @@ class FakeCallActivity : Activity() {
             } catch (e: Exception) { Log.e(TAG, "상태 전송 실패: ${e.message}") }
         }
     }
-
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density).toInt()
 }

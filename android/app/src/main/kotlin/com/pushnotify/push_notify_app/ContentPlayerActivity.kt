@@ -457,7 +457,7 @@ class ContentPlayerActivity : Activity() {
                     setImageResource(R.drawable.youtube_icon)
                     scaleType = ImageView.ScaleType.FIT_CENTER
                     setPadding(0, 0, 0, 0)
-                    layoutParams = LinearLayout.LayoutParams(dp(34), dp(24)).also { it.marginEnd = dp(12) }
+                    layoutParams = LinearLayout.LayoutParams(dp(40), dp(28)).also { it.marginEnd = dp(12) }
                     setOnClickListener {
                         try {
                             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl)).apply {
