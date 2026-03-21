@@ -282,26 +282,35 @@ class FakeCallActivity : Activity() {
                 setColor(bgCard)
                 cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(28f), dp(28f), dp(28f), dp(28f))
             }
-            setPadding(dp(24).toInt(), dp(48).toInt(), dp(24).toInt(), dp(36).toInt())
+            setPadding(dp(24).toInt(), dp(48).toInt(), dp(24).toInt(), dp(40).toInt())
         }
 
-        // 채널명
+        // "RinGo 알람" 앱 타이틀
+        topCard.addView(TextView(this).apply {
+            text = "RinGo 알람"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(textGray)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(12).toInt())
+        })
+
+        // 채널명 (크게)
         topCard.addView(TextView(this).apply {
             text = channelName
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f)
             setTextColor(textWhite)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(4).toInt())
+            setPadding(0, 0, 0, dp(2).toInt())
         })
 
         // "연결 중" 상태 텍스트
         topCard.addView(TextView(this).apply {
             text = "연결 중"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             setTextColor(textGray)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(8).toInt())
+            setPadding(0, 0, 0, dp(6).toInt())
         })
 
         // 연결 중 점 애니메이션 (● ● ●)
@@ -310,7 +319,7 @@ class FakeCallActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(24).toInt())
         }
-        val dotColor = Color.parseColor("#F5D442")
+        val dotColor = Color.parseColor("#AAAAAA")
         val dotViews = mutableListOf<View>()
         (0 until 3).forEachIndexed { i, _ ->
             val color = dotColor
@@ -324,7 +333,7 @@ class FakeCallActivity : Activity() {
                     shape = GradientDrawable.OVAL
                     setColor(color)
                 }
-                layoutParams = LinearLayout.LayoutParams(dp(8).toInt(), dp(8).toInt())
+                layoutParams = LinearLayout.LayoutParams(dp(6).toInt(), dp(6).toInt())
                 alpha = 0.3f
             }
             dotViews.add(dot)
@@ -335,10 +344,10 @@ class FakeCallActivity : Activity() {
         // 점 애니메이션 시작
         startDotAnimation(dotViews)
 
-        // ── 프로필 이미지 (130dp 원형, 얇은 테두리만 - 카카오톡 동일) ──
-        val profileSize = dp(130).toInt()
+        // ── 프로필 이미지 (100dp 원형) ──
+        val profileSize = dp(100).toInt()
         val profileContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(profileSize + dp(8).toInt(), profileSize + dp(8).toInt()).apply {
+            layoutParams = LinearLayout.LayoutParams(profileSize + dp(4).toInt(), profileSize + dp(4).toInt()).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
         }
@@ -372,7 +381,8 @@ class FakeCallActivity : Activity() {
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 cornerRadius = dp(16f)
-                setColor(Color.parseColor("#44FFFFFF"))
+                setColor(Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1).toInt(), Color.parseColor("#55FFFFFF"))
             }
             setPadding(dp(16).toInt(), dp(8).toInt(), dp(16).toInt(), dp(8).toInt())
             val badgeParams = LinearLayout.LayoutParams(
@@ -385,10 +395,11 @@ class FakeCallActivity : Activity() {
             layoutParams = badgeParams
         })
 
-        // 상단 카드를 루트에 추가
+        // 상단 카드를 루트에 추가 (화면의 약 75% 높이)
+        val displayHeight = resources.displayMetrics.heightPixels
         val topParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
+            (displayHeight * 0.72).toInt()
         ).apply { gravity = Gravity.TOP }
         root.addView(topCard, topParams)
 
@@ -414,16 +425,16 @@ class FakeCallActivity : Activity() {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(50).toInt()
+            bottomMargin = dp(35).toInt()
         }
         root.addView(btnLayout, btnParams)
 
         setContentView(root)
     }
 
-    // ── 액션 버튼 생성 (카카오톡 동일: 64dp 원형, 라벨 없음) ──
+    // ── 액션 버튼 생성 (68dp 원형, 라벨 없음) ──
     private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): FrameLayout {
-        val btnSize = dp(64).toInt()
+        val btnSize = dp(68).toInt()
         return FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
             background = GradientDrawable().apply {
@@ -439,7 +450,7 @@ class FakeCallActivity : Activity() {
                     else R.drawable.ic_call_accept
                 )
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
-                val iconPad = dp(16).toInt()
+                val iconPad = dp(17).toInt()
                 setPadding(iconPad, iconPad, iconPad, iconPad)
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,

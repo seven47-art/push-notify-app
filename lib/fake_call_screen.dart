@@ -1,8 +1,10 @@
-// lib/fake_call_screen.dart  v19
-// 카카오톡 전화 수신 화면 1:1 복제
-// - 배경: 상단 카드(#222222) / 하단 순수블랙(#000000)
-// - 프로필: 130dp 원형, 얇은 회색 테두리만 (glow 없음)
-// - 하단: 거절(64dp) / 수락(64dp) Material Icons + 라벨 없음
+// lib/fake_call_screen.dart  v20
+// 예시 이미지와 1:1 동일한 알람 수신 화면
+// - 배경: 상단 카드(#222222, 화면 72%) / 하단 순수블랙
+// - "RinGo 알람" 타이틀 + 채널명(28sp) + "연결 중" + 회색 점
+// - 프로필: 100dp 원형, 얇은 테두리
+// - 배지: pill + 얇은 테두리
+// - 버튼: 68dp, Material Icons call/call_end, 라벨 없음
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -256,7 +258,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     }
   }
 
-  // ── UI (카카오톡 전화 수신 화면 1:1 복제) ─────────────────────────
+  // ── UI (예시 이미지와 1:1 동일) ───────────────────────────────────
   @override
   Widget build(BuildContext context) {
     const bgDark    = Colors.black;
@@ -266,13 +268,16 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     const accentRed   = Color(0xFFFF3B30);
     const accentGreen = Color(0xFF34C759);
 
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: bgDark,
       body: Column(
         children: [
-          // ── 상단 카드 영역 (카카오톡 동일) ──
+          // ── 상단 카드 영역 (화면의 72%) ──
           Container(
             width: double.infinity,
+            height: screenHeight * 0.72,
             decoration: const BoxDecoration(
               color: bgCard,
               borderRadius: BorderRadius.only(
@@ -283,28 +288,36 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
                 child: Column(
                   children: [
-                    // 채널명
+                    // "RinGo 알람" 앱 타이틀
+                    const Text(
+                      'RinGo 알람',
+                      style: TextStyle(color: textGray, fontSize: 14),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 채널명 (크게)
                     Text(
                       widget.channelName,
                       style: const TextStyle(
                         color: textWhite,
-                        fontSize: 22,
+                        fontSize: 28,
                         fontWeight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
+
                     // "연결 중"
                     const Text(
                       '연결 중',
-                      style: TextStyle(color: textGray, fontSize: 14),
+                      style: TextStyle(color: textGray, fontSize: 13),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
 
-                    // 연결 중 점 (● ● ●)
+                    // 연결 중 점 (● ● ●) 회색
                     AnimatedBuilder(
                       animation: _dotController,
                       builder: (context, _) {
@@ -316,12 +329,12 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                                 ? 0.3 + 0.7 * (progress * 2)
                                 : 1.0 - 0.7 * ((progress - 0.5) * 2);
                             return Container(
-                              width: 7,
-                              height: 7,
+                              width: 6,
+                              height: 6,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: const Color(0xFFF5D442).withOpacity(opacity.clamp(0.3, 1.0)),
+                                color: const Color(0xFFAAAAAA).withOpacity(opacity.clamp(0.3, 1.0)),
                               ),
                             );
                           }),
@@ -330,10 +343,10 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // 프로필 이미지 (130dp, 얇은 테두리만, glow 없음)
+                    // 프로필 이미지 (100dp, 얇은 테두리)
                     Container(
-                      width: 130,
-                      height: 130,
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: const Color(0xFF333333),
@@ -349,18 +362,22 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                         errorBuilder: (_, __, ___) => const Icon(
                           Icons.notifications_active,
                           color: Colors.white70,
-                          size: 52,
+                          size: 40,
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // 알람 타입 배지 (카카오 통화녹음 스타일 pill)
+                    // 알람 타입 배지 (pill + 얇은 테두리)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         _getMsgTypeLabel(),
@@ -376,23 +393,23 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             ),
           ),
 
-          // ── 하단: 여백 + 버튼 (라벨 없음 - 카카오톡 동일) ──
+          // ── 하단: 여백 + 버튼 (라벨 없음) ──
           const Spacer(),
 
           // 수락/거절 버튼
           Padding(
-            padding: const EdgeInsets.only(bottom: 50),
+            padding: const EdgeInsets.only(bottom: 35),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 거절 (라벨 없음)
+                // 거절
                 _buildActionButton(
                   color: accentRed,
                   icon: Icons.call_end_rounded,
                   onTap: _decline,
                 ),
                 const SizedBox(width: 48),
-                // 수락 (라벨 없음)
+                // 수락
                 _isAnswered
                     ? _buildLoadingButton()
                     : _buildActionButton(
@@ -416,8 +433,8 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 64,
-        height: 64,
+        width: 68,
+        height: 68,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: color,
@@ -429,8 +446,8 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
   Widget _buildLoadingButton() {
     return Container(
-      width: 64,
-      height: 64,
+      width: 68,
+      height: 68,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: const Color(0xFF34C759).withOpacity(0.5),
