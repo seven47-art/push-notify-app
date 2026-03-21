@@ -60,57 +60,118 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true) _load();
   }
 
-  // ─── 채널 참여 다이얼로그 ──────────────────────
+  // ─── 채널 참여 바텀시트 ──────────────────────
   void _showJoinDialog() {
     final ctrl = TextEditingController();
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _bg2,
-        title: const Text('채널 참여', style: TextStyle(color: _text, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('초대 링크 또는 초대 코드를 입력하세요.',
-                style: TextStyle(fontSize: 13, color: _text2)),
-            const SizedBox(height: 14),
-            TextField(
-              controller: ctrl,
-              style: const TextStyle(color: _text),
-              decoration: InputDecoration(
-                hintText: 'inv_xxxx 또는 전체 URL',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                filled: true, fillColor: _bg3,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none),
-                prefixIcon: const Icon(Icons.link, color: _primary),
-              ),
-              autofocus: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E1E2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('취소', style: TextStyle(color: Colors.grey[400]))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: _text),
-            onPressed: () {
-              final input = ctrl.text.trim();
-              if (input.isEmpty) return;
-              String token = input;
-              if (input.contains('/join/')) token = input.split('/join/').last;
-              else if (input.startsWith('http')) token = Uri.parse(input).pathSegments.last;
-              Navigator.pop(context);
-              Navigator.push(context,
-                MaterialPageRoute(builder: (_) => JoinChannelScreen(inviteToken: token)),
-              ).then((_) => _load());
-            },
-            child: const Text('확인'),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 핸들바
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[600],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 타이틀
+                const Text('채널 참여',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                // 라벨
+                Text('초대 코드 또는 초대 링크',
+                    style: TextStyle(color: _text2, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                // 입력창
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: '코드 또는 URL 붙여넣기',
+                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    filled: true,
+                    fillColor: const Color(0xFF2A2A3E),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey[700]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey[700]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 참여하기 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C63FF),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      final input = ctrl.text.trim();
+                      if (input.isEmpty) return;
+                      String token = input;
+                      if (input.contains('/join/')) token = input.split('/join/').last.split('?').first;
+                      else if (input.startsWith('http')) token = Uri.parse(input).pathSegments.last;
+                      Navigator.pop(ctx);
+                      Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => JoinChannelScreen(inviteToken: token)),
+                      ).then((_) => _load());
+                    },
+                    child: const Text('참여하기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // 취소 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: _text2,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: Colors.grey[700]!),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('취소', style: TextStyle(fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
