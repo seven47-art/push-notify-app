@@ -73,6 +73,7 @@ class MainScreenState extends State<MainScreen> {
     _registerFcmToken();
     _checkUnreadNotices();
     _listenFcmForNative(); // channel_deleted / force_logout FCM 처리
+    _initNavChannel();     // 상태바 알림 "수신함 바로가기" 탭 전환 처리
     _initDeepLink();       // 딥링크(초대코드) 수신 처리
     // 빌드 완료 후 terms 체크
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkTerms());
@@ -132,6 +133,37 @@ class MainScreenState extends State<MainScreen> {
     _subscribedKey.currentState?.reload();
     _inboxKey.currentState?.reload();
     _outboxKey.currentState?.reload();
+  }
+
+  // ── 네이티브 탭 전환 채널: AlarmDismissReceiver "수신함 바로가기" 처리 ────────
+  static const _navChannel = MethodChannel('com.pushnotify.push_notify_app/navigation');
+
+  void _initNavChannel() {
+    // Kotlin → Flutter: openTab 신호 수신
+    _navChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openTab') {
+        final tab = call.arguments as String?;
+        if (tab == 'inbox' && mounted) {
+          setState(() => _currentIndex = 3); // 수신함 탭
+          _inboxKey.currentState?.reload();
+          debugPrint('[NavChannel] 수신함 탭으로 전환');
+        }
+      }
+    });
+
+    // 콜드스타트: pending open_tab 확인
+    Future.delayed(const Duration(milliseconds: 1200), () async {
+      try {
+        final tab = await _navChannel.invokeMethod<String?>('getInitialTab');
+        if (tab == 'inbox' && mounted) {
+          setState(() => _currentIndex = 3);
+          _inboxKey.currentState?.reload();
+          debugPrint('[NavChannel] 콜드스타트 수신함 탭으로 전환');
+        }
+      } catch (e) {
+        debugPrint('[NavChannel] getInitialTab 오류: $e');
+      }
+    });
   }
 
   // ── 딥링크 초기화: pushapp://join?token=xxx → JoinChannelScreen ──────────

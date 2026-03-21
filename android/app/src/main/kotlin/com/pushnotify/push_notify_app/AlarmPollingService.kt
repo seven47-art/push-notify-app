@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -52,6 +53,12 @@ class AlarmPollingService : Service() {
             if (!showing) {
                 synchronized(fcmLock) { pendingChannelNames.clear() }
             }
+        }
+
+        /** AlarmDismissReceiver 에서 호출 — 알림 취소 후 목록 초기화 */
+        fun clearPendingChannels() {
+            synchronized(fcmLock) { pendingChannelNames.clear() }
+            Log.d(TAG, "clearPendingChannels: 채널 목록 초기화")
         }
 
         fun isFakeCallActive(): Boolean = isFakeCallShowing.get()
@@ -158,18 +165,15 @@ class AlarmPollingService : Service() {
             val currentNames = synchronized(fcmLock) { pendingChannelNames.toList() }
             val timeStr = SimpleDateFormat("a h:mm", Locale.KOREA).format(Date())
 
-            // ── 수신함 이동 PendingIntent ─────────────────────────────────
-            val inboxIntent = context.packageManager
-                .getLaunchIntentForPackage(context.packageName)
-                ?.apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra("open_tab", "inbox")
-                } ?: Intent()
-
-            val inboxPi = PendingIntent.getActivity(
+            // ── 수신함 이동 PendingIntent (BroadcastReceiver 방식) ──────────
+            // AlarmDismissReceiver: 알림 취소 + 앱 수신함 탭 이동을 함께 처리
+            val dismissIntent = Intent(context, AlarmDismissReceiver::class.java).apply {
+                action = AlarmDismissReceiver.ACTION_OPEN_INBOX
+            }
+            val inboxPi = PendingIntent.getBroadcast(
                 context,
                 GROUP_NOTIF_ID,
-                inboxIntent,
+                dismissIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -193,8 +197,8 @@ class AlarmPollingService : Service() {
                 .setContentTitle(timeStr)
                 .setContentText(currentNames.joinToString(", ") { "📢$it" })
                 .setStyle(inboxStyle)
-                .setContentIntent(inboxPi)          // 알림 탭 → 수신함
-                .setAutoCancel(true)                // 탭 시 자동 닫힘
+                .setContentIntent(inboxPi)          // 알림 탭 → Receiver → 수신함 이동 + 알림 닫힘
+                .setAutoCancel(false)               // Receiver에서 직접 cancel()
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setGroup(GROUP_KEY)

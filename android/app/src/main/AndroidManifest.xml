@@ -95,6 +95,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- 상태바 그룹 알림 "수신함 바로가기" 버튼 처리 -->
+        <receiver
+            android:name=".AlarmDismissReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.pushnotify.push_notify_app.ACTION_OPEN_INBOX"/>
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="false">

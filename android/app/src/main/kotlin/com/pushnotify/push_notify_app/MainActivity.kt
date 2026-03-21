@@ -33,11 +33,16 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_AUDIO        = "com.pushnotify.push_notify_app/audio_recorder"
     private val CHANNEL_SCHEDULE     = "com.pushnotify.push_notify_app/alarm"  // v1.0.76: Flutter → Kotlin AlarmManager 예약
     private val CHANNEL_DEEPLINK     = "com.pushnotify.push_notify_app/deeplink"  // 딥링크 전달
+    private val CHANNEL_NAV          = "com.pushnotify.push_notify_app/navigation" // 탭 전환 신호
     private val REQUEST_PICK_ACCOUNT = 1002
 
     private var pendingResult: MethodChannel.Result? = null
     private var alarmChannel: MethodChannel? = null
     private var deepLinkChannel: MethodChannel? = null
+    private var navChannel: MethodChannel? = null
+
+    // 앱 콜드스타트 시 open_tab extra 임시 보관 (Flutter 준비 전 도착한 경우)
+    private var pendingOpenTab: String? = null
 
     // 앱 콜드스타트 시 딥링크 토큰 임시 보관 (Flutter 준비 전 도착한 경우)
     private var pendingDeepLinkToken: String? = null
@@ -49,6 +54,26 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         alarmChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_ALARM)
+
+        // 탭 전환 채널 - Kotlin → Flutter 수신함 이동 신호
+        navChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_NAV)
+        navChannel!!.setMethodCallHandler { call, result ->
+            when (call.method) {
+                // Flutter가 준비되면 호출: pending open_tab 반환
+                "getInitialTab" -> {
+                    result.success(pendingOpenTab)
+                    pendingOpenTab = null
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // Flutter 준비 직후 pending open_tab 이 있으면 바로 전달
+        pendingOpenTab?.let { tab ->
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                navChannel?.invokeMethod("openTab", tab)
+                pendingOpenTab = null
+            }, 1200)
+        }
 
         // 딥링크 채널 - Flutter가 준비되면 pending 토큰 즉시 전달
         deepLinkChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_DEEPLINK)
@@ -296,6 +321,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         handleAlarmIntent(intent)
         handleDeepLinkIntent(intent)
+        handleOpenTabIntent(intent)
         // 권한 요청은 Flutter permission_screen.dart 에서 처리
         // requestEssentialPermissions() 제거 → 중복 팝업 없음
     }
@@ -305,6 +331,20 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         handleAlarmIntent(intent)
         handleDeepLinkIntent(intent)
+        handleOpenTabIntent(intent)
+    }
+
+    // open_tab Intent 처리: 상태바 알림 "수신함 바로가기" 버튼 클릭
+    private fun handleOpenTabIntent(intent: Intent?) {
+        val tab = intent?.getStringExtra("open_tab") ?: return
+        Log.d("MainActivity", "[OpenTab] tab=$tab, navChannel=${navChannel != null}")
+        if (navChannel != null) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                navChannel?.invokeMethod("openTab", tab)
+            }, 300)
+        } else {
+            pendingOpenTab = tab
+        }
     }
 
     // 딥링크 Intent 처리: pushapp://join?token=xxx
