@@ -1132,9 +1132,9 @@ const App = {
 
   // ── 공통 아이콘/상태 맵 ────────────────────────────────────
   _msgIconMap: {
-    youtube: '<i class="fab fa-youtube" style="color:#FF0000;font-size:20px;"></i>',
-    audio:   '<i class="fas fa-music"   style="color:#4FC3F7;font-size:20px;"></i>',
-    video:   '<i class="fas fa-video"   style="color:#66BB6A;font-size:20px;"></i>',
+    youtube: '<svg width="22" height="16" viewBox="0 0 22 16"><rect rx="4" width="22" height="16" fill="#FF0000"/><polygon points="9,3.5 9,12.5 16,8" fill="#FFF"/></svg>',
+    audio:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="#4FC3F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" fill="#4FC3F7"/><circle cx="18" cy="16" r="3" fill="#4FC3F7"/></svg>',
+    video:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="15" height="16" rx="3" stroke="#66BB6A" stroke-width="2"/><path d="M17 9.5l5-3v11l-5-3" fill="#66BB6A"/></svg>',
     file:    '<i class="fas fa-file"    style="color:#90A4AE;font-size:20px;"></i>'
   },
   _statusLabelMap: { pending:'대기', received:'확인중', accepted:'수락', rejected:'거절', timeout:'미수신', failed:'미수신' },

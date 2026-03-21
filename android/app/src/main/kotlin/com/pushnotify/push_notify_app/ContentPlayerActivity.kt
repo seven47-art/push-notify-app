@@ -455,14 +455,9 @@ class ContentPlayerActivity : Activity() {
             if (youtubeUrl.isNotEmpty()) {
                 bottomBar.addView(ImageView(this).apply {
                     setImageResource(R.drawable.youtube_icon)
-                    scaleType = ImageView.ScaleType.CENTER_INSIDE
-                    setPadding(dp(7), dp(7), dp(7), dp(7))
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(19).toFloat()
-                        setColor(Color.parseColor("#40FFFFFF"))
-                        setStroke(dp(1), Color.parseColor("#33FFFFFF"))
-                    }
-                    layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).also { it.marginEnd = dp(10) }
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    setPadding(0, 0, 0, 0)
+                    layoutParams = LinearLayout.LayoutParams(dp(34), dp(24)).also { it.marginEnd = dp(12) }
                     setOnClickListener {
                         try {
                             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl)).apply {

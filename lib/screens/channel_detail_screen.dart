@@ -478,9 +478,10 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
               ],
             ),
           ),
+          const Divider(height: 1, color: _border),
           // ── 액션 버튼 ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: widget.isOwner
                 // 오너: 알람/공유/편집/삭제
                 ? Row(
@@ -490,7 +491,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          _ActionBtn(icon: Icons.alarm, onTap: _openAlarmSchedule),
+                          _ActionBtn(icon: Icons.alarm, color: const Color(0xFFF59E0B), onTap: _openAlarmSchedule),
                           if (_alarmCount > 0)
                             Positioned(
                               top: -4,
@@ -515,11 +516,11 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                         ],
                       ),
                       const SizedBox(width: 8),
-                      _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
+                      _ActionBtn(icon: Icons.share_outlined, color: const Color(0xFF3B82F6), onTap: _shareChannel),
                       const SizedBox(width: 8),
-                      _ActionBtn(icon: Icons.edit_outlined, onTap: _openChannelSettings),
+                      _ActionBtn(icon: Icons.edit_outlined, color: const Color(0xFF8B5CF6), onTap: _openChannelSettings),
                       const SizedBox(width: 8),
-                      _ActionBtn(icon: Icons.delete_outline, color: _red.withOpacity(0.8), onTap: _deleteChannel),
+                      _ActionBtn(icon: Icons.delete_outline, color: const Color(0xFFEF4444), onTap: _deleteChannel),
                     ],
                   )
                 : widget.isSubscribed
@@ -527,19 +528,19 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
+                          _ActionBtn(icon: Icons.share_outlined, color: const Color(0xFF3B82F6), onTap: _shareChannel),
                           const SizedBox(width: 8),
-                          _ActionBtn(icon: Icons.flag_outlined, color: Colors.red[300]!, onTap: _openReport),
+                          _ActionBtn(icon: Icons.flag_outlined, color: const Color(0xFFEF4444), onTap: _openReport),
                           const SizedBox(width: 8),
-                          _ActionBtn(icon: Icons.exit_to_app_outlined, onTap: _leaveChannel),
+                          _ActionBtn(icon: Icons.exit_to_app_outlined, color: const Color(0xFF6B7280), onTap: _leaveChannel),
                         ],
                       )
                     // 미가입: 공유/신고 + [+ 채널 참여] 풀넓이 버튼
                     : Row(
                         children: [
-                          _ActionBtn(icon: Icons.share_outlined, onTap: _shareChannel),
+                          _ActionBtn(icon: Icons.share_outlined, color: const Color(0xFF3B82F6), onTap: _shareChannel),
                           const SizedBox(width: 8),
-                          _ActionBtn(icon: Icons.flag_outlined, color: Colors.red[300]!, onTap: _openReport),
+                          _ActionBtn(icon: Icons.flag_outlined, color: const Color(0xFFEF4444), onTap: _openReport),
                           const SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
@@ -558,7 +559,6 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                         ],
                       ),
           ),
-          const Divider(height: 1, color: _border),
           // ── 채널 소개 ──
           if (description.isNotEmpty) ...[
             const Padding(
@@ -656,10 +656,10 @@ class _ActionBtn extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: color, size: 20),
+        child: Icon(icon, color: color, size: 24),
       ),
     );
   }
