@@ -3,6 +3,7 @@ package com.pushnotify.push_notify_app
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -11,6 +12,9 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -29,6 +33,10 @@ class AlarmPollingService : Service() {
         const val NOTIF_CHANNEL_ID   = "ringo_secondary_alarm_channel"
         const val NOTIF_CHANNEL_NAME = "RinGo 동시 알람"
 
+        // 그룹 알림 고정 ID (summary 알림은 항상 이 ID로 갱신)
+        const val GROUP_NOTIF_ID  = 30000
+        const val GROUP_KEY       = "ringo_alarm_group"
+
         private const val PREF_NAME        = "ringo_alarm_prefs"
         private const val PREF_KEY_HANDLED = "handled_alarm_ids"
         private val fcmLock = Any()
@@ -40,9 +48,17 @@ class AlarmPollingService : Service() {
         fun setFakeCallShowing(showing: Boolean) {
             isFakeCallShowing.set(showing)
             Log.d(TAG, "isFakeCallShowing = $showing")
+            // 풀스크린 알람 종료 시 → 그룹 알림 목록도 초기화
+            if (!showing) {
+                synchronized(fcmLock) { pendingChannelNames.clear() }
+            }
         }
 
         fun isFakeCallActive(): Boolean = isFakeCallShowing.get()
+
+        // ── 상태바 그룹 알림용 채널명 목록 ──────────────────────────────
+        // 새 알람이 올 때마다 추가하고 summary 알림을 갱신
+        private val pendingChannelNames = mutableListOf<String>()
 
         fun markFcmHandled(context: Context, alarmId: Int) {
             synchronized(fcmLock) {
@@ -120,8 +136,10 @@ class AlarmPollingService : Service() {
             }
         }
 
-        // ── 상태바 알림 발송 ─────────────────────────────────────────────
-        // 수신함으로 이동하는 PendingIntent 포함
+        // ── 상태바 그룹 알림 발송 ────────────────────────────────────────
+        // 새 채널명 추가 후 InboxStyle summary 알림을 갱신
+        // → 알림 하나로 모든 채널명을 묶어서 표시
+        // → "수신함 바로가기" 탭 시 수신함으로 이동 + 알림 자동 닫힘
         fun showStatusBarAlarm(
             context: Context,
             channelName: String,
@@ -135,42 +153,64 @@ class AlarmPollingService : Service() {
         ) {
             createNotifChannel(context)
 
-            // 수신함으로 이동 Intent (MainActivity + 수신함 탭 플래그)
-            val intent = context.packageManager
+            // 채널명 목록에 추가
+            synchronized(fcmLock) { pendingChannelNames.add(channelName) }
+            val currentNames = synchronized(fcmLock) { pendingChannelNames.toList() }
+            val timeStr = SimpleDateFormat("a h:mm", Locale.KOREA).format(Date())
+
+            // ── 수신함 이동 PendingIntent ─────────────────────────────────
+            val inboxIntent = context.packageManager
                 .getLaunchIntentForPackage(context.packageName)
                 ?.apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                     putExtra("open_tab", "inbox")
-                    putExtra("alarm_id",          alarmId)
-                    putExtra("channel_name",       channelName)
-                    putExtra("msg_type",           msgType)
-                    putExtra("msg_value",          msgValue)
-                    putExtra("content_url",        contentUrl)
-                    putExtra("homepage_url",       homepageUrl)
-                    putExtra("channel_public_id",  channelPublicId)
-                    putExtra("link_url",           linkUrl)
                 } ?: Intent()
 
-            val pi = PendingIntent.getActivity(
+            val inboxPi = PendingIntent.getActivity(
                 context,
-                alarmId + 20000,  // 고유 requestCode (풀스크린 알람과 충돌 방지)
-                intent,
+                GROUP_NOTIF_ID,
+                inboxIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            // ── 링고 LargeIcon 로드 ───────────────────────────────────────
+            val largeIcon = try {
+                BitmapFactory.decodeResource(context.resources, R.drawable.ringo_icon)
+            } catch (_: Exception) { null }
+
+            // ── InboxStyle 구성 ───────────────────────────────────────────
+            val inboxStyle = NotificationCompat.InboxStyle()
+            currentNames.forEach { name -> inboxStyle.addLine("📢  $name") }
+            inboxStyle.setSummaryText("RinGo 알람이 도착했습니다. 수신함에서 확인하세요.")
+
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val notif = NotificationCompat.Builder(context, NOTIF_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("📢 $channelName")
-                .setContentText("RinGo 알람이 도착했습니다. 탭하여 수신함에서 확인하세요.")
-                .setContentIntent(pi)
-                .setAutoCancel(true)
+
+            // ── Summary(그룹) 알림 갱신 ───────────────────────────────────
+            // 항상 GROUP_NOTIF_ID 하나만 사용 → 새 알람마다 덮어쓰기(갱신)
+            val summaryNotif = NotificationCompat.Builder(context, NOTIF_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setLargeIcon(largeIcon)
+                .setContentTitle(timeStr)
+                .setContentText(currentNames.joinToString(", ") { "📢$it" })
+                .setStyle(inboxStyle)
+                .setContentIntent(inboxPi)          // 알림 탭 → 수신함
+                .setAutoCancel(true)                // 탭 시 자동 닫힘
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setGroup(GROUP_KEY)
+                .setGroupSummary(true)
+                // "수신함 바로가기" 액션 버튼
+                .addAction(
+                    NotificationCompat.Action.Builder(
+                        R.drawable.ringo_icon,
+                        "수신함 바로가기",
+                        inboxPi
+                    ).build()
+                )
                 .build()
 
-            nm.notify(alarmId + 20000, notif)
-            Log.d(TAG, "상태바 알림 발송: $channelName (notifId=${alarmId + 20000})")
+            nm.notify(GROUP_NOTIF_ID, summaryNotif)
+            Log.d(TAG, "그룹 알림 갱신: ${currentNames.size}개 채널 [${currentNames.joinToString()}]")
         }
 
         private fun createNotifChannel(context: Context) {
