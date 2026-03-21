@@ -1,448 +1,345 @@
 // lib/screens/join_channel_screen.dart
+// 웹뷰 modal-join 과 동일한 바텀시트 스타일
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config.dart';
 import 'channel_detail_screen.dart';
 
-class JoinChannelScreen extends StatefulWidget {
-  final String? inviteToken;
-  const JoinChannelScreen({super.key, this.inviteToken});
+const _primary = Color(0xFF6C63FF);
+const _bg      = Color(0xFFFFFFFF);
+const _bg3     = Color(0xFFF4F4F8);
+const _border  = Color(0xFFEEEEEE);
+const _text    = Color(0xFF222222);
+const _text2   = Color(0xFF888888);
 
-  @override
-  State<JoinChannelScreen> createState() => _JoinChannelScreenState();
+// ── 외부에서 바텀시트로 표시하는 함수 ──────────────────
+Future<void> showJoinChannelSheet(BuildContext context, {String? inviteToken}) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => JoinChannelSheet(inviteToken: inviteToken),
+  );
 }
 
-class _JoinChannelScreenState extends State<JoinChannelScreen> {
-  bool _isVerifying = false;
-  bool _isJoining = false;
-  Map<String, dynamic>? _channelData;
+// ── 바텀시트 위젯 ───────────────────────────────────────
+class JoinChannelSheet extends StatefulWidget {
+  final String? inviteToken;
+  const JoinChannelSheet({super.key, this.inviteToken});
+
+  @override
+  State<JoinChannelSheet> createState() => _JoinChannelSheetState();
+}
+
+class _JoinChannelSheetState extends State<JoinChannelSheet> {
+  final _controller = TextEditingController();
+  bool _isLoading = false;
   String? _errorMessage;
-  bool _joined = false;
 
   @override
   void initState() {
     super.initState();
+    // 딥링크로 토큰이 전달된 경우 입력창에 미리 채움
     if (widget.inviteToken != null && widget.inviteToken!.isNotEmpty) {
-      _verifyToken(widget.inviteToken!);
+      _controller.text = widget.inviteToken!;
     }
   }
 
-  Future<void> _verifyToken(String token) async {
-    setState(() {
-      _isVerifying = true;
-      _errorMessage = null;
-      _channelData = null;
-    });
-
-    final result = await ApiService.verifyInvite(token);
-
-    if (mounted) {
-      setState(() {
-        _isVerifying = false;
-        if (result['success'] == true && result['valid'] == true) {
-          _channelData = result['data'];
-        } else {
-          _errorMessage = result['error'] ?? '유효하지 않은 초대 링크입니다';
-        }
-      });
-    }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  Future<void> _joinChannel() async {
-    if (widget.inviteToken == null) return;
-    setState(() => _isJoining = true);
-
-    final result = await ApiService.joinChannel(widget.inviteToken!);
-
-    if (mounted) {
-      setState(() {
-        _isJoining = false;
-        if (result['success'] == true) {
-          _joined = true;
-          // 가입 응답에서 pending 알람 꺼내서 AlarmManager 즉시 예약
-          _scheduleAlarmsFromResponse(result);
-        } else {
-          _errorMessage = result['error'] ?? '채널 참여에 실패했습니다';
-        }
-      });
+  // URL에서 토큰 추출: https://ringo.run/join/inv_xxx → inv_xxx
+  String _extractToken(String input) {
+    final trimmed = input.trim();
+    // URL 형태인 경우 마지막 경로 추출
+    if (trimmed.contains('/join/')) {
+      final parts = trimmed.split('/join/');
+      if (parts.length > 1) return parts.last.trim();
     }
+    if (trimmed.contains('/')) {
+      return trimmed.split('/').last.trim();
+    }
+    return trimmed;
   }
 
-  // 서버 응답의 pending_alarms를 Kotlin AlarmScheduler에 예약
-  void _scheduleAlarmsFromResponse(Map<String, dynamic> result) {
+  Future<void> _onJoin() async {
+    final input = _controller.text.trim();
+    if (input.isEmpty) {
+      setState(() => _errorMessage = '초대 코드 또는 링크를 입력하세요');
+      return;
+    }
+
+    final token = _extractToken(input);
+    if (token.isEmpty) {
+      setState(() => _errorMessage = '유효하지 않은 입력입니다');
+      return;
+    }
+
+    setState(() { _isLoading = true; _errorMessage = null; });
+
     try {
-      final data = result['data'];
-      if (data == null) return;
-      final pendingAlarms = data['pending_alarms'] as List<dynamic>?;
-      if (pendingAlarms == null || pendingAlarms.isEmpty) return;
+      final prefs        = await SharedPreferences.getInstance();
+      final sessionToken = prefs.getString('session_token') ?? '';
+      final userId       = prefs.getString('user_id') ?? '';
+      final fcmToken     = prefs.getString('fcm_token') ?? '';
 
-      const platform = MethodChannel('com.pushnotify.push_notify_app/alarm');
-      for (final alarm in pendingAlarms) {
-        final scheduledAt = alarm['scheduled_at'] as String?;
-        if (scheduledAt == null) continue;
-        final scheduledMs = DateTime.tryParse(scheduledAt)?.toUtc().millisecondsSinceEpoch;
-        if (scheduledMs == null) continue;
-
-        platform.invokeMethod('scheduleAlarm', {
-          'alarm_id':           alarm['id'] ?? 0,
-          'scheduled_ms':       scheduledMs,
-          'channel_name':       alarm['channel_name'] ?? '',
-          'channel_public_id':  alarm['channel_public_id'] ?? '',
-          'msg_type':           alarm['msg_type'] ?? 'youtube',
-          'msg_value':          alarm['msg_value'] ?? '',
-          'content_url':        alarm['msg_value'] ?? '',
-          'homepage_url':       alarm['channel_homepage_url'] ?? '',
-        }).catchError((e) {
-          debugPrint('[JoinChannel] scheduleAlarm error: $e');
-        });
+      if (userId.isEmpty || sessionToken.isEmpty) {
+        setState(() { _isLoading = false; _errorMessage = '로그인이 필요합니다'; });
+        return;
       }
-      debugPrint('[JoinChannel] ${pendingAlarms.length}개 알람 AlarmManager 예약 완료');
+
+      // 1) 초대링크 검증
+      final verifyRes = await http.get(
+        Uri.parse('$kBaseUrl/api/invites/verify/$token'),
+      ).timeout(const Duration(seconds: 8));
+
+      if (verifyRes.statusCode != 200) {
+        setState(() { _isLoading = false; _errorMessage = '유효하지 않은 초대 링크입니다'; });
+        return;
+      }
+
+      final verifyBody = jsonDecode(verifyRes.body) as Map<String, dynamic>;
+      if (verifyBody['success'] != true || verifyBody['valid'] != true) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = verifyBody['message'] as String? ?? '유효하지 않은 초대 링크입니다';
+        });
+        return;
+      }
+
+      final channelData = verifyBody['data'] as Map<String, dynamic>;
+      final channelId   = channelData['channel_id']?.toString() ?? '';
+      final channelName = channelData['channel_name'] as String? ?? '채널';
+
+      // 2) 채널 가입
+      final joinRes = await http.post(
+        Uri.parse('$kBaseUrl/api/invites/join'),
+        headers: {
+          'Authorization': 'Bearer $sessionToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'invite_token': token,
+          'user_id':      userId,
+          'fcm_token':    fcmToken,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final joinBody = jsonDecode(joinRes.body) as Map<String, dynamic>;
+      final alreadyJoined = joinRes.statusCode == 409;
+
+      if (joinRes.statusCode != 200 && !alreadyJoined) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = joinBody['message'] as String? ?? '채널 참여에 실패했습니다';
+        });
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context); // 바텀시트 닫기
+
+      // 3) 스낵바 메시지
+      final msg = alreadyJoined ? '이미 가입된 채널입니다' : '$channelName 채널에 가입되었습니다';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: alreadyJoined ? Colors.orange : const Color(0xFF6C63FF),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // 4) 채널 소개 페이지로 이동
+      if (channelId.isNotEmpty) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChannelDetailScreen(
+              channelId: channelId,
+              isOwner: false,
+              isSubscribed: true,
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint('[JoinChannel] _scheduleAlarmsFromResponse error: $e');
+      if (mounted) {
+        setState(() { _isLoading = false; _errorMessage = '네트워크 오류가 발생했습니다'; });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: const Text('채널 참여'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: _bg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            if (_isVerifying) ...[
-              const SizedBox(height: 80),
-              const CircularProgressIndicator(color: Color(0xFF6C63FF)),
-              const SizedBox(height: 20),
-              const Text('초대 링크 확인 중...', style: TextStyle(color: Colors.grey)),
-            ] else if (_joined) ...[
-              _buildSuccessView(),
-            ] else if (_channelData != null) ...[
-              _buildChannelPreview(),
-            ] else if (_errorMessage != null) ...[
-              _buildErrorView(),
-            ] else ...[
-              _buildInputView(),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 핸들 바 ──
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 4),
+              decoration: BoxDecoration(
+                color: _border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
 
-  Widget _buildInputView() {
-    final controller = TextEditingController();
-    return Column(
-      children: [
-        const SizedBox(height: 40),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF6C63FF).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.link,
-            size: 60,
-            color: Color(0xFF6C63FF),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          '초대 코드 입력',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          '채널 운영자에게 받은 초대 코드를 입력하세요',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 32),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: 'inv_xxxx_xxxxxx',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                _verifyToken(controller.text.trim());
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          // ── 타이틀 ──
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Text(
+              '채널 참여',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: _text,
               ),
             ),
-            child: const Text('확인', style: TextStyle(fontSize: 16)),
           ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildChannelPreview() {
-    final channel = _channelData!;
-    final remaining = channel['remaining_uses'];
-    
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-        // 채널 이미지
-        if (channel['channel_image_url'] != null)
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              image: DecorationImage(
-                image: NetworkImage(channel['channel_image_url']),
-                fit: BoxFit.cover,
-              ),
-            ),
-          )
-        else
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(Icons.campaign, size: 50, color: Color(0xFF6C63FF)),
-          ),
-        const SizedBox(height: 20),
-        
-        // 채널 이름
-        Text(
-          channel['channel_name'] ?? '채널',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A2E),
-          ),
-        ),
-        const SizedBox(height: 8),
-        
-        // 초대 라벨
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFF6C63FF).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock, size: 14, color: Color(0xFF6C63FF)),
-              const SizedBox(width: 4),
-              const Text(
-                '초대 전용 채널',
-                style: TextStyle(
-                  color: Color(0xFF6C63FF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        
-        // 설명
-        if (channel['channel_description'] != null) ...[
-          Text(
-            channel['channel_description'],
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-          const SizedBox(height: 16),
-        ],
-        
-        // 잔여 참여 가능
-        if (remaining != null)
-          Text(
-            '잔여 참여 가능: $remaining명',
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-        
-        const SizedBox(height: 32),
-        
-        // 참여 버튼
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _isJoining ? null : _joinChannel,
-            icon: _isJoining
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Icon(Icons.check_circle),
-            label: Text(
-              _isJoining ? '참여 중...' : '채널 참여하기',
-              style: const TextStyle(fontSize: 16),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        
-        if (_errorMessage != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 13),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSuccessView() {
-    return Column(
-      children: [
-        const SizedBox(height: 60),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF4CAF50).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.check_circle,
-            size: 80,
-            color: Color(0xFF4CAF50),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          '채널 참여 완료!',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A2E),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${_channelData?['channel_name'] ?? '채널'}에 참여되었습니다.\n이제 알림을 받을 수 있습니다!',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey, fontSize: 15),
-        ),
-        const SizedBox(height: 40),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              final channelId = _channelData?['channel_id']?.toString() ?? '';
-              if (channelId.isNotEmpty) {
-                // 현재 화면 닫고 채널 상세로 이동
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChannelDetailScreen(channelId: channelId, isOwner: false),
+          // ── 바디 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 라벨
+                const Text(
+                  '초대 코드 또는 초대 링크',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _text2,
+                    fontWeight: FontWeight.w600,
                   ),
-                );
-              } else {
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                ),
+                const SizedBox(height: 6),
+
+                // 입력창
+                TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 14, color: _text),
+                  decoration: InputDecoration(
+                    hintText: '코드 또는 URL 붙여넣기',
+                    hintStyle: const TextStyle(color: _text2, fontSize: 14),
+                    filled: true,
+                    fillColor: _bg3,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: _border, width: 1.5),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: _border, width: 1.5),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: _primary, width: 1.5),
+                    ),
+                    errorText: _errorMessage,
+                    errorStyle: const TextStyle(fontSize: 12),
+                  ),
+                  onSubmitted: (_) => _onJoin(),
+                ),
+
+                const SizedBox(height: 12),
+
+                // 참여하기 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _onJoin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primary.withOpacity(0.6),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            '참여하기',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // 취소 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _text2,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(color: _border),
+                    ),
+                    child: const Text(
+                      '취소',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+              ],
             ),
-            child: const Text('채널 보러가기', style: TextStyle(fontSize: 16)),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildErrorView() {
-    return Column(
-      children: [
-        const SizedBox(height: 60),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.error_outline, size: 80, color: Colors.red),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          '유효하지 않은 링크',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A2E),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _errorMessage ?? '초대 링크가 유효하지 않습니다',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey, fontSize: 14),
-        ),
-        const SizedBox(height: 40),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: () {
-              setState(() {
-                _errorMessage = null;
-                _channelData = null;
-              });
-            },
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF6C63FF)),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              '다시 시도',
-              style: TextStyle(color: Color(0xFF6C63FF), fontSize: 16),
-            ),
-          ),
-        ),
-      ],
-    );
+// ── 기존 코드 호환용 (Navigator.push 방식으로 호출하는 곳 대응) ──
+class JoinChannelScreen extends StatelessWidget {
+  final String? inviteToken;
+  const JoinChannelScreen({super.key, this.inviteToken});
+
+  @override
+  Widget build(BuildContext context) {
+    // 화면이 빌드되자마자 바텀시트로 전환 후 이전 화면으로 복귀
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.pop(context);
+      showJoinChannelSheet(context, inviteToken: inviteToken);
+    });
+    return const SizedBox.shrink();
   }
 }
