@@ -354,7 +354,7 @@ class _ManualEmailForm extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════
-//  Google G 아이콘 Painter
+//  Google G 아이콘 Painter (미사용 - google_logo.png로 대체됨)
 // ══════════════════════════════════════════════════
 class _GIconPainter extends CustomPainter {
   @override
