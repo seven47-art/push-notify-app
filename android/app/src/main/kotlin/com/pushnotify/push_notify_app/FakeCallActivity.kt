@@ -352,9 +352,8 @@ class FakeCallActivity : Activity() {
             }
         }
 
-        // 프로필 이미지 (기본: 링고 아이콘)
+        // 프로필 이미지 (기본: 빈 다크 원형 → 채널이미지 로드 후 crossfade)
         profileIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ringo_icon)
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL

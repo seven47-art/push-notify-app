@@ -343,7 +343,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // 프로필 이미지 (100dp, 얇은 테두리)
+                    // 프로필 이미지 (100dp, 빈 다크 원형 — 채널이미지 없을 때)
                     Container(
                       width: 100,
                       height: 100,
@@ -353,16 +353,6 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                         border: Border.all(
                           color: const Color(0xFF444444),
                           width: 1,
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Image.asset(
-                        'assets/images/ringo_icon.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.notifications_active,
-                          color: Colors.white70,
-                          size: 40,
                         ),
                       ),
                     ),
