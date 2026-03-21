@@ -30,11 +30,11 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * FakeCallActivity v2.0
- * 카카오톡 영상통화 수신 스타일 UI
- * - 2톤 배경: 상단 다크카드(#222236) / 하단 블랙(#111118)
+ * FakeCallActivity v3.0
+ * 카카오톡 전화 수신 스타일 UI (정밀 매칭)
+ * - 2톤 배경: 상단 다크카드(#1A1A2E) / 하단 블랙(#0D0D12)
  * - 프로필: 큰 원형 이미지 (140dp), 로드 전 링고 아이콘 + 로드 후 crossfade
- * - 하단: 거절(빨강) / 수락(초록) Material 아이콘 버튼
+ * - 하단: 거절(빨강 72dp) / 수락(초록 72dp) 채움형 전화 아이콘
  */
 class FakeCallActivity : Activity() {
 
@@ -257,10 +257,10 @@ class FakeCallActivity : Activity() {
     // UI 구성 (카카오톡 영상통화 수신 스타일)
     // ─────────────────────────────────────────────────────────────────────
     private fun buildUi() {
-        val bgDark    = Color.parseColor("#111118")
-        val bgCard    = Color.parseColor("#1E1E30")
+        val bgDark    = Color.parseColor("#0D0D12")
+        val bgCard    = Color.parseColor("#1A1A2E")
         val textWhite = Color.WHITE
-        val textGray  = Color.parseColor("#9A9AB0")
+        val textGray  = Color.parseColor("#8E8EA0")
         val accentRed   = Color.parseColor("#FF3B30")
         val accentGreen = Color.parseColor("#34C759")
 
@@ -281,33 +281,33 @@ class FakeCallActivity : Activity() {
                 setColor(bgCard)
                 cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(24f), dp(24f), dp(24f), dp(24f))
             }
-            setPadding(dp(24).toInt(), dp(56).toInt(), dp(24).toInt(), dp(40).toInt())
+            setPadding(dp(24).toInt(), dp(60).toInt(), dp(24).toInt(), dp(44).toInt())
         }
 
         // 채널명 (큰 볼드)
         topCard.addView(TextView(this).apply {
             text = channelName
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
             setTextColor(textWhite)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(6).toInt())
+            setPadding(0, 0, 0, dp(4).toInt())
         })
 
-        // "연결 중..." 상태
+        // "전화 수신 중..." 상태
         topCard.addView(TextView(this).apply {
             text = "전화 수신 중..."
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             setTextColor(textGray)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(8).toInt())
+            setPadding(0, 0, 0, dp(6).toInt())
         })
 
         // 연결 중 점 애니메이션 (● ● ●)
         val dotsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(28).toInt())
+            setPadding(0, 0, 0, dp(32).toInt())
         }
         val dotColors = listOf(
             Color.parseColor("#FFD60A"),
@@ -423,7 +423,7 @@ class FakeCallActivity : Activity() {
 
         // 간격
         btnLayout.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(60).toInt(), 1)
+            layoutParams = LinearLayout.LayoutParams(dp(80).toInt(), 1)
         })
 
         // 수락 버튼
@@ -434,22 +434,22 @@ class FakeCallActivity : Activity() {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(70).toInt()
+            bottomMargin = dp(80).toInt()
         }
         root.addView(btnLayout, btnParams)
 
         setContentView(root)
     }
 
-    // ── 액션 버튼 생성 (카카오 스타일 원형) ──
+    // ── 액션 버튼 생성 (카카오 스타일 원형 72dp) ──
     private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setOnClickListener { onClick() }
 
-            // 원형 버튼 (64dp)
-            val btnSize = dp(64).toInt()
+            // 원형 버튼 (72dp - 카카오톡 크기 매칭)
+            val btnSize = dp(72).toInt()
             val circle = FrameLayout(this@FakeCallActivity).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -458,7 +458,7 @@ class FakeCallActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
             }
 
-            // 전화 아이콘 (Canvas로 깔끔하게)
+            // 전화 아이콘 (채움형)
             val iconView = ImageView(this@FakeCallActivity).apply {
                 setImageDrawable(if (isDecline) createDeclineIcon() else createAcceptIcon())
                 scaleType = ImageView.ScaleType.CENTER
@@ -473,9 +473,9 @@ class FakeCallActivity : Activity() {
             val label = TextView(this@FakeCallActivity).apply {
                 text = if (isDecline) "거절" else "수락"
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                setTextColor(Color.parseColor("#9A9AB0"))
+                setTextColor(Color.parseColor("#8E8EA0"))
                 gravity = Gravity.CENTER
-                setPadding(0, dp(10).toInt(), 0, 0)
+                setPadding(0, dp(12).toInt(), 0, 0)
             }
 
             addView(circle)
@@ -483,36 +483,53 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    // ── 거절 아이콘 (수평 전화기, 135도 회전) ──
+    // ── 거절 아이콘 (채움형 전화기, 135도 회전 - 카카오톡 스타일) ──
     private fun createDeclineIcon(): Drawable {
         return object : Drawable() {
             override fun draw(canvas: Canvas) {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.WHITE
-                    style = Paint.Style.STROKE
-                    strokeWidth = bounds.width() * 0.055f
-                    strokeCap = Paint.Cap.ROUND
-                    strokeJoin = Paint.Join.ROUND
-                }
                 val b = bounds
                 val cx = b.exactCenterX()
                 val cy = b.exactCenterY()
-                val s = b.width() * 0.18f
+                val s = b.width() * 0.16f
 
                 canvas.save()
                 canvas.rotate(135f, cx, cy)
-                val path = Path().apply {
-                    // 수화기 왼쪽 부분
-                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
-                    cubicTo(cx - s * 1.6f, cy - s * 1.6f, cx - s * 0.5f, cy - s * 1.8f, cx, cy - s * 1.4f)
-                    // 수화기 오른쪽 부분
-                    moveTo(cx, cy - s * 1.4f)
-                    cubicTo(cx + s * 0.5f, cy - s * 1.8f, cx + s * 1.6f, cy - s * 1.6f, cx + s * 1.6f, cy - s * 0.2f)
-                    // 수화기 몸체 (아래쪽 곡선)
-                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
-                    cubicTo(cx - s * 1.2f, cy + s * 0.6f, cx + s * 1.2f, cy + s * 0.6f, cx + s * 1.6f, cy - s * 0.2f)
+
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    style = Paint.Style.FILL
                 }
-                canvas.drawPath(path, paint)
+
+                // 수화기 왼쪽 이어피스
+                val leftEar = Path().apply {
+                    moveTo(cx - s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx - s * 1.7f, cy - s * 0.6f, cx - s * 1.5f, cy - s * 1.5f, cx - s * 0.7f, cy - s * 1.6f)
+                    lineTo(cx - s * 0.3f, cy - s * 1.3f)
+                    cubicTo(cx - s * 0.8f, cy - s * 1.1f, cx - s * 1.0f, cy - s * 0.4f, cx - s * 0.8f, cy + s * 0.2f)
+                    close()
+                }
+                canvas.drawPath(leftEar, paint)
+
+                // 수화기 오른쪽 이어피스
+                val rightEar = Path().apply {
+                    moveTo(cx + s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx + s * 1.7f, cy - s * 0.6f, cx + s * 1.5f, cy - s * 1.5f, cx + s * 0.7f, cy - s * 1.6f)
+                    lineTo(cx + s * 0.3f, cy - s * 1.3f)
+                    cubicTo(cx + s * 0.8f, cy - s * 1.1f, cx + s * 1.0f, cy - s * 0.4f, cx + s * 0.8f, cy + s * 0.2f)
+                    close()
+                }
+                canvas.drawPath(rightEar, paint)
+
+                // 수화기 몸체 (아래쪽 커브)
+                val body = Path().apply {
+                    moveTo(cx - s * 0.9f, cy + s * 0.1f)
+                    cubicTo(cx - s * 0.6f, cy + s * 0.8f, cx + s * 0.6f, cy + s * 0.8f, cx + s * 0.9f, cy + s * 0.1f)
+                    lineTo(cx + s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx + s * 1.1f, cy + s * 1.2f, cx - s * 1.1f, cy + s * 1.2f, cx - s * 1.5f, cy + s * 0.1f)
+                    close()
+                }
+                canvas.drawPath(body, paint)
+
                 canvas.restore()
             }
             override fun setAlpha(alpha: Int) {}
@@ -522,34 +539,49 @@ class FakeCallActivity : Activity() {
         }
     }
 
-    // ── 수락 아이콘 (전화기, 정방향) ──
+    // ── 수락 아이콘 (채움형 전화기, 정방향 - 카카오톡 스타일) ──
     private fun createAcceptIcon(): Drawable {
         return object : Drawable() {
             override fun draw(canvas: Canvas) {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.WHITE
-                    style = Paint.Style.STROKE
-                    strokeWidth = bounds.width() * 0.055f
-                    strokeCap = Paint.Cap.ROUND
-                    strokeJoin = Paint.Join.ROUND
-                }
                 val b = bounds
                 val cx = b.exactCenterX()
                 val cy = b.exactCenterY()
-                val s = b.width() * 0.18f
+                val s = b.width() * 0.16f
 
-                val path = Path().apply {
-                    // 수화기 왼쪽 부분
-                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
-                    cubicTo(cx - s * 1.6f, cy - s * 1.6f, cx - s * 0.5f, cy - s * 1.8f, cx, cy - s * 1.4f)
-                    // 수화기 오른쪽 부분
-                    moveTo(cx, cy - s * 1.4f)
-                    cubicTo(cx + s * 0.5f, cy - s * 1.8f, cx + s * 1.6f, cy - s * 1.6f, cx + s * 1.6f, cy - s * 0.2f)
-                    // 수화기 몸체 (아래쪽 곡선)
-                    moveTo(cx - s * 1.6f, cy - s * 0.2f)
-                    cubicTo(cx - s * 1.2f, cy + s * 0.6f, cx + s * 1.2f, cy + s * 0.6f, cx + s * 1.6f, cy - s * 0.2f)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    style = Paint.Style.FILL
                 }
-                canvas.drawPath(path, paint)
+
+                // 수화기 왼쪽 이어피스
+                val leftEar = Path().apply {
+                    moveTo(cx - s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx - s * 1.7f, cy - s * 0.6f, cx - s * 1.5f, cy - s * 1.5f, cx - s * 0.7f, cy - s * 1.6f)
+                    lineTo(cx - s * 0.3f, cy - s * 1.3f)
+                    cubicTo(cx - s * 0.8f, cy - s * 1.1f, cx - s * 1.0f, cy - s * 0.4f, cx - s * 0.8f, cy + s * 0.2f)
+                    close()
+                }
+                canvas.drawPath(leftEar, paint)
+
+                // 수화기 오른쪽 이어피스
+                val rightEar = Path().apply {
+                    moveTo(cx + s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx + s * 1.7f, cy - s * 0.6f, cx + s * 1.5f, cy - s * 1.5f, cx + s * 0.7f, cy - s * 1.6f)
+                    lineTo(cx + s * 0.3f, cy - s * 1.3f)
+                    cubicTo(cx + s * 0.8f, cy - s * 1.1f, cx + s * 1.0f, cy - s * 0.4f, cx + s * 0.8f, cy + s * 0.2f)
+                    close()
+                }
+                canvas.drawPath(rightEar, paint)
+
+                // 수화기 몸체 (아래쪽 커브)
+                val body = Path().apply {
+                    moveTo(cx - s * 0.9f, cy + s * 0.1f)
+                    cubicTo(cx - s * 0.6f, cy + s * 0.8f, cx + s * 0.6f, cy + s * 0.8f, cx + s * 0.9f, cy + s * 0.1f)
+                    lineTo(cx + s * 1.5f, cy + s * 0.1f)
+                    cubicTo(cx + s * 1.1f, cy + s * 1.2f, cx - s * 1.1f, cy + s * 1.2f, cx - s * 1.5f, cy + s * 0.1f)
+                    close()
+                }
+                canvas.drawPath(body, paint)
             }
             override fun setAlpha(alpha: Int) {}
             override fun setColorFilter(cf: ColorFilter?) {}

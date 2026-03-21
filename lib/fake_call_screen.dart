@@ -1,8 +1,8 @@
-// lib/fake_call_screen.dart  v17
-// 카카오톡 영상통화 수신 스타일 UI
-// - 2톤 배경: 상단 다크카드 / 하단 블랙
-// - 프로필: 큰 원형 아이콘 + 은은한 glow 링
-// - 하단: 거절(빨강) / 수락(초록) 깔끔한 원형 버튼
+// lib/fake_call_screen.dart  v18
+// 카카오톡 전화 수신 스타일 UI (정밀 매칭 v3.0)
+// - 2톤 배경: 상단 다크카드(#1A1A2E) / 하단 블랙(#0D0D12)
+// - 프로필: 큰 원형 아이콘 (140dp) + 은은한 glow 링
+// - 하단: 거절(빨강 72dp) / 수락(초록 72dp) 채움형 전화 아이콘
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -272,10 +272,10 @@ class _FakeCallScreenState extends State<FakeCallScreen>
   // ── UI ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    const bgDark    = Color(0xFF111118);
-    const bgCard    = Color(0xFF1E1E30);
+    const bgDark    = Color(0xFF0D0D12);
+    const bgCard    = Color(0xFF1A1A2E);
     const textWhite = Colors.white;
-    const textGray  = Color(0xFF9A9AB0);
+    const textGray  = Color(0xFF8E8EA0);
     const accentRed   = Color(0xFFFF3B30);
     const accentGreen = Color(0xFF34C759);
 
@@ -296,7 +296,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 40, 24, 36),
+                padding: const EdgeInsets.fromLTRB(24, 44, 24, 40),
                 child: Column(
                   children: [
                     // 채널명
@@ -304,7 +304,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                       widget.channelName,
                       style: const TextStyle(
                         color: textWhite,
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
@@ -411,7 +411,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
           // 수락/거절 버튼
           Padding(
-            padding: const EdgeInsets.only(bottom: 70),
+            padding: const EdgeInsets.only(bottom: 80),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -422,7 +422,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                   label: '거절',
                   onTap: _decline,
                 ),
-                const SizedBox(width: 60),
+                const SizedBox(width: 80),
                 // 수락
                 _isAnswered
                     ? _buildLoadingButton()
@@ -452,26 +452,26 @@ class _FakeCallScreenState extends State<FakeCallScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 64,
-            height: 64,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.35),
-                  blurRadius: 16,
+                  color: color.withOpacity(0.3),
+                  blurRadius: 20,
                   spreadRadius: 2,
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 30),
+            child: Icon(icon, color: Colors.white, size: 34),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF9A9AB0),
+              color: Color(0xFF8E8EA0),
               fontSize: 13,
             ),
           ),
@@ -485,16 +485,16 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 64,
-          height: 64,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: const Color(0xFF34C759).withOpacity(0.5),
           ),
           child: const Center(
             child: SizedBox(
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
                 valueColor: AlwaysStoppedAnimation(Colors.white),
@@ -502,10 +502,10 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         const Text(
           '수락',
-          style: TextStyle(color: Color(0xFF9A9AB0), fontSize: 13),
+          style: TextStyle(color: Color(0xFF8E8EA0), fontSize: 13),
         ),
       ],
     );
