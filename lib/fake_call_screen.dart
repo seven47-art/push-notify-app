@@ -446,7 +446,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                 GestureDetector(
                   onTap: _decline,
                   child: Image.asset(
-                    'assets/images/ic_call_decline.png',
+                    'assets/images/ic_btn_decline.png',
                     width: 68, height: 68,
                   ),
                 ),
@@ -457,7 +457,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                     : GestureDetector(
                         onTap: _answer,
                         child: Image.asset(
-                          'assets/images/ic_call_accept.png',
+                          'assets/images/ic_btn_accept.png',
                           width: 68, height: 68,
                         ),
                       ),

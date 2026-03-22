@@ -460,8 +460,8 @@ class FakeCallActivity : Activity() {
             // PNG 이미지를 버튼 전체에 표시 (이미지 자체에 원형 배경 포함)
             val iconView = ImageView(this@FakeCallActivity).apply {
                 setImageResource(
-                    if (isDecline) R.drawable.ic_call_decline
-                    else R.drawable.ic_call_accept
+                    if (isDecline) R.drawable.ic_btn_decline
+                    else R.drawable.ic_btn_accept
                 )
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 layoutParams = FrameLayout.LayoutParams(
