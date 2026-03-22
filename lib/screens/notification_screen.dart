@@ -91,7 +91,7 @@ class NotificationScreenState extends State<NotificationScreen> {
   final Map<String, bool>   _channelHasMore = {};
   final Map<String, int>    _channelOffset  = {};
   final Set<String>         _loadingChannels = {};  // 중복 요청 방지
-  bool _channelFilterLoading = false;  // 채널 필터 첫 로딩 표시용
+
 
   // 선택 모드
   bool _selectMode         = false;
@@ -178,7 +178,6 @@ class NotificationScreenState extends State<NotificationScreen> {
       _channelHasMore.clear();
       _channelOffset.clear();
       _loadingChannels.clear();
-      _channelFilterLoading = false;
 
       if (_items.isEmpty) {
         setState(() {
@@ -334,9 +333,9 @@ class NotificationScreenState extends State<NotificationScreen> {
   Future<void> _loadChannelPage(String channelId) async {
     if (_loadingChannels.contains(channelId)) return; // 중복 방지
     _loadingChannels.add(channelId);
-    // preview 데이터가 없을 때만 로딩 표시
+    // preview 없으면 스피너 표시를 위해 setState
     if (!_channelCache.containsKey(channelId) || _channelCache[channelId]!.isEmpty) {
-      setState(() => _channelFilterLoading = true);
+      setState(() {});
     }
     try {
       final result = await _fetchPage(offset: 0, channelId: channelId);
@@ -346,7 +345,6 @@ class NotificationScreenState extends State<NotificationScreen> {
           _channelCache[channelId]   = result['data'] as List<Map<String, dynamic>>;
           _channelHasMore[channelId] = result['hasMore'] as bool;
           _channelOffset[channelId]  = (result['data'] as List).length;
-          _channelFilterLoading = false;
         });
       } else {
         // 서버 실패 시 preview 데이터가 있으면 유지
@@ -357,7 +355,6 @@ class NotificationScreenState extends State<NotificationScreen> {
             _channelOffset[channelId]  = 0;
           });
         }
-        setState(() => _channelFilterLoading = false);
       }
     } catch (_) {
       if (mounted) {
@@ -367,10 +364,10 @@ class NotificationScreenState extends State<NotificationScreen> {
             _channelHasMore[channelId] = false;
           });
         }
-        setState(() => _channelFilterLoading = false);
       }
     } finally {
       _loadingChannels.remove(channelId);
+      if (mounted) setState(() {});  // 스피너 → 데이터/빈 화면 전환
     }
   }
 
@@ -559,11 +556,23 @@ class NotificationScreenState extends State<NotificationScreen> {
     return _channelHasMore[chId] ?? false;
   }
 
-  // 현재 채널 데이터 로딩 중 여부
+  // 채널 필터 로딩 중 (preview 없고 서버 호출 중)
   bool get _isChannelLoading {
     if (_selectedChannel == '전체') return false;
     final chId = _filterChannelId;
-    return chId.isNotEmpty && !_channelCache.containsKey(chId) && _channelFilterLoading;
+    if (chId.isEmpty) return false;
+    return _loadingChannels.contains(chId);
+  }
+
+  // 채널 데이터가 한 건도 없는 상태 (서버 응답 완료 후 진짜 비어있는 경우)
+  bool get _isChannelEmpty {
+    if (_selectedChannel == '전체') return false;
+    final chId = _filterChannelId;
+    if (chId.isEmpty) return false;
+    // 로딩 중이면 아직 비어있는지 판단 불가
+    if (_loadingChannels.contains(chId)) return false;
+    // 캐시에 데이터가 있으면 비어있지 않음
+    return _channelCache.containsKey(chId) && _channelCache[chId]!.isEmpty;
   }
 
   @override
@@ -675,7 +684,7 @@ class NotificationScreenState extends State<NotificationScreen> {
 
           // ── 목록 ──
           Expanded(
-            child: (_loading || _isChannelLoading)
+            child: _loading
                 ? ListView.builder(
                     itemCount: 8,
                     itemBuilder: (_, __) => const _NotifSkeletonTile(),
@@ -696,7 +705,23 @@ class NotificationScreenState extends State<NotificationScreen> {
                           ],
                         ),
                       )
-                    : _displayed.isEmpty
+                    // 채널 필터: 데이터 없고 로딩 중 → 중앙 스피너
+                    : (_displayed.isEmpty && _isChannelLoading)
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: 40),
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  color: _primary,
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          )
+                    // 채널 필터: 서버 응답 완료 후 진짜 비어있음
+                    : (_displayed.isEmpty && (_selectedChannel == '전체' || _isChannelEmpty))
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -714,6 +739,21 @@ class NotificationScreenState extends State<NotificationScreen> {
                                   style: const TextStyle(color: _text2),
                                 ),
                               ],
+                            ),
+                          )
+                    // 채널 필터: 아직 판단 불가 (캐시도 없고 로딩도 아닌 과도기) → 스피너
+                    : _displayed.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: 40),
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  color: _primary,
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
                             ),
                           )
                         : RefreshIndicator(
