@@ -6,6 +6,7 @@
 // - 배지: pill + 얇은 테두리
 // - 버튼: 68dp, Material Icons call/call_end, 라벨 없음
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -438,7 +439,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
           // 수락/거절 버튼
           Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
+            padding: EdgeInsets.only(bottom: math.max(MediaQuery.of(context).padding.bottom, 32) + 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

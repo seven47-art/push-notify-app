@@ -94,7 +94,12 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             ),
         ],
       ),
-      body: SafeArea(child: _buildBody()),
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom > 0 ? 0 : 16),
+          child: _buildBody(),
+        ),
+      ),
     );
   }
 
