@@ -150,7 +150,7 @@ class NotificationScreenState extends State<NotificationScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      if (!_loadingMore && _hasMore) _loadMore();
+      if (!_loadingMore && _hasMore && _selectedChannel == '전체') _loadMore();
     }
   }
 
@@ -279,6 +279,26 @@ class NotificationScreenState extends State<NotificationScreen> {
   void _onChannelFilter(String name) {
     if (_selectedChannel == name) return;
     setState(() => _selectedChannel = name);
+    // 필터 결과가 비어있고 서버에 더 있으면 백그라운드 추가 로드
+    if (name != '전체' && _hasMore) {
+      _ensureFilteredData();
+    }
+  }
+
+  // ── 필터 결과 부족 시 백그라운드 추가 로드 ──────────────
+  Future<void> _ensureFilteredData() async {
+    // _displayed가 비어있거나 너무 적으면 서버에서 추가 페이지 가져오기
+    while (mounted && _hasMore && _displayed.isEmpty) {
+      final result = await _fetchPage(offset: _offset);
+      if (!mounted || result == null) break;
+      final newData = result['data'] as List<Map<String, dynamic>>;
+      if (newData.isEmpty) break;
+      setState(() {
+        _items.addAll(newData);
+        _hasMore = result['hasMore'] as bool;
+        _offset  = _items.length;
+      });
+    }
   }
 
   // ── 날짜 포맷 ──────────────────────────────────────
@@ -415,14 +435,26 @@ class NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  List<Map<String, dynamic>> get _displayed {
-    if (_selectedChannel == '전체') return _items;
-    final selectedId = _channels
+  // 현재 필터에 해당하는 channel_id (캐시)
+  String get _filterChannelId {
+    if (_selectedChannel == '전체') return '';
+    return _channels
         .where((c) => c['name'] == _selectedChannel)
         .map((c) => c['id']?.toString() ?? '')
         .firstOrNull ?? '';
-    if (selectedId.isEmpty) return _items;
-    return _items.where((item) => item['channel_id']?.toString() == selectedId).toList();
+  }
+
+  List<Map<String, dynamic>> get _displayed {
+    final fid = _filterChannelId;
+    if (fid.isEmpty) return _items;
+    return _items.where((item) => item['channel_id']?.toString() == fid).toList();
+  }
+
+  // 필터 활성 중에는 _hasMore를 그대로 쓰면 무한 스피너 → 필터 기준으로 판단
+  bool get _showLoadMore {
+    if (_selectedChannel == '전체') return _hasMore;
+    // 필터 중: 서버에 더 있고 + 현재 백그라운드 로딩 중이면 표시
+    return _hasMore && _loadingMore;
   }
 
   @override
@@ -580,7 +612,7 @@ class NotificationScreenState extends State<NotificationScreen> {
                             onRefresh: () => _load(refresh: true),
                             child: ListView.builder(
                               controller: _scrollController,
-                              itemCount: _displayed.length + (_hasMore ? 1 : 0),
+                              itemCount: _displayed.length + (_showLoadMore ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == _displayed.length) {
                                   return const Padding(
