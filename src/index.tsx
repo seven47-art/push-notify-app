@@ -77,9 +77,13 @@ app.get('/download', async (c) => {
     ).first() as { value: string } | null
     if (row) {
       const info = JSON.parse(row.value)
-      apkVersion = info.version || apkVersion
-      apkUrl = info.url || apkUrl
-      apkLabel = 'RinGo-' + apkVersion
+      const dbUrl = info.url || ''
+      // Firebase Storage URL은 권한 만료로 사용 불가 → GitHub Releases 기본값 유지
+      if (dbUrl && !dbUrl.includes('firebasestorage')) {
+        apkVersion = info.version || apkVersion
+        apkUrl = dbUrl
+        apkLabel = 'RinGo-' + apkVersion
+      }
     }
   } catch {}
 
