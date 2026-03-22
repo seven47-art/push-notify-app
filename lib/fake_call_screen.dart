@@ -377,7 +377,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // 프로필 이미지 (100dp + 전화 흔들림 애니메이션)
+                    // 프로필 이미지 (130dp + 전화 흔들림 애니메이션)
                     AnimatedBuilder(
                       animation: _shakeAnimation,
                       builder: (context, child) {
@@ -387,8 +387,8 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                         );
                       },
                       child: Container(
-                        width: 100,
-                        height: 100,
+                        width: 130,
+                        height: 130,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: const Color(0xFF333333),

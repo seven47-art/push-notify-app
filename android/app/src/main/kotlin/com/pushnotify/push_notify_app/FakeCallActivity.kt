@@ -344,8 +344,8 @@ class FakeCallActivity : Activity() {
         // 점 애니메이션 시작
         startDotAnimation(dotViews)
 
-        // ── 프로필 이미지 (100dp 원형 + 전화 흔들림 애니메이션) ──
-        val profileSize = dp(100).toInt()
+        // ── 프로필 이미지 (130dp 원형 + 전화 흔들림 애니메이션) ──
+        val profileSize = dp(130).toInt()
         val profileContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(profileSize + dp(4).toInt(), profileSize + dp(4).toInt()).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
