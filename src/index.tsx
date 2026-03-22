@@ -66,10 +66,10 @@ app.get('/api/health', (c) => {
 
 // APK 다운로드 페이지
 app.get('/download', async (c) => {
-  // DB에서 최신 APK 정보 읽기
-  let apkVersion = 'v2.3.19'
-  let apkUrl = ''
-  let apkLabel = 'RinGo-v2.3.19'
+  // DB에서 최신 APK 정보 읽기, 없으면 GitHub Releases 최신 버전 사용
+  let apkVersion = 'v3.7.92'
+  let apkUrl = 'https://github.com/seven47-art/push-notify-app/releases/latest/download/RinGo-v3.7.92.apk'
+  let apkLabel = 'RinGo-v3.7.92'
 
   try {
     const row = await c.env.DB.prepare(
@@ -78,7 +78,7 @@ app.get('/download', async (c) => {
     if (row) {
       const info = JSON.parse(row.value)
       apkVersion = info.version || apkVersion
-      apkUrl = info.url || ''
+      apkUrl = info.url || apkUrl
       apkLabel = 'RinGo-' + apkVersion
     }
   } catch {}
@@ -1539,11 +1539,11 @@ app.get('/_legacy_dashboard', (c) => {
 
 // =============================================
 // [BLOCKED] WebView 정리 예정 – /app 라우트 차단
-// 모바일 웹 앱 - Flutter 앱과 동일한 UI/UX
+// 기존 WebView 앱 사용자 → 다운로드 페이지로 리다이렉트
 // =============================================
-// app.get('/app', (c) => {
-//   return c.html(APP_HTML)
-// })
+app.get('/app', (c) => {
+  return c.redirect('/download')
+})
 
 // 관리자 페이지
 app.route('/admin', admin)
