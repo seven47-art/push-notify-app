@@ -94,7 +94,7 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             ),
         ],
       ),
-      body: _buildBody(),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
