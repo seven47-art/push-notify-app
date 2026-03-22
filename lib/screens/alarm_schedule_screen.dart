@@ -306,6 +306,17 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     return '${dt.month}월 ${dt.day}일 · $timeStr';
   }
 
+  /// YouTube URL 형식 검증
+  bool _isValidYoutubeUrl(String url) {
+    if (url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme) return false;
+    final host = uri.host.toLowerCase();
+    return host.contains('youtube.com') ||
+           host.contains('youtu.be') ||
+           host.contains('youtube-nocookie.com');
+  }
+
   Future<void> _submit() async {
     // 3개 제한 체크
     if (_alarms.length >= _maxAlarms) {
@@ -314,6 +325,11 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
     }
     if (_youtubeCtrl.text.isEmpty && _pickedFile == null) {
       showCenterToast(context, 'YouTube URL 또는 파일을 선택해주세요.');
+      return;
+    }
+    // YouTube URL 형식 검증
+    if (_youtubeCtrl.text.isNotEmpty && !_isValidYoutubeUrl(_youtubeCtrl.text)) {
+      showCenterToast(context, '올바른 YouTube URL을 입력해주세요.\n예: https://youtube.com/watch?v=... 또는 https://youtu.be/...');
       return;
     }
     // 파일 선택했지만 업로드가 아직 안 된 경우
