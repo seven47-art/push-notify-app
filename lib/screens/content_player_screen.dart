@@ -1,7 +1,7 @@
 // lib/screens/content_player_screen.dart
 // 알람 수신 후 콘텐츠 플레이어 화면
 // YouTube / 오디오 / 비디오 타입 처리
-// YouTube: url_launcher로 외부 앱 실행 (webview_flutter 제거됨)
+// YouTube: url_launcher로 외부 앱 실행
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
