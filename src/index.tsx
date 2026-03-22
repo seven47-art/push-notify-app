@@ -1,6 +1,7 @@
 // src/index.tsx
 import { Hono } from 'hono'
-import { APP_HTML } from './appHtml'
+// [BLOCKED] WebView 정리 예정 – appHtml import 차단
+// import { APP_HTML } from './appHtml'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { serveStatic } from 'hono/cloudflare-workers'
@@ -34,13 +35,14 @@ app.use('/api/*', cors({
 
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// [BLOCKED] WebView 정리 예정 – mobile-app.js 캐시 설정 차단
 // mobile-app.js는 캐시 없이 항상 최신 버전 서빙 (WebView 캐시 무력화)
-app.use('/static/mobile-app.js', async (c, next) => {
-  await next()
-  c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-  c.res.headers.set('Pragma', 'no-cache')
-  c.res.headers.set('Expires', '0')
-})
+// app.use('/static/mobile-app.js', async (c, next) => {
+//   await next()
+//   c.res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+//   c.res.headers.set('Pragma', 'no-cache')
+//   c.res.headers.set('Expires', '0')
+// })
 
 // API 라우터
 app.route('/api/channels', channels)
@@ -1536,11 +1538,12 @@ app.get('/_legacy_dashboard', (c) => {
 })
 
 // =============================================
+// [BLOCKED] WebView 정리 예정 – /app 라우트 차단
 // 모바일 웹 앱 - Flutter 앱과 동일한 UI/UX
 // =============================================
-app.get('/app', (c) => {
-  return c.html(APP_HTML)
-})
+// app.get('/app', (c) => {
+//   return c.html(APP_HTML)
+// })
 
 // 관리자 페이지
 app.route('/admin', admin)

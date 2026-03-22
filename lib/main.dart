@@ -7,7 +7,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+// [BLOCKED] WebView 정리 예정 – import 차단
+// import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -28,7 +29,8 @@ import 'screens/terms_screen.dart';
 import 'screens/main_screen.dart';
 
 // ── 서버 URL (config.dart에서 관리) ──────────────
-const String _appUrl  = kAppUrl;
+// [BLOCKED] WebView 정리 예정 – kAppUrl 차단
+// const String _appUrl  = kAppUrl;
 const String _baseUrl = kBaseUrl;
 
 // ── 전역 알림 플러그인 ────────────────────────────
@@ -161,7 +163,8 @@ class RinGoApp extends StatelessWidget {
         '/auth':        (_) => const AuthScreen(),
         '/permissions': (_) => const PermissionScreen(),
         '/terms':       (_) => const TermsScreen(),
-        '/main':        (_) => const WebViewScreen(),
+        // [BLOCKED] WebView 정리 예정 – /main 라우트 차단
+        // '/main':        (_) => const WebViewScreen(),
         '/native_main': (_) => const MainScreen(),
       },
     );
@@ -229,13 +232,10 @@ class _StartGateState extends State<_StartGate> {
 }
 
 // ═══════════════════════════════════════════════
-//  WebView 메인 화면 + 알람 폴링 + 가상통화 처리
+//  [BLOCKED] WebView 메인 화면 – 전체 차단 (삭제 예정)
+//  복원 태그: v3.7.91-웹뷰소스-차단전
 // ═══════════════════════════════════════════════
-class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key});
-  @override
-  State<WebViewScreen> createState() => _WebViewScreenState();
-}
+/*
 
 class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserver {
   late final WebViewController _controller;
@@ -1341,6 +1341,7 @@ class _WebViewScreenState extends State<WebViewScreen> with WidgetsBindingObserv
     );
   }
 }
+*/ // [BLOCKED] WebViewScreen 클래스 끝
 
 // ── 앱 로고 위젯 ──────────────────────────────
 class _AppLogo extends StatelessWidget {
