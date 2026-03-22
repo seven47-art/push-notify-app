@@ -227,25 +227,30 @@ class _StartGateState extends State<_StartGate> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF000000),
+    return Scaffold(
+      backgroundColor: const Color(0xFF000000),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // RinGo 로고 텍스트
-            Text(
-              'RinGo',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+            // AuthScreen과 동일한 로고
+            ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: Image.asset(
+                'assets/images/ringo_icon.png',
+                width: 96, height: 96, fit: BoxFit.cover,
               ),
             ),
-            SizedBox(height: 32),
+            const SizedBox(height: 20),
+            const Text('RinGo',
+                style: TextStyle(color: Colors.white, fontSize: 30,
+                    fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const SizedBox(height: 6),
+            const Text('채널 알람 구독 서비스',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+            const SizedBox(height: 48),
             // 로딩 스피너
-            SizedBox(
+            const SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
