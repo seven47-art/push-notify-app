@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
+import '../widgets/invite_code_sheet.dart';
 import 'alarm_schedule_screen.dart';
 import 'main_screen.dart';
 
@@ -183,9 +184,22 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
               DateTime.tryParse(expiresAt.toString())?.isAfter(now) == true;
           if (isActive && notExpired) { active = inv as Map<String, dynamic>; break; }
         }
-        if (active != null) {
-          final token = active['invite_token']?.toString() ?? '';
-          if (token.isNotEmpty) inviteLink = 'https://ringo.run/join/$token';
+
+        String? inviteToken = active?['invite_token']?.toString();
+        // 활성 토큰이 없으면 자동 생성
+        if (inviteToken == null || inviteToken.isEmpty) {
+          final prefs  = await SharedPreferences.getInstance();
+          final userId = prefs.getString('user_id') ?? '';
+          final crRes = await http.post(
+            Uri.parse('$kBaseUrl/api/invites'),
+            headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+            body: jsonEncode({'channel_id': widget.channelId, 'created_by': userId}),
+          ).timeout(const Duration(seconds: 10));
+          final crBody = jsonDecode(crRes.body) as Map<String, dynamic>;
+          inviteToken = crBody['data']?['invite_token']?.toString();
+        }
+        if (inviteToken != null && inviteToken.isNotEmpty) {
+          inviteLink = 'https://ringo.run/join/$inviteToken';
         }
       }
     } catch (_) {}
@@ -195,7 +209,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _InviteCodeSheet(channelName: name.toString(), inviteLink: inviteLink),
+      builder: (_) => InviteCodeSheet(channelName: name.toString(), inviteLink: inviteLink),
     );
   }
 
@@ -660,75 +674,6 @@ class _ActionBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: color, size: 24),
-      ),
-    );
-  }
-}
-
-// ── 초대 코드 바텀시트 ──────────────────────────────
-class _InviteCodeSheet extends StatelessWidget {
-  final String channelName;
-  final String inviteLink;
-  const _InviteCodeSheet({required this.channelName, required this.inviteLink});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(width: 40, height: 4, decoration: BoxDecoration(
-              color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-          ),
-          const SizedBox(height: 16),
-          const Text('초대 코드', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text)),
-          const SizedBox(height: 6),
-          Text('"$channelName" 채널의 초대 링크', style: const TextStyle(fontSize: 14, color: _text2)),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _border),
-            ),
-            child: Text(inviteLink, style: const TextStyle(fontSize: 13, color: _primary)),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: inviteLink));
-                showCenterToast(context, '링크가 복사되었습니다.');
-              },
-              icon: const Icon(Icons.copy, size: 18),
-              label: const Text('복사'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _teal,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('닫기', style: TextStyle(color: _text2)),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
+import '../widgets/invite_code_sheet.dart';
 import 'alarm_schedule_screen.dart';
 import 'channel_detail_screen.dart';
 import 'create_channel_screen.dart';
@@ -349,7 +350,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
         context: context,
         backgroundColor: Colors.transparent,
         isScrollControlled: true,
-        builder: (_) => _InviteCodeSheet(channelName: channelName, inviteLink: inviteLink),
+        builder: (_) => InviteCodeSheet(channelName: channelName, inviteLink: inviteLink),
       );
     } catch (e) {
       if (mounted) {
@@ -810,82 +811,6 @@ class _ChannelPopupMenu extends StatelessWidget {
             ),
           )),
           const SizedBox(height: 6),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 초대코드 바텀시트 ────────────────────────────────────────────────────────
-class _InviteCodeSheet extends StatelessWidget {
-  final String channelName;
-  final String inviteLink;
-  const _InviteCodeSheet({required this.channelName, required this.inviteLink});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(child: Container(width: 40, height: 4,
-            decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 16),
-          Text('$channelName · 초대 링크',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF222222))),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFEEEEEE)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(inviteLink,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF6C63FF)),
-                    overflow: TextOverflow.ellipsis),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: inviteLink));
-                    showCenterToast(context, '초대 링크가 복사되었습니다.');
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6C63FF),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text('복사',
-                      style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                side: const BorderSide(color: Color(0xFFEEEEEE)),
-              ),
-              child: const Text('닫기', style: TextStyle(color: Color(0xFF888888))),
-            ),
-          ),
         ],
       ),
     );
