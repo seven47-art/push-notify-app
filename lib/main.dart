@@ -226,9 +226,38 @@ class _StartGateState extends State<_StartGate> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      // 완전한 블랙 배경 – native splash와 동일색
-      const ColoredBox(color: Color(0xFF000000));
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF000000),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // RinGo 로고 텍스트
+            Text(
+              'RinGo',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            SizedBox(height: 32),
+            // 로딩 스피너
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Color(0xFF6C63FF),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════
