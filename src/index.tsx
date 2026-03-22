@@ -87,8 +87,10 @@ app.get('/download', async (c) => {
     }
   } catch {}
 
+  // WebView 내부에서는 파일 다운로드가 안 되므로 intent:// 로 외부 브라우저 실행
+  const intentUrl = apkUrl ? `intent://${apkUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;action=android.intent.action.VIEW;end` : ''
   const downloadBtn = apkUrl
-    ? `<a href="${apkUrl}" download class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
+    ? `<a href="${intentUrl}" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
     : `<button disabled class="block w-full bg-gray-700 text-gray-500 font-bold py-4 px-6 rounded-xl text-lg mb-4 cursor-not-allowed">준비 중...</button>`
 
   return c.html(`<!DOCTYPE html>
