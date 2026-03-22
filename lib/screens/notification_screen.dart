@@ -237,15 +237,10 @@ class NotificationScreenState extends State<NotificationScreen> {
         ? '$kBaseUrl/api/alarms/inbox'
         : '$kBaseUrl/api/alarms/outbox';
 
-    final selectedChannelId = _channels
-        .where((c) => c['name'] == _selectedChannel)
-        .map((c) => c['id']?.toString() ?? '')
-        .firstOrNull ?? '';
-
+    // 항상 전체 데이터 요청 (필터링은 클라이언트에서 처리)
     final uri = Uri.parse(baseUrl).replace(queryParameters: {
       'limit':  '$_pageSize',
       'offset': '$offset',
-      if (selectedChannelId.isNotEmpty) 'channel_id': selectedChannelId,
     });
 
     final res = await http.get(
@@ -280,11 +275,10 @@ class NotificationScreenState extends State<NotificationScreen> {
     return {'data': items, 'channels': channels, 'hasMore': hasMore, 'total': total};
   }
 
-  // ── 채널 필터 변경 ──────────────────────────────────
+  // ── 채널 필터 변경 (클라이언트 측 필터링 – 서버 재호출 없음) ──
   void _onChannelFilter(String name) {
     if (_selectedChannel == name) return;
     setState(() => _selectedChannel = name);
-    _load(refresh: true);
   }
 
   // ── 날짜 포맷 ──────────────────────────────────────
@@ -421,7 +415,15 @@ class NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  List<Map<String, dynamic>> get _displayed => _items;
+  List<Map<String, dynamic>> get _displayed {
+    if (_selectedChannel == '전체') return _items;
+    final selectedId = _channels
+        .where((c) => c['name'] == _selectedChannel)
+        .map((c) => c['id']?.toString() ?? '')
+        .firstOrNull ?? '';
+    if (selectedId.isEmpty) return _items;
+    return _items.where((item) => item['channel_id']?.toString() == selectedId).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
