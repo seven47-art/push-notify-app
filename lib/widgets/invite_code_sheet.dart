@@ -26,10 +26,10 @@ class InviteCodeSheet extends StatelessWidget {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         // 카카오톡 미설치 시 시스템 공유로 폴백
-        await SharePlus.instance.share(ShareParams(text: text));
+        await Share.share(text);
       }
     } catch (_) {
-      await SharePlus.instance.share(ShareParams(text: text));
+      await Share.share(text);
     }
   }
 
@@ -60,7 +60,7 @@ class InviteCodeSheet extends StatelessWidget {
   /// 시스템 공유시트
   Future<void> _shareSystem() async {
     final text = '$channelName 채널에 초대합니다!\n$inviteLink';
-    await SharePlus.instance.share(ShareParams(text: text));
+    await Share.share(text);
   }
 
   @override
