@@ -313,16 +313,31 @@ class NotificationScreenState extends State<NotificationScreen> {
           .map((c) => c['id']?.toString() ?? '')
           .firstOrNull ?? '';
       if (chId.isNotEmpty && !_channelCache.containsKey(chId)) {
+        // ★ _items에서 선행 필터링 → 즉시 표시 (스켈레톤 방지)
+        final preview = _items
+            .where((item) => item['channel_id']?.toString() == chId)
+            .toList();
+        if (preview.isNotEmpty) {
+          setState(() {
+            _channelCache[chId] = preview;
+            _channelHasMore[chId] = true; // 서버에 더 있을 수 있으므로
+            _channelOffset[chId] = 0;     // 서버 응답으로 덮어쓸 예정
+          });
+        }
+        // 백그라운드로 서버에서 정확한 데이터 가져와서 교체
         _loadChannelPage(chId);
       }
     }
   }
 
-  // ── 채널별 첫 페이지 로드 ──────────────────────────
+  // ── 채널별 첫 페이지 로드 (백그라운드) ─────────────────
   Future<void> _loadChannelPage(String channelId) async {
     if (_loadingChannels.contains(channelId)) return; // 중복 방지
     _loadingChannels.add(channelId);
-    setState(() => _channelFilterLoading = true);
+    // preview 데이터가 없을 때만 로딩 표시
+    if (!_channelCache.containsKey(channelId) || _channelCache[channelId]!.isEmpty) {
+      setState(() => _channelFilterLoading = true);
+    }
     try {
       final result = await _fetchPage(offset: 0, channelId: channelId);
       if (!mounted) return;
@@ -334,20 +349,25 @@ class NotificationScreenState extends State<NotificationScreen> {
           _channelFilterLoading = false;
         });
       } else {
-        setState(() {
-          _channelCache[channelId]   = [];
-          _channelHasMore[channelId] = false;
-          _channelOffset[channelId]  = 0;
-          _channelFilterLoading = false;
-        });
+        // 서버 실패 시 preview 데이터가 있으면 유지
+        if (!(_channelCache.containsKey(channelId) && _channelCache[channelId]!.isNotEmpty)) {
+          setState(() {
+            _channelCache[channelId]   = [];
+            _channelHasMore[channelId] = false;
+            _channelOffset[channelId]  = 0;
+          });
+        }
+        setState(() => _channelFilterLoading = false);
       }
     } catch (_) {
       if (mounted) {
-        setState(() {
-          _channelCache[channelId]   = [];
-          _channelHasMore[channelId] = false;
-          _channelFilterLoading = false;
-        });
+        if (!(_channelCache.containsKey(channelId) && _channelCache[channelId]!.isNotEmpty)) {
+          setState(() {
+            _channelCache[channelId]   = [];
+            _channelHasMore[channelId] = false;
+          });
+        }
+        setState(() => _channelFilterLoading = false);
       }
     } finally {
       _loadingChannels.remove(channelId);
