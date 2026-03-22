@@ -765,12 +765,19 @@ alarms.post('/cleanup', async (c) => {
         const sa = JSON.parse(serviceAccountJson)
         const projectId = sa.project_id || c.env.FCM_PROJECT_ID
         const bucket = `${projectId}.firebasestorage.app`
-        const { results: oldFileAlarms } = await c.env.DB.prepare(
-          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
+        // alarm_logs에서 3일 초과 Firebase URL 수집
+        const { results: oldLogFiles } = await c.env.DB.prepare(
+          "SELECT DISTINCT msg_value FROM alarm_logs WHERE received_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
         ).all() as { results: any[] }
-        for (const row of oldFileAlarms) {
+        // alarm_schedules에서도 수집
+        const { results: oldSchedFiles } = await c.env.DB.prepare(
+          "SELECT DISTINCT msg_value FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours') AND msg_type IN ('audio','video','file') AND msg_value LIKE 'https://firebasestorage%'"
+        ).all() as { results: any[] }
+        // 중복 제거 후 삭제
+        const allUrls = [...new Set([...oldLogFiles, ...oldSchedFiles].map((r: any) => r.msg_value))]
+        for (const url of allUrls) {
           try {
-            const match = (row.msg_value as string).match(/\/o\/([^?]+)/)
+            const match = (url as string).match(/\/o\/([^?]+)/)
             if (match) {
               const filePath = decodeURIComponent(match[1])
               await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
@@ -783,12 +790,12 @@ alarms.post('/cleanup', async (c) => {
 
     // 3일 이전 alarm_logs 삭제
     const logsResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')"
     ).run()
 
     // 3일 이전 alarm_schedules 삭제 (triggered/cancelled/pending 모두 - 안전망)
     const schedulesResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled', 'pending')"
+      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours') AND status IN ('triggered', 'cancelled', 'pending')"
     ).run()
 
     return c.json({
@@ -894,10 +901,10 @@ alarms.get('/logs', async (c) => {
   try {
     // 3일 이전 데이터 즉시 삭제
     await c.env.DB.prepare(
-      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')"
     ).run()
     await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      "DELETE FROM alarm_schedules WHERE replace(substr(scheduled_at,1,19),'T',' ') < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours') AND status IN ('triggered', 'cancelled')"
     ).run()
 
     const limit  = Math.min(Number(c.req.query('limit')  || 200), 500)

@@ -1625,14 +1625,14 @@ app.post('/api/admin/cleanup', async (c) => {
         // alarm_logs에서 3일 초과 Firebase URL 수집
         const { results: oldFiles } = await c.env.DB.prepare(
           `SELECT DISTINCT msg_value FROM alarm_logs
-           WHERE received_at < datetime('now', '-3 days')
+           WHERE received_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')
              AND msg_type IN ('audio','video','file')
              AND msg_value LIKE 'https://firebasestorage%'`
         ).all() as { results: any[] }
         // alarm_schedules에서도 수집
         const { results: oldSchedFiles } = await c.env.DB.prepare(
           `SELECT DISTINCT msg_value FROM alarm_schedules
-           WHERE scheduled_at < datetime('now', '-3 days')
+           WHERE scheduled_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')
              AND status IN ('triggered','cancelled')
              AND msg_type IN ('audio','video','file')
              AND msg_value LIKE 'https://firebasestorage%'`
@@ -1656,11 +1656,11 @@ app.post('/api/admin/cleanup', async (c) => {
 
     // ── DB 삭제 ──
     const logsResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      "DELETE FROM alarm_logs WHERE received_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')"
     ).run()
 
     const schedulesResult = await c.env.DB.prepare(
-      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours') AND status IN ('triggered', 'cancelled')"
     ).run()
 
     console.log(`[Cleanup] ${now} - alarm_logs: ${logsResult.meta?.changes ?? 0}건, alarm_schedules: ${schedulesResult.meta?.changes ?? 0}건, firebase: ${firebaseDeleted}건 삭제`)
@@ -1684,22 +1684,66 @@ app.get('*', (c) => c.redirect('/'))
 
 // =============================================
 // Cloudflare Cron Trigger - 매일 KST 00:00 (UTC 15:00) 실행
-// alarm_logs 3일 초과분 자동 삭제
+// alarm_logs / alarm_schedules 3일 초과분 + Firebase Storage 파일 자동 삭제
 // =============================================
-const scheduled: ExportedHandlerScheduledHandler<{ DB: D1Database }> = async (event, env, ctx) => {
+const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (event, env, ctx) => {
   ctx.waitUntil((async () => {
     try {
-      // alarm_logs: 3일 초과 삭제
-      await env.DB.prepare(
-        "DELETE FROM alarm_logs WHERE received_at < datetime('now', '-3 days')"
+      const KST_3DAYS_AGO = "datetime('now', '+9 hours', 'start of day', '-3 days', '-9 hours')"
+      let firebaseDeleted = 0
+
+      // ── 1) Firebase Storage 파일 삭제 (DB 삭제 전에 URL 수집) ──
+      try {
+        const serviceAccountJson = env.FCM_SERVICE_ACCOUNT_JSON || ''
+        if (serviceAccountJson) {
+          const sa = JSON.parse(serviceAccountJson)
+          const projectId = sa.project_id || env.FCM_PROJECT_ID
+          const bucket = `${projectId}.firebasestorage.app`
+
+          // alarm_logs에서 3일 초과 Firebase URL 수집
+          const { results: oldLogFiles } = await env.DB.prepare(
+            `SELECT DISTINCT msg_value FROM alarm_logs
+             WHERE received_at < ${KST_3DAYS_AGO}
+               AND msg_type IN ('audio','video','file')
+               AND msg_value LIKE 'https://firebasestorage%'`
+          ).all() as { results: any[] }
+
+          // alarm_schedules에서도 수집
+          const { results: oldSchedFiles } = await env.DB.prepare(
+            `SELECT DISTINCT msg_value FROM alarm_schedules
+             WHERE replace(substr(scheduled_at,1,19),'T',' ') < ${KST_3DAYS_AGO}
+               AND status IN ('triggered','cancelled')
+               AND msg_type IN ('audio','video','file')
+               AND msg_value LIKE 'https://firebasestorage%'`
+          ).all() as { results: any[] }
+
+          // 중복 제거 후 삭제
+          const allUrls = [...new Set([...oldLogFiles, ...oldSchedFiles].map((r: any) => r.msg_value))]
+          for (const url of allUrls) {
+            try {
+              const match = url.match(/\/o\/([^?]+)/)
+              if (match) {
+                const filePath = decodeURIComponent(match[1])
+                await deleteFromFirebaseStorage(serviceAccountJson, bucket, filePath)
+                firebaseDeleted++
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (fe) {
+        console.error('[Cron] Firebase 삭제 오류:', fe)
+      }
+
+      // ── 2) DB 레코드 삭제 (Firebase 파일 삭제 후) ──
+      const logsResult = await env.DB.prepare(
+        `DELETE FROM alarm_logs WHERE received_at < ${KST_3DAYS_AGO}`
       ).run()
 
-      // alarm_schedules: 3일 초과된 완료/취소 삭제
-      await env.DB.prepare(
-        "DELETE FROM alarm_schedules WHERE scheduled_at < datetime('now', '-3 days') AND status IN ('triggered', 'cancelled')"
+      const schedulesResult = await env.DB.prepare(
+        `DELETE FROM alarm_schedules WHERE scheduled_at < ${KST_3DAYS_AGO} AND status IN ('triggered', 'cancelled')`
       ).run()
 
-      console.log('[Cron] alarm_logs / alarm_schedules 3일 초과분 삭제 완료 -', new Date().toISOString())
+      console.log(`[Cron] KST 기준 3일 초과분 삭제 완료 - alarm_logs: ${logsResult.meta?.changes ?? 0}건, alarm_schedules: ${schedulesResult.meta?.changes ?? 0}건, firebase: ${firebaseDeleted}건 - ${new Date().toISOString()}`)
     } catch (e) {
       console.error('[Cron] 삭제 실패:', e)
     }

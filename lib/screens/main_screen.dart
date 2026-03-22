@@ -80,7 +80,7 @@ class MainScreenState extends State<MainScreen> {
   }
 
   // ── 네이티브 화면용 FCM 이벤트 처리 ─────────────────────────────
-  // lib/main.dart (WebView)의 FCM 핸들러와 별개로 네이티브 화면에서도 처리
+  // 네이티브 화면에서 FCM 메시지 수신 처리
   void _listenFcmForNative() {
     // 포그라운드 메시지 처리
     FirebaseMessaging.onMessage.listen((message) async {

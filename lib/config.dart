@@ -4,8 +4,5 @@
 const String kBaseUrl =
     'https://ringo.run';
 
-// [BLOCKED] WebView 정리 예정 – kAppUrl 차단
-// const String kAppUrl = '$kBaseUrl/app';
-
 // 앱 버전 (pubspec.yaml version 과 동기화)
 const String kAppVersion = '3.7.77';
