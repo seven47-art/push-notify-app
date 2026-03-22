@@ -344,7 +344,7 @@ class FakeCallActivity : Activity() {
         // 점 애니메이션 시작
         startDotAnimation(dotViews)
 
-        // ── 프로필 이미지 (100dp 원형) ──
+        // ── 프로필 이미지 (100dp 원형 + 전화 흔들림 애니메이션) ──
         val profileSize = dp(100).toInt()
         val profileContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(profileSize + dp(4).toInt(), profileSize + dp(4).toInt()).apply {
@@ -370,29 +370,48 @@ class FakeCallActivity : Activity() {
         }
         profileContainer.addView(profileIcon)
 
+        // 전화 울리는 흔들림 애니메이션
+        startShakeAnimation(profileContainer)
+
         topCard.addView(profileContainer)
 
-        // ── 알람 타입 배지 (카카오 통화녹음 버튼 스타일) ──
-        topCard.addView(TextView(this).apply {
-            text = getMsgTypeLabel()
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+        // ── 알람 타입 배지 (아이콘 + 텍스트) ──
+        val badgeLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             background = GradientDrawable().apply {
                 cornerRadius = dp(16f)
                 setColor(Color.parseColor("#33FFFFFF"))
                 setStroke(dp(1).toInt(), Color.parseColor("#55FFFFFF"))
             }
-            setPadding(dp(16).toInt(), dp(8).toInt(), dp(16).toInt(), dp(8).toInt())
-            val badgeParams = LinearLayout.LayoutParams(
+            setPadding(dp(12).toInt(), dp(8).toInt(), dp(16).toInt(), dp(8).toInt())
+            layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = dp(16).toInt()
             }
-            layoutParams = badgeParams
+        }
+
+        // 배지 아이콘 (msg_type 별)
+        val badgeIcon = ImageView(this).apply {
+            setImageResource(getMsgTypeBadgeIcon())
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(20).toInt(), dp(20).toInt()).apply {
+                marginEnd = dp(6).toInt()
+            }
+        }
+        badgeLayout.addView(badgeIcon)
+
+        // 배지 텍스트
+        badgeLayout.addView(TextView(this).apply {
+            text = getMsgTypeLabelText()
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(Color.WHITE)
         })
+
+        topCard.addView(badgeLayout)
 
         // 상단 카드를 루트에 추가 (화면의 약 75% 높이)
         val displayHeight = resources.displayMetrics.heightPixels
@@ -431,26 +450,20 @@ class FakeCallActivity : Activity() {
         setContentView(root)
     }
 
-    // ── 액션 버튼 생성 (68dp 원형, 라벨 없음) ──
+    // ── 액션 버튼 생성 (68dp, 첨부 PNG 이미지 그대로 사용) ──
     private fun createActionButton(color: Int, isDecline: Boolean, onClick: () -> Unit): FrameLayout {
         val btnSize = dp(68).toInt()
         return FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(color)
-            }
             setOnClickListener { onClick() }
 
-            // vector drawable 아이콘 사용 (확실한 전화 아이콘)
+            // PNG 이미지를 버튼 전체에 표시 (이미지 자체에 원형 배경 포함)
             val iconView = ImageView(this@FakeCallActivity).apply {
                 setImageResource(
                     if (isDecline) R.drawable.ic_call_decline
                     else R.drawable.ic_call_accept
                 )
-                scaleType = ImageView.ScaleType.CENTER_INSIDE
-                val iconPad = dp(17).toInt()
-                setPadding(iconPad, iconPad, iconPad, iconPad)
+                scaleType = ImageView.ScaleType.FIT_CENTER
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
@@ -485,13 +498,33 @@ class FakeCallActivity : Activity() {
         animateDot(0)
     }
 
-    private fun getMsgTypeLabel(): String {
+    private fun getMsgTypeLabelText(): String {
         return when (msgType) {
-            "youtube" -> "📺 YouTube 알람"
-            "audio"   -> "🎵 오디오 알람"
-            "video"   -> "🎬 비디오 알람"
-            else      -> "📎 파일 알람"
+            "youtube" -> "YouTube 알람"
+            "audio"   -> "오디오 알람"
+            "video"   -> "비디오 알람"
+            else      -> "파일 알람"
         }
+    }
+
+    private fun getMsgTypeBadgeIcon(): Int {
+        return when (msgType) {
+            "youtube" -> R.drawable.youtube_icon
+            "audio"   -> R.drawable.ic_badge_audio
+            "video"   -> R.drawable.ic_badge_video
+            else      -> R.drawable.ic_badge_file
+        }
+    }
+
+    // 프로필 이미지 전화 울리는 흔들림 애니메이션
+    private fun startShakeAnimation(view: View) {
+        val shake = android.animation.ObjectAnimator.ofFloat(view, "rotation", 0f, -8f, 8f, -6f, 6f, -3f, 3f, 0f).apply {
+            duration = 600
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.RESTART
+            startDelay = 400
+        }
+        shake.start()
     }
 
     private fun dp(dp: Float): Float = dp * resources.displayMetrics.density

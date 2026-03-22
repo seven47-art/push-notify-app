@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 오디오 배지 아이콘: 파란 원 + 흰색 음표 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M12,1C5.92,1 1,5.92 1,12s4.92,11 11,11 11,-4.92 11,-11S18.08,1 12,1z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15.5,5.5L10,6.83V15.17C9.53,14.94 8.99,14.8 8.4,14.8c-1.71,0 -3.1,1.17 -3.1,2.6s1.39,2.6 3.1,2.6 3.1,-1.17 3.1,-2.6V9.13l3.5,-0.85v4.89c-0.47,-0.22 -1.01,-0.37 -1.6,-0.37 -1.71,0 -3.1,1.17 -3.1,2.6s1.39,2.6 3.1,2.6 3.1,-1.17 3.1,-2.6V5.5z"/>
+</vector>

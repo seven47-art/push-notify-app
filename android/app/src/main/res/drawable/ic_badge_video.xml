@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 비디오 배지 아이콘: 초록 원 + 흰색 카메라 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M12,1C5.92,1 1,5.92 1,12s4.92,11 11,11 11,-4.92 11,-11S18.08,1 12,1z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,7.5C5,6.67 5.67,6 6.5,6h7c0.83,0 1.5,0.67 1.5,1.5v9c0,0.83 -0.67,1.5 -1.5,1.5h-7C5.67,18 5,17.33 5,16.5v-9z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,9.5l4,-2.5v10l-4,-2.5z"/>
+</vector>

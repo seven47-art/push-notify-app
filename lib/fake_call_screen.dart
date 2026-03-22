@@ -38,6 +38,8 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     with TickerProviderStateMixin {
 
   late AnimationController _dotController;
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
 
   // 알람 벨소리 플레이어
   final AudioPlayer _bellPlayer = AudioPlayer();
@@ -58,6 +60,21 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       duration: const Duration(milliseconds: 1800),
     )..repeat();
 
+    // 프로필 이미지 흔들림 애니메이션
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: false);
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -8), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: 8, end: -6), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: 6, end: -3), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -3, end: 3), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: 3, end: 0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.linear));
+
     _startRinging();
 
     // 30초 후 자동 거절
@@ -69,6 +86,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
   @override
   void dispose() {
     _dotController.dispose();
+    _shakeController.dispose();
     _autoDeclineTimer?.cancel();
     _vibrateTimer?.cancel();
     _bellPlayer.dispose();
@@ -249,12 +267,28 @@ class _FakeCallScreenState extends State<FakeCallScreen>
     await Future.delayed(const Duration(milliseconds: 300));
   }
 
-  String _getMsgTypeLabel() {
+  String _getMsgTypeLabelText() {
     switch (widget.msgType) {
-      case 'youtube': return '📺 YouTube 알람';
-      case 'audio':   return '🎵 오디오 알람';
-      case 'video':   return '🎬 비디오 알람';
-      default:        return '📎 파일 알람';
+      case 'youtube': return 'YouTube 알람';
+      case 'audio':   return '오디오 알람';
+      case 'video':   return '비디오 알람';
+      default:        return '파일 알람';
+    }
+  }
+
+  Widget _buildBadgeIcon() {
+    switch (widget.msgType) {
+      case 'youtube':
+        return SizedBox(
+          width: 20, height: 14,
+          child: CustomPaint(painter: _YoutubeBadgePainter()),
+        );
+      case 'audio':
+        return const Icon(Icons.music_note_rounded, color: Color(0xFF4FC3F7), size: 18);
+      case 'video':
+        return const Icon(Icons.videocam_rounded, color: Color(0xFF66BB6A), size: 18);
+      default:
+        return const Icon(Icons.insert_drive_file_rounded, color: Color(0xFF90A4AE), size: 18);
     }
   }
 
@@ -343,24 +377,33 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // 프로필 이미지 (100dp, 빈 다크 원형 — 채널이미지 없을 때)
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF333333),
-                        border: Border.all(
-                          color: const Color(0xFF444444),
-                          width: 1,
+                    // 프로필 이미지 (100dp + 전화 흔들림 애니메이션)
+                    AnimatedBuilder(
+                      animation: _shakeAnimation,
+                      builder: (context, child) {
+                        return Transform.rotate(
+                          angle: _shakeAnimation.value * 3.14159 / 180,
+                          child: child,
+                        );
+                      },
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF333333),
+                          border: Border.all(
+                            color: const Color(0xFF444444),
+                            width: 1,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // 알람 타입 배지 (pill + 얇은 테두리)
+                    // 알람 타입 배지 (아이콘 + 텍스트)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.only(left: 12, right: 16, top: 8, bottom: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
@@ -369,12 +412,19 @@ class _FakeCallScreenState extends State<FakeCallScreen>
                           width: 1,
                         ),
                       ),
-                      child: Text(
-                        _getMsgTypeLabel(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildBadgeIcon(),
+                          const SizedBox(width: 6),
+                          Text(
+                            _getMsgTypeLabelText(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -392,44 +442,29 @@ class _FakeCallScreenState extends State<FakeCallScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 거절
-                _buildActionButton(
-                  color: accentRed,
-                  icon: Icons.call_end_rounded,
+                // 거절 (첨부 PNG 이미지 사용)
+                GestureDetector(
                   onTap: _decline,
+                  child: Image.asset(
+                    'assets/images/ic_call_decline.png',
+                    width: 68, height: 68,
+                  ),
                 ),
                 const SizedBox(width: 48),
-                // 수락
+                // 수락 (첨부 PNG 이미지 사용)
                 _isAnswered
                     ? _buildLoadingButton()
-                    : _buildActionButton(
-                        color: accentGreen,
-                        icon: Icons.call_rounded,
+                    : GestureDetector(
                         onTap: _answer,
+                        child: Image.asset(
+                          'assets/images/ic_call_accept.png',
+                          width: 68, height: 68,
+                        ),
                       ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required Color color,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 68,
-        height: 68,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
-        child: Icon(icon, color: Colors.white, size: 32),
       ),
     );
   }
@@ -454,4 +489,28 @@ class _FakeCallScreenState extends State<FakeCallScreen>
       ),
     );
   }
+}
+
+// YouTube 공식 로고 스타일 CustomPainter (빨간 둥근사각 + 흰색 재생 삼각형)
+class _YoutubeBadgePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bgPaint = Paint()..color = const Color(0xFFFF0000);
+    final bgRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(bgRect, bgPaint);
+
+    final playPaint = Paint()..color = Colors.white;
+    final path = Path()
+      ..moveTo(size.width * 0.38, size.height * 0.25)
+      ..lineTo(size.width * 0.38, size.height * 0.75)
+      ..lineTo(size.width * 0.72, size.height * 0.5)
+      ..close();
+    canvas.drawPath(path, playPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
