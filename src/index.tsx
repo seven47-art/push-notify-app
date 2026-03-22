@@ -87,9 +87,15 @@ app.get('/download', async (c) => {
     }
   } catch {}
 
-  // 다운로드 버튼: /download/apk 엔드포인트로 연결 (WebView 호환)
+  // 다운로드 버튼: 크롬 브라우저로 열기 (WebView에서는 파일 다운로드 불가)
+  const chromeIntentUrl = apkUrl ? `intent://${apkUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end` : ''
   const downloadBtn = apkUrl
-    ? `<a href="/download/apk" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
+    ? `<a href="${chromeIntentUrl}" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>
+       <p class="text-gray-500 text-xs mb-4">버튼이 작동하지 않으면 아래 링크를 복사하세요</p>
+       <div class="flex items-center gap-2 bg-gray-800 rounded-lg p-3 mb-4">
+         <input id="apkUrl" type="text" value="${apkUrl}" readonly class="flex-1 bg-transparent text-gray-300 text-xs outline-none" />
+         <button onclick="navigator.clipboard.writeText('${apkUrl}');this.textContent='✅'" class="text-indigo-400 text-xs font-bold whitespace-nowrap">📋 복사</button>
+       </div>`
     : `<button disabled class="block w-full bg-gray-700 text-gray-500 font-bold py-4 px-6 rounded-xl text-lg mb-4 cursor-not-allowed">준비 중...</button>`
 
   return c.html(`<!DOCTYPE html>
@@ -112,9 +118,10 @@ app.get('/download', async (c) => {
 
     <div class="bg-yellow-900/30 border border-yellow-600/30 rounded-xl p-4 text-left text-xs text-yellow-300 space-y-1">
       <p class="font-bold text-yellow-200 mb-2">📋 설치 방법</p>
-      <p>1. APK 파일 다운로드</p>
+      <p>1. 위 버튼 또는 링크로 APK 다운로드</p>
       <p>2. 설정 → 보안 → <b>알 수 없는 앱 허용</b></p>
       <p>3. 다운로드 폴더에서 파일 실행</p>
+      <p class="text-yellow-400 mt-2">💡 앱 내에서 안 되면 <b>크롬 브라우저</b>에서<br/><b>ringo.run</b> 접속 후 다운로드하세요</p>
     </div>
 
     <p class="text-gray-600 text-xs mt-4">Android 5.0+ / arm64 기기 필요</p>
