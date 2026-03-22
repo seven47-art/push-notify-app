@@ -73,6 +73,7 @@ class NotificationScreen extends StatefulWidget {
 
 // 퍼블릭 State - 외부(MainScreenState)에서 GlobalKey로 reload() 호출 가능
 class NotificationScreenState extends State<NotificationScreen> {
+  // ── "전체" 탭 전용 상태 ──
   List<Map<String, dynamic>> _items = [];
   bool _loading     = true;
   bool _loadingMore = false;
@@ -84,6 +85,13 @@ class NotificationScreenState extends State<NotificationScreen> {
   // 채널 필터
   List<Map<String, dynamic>> _channels = [];
   String _selectedChannel = '전체';
+
+  // ── 채널별 캐시 (필터칩 선택 시 사용) ──
+  final Map<String, List<Map<String, dynamic>>> _channelCache  = {};
+  final Map<String, bool>   _channelHasMore = {};
+  final Map<String, int>    _channelOffset  = {};
+  final Set<String>         _loadingChannels = {};  // 중복 요청 방지
+  bool _channelFilterLoading = false;  // 채널 필터 첫 로딩 표시용
 
   // 선택 모드
   bool _selectMode         = false;
@@ -150,14 +158,28 @@ class NotificationScreenState extends State<NotificationScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      if (!_loadingMore && _hasMore && _selectedChannel == '전체') _loadMore();
+      if (_selectedChannel == '전체') {
+        if (!_loadingMore && _hasMore) _loadMore();
+      } else {
+        final chId = _filterChannelId;
+        if (chId.isNotEmpty && !_loadingChannels.contains(chId) &&
+            (_channelHasMore[chId] ?? false)) {
+          _loadMoreChannel(chId);
+        }
+      }
     }
   }
 
-  // ── 초기/새로고침 로드 ──────────────────────────────
+  // ── 초기/새로고침 로드 (전체 탭) ──────────────────────
   Future<void> _load({bool refresh = false}) async {
     if (refresh) {
-      // 캐시에 데이터가 있으면 로딩 스피너 표시 안 함
+      // 채널 캐시 전체 클리어
+      _channelCache.clear();
+      _channelHasMore.clear();
+      _channelOffset.clear();
+      _loadingChannels.clear();
+      _channelFilterLoading = false;
+
       if (_items.isEmpty) {
         setState(() {
           _loading     = true;
@@ -166,6 +188,7 @@ class NotificationScreenState extends State<NotificationScreen> {
           _selectedIds = {};
           _offset      = 0;
           _hasMore     = false;
+          _selectedChannel = '전체';
         });
       } else {
         setState(() {
@@ -174,6 +197,7 @@ class NotificationScreenState extends State<NotificationScreen> {
           _selectedIds = {};
           _offset      = 0;
           _hasMore     = false;
+          _selectedChannel = '전체';
         });
       }
     }
@@ -191,13 +215,8 @@ class NotificationScreenState extends State<NotificationScreen> {
           _hasMore = result['hasMore'] as bool;
           _offset  = _items.length;
           _loading = false;
-          // 채널 목록은 첫 로드(전체 조회)일 때만 갱신 → 필터 선택해도 칩 목록 유지
-          if (newChannels.isNotEmpty && _selectedChannel == '전체') {
+          if (newChannels.isNotEmpty) {
             _channels = newChannels;
-          }
-          if (_selectedChannel != '전체' &&
-              !_channels.any((c) => c['name'] == _selectedChannel)) {
-            _selectedChannel = '전체';
           }
         });
         _saveCache();
@@ -209,7 +228,7 @@ class NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // ── 추가 페이지 로드 (무한스크롤) ──────────────────
+  // ── 추가 페이지 로드 – 전체 탭 (무한스크롤) ──────────
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
@@ -232,16 +251,20 @@ class NotificationScreenState extends State<NotificationScreen> {
   }
 
   // ── API 호출 공통 로직 ──────────────────────────────
-  Future<Map<String, dynamic>?> _fetchPage({required int offset}) async {
+  Future<Map<String, dynamic>?> _fetchPage({required int offset, String? channelId}) async {
     final baseUrl = widget.mode == NotificationMode.inbox
         ? '$kBaseUrl/api/alarms/inbox'
         : '$kBaseUrl/api/alarms/outbox';
 
-    // 항상 전체 데이터 요청 (필터링은 클라이언트에서 처리)
-    final uri = Uri.parse(baseUrl).replace(queryParameters: {
+    final params = <String, String>{
       'limit':  '$_pageSize',
       'offset': '$offset',
-    });
+    };
+    if (channelId != null && channelId.isNotEmpty) {
+      params['channel_id'] = channelId;
+    }
+
+    final uri = Uri.parse(baseUrl).replace(queryParameters: params);
 
     final res = await http.get(
       uri,
@@ -275,29 +298,87 @@ class NotificationScreenState extends State<NotificationScreen> {
     return {'data': items, 'channels': channels, 'hasMore': hasMore, 'total': total};
   }
 
-  // ── 채널 필터 변경 (클라이언트 측 필터링 – 서버 재호출 없음) ──
+  // ── 채널 필터 변경 ──────────────────────────────────
   void _onChannelFilter(String name) {
     if (_selectedChannel == name) return;
-    setState(() => _selectedChannel = name);
-    // 필터 결과가 비어있고 서버에 더 있으면 백그라운드 추가 로드
-    if (name != '전체' && _hasMore) {
-      _ensureFilteredData();
+    setState(() {
+      _selectedChannel = name;
+      _selectMode  = false;
+      _selectedIds = {};
+    });
+    // "전체"가 아니면 채널별 캐시 확인 → 없으면 로드
+    if (name != '전체') {
+      final chId = _channels
+          .where((c) => c['name'] == name)
+          .map((c) => c['id']?.toString() ?? '')
+          .firstOrNull ?? '';
+      if (chId.isNotEmpty && !_channelCache.containsKey(chId)) {
+        _loadChannelPage(chId);
+      }
     }
   }
 
-  // ── 필터 결과 부족 시 백그라운드 추가 로드 ──────────────
-  Future<void> _ensureFilteredData() async {
-    // _displayed가 비어있거나 너무 적으면 서버에서 추가 페이지 가져오기
-    while (mounted && _hasMore && _displayed.isEmpty) {
-      final result = await _fetchPage(offset: _offset);
-      if (!mounted || result == null) break;
-      final newData = result['data'] as List<Map<String, dynamic>>;
-      if (newData.isEmpty) break;
-      setState(() {
-        _items.addAll(newData);
-        _hasMore = result['hasMore'] as bool;
-        _offset  = _items.length;
-      });
+  // ── 채널별 첫 페이지 로드 ──────────────────────────
+  Future<void> _loadChannelPage(String channelId) async {
+    if (_loadingChannels.contains(channelId)) return; // 중복 방지
+    _loadingChannels.add(channelId);
+    setState(() => _channelFilterLoading = true);
+    try {
+      final result = await _fetchPage(offset: 0, channelId: channelId);
+      if (!mounted) return;
+      if (result != null) {
+        setState(() {
+          _channelCache[channelId]   = result['data'] as List<Map<String, dynamic>>;
+          _channelHasMore[channelId] = result['hasMore'] as bool;
+          _channelOffset[channelId]  = (result['data'] as List).length;
+          _channelFilterLoading = false;
+        });
+      } else {
+        setState(() {
+          _channelCache[channelId]   = [];
+          _channelHasMore[channelId] = false;
+          _channelOffset[channelId]  = 0;
+          _channelFilterLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _channelCache[channelId]   = [];
+          _channelHasMore[channelId] = false;
+          _channelFilterLoading = false;
+        });
+      }
+    } finally {
+      _loadingChannels.remove(channelId);
+    }
+  }
+
+  // ── 채널별 추가 페이지 로드 (무한스크롤) ──────────────
+  Future<void> _loadMoreChannel(String channelId) async {
+    if (_loadingChannels.contains(channelId)) return;
+    if (!(_channelHasMore[channelId] ?? false)) return;
+    _loadingChannels.add(channelId);
+    setState(() => _loadingMore = true);
+    try {
+      final offset = _channelOffset[channelId] ?? 0;
+      final result = await _fetchPage(offset: offset, channelId: channelId);
+      if (!mounted) return;
+      if (result != null) {
+        final newData = result['data'] as List<Map<String, dynamic>>;
+        setState(() {
+          _channelCache[channelId] = [...(_channelCache[channelId] ?? []), ...newData];
+          _channelHasMore[channelId] = result['hasMore'] as bool;
+          _channelOffset[channelId]  = (_channelCache[channelId]?.length ?? 0);
+          _loadingMore = false;
+        });
+      } else {
+        setState(() => _loadingMore = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    } finally {
+      _loadingChannels.remove(channelId);
     }
   }
 
@@ -435,7 +516,7 @@ class NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  // 현재 필터에 해당하는 channel_id (캐시)
+  // 현재 필터에 해당하는 channel_id
   String get _filterChannelId {
     if (_selectedChannel == '전체') return '';
     return _channels
@@ -445,16 +526,24 @@ class NotificationScreenState extends State<NotificationScreen> {
   }
 
   List<Map<String, dynamic>> get _displayed {
-    final fid = _filterChannelId;
-    if (fid.isEmpty) return _items;
-    return _items.where((item) => item['channel_id']?.toString() == fid).toList();
+    if (_selectedChannel == '전체') return _items;
+    final chId = _filterChannelId;
+    if (chId.isEmpty) return _items;
+    return _channelCache[chId] ?? [];
   }
 
-  // 필터 활성 중에는 _hasMore를 그대로 쓰면 무한 스피너 → 필터 기준으로 판단
-  bool get _showLoadMore {
+  // 현재 탭의 "더 보기" 여부
+  bool get _currentHasMore {
     if (_selectedChannel == '전체') return _hasMore;
-    // 필터 중: 서버에 더 있고 + 현재 백그라운드 로딩 중이면 표시
-    return _hasMore && _loadingMore;
+    final chId = _filterChannelId;
+    return _channelHasMore[chId] ?? false;
+  }
+
+  // 현재 채널 데이터 로딩 중 여부
+  bool get _isChannelLoading {
+    if (_selectedChannel == '전체') return false;
+    final chId = _filterChannelId;
+    return chId.isNotEmpty && !_channelCache.containsKey(chId) && _channelFilterLoading;
   }
 
   @override
@@ -566,7 +655,7 @@ class NotificationScreenState extends State<NotificationScreen> {
 
           // ── 목록 ──
           Expanded(
-            child: _loading
+            child: (_loading || _isChannelLoading)
                 ? ListView.builder(
                     itemCount: 8,
                     itemBuilder: (_, __) => const _NotifSkeletonTile(),
@@ -612,7 +701,7 @@ class NotificationScreenState extends State<NotificationScreen> {
                             onRefresh: () => _load(refresh: true),
                             child: ListView.builder(
                               controller: _scrollController,
-                              itemCount: _displayed.length + (_showLoadMore ? 1 : 0),
+                              itemCount: _displayed.length + (_currentHasMore ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == _displayed.length) {
                                   return const Padding(
