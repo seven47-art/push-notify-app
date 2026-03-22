@@ -59,12 +59,22 @@ jobs:
 
       - run: flutter pub get
 
+      # ── Debug APK ──
       - name: Build debug APK
         run: flutter build apk --debug --target-platform android-arm64 --no-tree-shake-icons
 
+      # ── Release APK ──
+      - name: Build release APK
+        run: flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons
+
+      # ── Release AAB (Play Store용) ──
+      - name: Build release AAB
+        run: flutter build appbundle --release --target-platform android-arm64 --no-tree-shake-icons
+
+      # ── 16KB alignment 검증 (release APK 기준) ──
       - name: Verify 16KB page alignment (.so files)
         run: |
-          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          APK="build/app/outputs/flutter-apk/app-release.apk"
           echo "── .so files in APK ──"
           unzip -l "$APK" | grep '\.so$' || echo "No .so files found"
           echo ""
@@ -75,8 +85,11 @@ jobs:
           for so in "$TMPDIR"/lib/arm64-v8a/*.so; do
             [ -f "$so" ] || continue
             NAME=$(basename "$so")
-            ALIGN=$(readelf -l "$so" 2>/dev/null | grep -E "LOAD.*0x" | head -1 | awk '{print $NF}')
-            if echo "$ALIGN" | grep -qE "0x4000|0x10000"; then
+            ALIGN=$(readelf -l "$so" 2>/dev/null | grep -m1 "LOAD" | awk '{for(i=1;i<=NF;i++) if($i ~ /^0x/) last=$i; print last}')
+            if [ -z "$ALIGN" ]; then
+              echo "⚠️  $NAME  align=UNKNOWN (could not parse ELF)"
+              FAIL=1
+            elif echo "$ALIGN" | grep -qE "0x4000|0x10000"; then
               echo "✅ $NAME  align=$ALIGN (16KB OK)"
             else
               echo "⚠️  $NAME  align=$ALIGN (may need 16KB alignment)"
@@ -84,18 +97,25 @@ jobs:
             fi
           done
           rm -rf "$TMPDIR"
-          if [ "$FAIL" = "1" ]; then
+          if [ "$$FAIL" = "1" ]; then
             echo "::warning::Some .so files may not be 16KB aligned. Verify before Play Store upload."
           fi
 
-
+      # ── Artifact 업로드 ──
       - name: Rename APK with version
         run: |
           mv build/app/outputs/flutter-apk/app-debug.apk \
-             build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}.apk
+             build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}-debug.apk
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}-release.apk
+          mv build/app/outputs/bundle/release/app-release.aab \
+             build/app/outputs/bundle/release/RinGo-v${{ steps.version.outputs.version }}.aab
 
       - uses: actions/upload-artifact@v4
         with:
           name: RinGo-v${{ steps.version.outputs.version }}
-          path: build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}.apk
+          path: |
+            build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}-debug.apk
+            build/app/outputs/flutter-apk/RinGo-v${{ steps.version.outputs.version }}-release.apk
+            build/app/outputs/bundle/release/RinGo-v${{ steps.version.outputs.version }}.aab
           retention-days: 30
