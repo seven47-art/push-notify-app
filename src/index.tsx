@@ -87,10 +87,9 @@ app.get('/download', async (c) => {
     }
   } catch {}
 
-  // WebView 내부에서는 파일 다운로드가 안 되므로 intent:// 로 외부 브라우저 실행
-  const intentUrl = apkUrl ? `intent://${apkUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;action=android.intent.action.VIEW;end` : ''
+  // 다운로드 버튼: /download/apk 엔드포인트로 연결 (WebView 호환)
   const downloadBtn = apkUrl
-    ? `<a href="${intentUrl}" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
+    ? `<a href="/download/apk" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>`
     : `<button disabled class="block w-full bg-gray-700 text-gray-500 font-bold py-4 px-6 rounded-xl text-lg mb-4 cursor-not-allowed">준비 중...</button>`
 
   return c.html(`<!DOCTYPE html>
@@ -122,6 +121,24 @@ app.get('/download', async (c) => {
   </div>
 </body>
 </html>`)
+})
+
+// APK 직접 다운로드 리다이렉트 (WebView 호환)
+app.get('/download/apk', async (c) => {
+  let apkUrl = 'https://github.com/seven47-art/push-notify-app/releases/latest/download/RinGo-v3.7.92.apk'
+  try {
+    const row = await c.env.DB.prepare(
+      "SELECT value FROM app_settings WHERE key = 'apk_info'"
+    ).first() as { value: string } | null
+    if (row) {
+      const info = JSON.parse(row.value)
+      const dbUrl = info.url || ''
+      if (dbUrl && !dbUrl.includes('firebasestorage')) {
+        apkUrl = dbUrl
+      }
+    }
+  } catch {}
+  return c.redirect(apkUrl)
 })
 
 // =============================================
