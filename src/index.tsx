@@ -87,15 +87,36 @@ app.get('/download', async (c) => {
     }
   } catch {}
 
-  // 다운로드 버튼: 크롬 브라우저로 열기 (WebView에서는 파일 다운로드 불가)
-  const chromeIntentUrl = apkUrl ? `intent://${apkUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end` : ''
+  // WebView에서는 외부 URL/다운로드 불가 → 크롬 안내 + URL 복사로 대응
+  // 일반 브라우저에서는 직접 다운로드 가능
   const downloadBtn = apkUrl
-    ? `<a href="${chromeIntentUrl}" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>
-       <p class="text-gray-500 text-xs mb-4">버튼이 작동하지 않으면 아래 링크를 복사하세요</p>
-       <div class="flex items-center gap-2 bg-gray-800 rounded-lg p-3 mb-4">
-         <input id="apkUrl" type="text" value="${apkUrl}" readonly class="flex-1 bg-transparent text-gray-300 text-xs outline-none" />
-         <button onclick="navigator.clipboard.writeText('${apkUrl}');this.textContent='✅'" class="text-indigo-400 text-xs font-bold whitespace-nowrap">📋 복사</button>
-       </div>`
+    ? `<a href="/download/apk" id="dlBtn" class="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all text-lg mb-4">⬇️ ${apkLabel}</a>
+       <div id="webviewFallback" class="hidden">
+         <div class="bg-indigo-900/40 border border-indigo-400/30 rounded-xl p-4 text-center mb-4">
+           <p class="text-white text-sm font-bold mb-3">📢 새 버전이 출시되었습니다!</p>
+           <p class="text-indigo-200 text-xs mb-3">이 앱에서는 직접 다운로드가 불가합니다.<br/><b>크롬 브라우저</b>에서 아래 주소로 접속하세요.</p>
+           <div class="bg-gray-800 rounded-lg p-3 flex items-center gap-2">
+             <span class="flex-1 text-indigo-300 text-sm font-bold">ringo.run</span>
+             <button onclick="copyUrl()" id="copyBtn" class="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">복사</button>
+           </div>
+         </div>
+       </div>
+       <script>
+         function copyUrl(){
+           var t=document.createElement('textarea');t.value='https://ringo.run/download';
+           document.body.appendChild(t);t.select();document.execCommand('copy');
+           document.body.removeChild(t);
+           document.getElementById('copyBtn').textContent='✅ 복사됨';
+         }
+         // 다운로드 버튼 클릭 시 WebView 감지
+         document.getElementById('dlBtn').addEventListener('click',function(e){
+           // 일반 브라우저면 정상 동작, WebView면 에러 → fallback 표시
+           setTimeout(function(){
+             document.getElementById('webviewFallback').classList.remove('hidden');
+             document.getElementById('dlBtn').classList.add('hidden');
+           }, 500);
+         });
+       </script>`
     : `<button disabled class="block w-full bg-gray-700 text-gray-500 font-bold py-4 px-6 rounded-xl text-lg mb-4 cursor-not-allowed">준비 중...</button>`
 
   return c.html(`<!DOCTYPE html>
@@ -118,10 +139,10 @@ app.get('/download', async (c) => {
 
     <div class="bg-yellow-900/30 border border-yellow-600/30 rounded-xl p-4 text-left text-xs text-yellow-300 space-y-1">
       <p class="font-bold text-yellow-200 mb-2">📋 설치 방법</p>
-      <p>1. 위 버튼 또는 링크로 APK 다운로드</p>
-      <p>2. 설정 → 보안 → <b>알 수 없는 앱 허용</b></p>
-      <p>3. 다운로드 폴더에서 파일 실행</p>
-      <p class="text-yellow-400 mt-2">💡 앱 내에서 안 되면 <b>크롬 브라우저</b>에서<br/><b>ringo.run</b> 접속 후 다운로드하세요</p>
+      <p>1. 크롬 브라우저에서 <b>ringo.run</b> 접속</p>
+      <p>2. 다운로드 버튼으로 APK 다운로드</p>
+      <p>3. 설정 → 보안 → <b>알 수 없는 앱 허용</b></p>
+      <p>4. 다운로드 폴더에서 파일 실행</p>
     </div>
 
     <p class="text-gray-600 text-xs mt-4">Android 5.0+ / arm64 기기 필요</p>
