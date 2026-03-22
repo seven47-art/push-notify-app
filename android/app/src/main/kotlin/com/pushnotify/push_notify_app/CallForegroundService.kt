@@ -139,7 +139,7 @@ class CallForegroundService : Service() {
 
     private fun buildSilentNotif(): Notification {
         return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_silent_mode_off)
+            .setSmallIcon(R.drawable.ic_transparent)
             .setContentTitle("RinGo")
             .setContentText("실행 중")
             .setPriority(NotificationCompat.PRIORITY_MIN)   // 헤즈업 완전 차단

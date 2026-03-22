@@ -102,6 +102,7 @@ class FakeCallActivity : Activity() {
 
     // 채널 이미지를 표시할 ImageView (API 응답 후 업데이트)
     private var profileIcon: ImageView? = null
+    private var profileInitialText: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -185,7 +186,7 @@ class FakeCallActivity : Activity() {
     // 채널 이미지 비동기 로드 (API 호출)
     // ─────────────────────────────────────────────────────────────────────
     private fun loadChannelImage(publicId: String) {
-        if (publicId.isEmpty()) return  // 기본 링고 아이콘 유지
+        if (publicId.isEmpty()) return  // 이니셜 표시 유지
 
         val prefs   = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
         val savedUrl = prefs.getString("base_url", "") ?: ""
@@ -206,7 +207,10 @@ class FakeCallActivity : Activity() {
                 val data = json.optJSONObject("data") ?: return@launch
                 val imageUrl = data.optString("image_url", "")
 
-                if (imageUrl.isEmpty()) return@launch
+                if (imageUrl.isEmpty()) {
+                    // 이미지 없음 → 이니셜 유지 (이미 표시 중)
+                    return@launch
+                }
 
                 val bitmap = if (imageUrl.startsWith("data:")) {
                     val base64Part = imageUrl.substringAfter(",")
@@ -223,7 +227,8 @@ class FakeCallActivity : Activity() {
                 if (bitmap != null) {
                     val circularBitmap = toCircularBitmap(bitmap)
                     withContext(Dispatchers.Main) {
-                        // crossfade 전환
+                        // 이니셜 숨기고 이미지 crossfade 전환
+                        profileInitialText?.visibility = View.GONE
                         profileIcon?.apply {
                             alpha = 0f
                             setImageBitmap(circularBitmap)
@@ -369,6 +374,17 @@ class FakeCallActivity : Activity() {
             layoutParams = FrameLayout.LayoutParams(profileSize, profileSize, Gravity.CENTER)
         }
         profileContainer.addView(profileIcon)
+
+        // 채널명 첫 글자 이니셜 (이미지 없을 때 표시)
+        profileInitialText = TextView(this).apply {
+            text = channelName.firstOrNull()?.toString() ?: "?"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 48f)
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(profileSize, profileSize, Gravity.CENTER)
+        }
+        profileContainer.addView(profileInitialText)
 
         // 전화 울리는 흔들림 애니메이션
         startShakeAnimation(profileContainer)
