@@ -238,15 +238,35 @@ class MainScreenState extends State<MainScreen> {
       return;
     }
 
-    // 채널 소개 페이지로 바로 이동
+    // 구독 여부 확인 후 채널 소개 페이지로 이동
     final channelId = channelData['channel_id']?.toString() ?? '';
     if (channelId.isNotEmpty) {
+      // 현재 사용자가 이 채널에 구독 중인지 서버에서 확인
+      bool isSubscribed = false;
+      try {
+        final prefs  = await SharedPreferences.getInstance();
+        final userId = prefs.getString('user_id') ?? '';
+        if (userId.isNotEmpty) {
+          final subRes = await http.get(
+            Uri.parse('$kBaseUrl/api/subscribers?channel_id=$channelId&user_id=$userId'),
+          ).timeout(const Duration(seconds: 5));
+          if (subRes.statusCode == 200) {
+            final subBody = jsonDecode(subRes.body) as Map<String, dynamic>;
+            final subList = subBody['data'] as List? ?? [];
+            isSubscribed = subList.isNotEmpty;
+          }
+        }
+      } catch (e) {
+        debugPrint('[DeepLink] 구독 여부 확인 실패: $e');
+      }
+
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ChannelDetailScreen(
             channelId: channelId,
             isOwner: false,
+            isSubscribed: isSubscribed,
           ),
         ),
       );
