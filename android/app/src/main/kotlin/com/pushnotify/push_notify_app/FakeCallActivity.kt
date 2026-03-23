@@ -54,6 +54,7 @@ class FakeCallActivity : Activity() {
         const val EXTRA_CONTENT_URL       = "content_url"
         const val EXTRA_HOMEPAGE_URL      = "homepage_url"
         const val EXTRA_LINK_URL          = "link_url"
+        const val EXTRA_CONTENT_TEXT       = "content_text"
         const val EXTRA_AUTO_ACCEPT       = "auto_accept"
 
         fun start(
@@ -62,7 +63,8 @@ class FakeCallActivity : Activity() {
             alarmId: Int, contentUrl: String, homepageUrl: String = "",
             channelPublicId: String = "",
             autoAccept: Boolean = false,
-            linkUrl: String = ""
+            linkUrl: String = "",
+            contentText: String = ""
         ) {
             val intent = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -76,6 +78,7 @@ class FakeCallActivity : Activity() {
                 putExtra(EXTRA_CONTENT_URL,       contentUrl)
                 putExtra(EXTRA_HOMEPAGE_URL,      homepageUrl)
                 putExtra(EXTRA_LINK_URL,          linkUrl)
+                putExtra(EXTRA_CONTENT_TEXT,      contentText)
                 putExtra(EXTRA_AUTO_ACCEPT,       autoAccept)
             }
             context.startActivity(intent)
@@ -99,6 +102,7 @@ class FakeCallActivity : Activity() {
     private var contentUrl      = ""
     private var homepageUrl     = ""
     private var linkUrl         = ""
+    private var contentText     = ""
     private var autoAccept      = false
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
@@ -163,6 +167,7 @@ class FakeCallActivity : Activity() {
         contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
         homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
         linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
+        contentText     = intent.getStringExtra(EXTRA_CONTENT_TEXT)       ?: ""
         autoAccept      = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
 
         buildUi()
@@ -453,6 +458,30 @@ class FakeCallActivity : Activity() {
 
         topCard.addView(badgeLayout)
 
+        // ── 알람내용 표시 (마퀴 스크롤) ──
+        if (contentText.isNotEmpty()) {
+            val contentTextView = TextView(this).apply {
+                text = contentText
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+                marqueeRepeatLimit = -1  // 무한 반복
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isSelected = true  // 마퀴 시작 트리거
+                setPadding(dp(16).toInt(), 0, dp(16).toInt(), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(14).toInt()
+                }
+            }
+            topCard.addView(contentTextView)
+        }
+
         // 상단 카드를 루트에 추가 (화면의 약 75% 높이)
         val displayHeight = resources.displayMetrics.heightPixels
         val topParams = FrameLayout.LayoutParams(
@@ -650,7 +679,8 @@ class FakeCallActivity : Activity() {
             channelName      = channelName,
             homepageUrl      = homepageUrl,
             channelPublicId  = channelPublicId,
-            linkUrl          = linkUrl
+            linkUrl          = linkUrl,
+            contentText      = contentText
         )
         finishAlarm()
     }

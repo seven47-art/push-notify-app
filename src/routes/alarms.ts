@@ -125,7 +125,7 @@ alarms.get('/twiml', (c) => {
 alarms.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const { channel_id, created_by, scheduled_at, msg_type, msg_value, link_url } = body
+    const { channel_id, created_by, scheduled_at, msg_type, msg_value, link_url, content_text } = body
 
     if (!channel_id || !created_by || !scheduled_at || !msg_type) {
       return c.json({ success: false, error: 'channel_id, created_by, scheduled_at, msg_type 필수' }, 400)
@@ -141,6 +141,9 @@ alarms.post('/', async (c) => {
     if (safeValue.length > 2000) {
       return c.json({ success: false, error: '메시지 소스 값이 너무 큽니다. 파일명 또는 URL만 저장 가능합니다.' }, 400)
     }
+
+    // content_text 검증 (선택, 최대 20자)
+    const safeContentText = (content_text || '').toString().trim().slice(0, 20) || null
 
     // link_url 정규화 (http(s):// 없으면 https:// 자동 추가) + 형식 검증
     const linkNorm = normalizeUrl(link_url)
@@ -189,9 +192,9 @@ alarms.post('/', async (c) => {
     const safeLinkUrl = linkNorm.value || (channel as any).homepage_url || null
 
     const result = await c.env.DB.prepare(`
-      INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets, link_url)
-      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
-    `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0, safeLinkUrl).run()
+      INSERT INTO alarm_schedules (channel_id, created_by, scheduled_at, msg_type, msg_value, status, total_targets, link_url, content_text)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+    `).bind(channel_id, created_by, scheduled_at, msg_type, safeValue, subCount?.cnt || 0, safeLinkUrl, safeContentText).run()
 
     const alarmId = result.meta.last_row_id as number
 
@@ -209,8 +212,8 @@ alarms.post('/', async (c) => {
       try {
         await c.env.DB.prepare(`
           INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
         `).bind(
           alarmId,
           channel_id,
@@ -220,7 +223,8 @@ alarms.post('/', async (c) => {
           safeValue,
           created_by,
           scheduled_at,
-          safeLinkUrl
+          safeLinkUrl,
+          safeContentText
         ).run()
       } catch (_) {}
     }
@@ -269,6 +273,7 @@ alarms.post('/', async (c) => {
         content_url:    contentUrl,
         homepage_url:   (channel as any).homepage_url || '',
         link_url:       safeLinkUrl || '',
+        content_text:   safeContentText || '',
         scheduled_time: String(scheduledMs),    // 앱이 AlarmManager에 넘길 Unix ms
         notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
       }
@@ -474,7 +479,7 @@ alarms.post('/trigger', async (c) => {
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
              ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id,
-             a.link_url as alarm_link_url
+             a.link_url as alarm_link_url, a.content_text as alarm_content_text
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
       WHERE a.status IN ('pending', 'triggered')
@@ -604,6 +609,7 @@ alarms.post('/trigger', async (c) => {
             content_url:  contentUrl         || '',
             homepage_url: alarm.channel_homepage_url || '',
             link_url:     alarm.alarm_link_url || '',
+            content_text: alarm.alarm_content_text || '',
           }
 
           // FCM 토큰이 있는 수신자와 없는 수신자 분리
@@ -676,14 +682,15 @@ alarms.post('/trigger', async (c) => {
           try {
             await c.env.DB.prepare(`
               INSERT OR IGNORE INTO alarm_logs
-                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
               alarm.id, alarm.channel_id, alarm.channel_name || '알람',
               r.user_id, alarm.msg_type || 'youtube', alarm.msg_value || '',
               r.success ? 'received' : 'failed',
               alarm.created_by || null, alarm.scheduled_at || null,
-              alarm.alarm_link_url || alarm.channel_homepage_url || null
+              alarm.alarm_link_url || alarm.channel_homepage_url || null,
+              alarm.alarm_content_text || null
             ).run()
           } catch (_) {}
         }
@@ -736,6 +743,7 @@ alarms.post('/trigger', async (c) => {
         content_url:       contentUrl,
         homepage_url:      alarm.channel_homepage_url || '',
         link_url:          alarm.alarm_link_url || '',
+        content_text:      alarm.alarm_content_text || '',
         total_targets:     recipientMap.size,
         sent_count:        sentCount,
         failed_count:      failedCount,
@@ -1045,7 +1053,7 @@ alarms.get('/inbox', async (c) => {
       SELECT
         l.id, l.alarm_id, l.channel_id, ch.name as channel_name,
         l.msg_type, l.msg_value, l.status, l.received_at,
-        l.scheduled_at, l.link_url, ch.image_url as channel_image
+        l.scheduled_at, l.link_url, l.content_text, ch.image_url as channel_image
       FROM alarm_logs l
       INNER JOIN channels ch ON ch.id = l.channel_id
       WHERE l.receiver_id = ?
@@ -1149,7 +1157,7 @@ alarms.get('/outbox', async (c) => {
         l.msg_type, l.msg_value,
         MAX(l.status) as status,
         MIN(l.received_at) as received_at,
-        l.scheduled_at, l.link_url,
+        l.scheduled_at, l.link_url, l.content_text,
         ch.image_url as channel_image,
         COUNT(l.id) as receiver_count
       FROM alarm_logs l
@@ -1219,7 +1227,7 @@ alarms.post('/status', async (c) => {
       // 로그가 없으면 새로 생성 (폴링 수신 후 app 응답)
       // alarm_schedules에서 채널 정보 조회
       const alarm: any = await c.env.DB.prepare(`
-        SELECT a.*, ch.name as channel_name, ch.homepage_url as channel_homepage_url, a.scheduled_at, a.link_url
+        SELECT a.*, ch.name as channel_name, ch.homepage_url as channel_homepage_url, a.scheduled_at, a.link_url, a.content_text
         FROM alarm_schedules a
         JOIN channels ch ON a.channel_id = ch.id
         WHERE a.id = ?
@@ -1228,8 +1236,8 @@ alarms.post('/status', async (c) => {
       if (alarm) {
         await c.env.DB.prepare(`
           INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           alarm_schedule_id,
           alarm.channel_id,
@@ -1240,7 +1248,8 @@ alarms.post('/status', async (c) => {
           status,
           alarm.created_by || null,
           alarm.scheduled_at || null,
-          alarm.link_url || alarm.channel_homepage_url || null
+          alarm.link_url || alarm.channel_homepage_url || null,
+          alarm.content_text || null
         ).run()
       }
       return c.json({ success: true, action: 'created', status })

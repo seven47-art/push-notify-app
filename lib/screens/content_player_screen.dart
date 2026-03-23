@@ -42,6 +42,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
     return widget.alarm['link_url']?.toString() ?? '';
   }
 
+  String get _contentText {
+    return widget.alarm['content_text']?.toString() ?? '';
+  }
+
   Future<void> _openLink() async {
     final url = _linkUrl.isNotEmpty ? _linkUrl : _contentUrl;
     if (url.isEmpty) return;
@@ -123,6 +127,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
               textAlign: TextAlign.center,
             ),
+            if (_contentText.isNotEmpty) ...[const SizedBox(height: 6),
+              Text(_contentText,
+                style: const TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)],
             const SizedBox(height: 8),
             const Text('YouTube 알람', style: TextStyle(fontSize: 14, color: _text2)),
             const SizedBox(height: 32),
@@ -164,6 +172,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
                   _channelName,
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
                 ),
+                if (_contentText.isNotEmpty) ...[const SizedBox(height: 6),
+                  Text(_contentText,
+                    style: const TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)],
                 const SizedBox(height: 8),
                 const Text('오디오 알람', style: TextStyle(fontSize: 14, color: _text2)),
                 const SizedBox(height: 32),
@@ -206,6 +218,10 @@ class _ContentPlayerScreenState extends State<ContentPlayerScreen> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
             textAlign: TextAlign.center,
           ),
+          if (_contentText.isNotEmpty) ...[const SizedBox(height: 6),
+            Text(_contentText,
+              style: const TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)],
           const SizedBox(height: 8),
           Text(
             _contentType.isEmpty ? '알람이 도착했습니다.' : '$_contentType 알람',
