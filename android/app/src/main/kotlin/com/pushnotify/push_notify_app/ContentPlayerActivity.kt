@@ -395,6 +395,9 @@ class ContentPlayerActivity : Activity() {
         // ════════════════════════════════════════════════════════════
         // 하단 오버레이: 반투명 그라데이션 + 한줄 바 (콘텐츠 위에 떠있음)
         // ════════════════════════════════════════════════════════════
+        // 시스템 네비게이션 바 높이 계산
+        val navBarHeight = getNavigationBarHeight()
+
         val overlayContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = FrameLayout.LayoutParams(
@@ -419,8 +422,8 @@ class ContentPlayerActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.parseColor("#CC000000"))
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60))
-            setPadding(dp(16), dp(6), dp(12), dp(6))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60) + navBarHeight)
+            setPadding(dp(16), dp(6), dp(12), dp(6) + navBarHeight)
         }
 
         // ── 채널 이미지 (원형, 38dp) ──
@@ -638,4 +641,9 @@ class ContentPlayerActivity : Activity() {
     override fun onBackPressed() { closePlayer() }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun getNavigationBarHeight(): Int {
+        val resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else dp(48)
+    }
 }
