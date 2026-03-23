@@ -380,53 +380,6 @@ alarms.get('/', async (c) => {
 })
 
 // =============================================
-// PATCH /api/alarms/:id/toggle  - 알람 켜기/끄기 토글
-// =============================================
-alarms.patch('/:id/toggle', async (c) => {
-  try {
-    const id = c.req.param('id')
-    const { is_enabled } = await c.req.json()
-    const val = is_enabled ? 1 : 0
-    await c.env.DB.prepare(
-      'UPDATE alarm_schedules SET is_enabled = ? WHERE id = ?'
-    ).bind(val, id).run()
-    return c.json({ success: true, is_enabled: val })
-  } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500)
-  }
-})
-
-// =============================================
-// PUT /api/alarms/:id  - 알람 수정
-// =============================================
-alarms.put('/:id', async (c) => {
-  try {
-    const id = c.req.param('id')
-    const body = await c.req.json()
-    const { scheduled_at, msg_type, msg_value, link_url, content_text } = body
-
-    const scheduledDate = new Date(scheduled_at)
-    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date(Date.now() - 60 * 1000)) {
-      return c.json({ success: false, error: '현재 시각 이후로 설정해주세요' }, 400)
-    }
-
-    const safeContentText = (content_text || '').toString().trim().slice(0, 20) || null
-    const linkNorm = normalizeUrl(link_url)
-    if (!linkNorm.ok) return c.json({ success: false, error: linkNorm.error }, 400)
-
-    await c.env.DB.prepare(`
-      UPDATE alarm_schedules
-      SET scheduled_at = ?, msg_type = ?, msg_value = ?, link_url = ?, content_text = ?, is_enabled = 1
-      WHERE id = ?
-    `).bind(scheduled_at, msg_type, msg_value || null, linkNorm.value || null, safeContentText, id).run()
-
-    return c.json({ success: true, message: '알람이 수정되었습니다' })
-  } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500)
-  }
-})
-
-// =============================================
 // DELETE /api/alarms/:id  - 알람 삭제 + FCM alarm_cancel 신호 발송
 // =============================================
 alarms.delete('/:id', async (c) => {
