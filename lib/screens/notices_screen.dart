@@ -342,99 +342,141 @@ class _HtmlRenderer extends StatelessWidget {
     );
   }
 
-  List<Widget> _parseHtml(String html) {
+  List<Widget> _parseHtml(String rawHtml) {
     final widgets = <Widget>[];
-    // div, p 블록 단위로 분리
-    final cleaned = html
-        .replaceAll(RegExp(r'<br\s*/?>'), '\n')
-        .replaceAll('</p>', '</p>\n')
-        .replaceAll('</div>', '</div>\n')
-        .replaceAll('</li>', '</li>\n');
 
-    // <img> 태그 패턴
-    final imgPattern = RegExp(r'<img\s[^>]*src="([^"]*)"[^>]*/?\s*>', caseSensitive: false);
+    // Quill 출력: <p>...</p> 블록 단위로 처리
+    final blockPattern = RegExp(
+      r'(<p[^>]*>.*?</p>|<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>|<h[1-3][^>]*>.*?</h[1-3]>|<img\s[^>]*/?\s*>)',
+      dotAll: true,
+      caseSensitive: false,
+    );
 
-    // <ul>...</ul> 블록과 <img> 태그 추출
-    final parts = cleaned.split(RegExp(r'(<ul[^>]*>.*?</ul>|<img\s[^>]*>)', dotAll: true));
+    final blocks = blockPattern.allMatches(rawHtml).toList();
 
-    for (final part in parts) {
-      if (part.trim().isEmpty) continue;
+    if (blocks.isEmpty) {
+      final text = _stripAllTags(rawHtml).trim();
+      if (text.isNotEmpty) {
+        widgets.add(RichText(
+          text: _HtmlContentWidget._buildLinkedTextSpan(text, const TextStyle(fontSize: 15, color: _text, height: 1.7)),
+        ));
+      }
+      return widgets;
+    }
 
-      // 이미지 태그 처리
-      final imgMatch = imgPattern.firstMatch(part);
-      if (imgMatch != null) {
-        final imgUrl = imgMatch.group(1) ?? '';
-        if (imgUrl.isNotEmpty) {
+    for (final block in blocks) {
+      final blockHtml = block.group(0)!;
+
+      // ── <img> 처리 ──
+      final imgMatch = RegExp(r'<img\s[^>]*src="([^"]*)"[^>]*/?\s*>', caseSensitive: false).firstMatch(blockHtml);
+      if (imgMatch != null && !blockHtml.trimLeft().startsWith('<p')) {
+        _addImage(widgets, imgMatch.group(1) ?? '');
+        continue;
+      }
+
+      // ── <ul>/<ol> 리스트 처리 ──
+      if (blockHtml.contains('<ul') || blockHtml.contains('<ol')) {
+        final isOrdered = blockHtml.trimLeft().startsWith('<ol');
+        final liMatches = RegExp(r'<li[^>]*>(.*?)</li>', dotAll: true).allMatches(blockHtml);
+        int idx = 1;
+        for (final li in liMatches) {
+          final liInner = li.group(1) ?? '';
+          final bullet = isOrdered ? '${idx++}. ' : '\u2022 ';
           widgets.add(Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                imgUrl,
-                width: double.infinity,
-                fit: BoxFit.fitWidth,
-                loadingBuilder: (_, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    height: 150,
-                    alignment: Alignment.center,
-                    child: const CircularProgressIndicator(color: _primary, strokeWidth: 2),
-                  );
-                },
-                errorBuilder: (_, __, ___) => Container(
-                  height: 80,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.broken_image_outlined, size: 36, color: _text2),
-                ),
-              ),
+            padding: const EdgeInsets.only(left: 16, bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bullet, style: const TextStyle(fontSize: 15, color: _text)),
+                Expanded(child: RichText(
+                  text: _buildRichSpan(liInner, const TextStyle(fontSize: 15, color: _text, height: 1.7)),
+                )),
+              ],
             ),
           ));
         }
         continue;
       }
 
-      if (part.contains('<ul') && part.contains('</ul>')) {
-        // 리스트 처리
-        final liMatches = RegExp(r'<li[^>]*>(.*?)</li>', dotAll: true).allMatches(part);
-        for (final li in liMatches) {
-          final liContent = _stripTags(li.group(1) ?? '');
-          widgets.add(Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('• ', style: TextStyle(fontSize: 15, color: _text)),
-                Expanded(child: RichText(
-                  text: _buildRichSpan(liContent, const TextStyle(fontSize: 15, color: _text, height: 1.7)),
-                )),
-              ],
-            ),
-          ));
+      // ── <h1~3> 헤더 처리 ──
+      final hMatch = RegExp(r'<h([1-3])[^>]*>(.*?)</h[1-3]>', dotAll: true, caseSensitive: false).firstMatch(blockHtml);
+      if (hMatch != null) {
+        final level = int.tryParse(hMatch.group(1)!) ?? 2;
+        final inner = hMatch.group(2) ?? '';
+        final hSize = level == 1 ? 26.0 : level == 2 ? 22.0 : 18.0;
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 6, top: 4),
+          child: RichText(
+            text: _buildRichSpan(inner, TextStyle(fontSize: hSize, fontWeight: FontWeight.bold, color: _text, height: 1.5)),
+          ),
+        ));
+        continue;
+      }
+
+      // ── <p> 처리 ──
+      final pMatch = RegExp(r'<p[^>]*>(.*?)</p>', dotAll: true, caseSensitive: false).firstMatch(blockHtml);
+      if (pMatch != null) {
+        final inner = pMatch.group(1) ?? '';
+
+        // <p> 안에 <img>만 있으면 이미지로 처리
+        final innerImgMatch = RegExp(r'^\s*<img\s[^>]*src="([^"]*)"[^>]*/?\s*>\s*$', caseSensitive: false).firstMatch(inner);
+        if (innerImgMatch != null) {
+          _addImage(widgets, innerImgMatch.group(1) ?? '');
+          continue;
         }
-      } else {
-        // 일반 텍스트/인라인 HTML 처리
-        final lines = part.split('\n');
-        for (final line in lines) {
-          final trimmed = line.trim();
-          if (trimmed.isEmpty) continue;
-          widgets.add(Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: RichText(
-              text: _buildRichSpan(trimmed, const TextStyle(fontSize: 15, color: _text, height: 1.7)),
-            ),
-          ));
+
+        // <br> 만 있으면 빈 줄 (Quill 빈 줄)
+        if (RegExp(r'^\s*(<br\s*/?>)?\s*$').hasMatch(inner)) {
+          widgets.add(const SizedBox(height: 12));
+          continue;
         }
+
+        // 일반 <p> 블록
+        final stripped = inner.replaceAll(RegExp(r'<br\s*/?>'), '\n');
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: RichText(
+            text: _buildRichSpan(stripped, const TextStyle(fontSize: 15, color: _text, height: 1.7)),
+          ),
+        ));
+        continue;
       }
     }
 
     return widgets;
   }
 
+  void _addImage(List<Widget> widgets, String imgUrl) {
+    if (imgUrl.isEmpty) return;
+    widgets.add(Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          imgUrl,
+          width: double.infinity,
+          fit: BoxFit.fitWidth,
+          loadingBuilder: (_, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              height: 150, alignment: Alignment.center,
+              child: const CircularProgressIndicator(color: _primary, strokeWidth: 2),
+            );
+          },
+          errorBuilder: (_, __, ___) => Container(
+            height: 80, alignment: Alignment.center,
+            decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.broken_image_outlined, size: 36, color: _text2),
+          ),
+        ),
+      ),
+    ));
+  }
+
   TextSpan _buildRichSpan(String html, TextStyle baseStyle) {
     final spans = <InlineSpan>[];
     final tagPattern = RegExp(
-      r'<(b|strong|i|em|u|s|strike|a|font|span|/b|/strong|/i|/em|/u|/s|/strike|/a|/font|/span|h[1-3]|/h[1-3])[^>]*>',
+      r'<(b|strong|i|em|u|s|strike|a|font|span|/b|/strong|/i|/em|/u|/s|/strike|/a|/font|/span)[^>]*>',
       caseSensitive: false,
     );
 
@@ -443,16 +485,14 @@ class _HtmlRenderer extends StatelessWidget {
     Color? textColor;
     String? linkUrl;
     int lastEnd = 0;
-    int headerLevel = 0;
 
     final matches = tagPattern.allMatches(html).toList();
 
     for (final m in matches) {
-      // 태그 앞 텍스트
       if (m.start > lastEnd) {
-        final text = _decodeHtmlEntities(html.substring(lastEnd, m.start));
+        final text = _decodeHtmlEntities(_stripAllTags(html.substring(lastEnd, m.start)));
         if (text.isNotEmpty) {
-          spans.add(_makeSpan(text, baseStyle, bold || headerLevel > 0, italic, underline, strikethrough, fontSize ?? _headerFontSize(headerLevel), textColor, linkUrl));
+          spans.add(_makeSpan(text, baseStyle, bold, italic, underline, strikethrough, fontSize, textColor, linkUrl));
         }
       }
 
@@ -478,11 +518,6 @@ class _HtmlRenderer extends StatelessWidget {
         linkUrl = hrefMatch?.group(1);
       } else if (tag.startsWith('</a')) {
         linkUrl = null;
-      } else if (tag.startsWith('<h')) {
-        final lvl = int.tryParse(tag.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        if (lvl >= 1 && lvl <= 3) headerLevel = lvl;
-      } else if (tag.startsWith('</h')) {
-        headerLevel = 0;
       } else if (tag.startsWith('<font')) {
         final sizeMatch = RegExp(r'size="(\d)"').firstMatch(tag);
         if (sizeMatch != null) {
@@ -492,12 +527,10 @@ class _HtmlRenderer extends StatelessWidget {
       } else if (tag.startsWith('</font')) {
         fontSize = null;
       } else if (tag.startsWith('<span')) {
-        // Quill color/background: style="color: rgb(...);" or style="background-color: ..."
         final colorMatch = RegExp(r'color:\s*([^;"]+)').firstMatch(tag);
         if (colorMatch != null) {
           textColor = _parseCssColor(colorMatch.group(1)!.trim());
         }
-        // Quill size class: class="ql-size-large" etc
         if (tag.contains('ql-size-small')) fontSize = 12;
         else if (tag.contains('ql-size-large')) fontSize = 20;
         else if (tag.contains('ql-size-huge')) fontSize = 26;
@@ -509,11 +542,10 @@ class _HtmlRenderer extends StatelessWidget {
       lastEnd = m.end;
     }
 
-    // 남은 텍스트
     if (lastEnd < html.length) {
       final text = _decodeHtmlEntities(_stripAllTags(html.substring(lastEnd)));
       if (text.isNotEmpty) {
-        spans.add(_makeSpan(text, baseStyle, bold || headerLevel > 0, italic, underline, strikethrough, fontSize ?? _headerFontSize(headerLevel), textColor, linkUrl));
+        spans.add(_makeSpan(text, baseStyle, bold, italic, underline, strikethrough, fontSize, textColor, linkUrl));
       }
     }
 
@@ -547,7 +579,6 @@ class _HtmlRenderer extends StatelessWidget {
       );
     }
 
-    // URL 자동 링크 처리
     return _HtmlContentWidget._buildLinkedTextSpan(text, style);
   }
 
@@ -564,17 +595,7 @@ class _HtmlRenderer extends StatelessWidget {
     }
   }
 
-  double? _headerFontSize(int level) {
-    switch (level) {
-      case 1: return 26;
-      case 2: return 22;
-      case 3: return 18;
-      default: return null;
-    }
-  }
-
   Color? _parseCssColor(String css) {
-    // rgb(r, g, b)
     final rgbMatch = RegExp(r'rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)').firstMatch(css);
     if (rgbMatch != null) {
       final r = int.tryParse(rgbMatch.group(1)!) ?? 0;
@@ -582,12 +603,10 @@ class _HtmlRenderer extends StatelessWidget {
       final b = int.tryParse(rgbMatch.group(3)!) ?? 0;
       return Color.fromARGB(255, r, g, b);
     }
-    // #hex
     final hexMatch = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(css);
     if (hexMatch != null) {
       return Color(int.parse('FF${hexMatch.group(1)!}', radix: 16));
     }
-    // 기본 색상 이름
     final named = <String, Color>{
       'red': const Color(0xFFFF0000), 'blue': const Color(0xFF0000FF),
       'green': const Color(0xFF008000), 'orange': const Color(0xFFFFA500),
@@ -596,10 +615,6 @@ class _HtmlRenderer extends StatelessWidget {
       'grey': const Color(0xFF808080), 'yellow': const Color(0xFFFFFF00),
     };
     return named[css.toLowerCase()];
-  }
-
-  String _stripTags(String html) {
-    return html.replaceAll(RegExp(r'<p[^>]*>|</p>|<div[^>]*>|</div>'), '');
   }
 
   String _stripAllTags(String html) {
