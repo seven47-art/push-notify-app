@@ -194,15 +194,15 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
     _load();
   }
 
-  /// teal 알람 버튼 클릭 시 AlarmScheduleSheet 직접 열기
+  /// teal 알람 버튼 클릭 시 AlarmScheduleScreen 직접 열기
   Future<void> _openAlarmSheet(Map<String, dynamic> channel) async {
     final channelId   = channel['id']?.toString() ?? '';
     final channelName = channel['name']?.toString() ?? '';
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AlarmScheduleSheet(channelId: channelId, channelName: channelName),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName),
+      ),
     );
     _load();
   }
@@ -236,11 +236,11 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
         items: [
           _PopupItem(icon: Icons.alarm_outlined, label: '알람예약', onTap: () async {
             Navigator.pop(context);
-            await showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => AlarmScheduleSheet(channelId: channelId, channelName: channelName),
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName),
+              ),
             );
             _load();
           }),
