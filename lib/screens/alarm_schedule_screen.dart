@@ -562,10 +562,16 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     if (picked != null) setState(() => _selectedDate = DateTime(picked.year, picked.month, picked.day));
   }
 
-  void _clearFile() { setState(() { _pickedFile = null; _uploadedFileUrl = null; _uploading = false; }); }
+  void _clearFile() { setState(() { _pickedFile = null; _uploadedFileUrl = null; _existingFileUrl = null; _uploading = false; }); }
   void _clearYoutube() { _youtubeCtrl.clear(); setState(() {}); }
 
   String _fileLabel() {
+    // 다시 예약: 기존 파일 URL만 있는 경우 (새로 선택 안 함)
+    if (_pickedFile == null && _existingFileUrl != null) {
+      final uri = Uri.tryParse(_existingFileUrl!);
+      final fileName = uri != null ? Uri.decodeComponent(uri.pathSegments.last) : '기존 파일';
+      return '✓ $fileName';
+    }
     if (_pickedFile == null) return '파일을 선택하세요 (오디오/비디오)';
     final ext = _pickedFile!.name.split('.').last.toLowerCase();
     final isVideo = ['mp4', 'mov', 'mkv'].contains(ext);
