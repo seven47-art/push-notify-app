@@ -1,5 +1,5 @@
 // lib/screens/alarm_schedule_screen.dart
-// 알람 설정 풀페이지 (v3 — 배너 + 원형+버튼 + 큰 시간 리스트)
+// 삼성 기본 알람 골격 UI — 화이트/그레이, 미니멀, 큰 상태 텍스트, 둥근 카드
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -12,12 +12,15 @@ import '../config.dart';
 import '../utils/toast_helper.dart';
 import '../utils/image_helper.dart';
 
-const _primary = Color(0xFF6C63FF);
-const _teal    = Color(0xFF00BCD4);
-const _text    = Color(0xFF222222);
-const _text2   = Color(0xFF888888);
-const _border  = Color(0xFFEEEEEE);
-const _red     = Color(0xFFFF4444);
+// ── 삼성 알람앱 색상 팔레트 ───────────────────────────────────
+const _bgColor     = Color(0xFFF8F8F8);   // 전체 배경 (밝은 그레이)
+const _cardColor   = Color(0xFFF2F2F7);   // 알람 카드 배경 (삼성 스타일 밝은 회색)
+const _textPrimary = Color(0xFF1C1C1E);   // 주 텍스트 (거의 블랙)
+const _textSecond  = Color(0xFF8E8E93);   // 보조 텍스트 (그레이)
+const _textMuted   = Color(0xFFAEAEB2);   // 뮤트 텍스트
+const _divider     = Color(0xFFE5E5EA);   // 구분선
+const _accent      = Color(0xFF007AFF);   // 삼성/iOS 블루 액센트
+const _red         = Color(0xFFFF3B30);   // 삭제 빨강
 
 // ══════════════════════════════════════════════════════════════════
 // 기존 호출부(showModalBottomSheet)와의 호환 래퍼 → 내부에서 풀페이지 push
@@ -41,7 +44,7 @@ class AlarmScheduleSheet extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 메인: 알람 목록 + 배너  (풀페이지)
+// 메인: 알람 목록 (풀페이지 — 삼성 기본 알람 골격)
 // ══════════════════════════════════════════════════════════════════
 class AlarmScheduleScreen extends StatefulWidget {
   final String channelId;
@@ -87,6 +90,20 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
   }
 
   Future<void> _deleteAlarm(String alarmId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('알람 삭제', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
+        content: const Text('이 알람을 삭제하시겠습니까?', style: TextStyle(fontSize: 15, color: _textSecond)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소', style: TextStyle(color: _textSecond))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('삭제', style: TextStyle(color: _red, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('session_token') ?? '';
@@ -117,117 +134,190 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     if (result == true) await _loadAlarms();
   }
 
-  // ── 상단 배너 ──────────────────────────────────────────────
-  Widget _buildBanner() {
+  // ── 삼성 스타일: 큰 상태 텍스트 ─────────────────────────────
+  Widget _buildStatusHeader() {
     final count = _alarms.length;
-    final statusText = count == 0
-        ? '예약된 알람이 없습니다.'
-        : '$count개의 알람이 예약되어있습니다.';
+    String statusText;
+    if (_loadingAlarms) {
+      statusText = '';
+    } else if (count == 0) {
+      statusText = '예약된 알람이\n없습니다';
+    } else {
+      statusText = '$count개의 알람이\n예약되어 있습니다';
+    }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF5B8DEF), Color(0xFF00BCD4)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 채널 정보 (작게)
+          Row(
+            children: [
+              channelAvatar(
+                imageUrl: widget.channelImageUrl,
+                name: widget.channelName,
+                size: 28,
+                bgColor: _cardColor,
+                borderRadius: 8,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.channelName,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _textSecond),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // 삼성 스타일 큰 상태 텍스트
+          Text(
+            statusText,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: _textPrimary,
+              height: 1.3,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
       ),
-      child: Row(children: [
-        // 채널 이미지
-        channelAvatar(
-          imageUrl: widget.channelImageUrl,
-          name: widget.channelName,
-          size: 52,
-          bgColor: Colors.white,
-          borderRadius: 14,
-        ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.channelName,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 4),
-          Text(statusText,
-            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.85))),
-        ])),
-      ]),
     );
   }
 
-  // ── 알람 리스트 항목 (큰 시간 표시) ────────────────────────
-  Widget _buildAlarmItem(Map<String, dynamic> alarm) {
+  // ── 삼성 스타일 알람 카드 ───────────────────────────────────
+  Widget _buildAlarmCard(Map<String, dynamic> alarm) {
     final alarmId     = alarm['id']?.toString() ?? '';
     final msgType     = alarm['msg_type']?.toString() ?? '';
     final contentText = alarm['content_text']?.toString() ?? '';
     final scheduledAt = alarm['scheduled_at']?.toString();
 
     // 시간 파싱
-    String dateStr = '-', timeStr = '-', ampm = '';
+    String ampm = '오전', timeStr = '0:00', dateStr = '';
     if (scheduledAt != null) {
       try {
         final dt = DateTime.parse(scheduledAt).toLocal();
         ampm = dt.hour < 12 ? '오전' : '오후';
         final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
         final min  = dt.minute.toString().padLeft(2, '0');
-        dateStr = '${dt.month}월 ${dt.day}일';
         timeStr = '$hour:$min';
+        dateStr = '${dt.month}월 ${dt.day}일';
       } catch (_) {}
     }
 
-    final typeIcon = msgType == 'youtube' ? Icons.smart_display
-        : (msgType == 'video' ? Icons.videocam_outlined : Icons.music_note_outlined);
-    final typeColor = msgType == 'youtube' ? Colors.red
-        : (msgType == 'video' ? Colors.blue : _teal);
+    // 콘텐츠 아이콘
+    IconData typeIcon;
+    Color typeColor;
+    String typeLabel;
+    if (msgType == 'youtube') {
+      typeIcon = Icons.smart_display;
+      typeColor = Colors.red;
+      typeLabel = 'YouTube';
+    } else if (msgType == 'video') {
+      typeIcon = Icons.videocam_outlined;
+      typeColor = Colors.blue;
+      typeLabel = '동영상';
+    } else {
+      typeIcon = Icons.music_note_outlined;
+      typeColor = _accent;
+      typeLabel = '오디오';
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 왼쪽: 날짜 + 큰 시간 + 아이콘·알람내용
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // 날짜 + AM/PM
-          Row(children: [
-            Text(dateStr, style: const TextStyle(fontSize: 13, color: _text2)),
-            const SizedBox(width: 6),
-            Text(ampm, style: const TextStyle(fontSize: 13, color: _text2, fontWeight: FontWeight.w500)),
-          ]),
-          const SizedBox(height: 2),
-          // 큰 시간
-          Text(timeStr, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: _text, height: 1.1)),
-          const SizedBox(height: 6),
-          // 아이콘 + 알람 내용
-          Row(children: [
-            Icon(typeIcon, size: 16, color: typeColor),
-            const SizedBox(width: 6),
-            Expanded(child: Text(
-              contentText.isNotEmpty ? contentText : '알람 내용',
-              style: TextStyle(fontSize: 13, color: contentText.isNotEmpty ? _text : _text2),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-            )),
-          ]),
-        ])),
-        // 오른쪽: 삭제 버튼
-        GestureDetector(
-          onTap: () => _deleteAlarm(alarmId),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: _red.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.delete_outline, size: 14, color: _red),
-              SizedBox(width: 3),
-              Text('삭제', style: TextStyle(fontSize: 12, color: _red, fontWeight: FontWeight.w500)),
-            ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 상단: 큰 시간 + 삭제 버튼
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AM/PM + 시간
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      ampm,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w400,
+                        color: _textPrimary,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w300,
+                        color: _textPrimary,
+                        height: 1.0,
+                        letterSpacing: -1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 삭제 버튼
+              GestureDetector(
+                onTap: () => _deleteAlarm(alarmId),
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Icon(Icons.delete_outline_rounded, size: 22, color: _textMuted),
+                ),
+              ),
+            ],
           ),
-        ),
-      ]),
+          const SizedBox(height: 10),
+          // 하단: 날짜 + 콘텐츠 정보
+          Row(
+            children: [
+              // 날짜
+              Text(
+                dateStr,
+                style: const TextStyle(fontSize: 13, color: _textSecond, fontWeight: FontWeight.w400),
+              ),
+              if (dateStr.isNotEmpty) ...[
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  width: 1,
+                  height: 12,
+                  color: _divider,
+                ),
+              ],
+              // 콘텐츠 아이콘 + 라벨
+              Icon(typeIcon, size: 14, color: typeColor),
+              const SizedBox(width: 4),
+              Text(
+                typeLabel,
+                style: TextStyle(fontSize: 12, color: typeColor, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          // 알람 내용 (있으면 표시)
+          if (contentText.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              contentText,
+              style: const TextStyle(fontSize: 13, color: _textSecond),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -236,67 +326,59 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     final isMaxReached = _alarms.length >= _maxAlarms;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0.5,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: _text), onPressed: () => Navigator.pop(context)),
-        title: const Text('알람 설정', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
-        actions: [
-          // + 버튼 (원형)
-          if (!isMaxReached && !_loadingAlarms)
+      backgroundColor: Colors.white,
+      // 삼성 스타일: 앱바 없이 SafeArea + 뒤로가기/+ 버튼만
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── 상단 네비게이션 바 (삼성: 미니멀) ──────────────
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: _openAddForm,
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: _teal,
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: _teal.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))],
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _textPrimary),
+                    onPressed: () => Navigator.pop(context),
                   ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 22),
-                ),
+                  const Spacer(),
+                  // + 버튼 (삼성처럼 단순 아이콘)
+                  if (!isMaxReached && !_loadingAlarms)
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 26, color: _textPrimary),
+                      onPressed: _openAddForm,
+                    ),
+                  // 더보기 (점 3개) — 삼성 스타일
+                  const SizedBox(width: 4),
+                ],
               ),
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: _loadingAlarms
-            ? const Center(child: CircularProgressIndicator(color: _primary))
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  // 배너
-                  _buildBanner(),
-                  const SizedBox(height: 20),
 
-                  // 알람 리스트
-                  if (_alarms.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 50),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.alarm_off, size: 48, color: _text2.withOpacity(0.3)),
-                        const SizedBox(height: 12),
-                        const Text('예약된 알람이 없습니다.', style: TextStyle(fontSize: 14, color: _text2)),
-                        const SizedBox(height: 6),
-                        const Text('우측 상단 + 버튼을 눌러 알람을 추가하세요.', style: TextStyle(fontSize: 12, color: _text2)),
-                      ]),
-                    )
-                  else
-                    ..._alarms.map(_buildAlarmItem),
-                ]),
-              ),
+            // ── 큰 상태 텍스트 + 채널 정보 ──────────────────
+            _buildStatusHeader(),
+            const SizedBox(height: 28),
+
+            // ── 알람 리스트 ──────────────────────────────────
+            Expanded(
+              child: _loadingAlarms
+                  ? const Center(child: CircularProgressIndicator(color: _textMuted, strokeWidth: 2))
+                  : _alarms.isEmpty
+                      ? const SizedBox.shrink()  // 빈 상태는 큰 텍스트로 이미 표현
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                          itemCount: _alarms.length,
+                          itemBuilder: (_, i) => _buildAlarmCard(_alarms[i]),
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 알람 추가 폼 (별도 풀페이지)
+// 알람 추가 폼 (별도 풀페이지 — 삼성 톤 유지)
 // ══════════════════════════════════════════════════════════════════
 class _AlarmAddFormScreen extends StatefulWidget {
   final String channelId;
@@ -387,7 +469,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
       lastDate: DateTime(now.year + 1, now.month, now.day),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: _primary, onPrimary: Colors.white, surface: Colors.white, onSurface: _text),
+          colorScheme: const ColorScheme.light(primary: _accent, onPrimary: Colors.white, surface: Colors.white, onSurface: _textPrimary),
           dialogBackgroundColor: Colors.white,
         ),
         child: child!,
@@ -492,7 +574,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
       if (mounted) {
         if (resBody['success'] == true) {
           showCenterToast(context, '알람이 예약되었습니다.');
-          Navigator.pop(context, true); // true = 성공 → 리스트 새로고침
+          Navigator.pop(context, true);
         } else { setState(() => _saving = false); showCenterToast(context, resBody['error']?.toString() ?? '알람 예약 실패'); }
       }
     } catch (e) { if (mounted) { setState(() => _saving = false); showCenterToast(context, '오류: $e'); } }
@@ -501,47 +583,93 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
   Widget _clearBtn(VoidCallback onTap) {
     return GestureDetector(onTap: onTap, child: Container(
       width: 22, height: 22,
-      decoration: const BoxDecoration(color: Color(0x2EFF3B30), shape: BoxShape.circle),
-      child: const Center(child: Text('✕', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFF3B30)))),
+      decoration: const BoxDecoration(color: Color(0x20FF3B30), shape: BoxShape.circle),
+      child: const Center(child: Icon(Icons.close, size: 14, color: _red)),
     ));
   }
 
-  // ── 날짜 선택 바 ───────────────────────────────────────────
+  // ── 날짜 선택 바 (삼성 톤) ─────────────────────────────────
   Widget _buildDateSelector() {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     final isPastDisabled = !_selectedDate.isAfter(todayDate);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(color: const Color(0xFFF8F8FF), borderRadius: BorderRadius.circular(14), border: Border.all(color: _primary.withOpacity(0.15))),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+      decoration: BoxDecoration(color: _cardColor, borderRadius: BorderRadius.circular(14)),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        GestureDetector(onTap: isPastDisabled ? null : () => _moveDate(-1), child: Container(width: 36, height: 36,
-          decoration: BoxDecoration(color: isPastDisabled ? const Color(0xFFEEEEEE) : _primary.withOpacity(0.1), shape: BoxShape.circle),
-          child: Icon(Icons.chevron_left, size: 22, color: isPastDisabled ? _text2.withOpacity(0.3) : _primary))),
-        const SizedBox(width: 8),
-        Expanded(child: Center(child: Text(_formatDateLabel(_selectedDate), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _text)))),
-        GestureDetector(onTap: _openCalendar, child: Container(width: 36, height: 36, decoration: BoxDecoration(color: _primary.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.calendar_today, size: 18, color: _primary))),
-        const SizedBox(width: 8),
-        GestureDetector(onTap: () => _moveDate(1), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: _primary.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.chevron_right, size: 22, color: _primary))),
+        GestureDetector(
+          onTap: isPastDisabled ? null : () => _moveDate(-1),
+          child: Icon(Icons.chevron_left_rounded, size: 28, color: isPastDisabled ? _textMuted.withOpacity(0.3) : _textPrimary),
+        ),
+        const SizedBox(width: 4),
+        Expanded(child: Center(child: Text(
+          _formatDateLabel(_selectedDate),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textPrimary),
+        ))),
+        GestureDetector(
+          onTap: _openCalendar,
+          child: const Icon(Icons.calendar_today_rounded, size: 20, color: _textSecond),
+        ),
+        const SizedBox(width: 12),
+        GestureDetector(
+          onTap: () => _moveDate(1),
+          child: const Icon(Icons.chevron_right_rounded, size: 28, color: _textPrimary),
+        ),
       ]),
     );
   }
 
-  // ── 스크롤 타임피커 ────────────────────────────────────────
+  // ── 스크롤 타임피커 (삼성 톤) ──────────────────────────────
   Widget _buildTimePicker() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xFFF8F8FF), borderRadius: BorderRadius.circular(14), border: Border.all(color: _primary.withOpacity(0.15))),
-      child: SizedBox(height: 160, child: Row(children: [
-        Expanded(child: _wheelColumn(controller: _ampmCtrl, count: 2, selectedIndex: _ampmIndex, labelBuilder: (i) => i == 0 ? '오전' : '오후', onChanged: (i) => setState(() => _ampmIndex = i))),
-        Expanded(child: _wheelColumn(controller: _hourCtrl, count: 12, selectedIndex: _hourIndex, labelBuilder: (i) => '${i + 1}', onChanged: (i) => setState(() => _hourIndex = i))),
-        const Padding(padding: EdgeInsets.only(bottom: 4), child: Text(':', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: _text))),
-        Expanded(child: _wheelColumn(controller: _minuteCtrl, count: 60, selectedIndex: _minuteIndex, labelBuilder: (i) => i.toString().padLeft(2, '0'), onChanged: (i) => setState(() => _minuteIndex = i))),
-      ])),
+      decoration: BoxDecoration(color: _cardColor, borderRadius: BorderRadius.circular(14)),
+      child: SizedBox(height: 180, child: Stack(
+        children: [
+          // 선택 영역 하이라이트 (삼성 스타일)
+          Center(
+            child: Container(
+              height: 44,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          Row(children: [
+            Expanded(child: _wheelColumn(
+              controller: _ampmCtrl, count: 2, selectedIndex: _ampmIndex,
+              labelBuilder: (i) => i == 0 ? '오전' : '오후',
+              onChanged: (i) => setState(() => _ampmIndex = i),
+            )),
+            Expanded(flex: 2, child: _wheelColumn(
+              controller: _hourCtrl, count: 12, selectedIndex: _hourIndex,
+              labelBuilder: (i) => '${i + 1}',
+              onChanged: (i) => setState(() => _hourIndex = i),
+            )),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text(':', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w300, color: _textPrimary)),
+            ),
+            Expanded(flex: 2, child: _wheelColumn(
+              controller: _minuteCtrl, count: 60, selectedIndex: _minuteIndex,
+              labelBuilder: (i) => i.toString().padLeft(2, '0'),
+              onChanged: (i) => setState(() => _minuteIndex = i),
+            )),
+          ]),
+        ],
+      )),
     );
   }
 
-  Widget _wheelColumn({required FixedExtentScrollController controller, required int count, required int selectedIndex, required String Function(int) labelBuilder, required ValueChanged<int> onChanged}) {
+  Widget _wheelColumn({
+    required FixedExtentScrollController controller,
+    required int count,
+    required int selectedIndex,
+    required String Function(int) labelBuilder,
+    required ValueChanged<int> onChanged,
+  }) {
     return ListWheelScrollView.useDelegate(
       controller: controller, itemExtent: 44, diameterRatio: 1.4, perspective: 0.003,
       physics: const FixedExtentScrollPhysics(), onSelectedItemChanged: onChanged,
@@ -549,11 +677,81 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
         final selected = i == selectedIndex;
         return Center(child: AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 150),
-          style: TextStyle(fontSize: selected ? 24 : 16, fontWeight: selected ? FontWeight.w700 : FontWeight.w400, color: selected ? _primary : _text2.withOpacity(0.5)),
+          style: TextStyle(
+            fontSize: selected ? 22 : 16,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: selected ? _textPrimary : _textMuted,
+          ),
           child: Text(labelBuilder(i)),
         ));
       }),
     );
+  }
+
+  // ── 섹션 라벨 (삼성 스타일: 작은 캡션) ─────────────────────
+  Widget _sectionLabel(String label, {String? sub}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textPrimary)),
+        if (sub != null) ...[
+          const SizedBox(width: 6),
+          Text(sub, style: const TextStyle(fontSize: 12, color: _textMuted)),
+        ],
+      ]),
+    );
+  }
+
+  // ── 입력 행 (아이콘 + 텍스트필드 — 삼성 톤) ────────────────
+  Widget _inputRow({
+    required IconData icon,
+    required Color iconColor,
+    required TextEditingController controller,
+    required String hint,
+    bool enabled = true,
+    VoidCallback? onTap,
+    VoidCallback? onClear,
+    bool showClear = false,
+    Widget? trailing,
+    TextInputType? keyboardType,
+    VoidCallback? onChanged,
+  }) {
+    return Row(children: [
+      Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      const SizedBox(width: 10),
+      Expanded(child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(color: _cardColor, borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(children: [
+            Expanded(child: TextField(
+              controller: controller,
+              enabled: enabled,
+              onChanged: (_) { onChanged?.call(); setState(() {}); },
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(fontSize: 13, color: _textMuted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                counterText: '',
+              ),
+              style: const TextStyle(fontSize: 14, color: _textPrimary),
+              keyboardType: keyboardType,
+              maxLength: controller == _contentTextCtrl ? 20 : null,
+            )),
+            if (showClear && onClear != null) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(onClear)),
+            if (trailing != null) trailing,
+          ]),
+        ),
+      )),
+    ]);
   }
 
   @override
@@ -563,139 +761,169 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white, surfaceTintColor: Colors.white, elevation: 0.5,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: _text), onPressed: () => Navigator.pop(context)),
-        title: const Text('알람 추가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
-      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // 시간 선택
-            const Text('시간 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-            const SizedBox(height: 10),
-            _buildTimePicker(),
-            const SizedBox(height: 16),
-
-            // 날짜 선택
-            const Text('날짜 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-            const SizedBox(height: 10),
-            _buildDateSelector(),
-            const SizedBox(height: 16),
-
-            // 알람내용
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(border: Border.all(color: _border), borderRadius: BorderRadius.circular(12)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Text('알람내용', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-                  const SizedBox(width: 6), const Text('(선택)', style: TextStyle(fontSize: 11, color: _text2)), const Spacer(),
-                  ValueListenableBuilder<TextEditingValue>(valueListenable: _contentTextCtrl, builder: (_, v, __) => Text('${v.text.length}/20', style: TextStyle(fontSize: 11, color: v.text.length >= 20 ? _red : _text2))),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Container(width: 44, height: 44, decoration: BoxDecoration(color: _primary, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.short_text, color: Colors.white, size: 22)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Container(height: 44, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)), padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(children: [
-                      Expanded(child: TextField(controller: _contentTextCtrl, maxLength: 20, onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(hintText: '수신자에게 표시할 메시지 입력', hintStyle: TextStyle(fontSize: 13, color: _text2), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero, counterText: ''),
-                        style: const TextStyle(fontSize: 13, color: _text))),
-                      if (_contentTextCtrl.text.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(() { _contentTextCtrl.clear(); setState(() {}); })),
-                    ]),
-                  )),
-                ]),
+        child: Column(
+          children: [
+            // ── 상단 바 (삼성 스타일) ───────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+              child: Row(children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _textPrimary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Spacer(),
+                const Text('알람 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
+                const Spacer(),
+                const SizedBox(width: 48),  // 밸런스용
               ]),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
-            // 콘텐츠 선택
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(border: Border.all(color: _border), borderRadius: BorderRadius.circular(12)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('콘텐츠 선택', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-                const SizedBox(height: 10),
-                Opacity(opacity: youtubeDim ? 0.35 : 1.0, child: Row(children: [
-                  GestureDetector(
-                    onTap: youtubeDim ? null : () async {
-                      const appUrl = 'youtube://'; const browserUrl = 'https://www.youtube.com';
-                      if (await canLaunchUrl(Uri.parse(appUrl))) { await launchUrl(Uri.parse(appUrl), mode: LaunchMode.externalApplication); }
-                      else { await launchUrl(Uri.parse(browserUrl), mode: LaunchMode.externalApplication); }
-                    },
-                    child: Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.smart_display, color: Colors.white, size: 22)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Container(height: 44, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)), padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(children: [
-                      Expanded(child: TextField(controller: _youtubeCtrl, enabled: !youtubeDim, onChanged: (_) { if (_youtubeCtrl.text.isNotEmpty && _hasFile) _clearFile(); else setState(() {}); },
-                        decoration: const InputDecoration(hintText: 'URL 붙여넣기 (https://youtube.com/…)', hintStyle: TextStyle(fontSize: 13, color: _text2), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                        style: const TextStyle(fontSize: 13, color: _text))),
-                      if (_hasYoutube) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(_clearYoutube)),
-                    ]),
-                  )),
-                ])),
-                const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider(height: 1, color: _border)),
-                Opacity(opacity: fileDim ? 0.35 : 1.0, child: Row(children: [
-                  GestureDetector(onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
-                    child: Container(width: 44, height: 44, decoration: BoxDecoration(color: _uploading ? Colors.blue.withOpacity(0.5) : Colors.blue, borderRadius: BorderRadius.circular(12)),
-                      child: _uploading ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.folder_open, color: Colors.white, size: 22))),
-                  const SizedBox(width: 10),
-                  Expanded(child: GestureDetector(onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
-                    child: Container(height: 44, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)), padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Row(children: [
-                        Expanded(child: _uploading ? const Text('⬆️ 업로드 중...', style: TextStyle(fontSize: 13, color: _text2), overflow: TextOverflow.ellipsis)
-                            : Text(_fileLabel(), style: TextStyle(fontSize: 13, color: _uploadedFileUrl != null ? _primary : (_hasFile ? _text : _text2)), overflow: TextOverflow.ellipsis)),
-                        if (_hasFile && !_uploading) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(() { _clearFile(); showCenterToast(context, '파일이 삭제되었습니다.'); })),
-                      ]),
+            // ── 폼 본문 ──────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // 시간 선택
+                  _sectionLabel('시간'),
+                  _buildTimePicker(),
+                  const SizedBox(height: 20),
+
+                  // 날짜 선택
+                  _sectionLabel('날짜'),
+                  _buildDateSelector(),
+                  const SizedBox(height: 24),
+
+                  // 구분선
+                  const Divider(color: _divider, height: 1),
+                  const SizedBox(height: 24),
+
+                  // 알람 내용
+                  _sectionLabel('알람 내용', sub: '선택'),
+                  _inputRow(
+                    icon: Icons.short_text_rounded,
+                    iconColor: _accent,
+                    controller: _contentTextCtrl,
+                    hint: '수신자에게 표시할 메시지',
+                    showClear: _contentTextCtrl.text.isNotEmpty,
+                    onClear: () { _contentTextCtrl.clear(); setState(() {}); },
+                    trailing: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _contentTextCtrl,
+                      builder: (_, v, __) => Text(
+                        '${v.text.length}/20',
+                        style: TextStyle(fontSize: 11, color: v.text.length >= 20 ? _red : _textMuted),
+                      ),
                     ),
-                  )),
-                ])),
-              ]),
-            ),
-            const SizedBox(height: 12),
+                  ),
+                  const SizedBox(height: 20),
 
-            // 연결 URL
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(border: Border.all(color: _border), borderRadius: BorderRadius.circular(12)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('연결 URL', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.link, color: Colors.white, size: 22)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Container(height: 44, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)), padding: const EdgeInsets.symmetric(horizontal: 10),
+                  // 콘텐츠 선택
+                  _sectionLabel('콘텐츠'),
+                  // YouTube
+                  Opacity(
+                    opacity: youtubeDim ? 0.35 : 1.0,
+                    child: _inputRow(
+                      icon: Icons.smart_display_rounded,
+                      iconColor: Colors.red,
+                      controller: _youtubeCtrl,
+                      hint: 'YouTube URL 붙여넣기',
+                      enabled: !youtubeDim,
+                      showClear: _hasYoutube,
+                      onClear: _clearYoutube,
+                      onChanged: () { if (_youtubeCtrl.text.isNotEmpty && _hasFile) _clearFile(); },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // 파일
+                  Opacity(
+                    opacity: fileDim ? 0.35 : 1.0,
                     child: Row(children: [
-                      Expanded(child: TextField(controller: _linkCtrl, onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(hintText: 'https://', hintStyle: TextStyle(fontSize: 13, color: _text2), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                        style: const TextStyle(fontSize: 13, color: _text), keyboardType: TextInputType.url)),
-                      if (_linkCtrl.text.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(() { _linkCtrl.clear(); setState(() => _sameAsHomepage = false); })),
+                      GestureDetector(
+                        onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
+                        child: Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: _uploading ? Colors.blue.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: _uploading
+                              ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue))
+                              : const Icon(Icons.folder_open_rounded, color: Colors.blue, size: 20),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: GestureDetector(
+                        onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(color: _cardColor, borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(children: [
+                            Expanded(child: _uploading
+                                ? const Text('업로드 중...', style: TextStyle(fontSize: 13, color: _textMuted))
+                                : Text(_fileLabel(), style: TextStyle(fontSize: 13, color: _hasFile ? _textPrimary : _textMuted), overflow: TextOverflow.ellipsis)),
+                            if (_hasFile && !_uploading) Padding(padding: const EdgeInsets.only(left: 4), child: _clearBtn(() { _clearFile(); showCenterToast(context, '파일이 삭제되었습니다.'); })),
+                          ]),
+                        ),
+                      )),
                     ]),
-                  )),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  SizedBox(width: 20, height: 20, child: Checkbox(value: _sameAsHomepage, onChanged: (v) => setState(() => _sameAsHomepage = v ?? false), activeColor: _primary, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact)),
-                  const SizedBox(width: 8), const Text('홈페이지와 동일', style: TextStyle(fontSize: 13, color: _text2)),
-                ]),
-              ]),
-            ),
-            const SizedBox(height: 20),
+                  ),
+                  const SizedBox(height: 20),
 
-            // 취소/확인
-            Row(children: [
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), side: const BorderSide(color: _border)),
-                child: const Text('취소', style: TextStyle(color: _text2)))),
-              const SizedBox(width: 12),
-              Expanded(child: ElevatedButton(onPressed: (_saving || _uploading) ? null : _submit,
-                style: ElevatedButton.styleFrom(backgroundColor: _teal, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('확인'))),
-            ]),
-          ]),
+                  // 연결 URL
+                  _sectionLabel('연결 URL', sub: '선택'),
+                  _inputRow(
+                    icon: Icons.link_rounded,
+                    iconColor: Colors.orange,
+                    controller: _linkCtrl,
+                    hint: 'https://',
+                    showClear: _linkCtrl.text.isNotEmpty,
+                    onClear: () { _linkCtrl.clear(); setState(() => _sameAsHomepage = false); },
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    SizedBox(width: 20, height: 20, child: Checkbox(
+                      value: _sameAsHomepage, onChanged: (v) => setState(() => _sameAsHomepage = v ?? false),
+                      activeColor: _accent, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact,
+                    )),
+                    const SizedBox(width: 8),
+                    const Text('홈페이지와 동일', style: TextStyle(fontSize: 13, color: _textSecond)),
+                  ]),
+                  const SizedBox(height: 32),
+
+                  // 취소/확인 버튼 (삼성 스타일)
+                  Row(children: [
+                    Expanded(child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        side: const BorderSide(color: _divider),
+                      ),
+                      child: const Text('취소', style: TextStyle(fontSize: 16, color: _textSecond, fontWeight: FontWeight.w500)),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: ElevatedButton(
+                      onPressed: (_saving || _uploading) ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _textPrimary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: _textMuted,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: _saving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('저장', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    )),
+                  ]),
+                ]),
+              ),
+            ),
+          ],
         ),
       ),
     );
