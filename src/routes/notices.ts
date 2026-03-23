@@ -126,9 +126,7 @@ notices.post('/upload-image', async (c) => {
     const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }
     const ct = mimeMap[ext] || file.type || 'application/octet-stream'
 
-    // UUID v4 생성 (download token 용)
-    const downloadToken = crypto.randomUUID()
-
+    // 1) 파일 업로드
     const upRes = await fetch(
       `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodedPath}`,
       {
@@ -137,14 +135,29 @@ notices.post('/upload-image', async (c) => {
           Authorization: `Bearer ${token}`,
           'Content-Type': ct,
           'Content-Length': String(buf.byteLength),
-          'X-Goog-Meta-firebaseStorageDownloadTokens': downloadToken,
         },
         body: buf,
       }
     )
     if (!upRes.ok) return c.json({ success: false, error: `Storage 업로드 실패: ${upRes.status}` }, 500)
 
-    // download token 포함 URL → 인증 없이 공개 접근 가능
+    // 2) metadata에 firebaseStorageDownloadTokens 설정 → 공개 접근 가능
+    const downloadToken = crypto.randomUUID()
+    const patchRes = await fetch(
+      `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodedPath}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ metadata: { firebaseStorageDownloadTokens: downloadToken } }),
+      }
+    )
+    if (!patchRes.ok) {
+      console.error('[notices/upload-image] metadata patch 실패:', patchRes.status)
+    }
+
     const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media&token=${downloadToken}`
     return c.json({ success: true, url })
   } catch (e: any) {

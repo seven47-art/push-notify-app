@@ -448,12 +448,14 @@ class _HtmlRenderer extends StatelessWidget {
 
   void _addImage(List<Widget> widgets, String imgUrl) {
     if (imgUrl.isEmpty) return;
+    // Quill이 &를 &amp;로 인코딩할 수 있음 → 디코딩
+    final decodedUrl = imgUrl.replaceAll('&amp;', '&');
     widgets.add(Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.network(
-          imgUrl,
+          decodedUrl,
           width: double.infinity,
           fit: BoxFit.fitWidth,
           loadingBuilder: (_, child, progress) {
