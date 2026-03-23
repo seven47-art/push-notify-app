@@ -171,12 +171,23 @@ class FakeCallActivity : Activity() {
         autoDeclineHandler.postDelayed(autoDeclineRunnable!!, 30_000L)
     }
 
+    // 뒤로가기 차단 (카카오톡 보이스톡과 동일 — 반드시 수락/거절 선택)
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        // 무시 — 아무 동작 안 함
+        Log.d(TAG, "뒤로가기 차단됨 (수락/거절로만 종료 가능)")
+    }
+
     override fun onDestroy() {
         pulseAnimator?.cancel()
         stopRinging()
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         scope.cancel()
         try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
+        // 안전장치: Activity가 어떤 이유로든 종료되면 서비스도 정리
+        CallForegroundService.stop(this)
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.cancel(CallForegroundService.NOTIFICATION_ID)
         AlarmPollingService.setFakeCallShowing(false)
         Log.d(TAG, "FakeCallActivity 종료 → isFakeCallShowing = false")
         super.onDestroy()
