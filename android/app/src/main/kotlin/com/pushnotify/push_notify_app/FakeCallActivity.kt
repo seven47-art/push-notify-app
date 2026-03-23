@@ -19,9 +19,14 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.*
 import android.widget.*
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -140,6 +145,14 @@ class FakeCallActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
             window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         }
+
+        // ── 5. Edge-to-edge: 시스템 바 투명 + 콘텐츠 영역 제어 ────────
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.BLACK
+        val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = false
+        insetsController.isAppearanceLightNavigationBars = false
 
         // ── 인텐트 데이터 추출 ──────────────────────────────────────────
         alarmId         = intent.getIntExtra(EXTRA_ALARM_ID, 0)
@@ -470,11 +483,29 @@ class FakeCallActivity : Activity() {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(35).toInt()
+            bottomMargin = dp(35).toInt()  // WindowInsets 콜백으로 대체됨
         }
         root.addView(btnLayout, btnParams)
 
         setContentView(root)
+
+        // WindowInsets 콜백: 실제 네비게이션 바 높이를 정확히 반영
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val navBarHeight = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
+            // 버튼 영역: 네비바 높이 + 35dp 추가 마진
+            (btnLayout.layoutParams as FrameLayout.LayoutParams).bottomMargin =
+                navBarHeight + dp(35).toInt()
+            btnLayout.requestLayout()
+            // 상단 카드: 상태바 높이를 패딩으로 추가
+            topCard.setPadding(
+                dp(24).toInt(),
+                dp(48).toInt() + statusBarHeight,
+                dp(24).toInt(),
+                dp(40).toInt()
+            )
+            insets
+        }
     }
 
     // ── 액션 버튼 생성 (68dp, 첨부 PNG 이미지 그대로 사용) ──
