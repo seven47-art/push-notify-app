@@ -439,7 +439,7 @@ class _FakeCallScreenState extends State<FakeCallScreen>
 
           // 수락/거절 버튼
           Padding(
-            padding: EdgeInsets.only(bottom: math.max(MediaQuery.of(context).padding.bottom, 32) + 20),
+            padding: EdgeInsets.only(bottom: math.max(MediaQuery.of(context).padding.bottom, 48) + 24),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
