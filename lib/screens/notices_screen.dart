@@ -571,11 +571,16 @@ class _HtmlRenderer extends StatelessWidget {
     );
 
     if (linkUrl != null) {
+      // http(s):// 없는 URL에 자동으로 https:// 추가
+      var resolvedUrl = linkUrl;
+      if (!resolvedUrl.startsWith('http://') && !resolvedUrl.startsWith('https://')) {
+        resolvedUrl = 'https://$resolvedUrl';
+      }
       style = style.copyWith(color: _primary, decoration: TextDecoration.underline);
       return TextSpan(
         text: text,
         style: style,
-        recognizer: TapGestureRecognizer()..onTap = () => _HtmlContentWidget._launchUrl(linkUrl),
+        recognizer: TapGestureRecognizer()..onTap = () => _HtmlContentWidget._launchUrl(resolvedUrl),
       );
     }
 

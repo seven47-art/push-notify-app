@@ -126,13 +126,26 @@ notices.post('/upload-image', async (c) => {
     const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }
     const ct = mimeMap[ext] || file.type || 'application/octet-stream'
 
+    // UUID v4 생성 (download token 용)
+    const downloadToken = crypto.randomUUID()
+
     const upRes = await fetch(
       `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodedPath}`,
-      { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': ct, 'Content-Length': String(buf.byteLength) }, body: buf }
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': ct,
+          'Content-Length': String(buf.byteLength),
+          'X-Goog-Meta-firebaseStorageDownloadTokens': downloadToken,
+        },
+        body: buf,
+      }
     )
     if (!upRes.ok) return c.json({ success: false, error: `Storage 업로드 실패: ${upRes.status}` }, 500)
 
-    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`
+    // download token 포함 URL → 인증 없이 공개 접근 가능
+    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media&token=${downloadToken}`
     return c.json({ success: true, url })
   } catch (e: any) {
     console.error('[notices/upload-image 오류]', e)

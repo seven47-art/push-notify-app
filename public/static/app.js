@@ -1771,8 +1771,16 @@ async function openNoticeModal(id = null) {
             <label for="notice-active" class="text-slate-300 text-sm">활성화</label>
           </div>
         </div>
+        <div id="notice-preview-area" style="display:none;" class="mt-3">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-slate-400 text-xs font-semibold uppercase">미리보기</label>
+            <button onclick="toggleNoticePreview()" class="text-slate-500 hover:text-slate-300 text-xs"><i class="fas fa-times"></i> 닫기</button>
+          </div>
+          <div id="notice-preview-content" class="bg-white text-slate-900 rounded-lg p-4 max-h-80 overflow-y-auto" style="font-size:15px;line-height:1.7;"></div>
+        </div>
         <div class="flex gap-3 mt-5">
           <button onclick="saveNotice()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold flex-1">저장</button>
+          <button onclick="toggleNoticePreview()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex-1"><i class="fas fa-eye mr-1"></i>미리보기</button>
           <button onclick="closeNoticeModal()" class="bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex-1">취소</button>
         </div>
       </div>`
@@ -1838,6 +1846,31 @@ function closeNoticeModal() {
   const modal = document.getElementById('modal-notice')
   if (modal) modal.style.display = 'none'
   noticeQuill = null
+}
+
+// 공지사항 미리보기 토글
+function toggleNoticePreview() {
+  const area = document.getElementById('notice-preview-area')
+  if (!area) return
+  if (area.style.display === 'none') {
+    const html = noticeQuill ? noticeQuill.root.innerHTML : ''
+    const previewContent = document.getElementById('notice-preview-content')
+    const imageUrl = document.getElementById('notice-image-url').value.trim()
+    let previewHtml = ''
+    if (imageUrl) {
+      previewHtml += '<div style="margin-bottom:12px;"><img src="' + imageUrl + '" style="max-width:100%;border-radius:10px;"></div>'
+    }
+    previewHtml += html
+    previewContent.innerHTML = previewHtml
+    previewContent.querySelectorAll('a').forEach(a => {
+      a.setAttribute('target', '_blank')
+      a.setAttribute('rel', 'noopener noreferrer')
+    })
+    area.style.display = 'block'
+    area.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  } else {
+    area.style.display = 'none'
+  }
 }
 
 // Quill 툴바 이미지 버튼 핸들러
