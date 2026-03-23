@@ -127,6 +127,7 @@ class MainActivity : FlutterActivity() {
                             val channelName  = call.argument<String>("channel_name")  ?: ""
                             val channelImage = call.argument<String>("channel_image") ?: ""
                             val linkUrl      = call.argument<String>("link_url")      ?: ""
+                            val contentText  = call.argument<String>("content_text")  ?: ""
                             ContentPlayerActivity.start(
                                 context      = this,
                                 msgType      = msgType,
@@ -134,7 +135,8 @@ class MainActivity : FlutterActivity() {
                                 contentUrl   = msgValue,
                                 channelName  = channelName,
                                 channelImage = channelImage,
-                                linkUrl      = linkUrl
+                                linkUrl      = linkUrl,
+                                contentText  = contentText
                             )
                             result.success(true)
                         } catch (e: Exception) {
