@@ -585,40 +585,42 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                           child: const Icon(Icons.alarm, size: 18, color: _teal),
                         ),
                         const SizedBox(width: 12),
-                        // 날짜·시간 + 서브텍스트
+                        // 채널명 + 알람내용 + 시간·아이콘
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(scheduledAt,
+                              // 1줄: 채널명
+                              Text(widget.channelName,
                                 style: const TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  Icon(typeIcon, size: 13, color: typeColor),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    recipientCount > 0
-                                        ? '$typeLabel · 대상 $recipientCount명'
-                                        : typeLabel,
-                                    style: const TextStyle(fontSize: 12, color: _text2),
-                                  ),
-                                ],
+                                  fontSize: 14, fontWeight: FontWeight.w700, color: _text),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                              // 2줄: 알람내용 (있을 때만)
                               if (contentText.isNotEmpty) ...[
                                 const SizedBox(height: 3),
                                 Text(
                                   contentText,
-                                  style: const TextStyle(fontSize: 12, color: _primary),
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
+                              // 3줄: 시간 + 콘텐츠 아이콘만
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Text(scheduledAt,
+                                    style: const TextStyle(fontSize: 12, color: _text2)),
+                                  const SizedBox(width: 6),
+                                  Icon(typeIcon, size: 14, color: typeColor),
+                                ],
+                              ),
                             ],
                           ),
                         ),
-                        // 삭제 버튼 (웹뷰 스타일: 텍스트 + 아이콘)
+                        // 삭제 버튼
                         GestureDetector(
                           onTap: () => _deleteAlarm(alarmId),
                           child: Container(
