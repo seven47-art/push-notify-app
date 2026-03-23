@@ -69,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom),
           child: Container(
             decoration: const BoxDecoration(
               color: Color(0xFF1E1E2E),
@@ -1526,7 +1526,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               child: const Text('닫기', style: TextStyle(color: _text2)),
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+          SizedBox(height: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
         ],
       ),
     );
@@ -1607,7 +1607,7 @@ class _ChannelSettingSheetState extends State<_ChannelSettingSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),

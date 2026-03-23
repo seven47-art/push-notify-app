@@ -175,7 +175,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom),
           child: Container(
             decoration: const BoxDecoration(
               color: Color(0xFF1E1E2E),
