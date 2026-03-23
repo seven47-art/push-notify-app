@@ -152,8 +152,8 @@
         </receiver>
 
         <!-- 가상통화 전체화면 액티비티
-             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" 으로 변경:
-             Flutter LaunchTheme 대신 순수 안드로이드 전체화면 테마 사용 (파워알람 방식) -->
+             NoTitleBar 테마 + 코드에서 edge-to-edge 처리:
+             네비게이션 바 영역을 투명하게 유지하면서 버튼이 가려지지 않도록 함 -->
         <activity
             android:name=".FakeCallActivity"
             android:exported="false"
@@ -161,7 +161,7 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"/>
+            android:theme="@android:style/Theme.Black.NoTitleBar"/>
 
         <activity
             android:name=".ContentPlayerActivity"
