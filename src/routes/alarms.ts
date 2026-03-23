@@ -1053,6 +1053,7 @@ alarms.get('/inbox', async (c) => {
     const params: any[] = [user.id]
 
     // INNER JOIN channels: 삭제된 채널 로그 자동 제외
+    // 미래 알람 제외: scheduled_at <= 현재시각인 것만 표시
     let query = `
       SELECT
         l.id, l.alarm_id, l.channel_id, ch.name as channel_name,
@@ -1061,15 +1062,16 @@ alarms.get('/inbox', async (c) => {
       FROM alarm_logs l
       INNER JOIN channels ch ON ch.id = l.channel_id
       WHERE l.receiver_id = ?
+        AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
     `
     if (channelId) {
       query += ` AND l.channel_id = ?`
       params.push(Number(channelId))
     }
 
-    // 전체 카운트
+    // 전체 카운트 (미래 알람 제외)
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id WHERE l.receiver_id = ?${channelId ? ' AND l.channel_id = ?' : ''}`
+      `SELECT COUNT(*) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id WHERE l.receiver_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')${channelId ? ' AND l.channel_id = ?' : ''}`
     ).bind(...params).first() as any
     const total = countResult?.total || 0
 
@@ -1078,13 +1080,14 @@ alarms.get('/inbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 필터 선택과 무관)
+    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 미래 알람 제외)
     const channels = offset === 0 ? (() => {
       return c.env.DB.prepare(
         `SELECT DISTINCT ch.id, ch.name, ch.image_url
          FROM alarm_logs l
          INNER JOIN channels ch ON ch.id = l.channel_id
          WHERE l.receiver_id = ?
+           AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
          ORDER BY ch.name ASC`
       ).bind(user.id).all()
     })() : Promise.resolve({ results: [] })
@@ -1139,7 +1142,8 @@ alarms.get('/outbox', async (c) => {
 
     // alarm_logs는 수신자마다 1행 → GROUP BY alarm_id 로 묶어 발신 단위로 1건만 표시
     // INNER JOIN channels: 삭제된 채널 로그 자동 제외
-    let whereClause = `WHERE l.sender_id = ?`
+    // 미래 알람 제외: scheduled_at <= 현재시각인 것만 표시
+    let whereClause = `WHERE l.sender_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')`
     const params: any[] = [user.id]
     if (channelId) {
       whereClause += ` AND l.channel_id = ?`
@@ -1175,13 +1179,14 @@ alarms.get('/outbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 필터 선택과 무관)
+    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 미래 알람 제외)
     const chResult = offset === 0
       ? await c.env.DB.prepare(
           `SELECT DISTINCT ch.id, ch.name, ch.image_url
            FROM alarm_logs l
            INNER JOIN channels ch ON ch.id = l.channel_id
            WHERE l.sender_id = ?
+             AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
            ORDER BY ch.name ASC`
         ).bind(user.id).all() as { results: any[] }
       : { results: [] }

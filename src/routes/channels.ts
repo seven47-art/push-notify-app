@@ -171,7 +171,7 @@ channels.get('/popular', async (c) => {
   }
 })
 
-// GET /api/channels/best  — 베스트채널 (구독자 많은 순 5개, 동수 시 created_at ASC)
+// GET /api/channels/best  — 베스트채널 (구독자 많은 순 10개, 동수 시 created_at ASC)
 channels.get('/best', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
@@ -185,7 +185,7 @@ channels.get('/best', async (c) => {
         AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = ch.owner_id)
       GROUP BY ch.id
       ORDER BY subscriber_count DESC, ch.created_at ASC
-      LIMIT 5
+      LIMIT 10
     `).all()
     return c.json({ success: true, data: results })
   } catch (e: any) {
