@@ -29,8 +29,9 @@ class AlarmScheduleSheet extends StatefulWidget {
 }
 
 class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
-  final _youtubeCtrl    = TextEditingController();
-  final _linkCtrl       = TextEditingController();
+  final _youtubeCtrl      = TextEditingController();
+  final _linkCtrl         = TextEditingController();
+  final _contentTextCtrl  = TextEditingController();
   bool _sameAsHomepage  = false;
   DateTime _scheduledAt = DateTime.now().add(const Duration(minutes: 5));
   PlatformFile? _pickedFile;
@@ -93,6 +94,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
   void dispose() {
     _youtubeCtrl.dispose();
     _linkCtrl.dispose();
+    _contentTextCtrl.dispose();
     super.dispose();
   }
 
@@ -362,6 +364,8 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
         'msg_type':     msgType,
         'msg_value':    msgValue,
         'link_url':     _linkCtrl.text,
+        if (_contentTextCtrl.text.trim().isNotEmpty)
+          'content_text': _contentTextCtrl.text.trim(),
       };
 
       final res = await http.post(
@@ -376,6 +380,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
           // 폼 초기화 + 폼 숨김
           _youtubeCtrl.clear();
           _linkCtrl.clear();
+          _contentTextCtrl.clear();
           setState(() {
             _pickedFile = null;
             _uploadedFileUrl = null;
@@ -552,6 +557,7 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
               final msgType = alarm['msg_type']?.toString() ?? '';
               final typeLabel = _msgTypeLabel(msgType);
               final recipientCount = alarm['recipient_count'] ?? alarm['member_count'] ?? 0;
+              final contentText = alarm['content_text']?.toString() ?? '';
               final typeIcon = msgType == 'youtube'
                   ? Icons.smart_display
                   : (msgType == 'video' ? Icons.videocam_outlined : Icons.music_note_outlined);
@@ -600,6 +606,15 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                                   ),
                                 ],
                               ),
+                              if (contentText.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  contentText,
+                                  style: const TextStyle(fontSize: 12, color: _primary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -759,7 +774,96 @@ class _AlarmScheduleSheetState extends State<AlarmScheduleSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+
+            // ── 알람내용 섹션 (선택, 최대 20자) ──────────────────
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                border: Border.all(color: _border),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('알람내용',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _text)),
+                      const SizedBox(width: 6),
+                      const Text('(선택)',
+                        style: TextStyle(fontSize: 11, color: _text2)),
+                      const Spacer(),
+                      // 실시간 글자수 카운터
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _contentTextCtrl,
+                        builder: (_, v, __) => Text(
+                          '${v.text.length}/20',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: v.text.length >= 20 ? _red : _text2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(
+                          color: _primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.short_text, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _border),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _contentTextCtrl,
+                                  maxLength: 20,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: const InputDecoration(
+                                    hintText: '수신자에게 표시할 메시지 입력',
+                                    hintStyle: TextStyle(fontSize: 13, color: _text2),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    counterText: '',  // 기본 카운터 숨김
+                                  ),
+                                  style: const TextStyle(fontSize: 13, color: _text),
+                                ),
+                              ),
+                              if (_contentTextCtrl.text.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: _clearBtn(() {
+                                    _contentTextCtrl.clear();
+                                    setState(() {});
+                                  }),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // ── 콘텐츠 선택 섹션 ───────────────────────────────
             Container(

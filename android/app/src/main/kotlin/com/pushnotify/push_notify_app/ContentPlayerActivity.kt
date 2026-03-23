@@ -51,6 +51,7 @@ class ContentPlayerActivity : Activity() {
         const val EXTRA_HOMEPAGE_URL      = "homepage_url"
         const val EXTRA_LINK_URL          = "link_url"
         const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
+        const val EXTRA_CONTENT_TEXT      = "content_text"
 
         fun start(
             context: Context,
@@ -61,7 +62,8 @@ class ContentPlayerActivity : Activity() {
             channelImage: String = "",
             homepageUrl: String = "",
             channelPublicId: String = "",
-            linkUrl: String = ""
+            linkUrl: String = "",
+            contentText: String = ""
         ) {
             val intent = Intent(context, ContentPlayerActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -74,6 +76,7 @@ class ContentPlayerActivity : Activity() {
                 putExtra(EXTRA_HOMEPAGE_URL,      homepageUrl)
                 putExtra(EXTRA_LINK_URL,          linkUrl)
                 putExtra(EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
+                putExtra(EXTRA_CONTENT_TEXT,      contentText)
             }
             context.startActivity(intent)
         }
@@ -107,8 +110,9 @@ class ContentPlayerActivity : Activity() {
         val homepageUrl     = intent.getStringExtra(EXTRA_HOMEPAGE_URL)      ?: ""
         val linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
         val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
+        val contentText     = intent.getStringExtra(EXTRA_CONTENT_TEXT)      ?: ""
 
-        setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl))
+        setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText))
     }
 
 
@@ -121,7 +125,8 @@ class ContentPlayerActivity : Activity() {
         contentUrl: String,
         homepageUrl: String,
         channelPublicId: String,
-        linkUrl: String = ""
+        linkUrl: String = "",
+        contentText: String = ""
     ): View {
 
         // ── 루트: FrameLayout (콘텐츠 풀스크린 + 하단 오버레이) ──
@@ -449,8 +454,35 @@ class ContentPlayerActivity : Activity() {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
             setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, if (contentText.isEmpty()) 1f else 0f).also {
+                it.marginEnd = dp(8)
+                if (contentText.isNotEmpty()) it.marginEnd = dp(4)
+            }
+            if (contentText.isNotEmpty()) {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
+                    it.marginEnd = dp(4)
+                }
+            }
         })
+
+        // ── 알람내용 마퀴 (있을 때만) ──
+        if (contentText.isNotEmpty()) {
+            bottomBar.addView(TextView(this).apply {
+                text = contentText; textSize = 12f
+                setTextColor(Color.parseColor("#FFD700"))  // 골드 색상으로 강조
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+                marqueeRepeatLimit = -1
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isSelected = true
+                gravity = Gravity.CENTER_VERTICAL
+                setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                    it.marginEnd = dp(8)
+                }
+            })
+        }
 
         // ── YouTube 앱으로 열기 버튼 (youtube 타입일 때만) ──
         if (effectiveType == "youtube") {
