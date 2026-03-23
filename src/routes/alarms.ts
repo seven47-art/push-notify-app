@@ -359,8 +359,9 @@ alarms.get('/', async (c) => {
 
     if (channelId) { where += ' AND a.channel_id = ?'; params.push(channelId) }
     if (userId)    { where += ' AND a.created_by = ?'; params.push(userId) }
-    // 미래 예약 알람만 반환 (scheduled_at > now 인 pending만)
-    where += " AND a.status = 'pending' AND replace(substr(a.scheduled_at,1,19),'T',' ') > datetime('now')"
+    // 미래 pending + 최근 3일 이내 지난 알람(triggered/pending 모두) 반환
+    where += " AND (  (a.status = 'pending' AND replace(substr(a.scheduled_at,1,19),'T',' ') > datetime('now'))" +
+             "     OR (replace(substr(a.scheduled_at,1,19),'T',' ') <= datetime('now') AND replace(substr(a.scheduled_at,1,19),'T',' ') >= datetime('now','-3 days') AND a.status IN ('pending','triggered'))  )"
 
     const stmt = c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name
