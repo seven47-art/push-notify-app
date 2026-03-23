@@ -129,7 +129,8 @@ channels.get('/', async (c) => {
         COUNT(DISTINCT s.id)  as subscriber_count,
         COUNT(DISTINCT ct.id) as content_count,
         COUNT(DISTINCT il.id) as invite_link_count,
-        COUNT(DISTINCT CASE WHEN a.scheduled_at > datetime('now') AND a.status = 'pending' THEN a.id END) as pending_alarm_count
+        COUNT(DISTINCT CASE WHEN a.scheduled_at > datetime('now') AND a.status = 'pending' THEN a.id END) as pending_alarm_count,
+        MAX(a.scheduled_at) as last_alarm_at
       FROM channels ch
       LEFT JOIN users u         ON ch.owner_id = u.user_id
       LEFT JOIN blocked_emails b ON LOWER(b.email) = LOWER(u.email)
@@ -139,7 +140,7 @@ channels.get('/', async (c) => {
       LEFT JOIN alarm_schedules a ON ch.id = a.channel_id
       ${where}
       GROUP BY ch.id
-      ORDER BY ch.created_at DESC
+      ORDER BY last_alarm_at DESC NULLS LAST, ch.created_at DESC
     `
 
     const stmt = c.env.DB.prepare(query)

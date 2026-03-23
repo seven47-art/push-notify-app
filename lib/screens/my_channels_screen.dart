@@ -1008,7 +1008,15 @@ class _AlarmListSheetState extends State<_AlarmListSheet> {
       }
 
       final nested = await Future.wait(futures);
-      final result = nested.expand((e) => e).toList();
+      final all = nested.expand((e) => e).toList();
+
+      // 미래 예약 알람만 필터링 (지난 알람 제외)
+      final now = DateTime.now();
+      final result = all.where((a) {
+        final s = a['scheduled_at']?.toString();
+        if (s == null) return false;
+        try { return DateTime.parse(s).toLocal().isAfter(now); } catch (_) { return false; }
+      }).toList();
 
       // 날짜 오름차순 정렬
       result.sort((a, b) {
