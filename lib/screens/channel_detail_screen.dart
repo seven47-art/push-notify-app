@@ -214,13 +214,13 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
   }
 
   void _openAlarmSchedule() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AlarmScheduleSheet(channelId: widget.channelId, channelName: _channel?['name']?.toString() ?? ''),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlarmScheduleScreen(channelId: widget.channelId, channelName: _channel?['name']?.toString() ?? ''),
+      ),
     ).then((_) {
-      // 알람 시트 닫힌 후 카운트 새로고침
+      // 알람 화면 닫힌 후 카운트 새로고침
       if (widget.isOwner) _loadAlarmCount();
     });
   }
