@@ -122,6 +122,43 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     if (mounted) showCenterToast(context, '알람 삭제에 실패했습니다.');
   }
 
+  /// 알람 켜기/끄기 토글
+  Future<void> _toggleAlarm(String alarmId, bool enabled) async {
+    // 즉시 UI 반영
+    setState(() {
+      final idx = _alarms.indexWhere((a) => a['id']?.toString() == alarmId);
+      if (idx >= 0) _alarms[idx]['is_enabled'] = enabled ? 1 : 0;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      await http.patch(
+        Uri.parse('$kBaseUrl/api/alarms/$alarmId/toggle'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'is_enabled': enabled}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // 실패 시 롤백
+      setState(() {
+        final idx = _alarms.indexWhere((a) => a['id']?.toString() == alarmId);
+        if (idx >= 0) _alarms[idx]['is_enabled'] = enabled ? 0 : 1;
+      });
+      if (mounted) showCenterToast(context, '토글 실패');
+    }
+  }
+
+  /// 알람 카드 터치 → 수정 페이지 (기존 데이터 + 날짜는 오늘, 시간은 +10분)
+  Future<void> _openEditForm(Map<String, dynamic> alarm) async {
+    final result = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => _AlarmAddFormScreen(
+        channelId: widget.channelId,
+        channelName: widget.channelName,
+        editAlarm: alarm,
+      ),
+    ));
+    if (result == true) await _loadAlarms();
+  }
+
   /// + 버튼 → 알람 추가 폼 화면
   Future<void> _openAddForm() async {
     if (_alarms.length >= _maxAlarms) {
@@ -151,21 +188,21 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 채널 정보 (작게)
+          // 채널 정보
           Row(
             children: [
               channelAvatar(
                 imageUrl: widget.channelImageUrl,
                 name: widget.channelName,
-                size: 28,
+                size: 44,
                 bgColor: _cardColor,
-                borderRadius: 8,
+                borderRadius: 12,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   widget.channelName,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _textSecond),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: _textSecond),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -195,6 +232,7 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     final msgType     = alarm['msg_type']?.toString() ?? '';
     final contentText = alarm['content_text']?.toString() ?? '';
     final scheduledAt = alarm['scheduled_at']?.toString();
+    final isEnabled   = (alarm['is_enabled'] ?? 1) == 1;
 
     // 시간 파싱
     String ampm = '오전', timeStr = '0:00', dateStr = '';
@@ -227,96 +265,120 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
       typeLabel = '오디오';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 상단: 큰 시간 + 삭제 버튼
-          Row(
+    // 끔 상태: 연한색
+    final primaryColor = isEnabled ? _textPrimary : _textMuted;
+    final secondColor  = isEnabled ? _textSecond : _textMuted.withOpacity(0.6);
+    final iconOpacity  = isEnabled ? 1.0 : 0.4;
+
+    return GestureDetector(
+      onTap: () => _openEditForm(alarm),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 120),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // AM/PM + 시간
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      ampm,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w400,
-                        color: _textPrimary,
-                        height: 1.0,
-                      ),
+              // 상단: 큰 시간 + 삭제 & 스위치
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // AM/PM + 시간
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          ampm,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w400,
+                            color: primaryColor,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          timeStr,
+                          style: TextStyle(
+                            fontSize: 44,
+                            fontWeight: FontWeight.w300,
+                            color: primaryColor,
+                            height: 1.0,
+                            letterSpacing: -1.5,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      timeStr,
-                      style: const TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w300,
-                        color: _textPrimary,
-                        height: 1.0,
-                        letterSpacing: -1.5,
+                  ),
+                  // 삭제 + 스위치 (세로 배치)
+                  Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () => _deleteAlarm(alarmId),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Icon(Icons.delete_outline_rounded, size: 22, color: isEnabled ? _textMuted : _textMuted.withOpacity(0.4)),
+                        ),
                       ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 28,
+                        child: Switch(
+                          value: isEnabled,
+                          onChanged: (v) => _toggleAlarm(alarmId, v),
+                          activeColor: _accent,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // 하단: 날짜 + 콘텐츠 정보
+              Row(
+                children: [
+                  Text(
+                    dateStr,
+                    style: TextStyle(fontSize: 13, color: secondColor, fontWeight: FontWeight.w400),
+                  ),
+                  if (dateStr.isNotEmpty) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      width: 1,
+                      height: 12,
+                      color: _divider,
                     ),
                   ],
-                ),
+                  Opacity(
+                    opacity: iconOpacity,
+                    child: Icon(typeIcon, size: 14, color: typeColor),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    typeLabel,
+                    style: TextStyle(fontSize: 12, color: isEnabled ? typeColor : secondColor, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
-              // 삭제 버튼
-              GestureDetector(
-                onTap: () => _deleteAlarm(alarmId),
-                child: const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Icon(Icons.delete_outline_rounded, size: 22, color: _textMuted),
-                ),
+              // 알람 내용 (항상 공간 확보 — 내용 없으면 빈 줄)
+              const SizedBox(height: 6),
+              Text(
+                contentText.isNotEmpty ? contentText : ' ',
+                style: TextStyle(fontSize: 13, color: secondColor),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          // 하단: 날짜 + 콘텐츠 정보
-          Row(
-            children: [
-              // 날짜
-              Text(
-                dateStr,
-                style: const TextStyle(fontSize: 13, color: _textSecond, fontWeight: FontWeight.w400),
-              ),
-              if (dateStr.isNotEmpty) ...[
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  width: 1,
-                  height: 12,
-                  color: _divider,
-                ),
-              ],
-              // 콘텐츠 아이콘 + 라벨
-              Icon(typeIcon, size: 14, color: typeColor),
-              const SizedBox(width: 4),
-              Text(
-                typeLabel,
-                style: TextStyle(fontSize: 12, color: typeColor, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-          // 알람 내용 (있으면 표시)
-          if (contentText.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              contentText,
-              style: const TextStyle(fontSize: 13, color: _textSecond),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -342,14 +404,6 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  // + 버튼 (삼성처럼 단순 아이콘)
-                  if (!isMaxReached && !_loadingAlarms)
-                    IconButton(
-                      icon: const Icon(Icons.add, size: 26, color: _textPrimary),
-                      onPressed: _openAddForm,
-                    ),
-                  // 더보기 (점 3개) — 삼성 스타일
-                  const SizedBox(width: 4),
                 ],
               ),
             ),
@@ -357,6 +411,24 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
             // ── 큰 상태 텍스트 + 채널 정보 ──────────────────
             _buildStatusHeader(),
             const SizedBox(height: 28),
+
+            // ── + 버튼 + 점3개 (삼성 스타일: 리스트 바로 위) ────
+            if (!_loadingAlarms)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (!isMaxReached)
+                      IconButton(
+                        icon: const Icon(Icons.add, size: 26, color: _textPrimary),
+                        onPressed: _openAddForm,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                  ],
+                ),
+              ),
 
             // ── 알람 리스트 ──────────────────────────────────
             Expanded(
@@ -383,7 +455,8 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
 class _AlarmAddFormScreen extends StatefulWidget {
   final String channelId;
   final String channelName;
-  const _AlarmAddFormScreen({required this.channelId, required this.channelName});
+  final Map<String, dynamic>? editAlarm;  // null이면 새로 추가, 있으면 수정
+  const _AlarmAddFormScreen({required this.channelId, required this.channelName, this.editAlarm});
 
   @override
   State<_AlarmAddFormScreen> createState() => _AlarmAddFormScreenState();
@@ -411,13 +484,18 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
   bool _saving    = false;
 
   bool get _hasYoutube => _youtubeCtrl.text.isNotEmpty;
-  bool get _hasFile    => _pickedFile != null;
+  bool get _hasFile    => _pickedFile != null || _existingFileUrl != null;
+
+  String? _existingFileUrl;  // 수정 모드: 기존 파일 URL
 
   static const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일'];
+
+  bool get _isEditMode => widget.editAlarm != null;
 
   @override
   void initState() {
     super.initState();
+    // 날짜는 항상 오늘, 시간은 +10분 (신규든 수정이든)
     final init = DateTime.now().add(const Duration(minutes: 10));
     _selectedDate = DateTime(init.year, init.month, init.day);
     _ampmIndex    = init.hour < 12 ? 0 : 1;
@@ -427,6 +505,24 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     _ampmCtrl   = FixedExtentScrollController(initialItem: _ampmIndex);
     _hourCtrl   = FixedExtentScrollController(initialItem: _hourIndex);
     _minuteCtrl = FixedExtentScrollController(initialItem: _minuteIndex);
+
+    // 수정 모드: 기존 알람 데이터 채우기 (날짜/시간 제외)
+    if (_isEditMode) {
+      final a = widget.editAlarm!;
+      final msgType  = a['msg_type']?.toString() ?? '';
+      final msgValue = a['msg_value']?.toString() ?? '';
+      final linkUrl  = a['link_url']?.toString() ?? '';
+      final cText    = a['content_text']?.toString() ?? '';
+
+      if (msgType == 'youtube') {
+        _youtubeCtrl.text = msgValue;
+      } else if (msgValue.isNotEmpty) {
+        _existingFileUrl  = msgValue;
+        _uploadedFileUrl  = msgValue;
+      }
+      _linkCtrl.text = linkUrl;
+      _contentTextCtrl.text = cText;
+    }
   }
 
   @override
@@ -535,6 +631,23 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     } catch (e) { if (mounted) { setState(() { _pickedFile = null; _uploadedFileUrl = null; _uploading = false; }); showCenterToast(context, '업로드 오류: $e'); } }
   }
 
+  /// 유튜브 아이콘 탭 → 유튜브 앱/브라우저 열기
+  Future<void> _launchYoutube(String url) async {
+    String ytUrl = url.trim();
+    if (ytUrl.isEmpty) return;
+    if (!ytUrl.startsWith('http://') && !ytUrl.startsWith('https://')) {
+      ytUrl = 'https://$ytUrl';
+    }
+    final uri = Uri.tryParse(ytUrl);
+    if (uri != null) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        if (mounted) showCenterToast(context, 'URL을 열 수 없습니다.');
+      }
+    }
+  }
+
   bool _isValidYoutubeUrl(String url) {
     if (url.isEmpty) return false;
     final uri = Uri.tryParse(url);
@@ -544,7 +657,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
   }
 
   Future<void> _submit() async {
-    if (_youtubeCtrl.text.isEmpty && _pickedFile == null) { showCenterToast(context, 'YouTube URL 또는 파일을 선택해주세요.'); return; }
+    if (_youtubeCtrl.text.isEmpty && _pickedFile == null && _existingFileUrl == null) { showCenterToast(context, 'YouTube URL 또는 파일을 선택해주세요.'); return; }
     if (_youtubeCtrl.text.isNotEmpty && !_isValidYoutubeUrl(_youtubeCtrl.text)) { showCenterToast(context, '올바른 YouTube URL을 입력해주세요.'); return; }
     if (_pickedFile != null && _uploadedFileUrl == null) { showCenterToast(context, _uploading ? '파일 업로드 중입니다.' : '파일 업로드에 실패했습니다.'); return; }
     setState(() => _saving = true);
@@ -554,9 +667,13 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
       final userId = prefs.getString('user_id') ?? '';
       String msgType = '', msgValue = '';
       if (_youtubeCtrl.text.isNotEmpty) { msgType = 'youtube'; msgValue = _youtubeCtrl.text; }
-      else if (_pickedFile != null && _uploadedFileUrl != null) {
-        final ext = _pickedFile!.name.split('.').last.toLowerCase();
-        msgType = ['mp4', 'mov', 'mkv'].contains(ext) ? 'video' : 'audio';
+      else if (_uploadedFileUrl != null) {
+        if (_pickedFile != null) {
+          final ext = _pickedFile!.name.split('.').last.toLowerCase();
+          msgType = ['mp4', 'mov', 'mkv'].contains(ext) ? 'video' : 'audio';
+        } else {
+          msgType = widget.editAlarm?['msg_type']?.toString() ?? 'audio';
+        }
         msgValue = _uploadedFileUrl!;
       }
       final body = <String, dynamic>{
@@ -565,17 +682,28 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
         'msg_type': msgType, 'msg_value': msgValue, 'link_url': _linkCtrl.text,
         if (_contentTextCtrl.text.trim().isNotEmpty) 'content_text': _contentTextCtrl.text.trim(),
       };
-      final res = await http.post(
-        Uri.parse('$kBaseUrl/api/alarms'),
-        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 15));
+
+      http.Response res;
+      if (_isEditMode) {
+        final alarmId = widget.editAlarm!['id']?.toString() ?? '';
+        res = await http.put(
+          Uri.parse('$kBaseUrl/api/alarms/$alarmId'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        ).timeout(const Duration(seconds: 15));
+      } else {
+        res = await http.post(
+          Uri.parse('$kBaseUrl/api/alarms'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        ).timeout(const Duration(seconds: 15));
+      }
       final resBody = jsonDecode(res.body) as Map<String, dynamic>;
       if (mounted) {
         if (resBody['success'] == true) {
-          showCenterToast(context, '알람이 예약되었습니다.');
+          showCenterToast(context, _isEditMode ? '알람이 수정되었습니다.' : '알람이 예약되었습니다.');
           Navigator.pop(context, true);
-        } else { setState(() => _saving = false); showCenterToast(context, resBody['error']?.toString() ?? '알람 예약 실패'); }
+        } else { setState(() => _saving = false); showCenterToast(context, resBody['error']?.toString() ?? '알람 저장 실패'); }
       }
     } catch (e) { if (mounted) { setState(() => _saving = false); showCenterToast(context, '오류: $e'); } }
   }
@@ -715,13 +843,17 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     Widget? trailing,
     TextInputType? keyboardType,
     VoidCallback? onChanged,
+    VoidCallback? onIconTap,
   }) {
+    final iconWidget = Container(
+      width: 48, height: 48,
+      decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
+      child: Icon(icon, color: Colors.white, size: 22),
+    );
     return Row(children: [
-      Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: iconColor, size: 20),
-      ),
+      onIconTap != null
+          ? GestureDetector(onTap: onIconTap, child: iconWidget)
+          : iconWidget,
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
         onTap: onTap,
@@ -773,7 +905,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   onPressed: () => Navigator.pop(context),
                 ),
                 const Spacer(),
-                const Text('알람 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
+                Text(_isEditMode ? '알람 수정' : '알람 추가', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
                 const Spacer(),
                 const SizedBox(width: 48),  // 밸런스용
               ]),
@@ -803,7 +935,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   _sectionLabel('알람 내용', sub: '선택'),
                   _inputRow(
                     icon: Icons.short_text_rounded,
-                    iconColor: _accent,
+                    iconColor: const Color(0xFF7C4DFF),
                     controller: _contentTextCtrl,
                     hint: '수신자에게 표시할 메시지',
                     showClear: _contentTextCtrl.text.isNotEmpty,
@@ -818,20 +950,21 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 콘텐츠 선택
-                  _sectionLabel('콘텐츠'),
+                  // 알람화면 선택
+                  _sectionLabel('알람화면'),
                   // YouTube
                   Opacity(
                     opacity: youtubeDim ? 0.35 : 1.0,
                     child: _inputRow(
                       icon: Icons.smart_display_rounded,
-                      iconColor: Colors.red,
+                      iconColor: const Color(0xFFE53935),
                       controller: _youtubeCtrl,
-                      hint: 'YouTube URL 붙여넣기',
+                      hint: 'URL 붙여넣기 (https://youtube.com/...)',
                       enabled: !youtubeDim,
                       showClear: _hasYoutube,
                       onClear: _clearYoutube,
                       onChanged: () { if (_youtubeCtrl.text.isNotEmpty && _hasFile) _clearFile(); },
+                      onIconTap: _youtubeCtrl.text.isNotEmpty ? () => _launchYoutube(_youtubeCtrl.text) : null,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -842,14 +975,14 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                       GestureDetector(
                         onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
                         child: Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(
-                            color: _uploading ? Colors.blue.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
+                          width: 48, height: 48,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFB8C00),
+                            shape: BoxShape.circle,
                           ),
                           child: _uploading
-                              ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue))
-                              : const Icon(Icons.folder_open_rounded, color: Colors.blue, size: 20),
+                              ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.folder_open_rounded, color: Colors.white, size: 22),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -875,7 +1008,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   _sectionLabel('연결 URL', sub: '선택'),
                   _inputRow(
                     icon: Icons.link_rounded,
-                    iconColor: Colors.orange,
+                    iconColor: const Color(0xFF00BFA5),
                     controller: _linkCtrl,
                     hint: 'https://',
                     showClear: _linkCtrl.text.isNotEmpty,
