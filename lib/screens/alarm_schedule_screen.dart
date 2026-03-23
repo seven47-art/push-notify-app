@@ -122,31 +122,6 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     if (mounted) showCenterToast(context, '알람 삭제에 실패했습니다.');
   }
 
-  /// 알람 켜기/끄기 토글
-  Future<void> _toggleAlarm(String alarmId, bool enabled) async {
-    // 즉시 UI 반영
-    setState(() {
-      final idx = _alarms.indexWhere((a) => a['id']?.toString() == alarmId);
-      if (idx >= 0) _alarms[idx]['is_enabled'] = enabled ? 1 : 0;
-    });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('session_token') ?? '';
-      await http.patch(
-        Uri.parse('$kBaseUrl/api/alarms/$alarmId/toggle'),
-        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-        body: jsonEncode({'is_enabled': enabled}),
-      ).timeout(const Duration(seconds: 10));
-    } catch (_) {
-      // 실패 시 롤백
-      setState(() {
-        final idx = _alarms.indexWhere((a) => a['id']?.toString() == alarmId);
-        if (idx >= 0) _alarms[idx]['is_enabled'] = enabled ? 0 : 1;
-      });
-      if (mounted) showCenterToast(context, '토글 실패');
-    }
-  }
-
   /// 알람 카드 터치 → 수정 페이지 (기존 데이터 + 날짜는 오늘, 시간은 +10분)
   Future<void> _openEditForm(Map<String, dynamic> alarm) async {
     final result = await Navigator.push<bool>(context, MaterialPageRoute(
@@ -173,14 +148,24 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
 
   // ── 삼성 스타일: 큰 상태 텍스트 ─────────────────────────────
   Widget _buildStatusHeader() {
-    final count = _alarms.length;
+    final now = DateTime.now();
+    final futureCount = _alarms.where((a) {
+      final s = a['scheduled_at']?.toString();
+      if (s == null) return false;
+      try { return DateTime.parse(s).toLocal().isAfter(now); } catch (_) { return false; }
+    }).length;
+    final pastCount = _alarms.length - futureCount;
     String statusText;
     if (_loadingAlarms) {
       statusText = '';
-    } else if (count == 0) {
+    } else if (_alarms.isEmpty) {
       statusText = '예약된 알람이\n없습니다';
+    } else if (futureCount > 0 && pastCount > 0) {
+      statusText = '예약 ${futureCount}개  ·  지난 알람 ${pastCount}개';
+    } else if (futureCount > 0) {
+      statusText = '${futureCount}개의 알람이\n예약되어 있습니다';
     } else {
-      statusText = '$count개의 알람이\n예약되어 있습니다';
+      statusText = '지난 알람 ${pastCount}개';
     }
 
     return Padding(
@@ -232,9 +217,9 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     final msgType     = alarm['msg_type']?.toString() ?? '';
     final contentText = alarm['content_text']?.toString() ?? '';
     final scheduledAt = alarm['scheduled_at']?.toString();
-    final isEnabled   = (alarm['is_enabled'] ?? 1) == 1;
 
-    // 시간 파싱
+    // 지난 알람 여부 판별
+    bool isPast = false;
     String ampm = '오전', timeStr = '0:00', dateStr = '';
     if (scheduledAt != null) {
       try {
@@ -244,31 +229,28 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
         final min  = dt.minute.toString().padLeft(2, '0');
         timeStr = '$hour:$min';
         dateStr = '${dt.month}월 ${dt.day}일';
+        isPast = dt.isBefore(DateTime.now());
       } catch (_) {}
     }
 
-    // 콘텐츠 아이콘
-    IconData typeIcon;
-    Color typeColor;
+    // 콘텐츠 아이콘 (에셋 이미지)
+    String typeAsset;
     String typeLabel;
     if (msgType == 'youtube') {
-      typeIcon = Icons.smart_display;
-      typeColor = Colors.red;
+      typeAsset = 'assets/icons/ic_form_youtube.png';
       typeLabel = 'YouTube';
-    } else if (msgType == 'video') {
-      typeIcon = Icons.videocam_outlined;
-      typeColor = Colors.blue;
-      typeLabel = '동영상';
+    } else if (msgType == 'video' || msgType == 'audio') {
+      typeAsset = 'assets/icons/ic_form_file.png';
+      typeLabel = msgType == 'video' ? '동영상' : '오디오';
     } else {
-      typeIcon = Icons.music_note_outlined;
-      typeColor = _accent;
-      typeLabel = '오디오';
+      typeAsset = 'assets/icons/ic_form_file.png';
+      typeLabel = '파일';
     }
 
-    // 끔 상태: 연한색
-    final primaryColor = isEnabled ? _textPrimary : _textMuted;
-    final secondColor  = isEnabled ? _textSecond : _textMuted.withOpacity(0.6);
-    final iconOpacity  = isEnabled ? 1.0 : 0.4;
+    // 지난 알람: 연한색
+    final primaryColor = isPast ? _textMuted : _textPrimary;
+    final secondColor  = isPast ? _textMuted.withOpacity(0.6) : _textSecond;
+    final cardBg       = isPast ? const Color(0xFFEDEDED) : _cardColor;
 
     return GestureDetector(
       onTap: () => _openEditForm(alarm),
@@ -278,13 +260,13 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
           decoration: BoxDecoration(
-            color: _cardColor,
+            color: cardBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 상단: 큰 시간 + 삭제 & 스위치
+              // 상단: 큰 시간 + "지난 알람" 배지 + 삭제/다시예약
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -296,47 +278,45 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
                       children: [
                         Text(
                           ampm,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w400,
-                            color: primaryColor,
-                            height: 1.0,
-                          ),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: primaryColor, height: 1.0),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           timeStr,
-                          style: TextStyle(
-                            fontSize: 44,
-                            fontWeight: FontWeight.w300,
-                            color: primaryColor,
-                            height: 1.0,
-                            letterSpacing: -1.5,
-                          ),
+                          style: TextStyle(fontSize: 44, fontWeight: FontWeight.w300, color: primaryColor, height: 1.0, letterSpacing: -1.5),
                         ),
+                        if (isPast) ...[
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: _red.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                            child: const Text('지난 알람', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _red)),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  // 삭제 + 스위치 (세로 배치)
+                  // 삭제 + (지난 알람일 때) 다시 예약
                   Column(
                     children: [
                       GestureDetector(
                         onTap: () => _deleteAlarm(alarmId),
                         child: Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Icon(Icons.delete_outline_rounded, size: 22, color: isEnabled ? _textMuted : _textMuted.withOpacity(0.4)),
+                          child: Icon(Icons.delete_outline_rounded, size: 22, color: isPast ? _textMuted.withOpacity(0.4) : _textMuted),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        height: 28,
-                        child: Switch(
-                          value: isEnabled,
-                          onChanged: (v) => _toggleAlarm(alarmId, v),
-                          activeColor: _accent,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      if (isPast) ...[
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () => _openEditForm(alarm),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(8)),
+                            child: const Text('다시 예약', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -357,14 +337,17 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
                       color: _divider,
                     ),
                   ],
-                  Opacity(
-                    opacity: iconOpacity,
-                    child: Icon(typeIcon, size: 14, color: typeColor),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Opacity(
+                      opacity: isPast ? 0.4 : 1.0,
+                      child: Image.asset(typeAsset, width: 16, height: 16),
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Text(
                     typeLabel,
-                    style: TextStyle(fontSize: 12, color: isEnabled ? typeColor : secondColor, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 12, color: secondColor, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -385,7 +368,29 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isMaxReached = _alarms.length >= _maxAlarms;
+    // 미래 알람만 카운트하여 + 버튼 제한
+    final now = DateTime.now();
+    final futureAlarms = _alarms.where((a) {
+      final s = a['scheduled_at']?.toString();
+      if (s == null) return false;
+      try { return DateTime.parse(s).toLocal().isAfter(now); } catch (_) { return false; }
+    }).toList();
+    final isMaxReached = futureAlarms.length >= _maxAlarms;
+
+    // 정렬: 미래 알람 위(시간순), 지난 알람 아래(최근순)
+    final sortedAlarms = List<Map<String, dynamic>>.from(_alarms);
+    sortedAlarms.sort((a, b) {
+      final sa = a['scheduled_at']?.toString() ?? '';
+      final sb = b['scheduled_at']?.toString() ?? '';
+      DateTime? da, db;
+      try { da = DateTime.parse(sa).toLocal(); } catch (_) {}
+      try { db = DateTime.parse(sb).toLocal(); } catch (_) {}
+      if (da == null || db == null) return 0;
+      final aPast = da.isBefore(now);
+      final bPast = db.isBefore(now);
+      if (aPast != bPast) return aPast ? 1 : -1; // 미래 먼저
+      return aPast ? db.compareTo(da) : da.compareTo(db); // 미래:오름차순, 과거:내림차순
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -438,8 +443,8 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
                       ? const SizedBox.shrink()  // 빈 상태는 큰 텍스트로 이미 표현
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                          itemCount: _alarms.length,
-                          itemBuilder: (_, i) => _buildAlarmCard(_alarms[i]),
+                          itemCount: sortedAlarms.length,
+                          itemBuilder: (_, i) => _buildAlarmCard(sortedAlarms[i]),
                         ),
             ),
           ],
@@ -832,10 +837,11 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
 
   // ── 입력 행 (아이콘 + 텍스트필드 — 삼성 톤) ────────────────
   Widget _inputRow({
-    required IconData icon,
-    required Color iconColor,
     required TextEditingController controller,
     required String hint,
+    String? iconAsset,
+    IconData? icon,
+    Color? iconColor,
     bool enabled = true,
     VoidCallback? onTap,
     VoidCallback? onClear,
@@ -845,11 +851,19 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     VoidCallback? onChanged,
     VoidCallback? onIconTap,
   }) {
-    final iconWidget = Container(
-      width: 48, height: 48,
-      decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
-      child: Icon(icon, color: Colors.white, size: 22),
-    );
+    Widget iconWidget;
+    if (iconAsset != null) {
+      iconWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(iconAsset, width: 44, height: 44, fit: BoxFit.cover),
+      );
+    } else {
+      iconWidget = Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(color: iconColor ?? _accent, borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon ?? Icons.info, color: Colors.white, size: 22),
+      );
+    }
     return Row(children: [
       onIconTap != null
           ? GestureDetector(onTap: onIconTap, child: iconWidget)
@@ -956,15 +970,14 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   Opacity(
                     opacity: youtubeDim ? 0.35 : 1.0,
                     child: _inputRow(
-                      icon: Icons.smart_display_rounded,
-                      iconColor: const Color(0xFFE53935),
+                      iconAsset: 'assets/icons/ic_form_youtube.png',
                       controller: _youtubeCtrl,
                       hint: 'URL 붙여넣기 (https://youtube.com/...)',
                       enabled: !youtubeDim,
                       showClear: _hasYoutube,
                       onClear: _clearYoutube,
                       onChanged: () { if (_youtubeCtrl.text.isNotEmpty && _hasFile) _clearFile(); },
-                      onIconTap: _youtubeCtrl.text.isNotEmpty ? () => _launchYoutube(_youtubeCtrl.text) : null,
+                      onIconTap: () => _launchYoutube(_youtubeCtrl.text.isNotEmpty ? _youtubeCtrl.text : 'https://youtube.com'),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -974,16 +987,16 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                     child: Row(children: [
                       GestureDetector(
                         onTap: (fileDim || _uploading || _saving) ? null : _pickFile,
-                        child: Container(
-                          width: 48, height: 48,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFB8C00),
-                            shape: BoxShape.circle,
-                          ),
-                          child: _uploading
-                              ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.folder_open_rounded, color: Colors.white, size: 22),
-                        ),
+                        child: _uploading
+                            ? Container(
+                                width: 44, height: 44,
+                                decoration: BoxDecoration(color: const Color(0xFF4A90D9), borderRadius: BorderRadius.circular(12)),
+                                child: const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.asset('assets/icons/ic_form_file.png', width: 44, height: 44, fit: BoxFit.cover),
+                              ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: GestureDetector(
@@ -1007,8 +1020,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   // 연결 URL
                   _sectionLabel('연결 URL', sub: '선택'),
                   _inputRow(
-                    icon: Icons.link_rounded,
-                    iconColor: const Color(0xFF00BFA5),
+                    iconAsset: 'assets/icons/ic_form_link.png',
                     controller: _linkCtrl,
                     hint: 'https://',
                     showClear: _linkCtrl.text.isNotEmpty,

@@ -23,7 +23,7 @@ android {
 
     defaultConfig {
         applicationId = "com.pushnotify.push_notify_app"
-        minSdk = 21          // Android 5.0+ (전체 기기 99% 호환)
+        minSdkVersion = flutter.minSdkVersion          // Android 5.0+ (전체 기기 99% 호환)
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName

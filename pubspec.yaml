@@ -4,7 +4,7 @@ publish_to: 'none'
 
 
 
-version: 3.7.131+180
+version: 3.7.132+181
 
 
 environment:
@@ -44,3 +44,4 @@ flutter:
   assets:
     - assets/images/
     - assets/sounds/
+    - assets/icons/
