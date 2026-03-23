@@ -122,18 +122,6 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     if (mounted) showCenterToast(context, '알람 삭제에 실패했습니다.');
   }
 
-  /// 알람 카드 터치 → 수정 페이지 (기존 데이터 + 날짜는 오늘, 시간은 +10분)
-  Future<void> _openEditForm(Map<String, dynamic> alarm) async {
-    final result = await Navigator.push<bool>(context, MaterialPageRoute(
-      builder: (_) => _AlarmAddFormScreen(
-        channelId: widget.channelId,
-        channelName: widget.channelName,
-        editAlarm: alarm,
-      ),
-    ));
-    if (result == true) await _loadAlarms();
-  }
-
   /// + 버튼 → 알람 추가 폼 화면
   Future<void> _openAddForm() async {
     if (_alarms.length >= _maxAlarms) {
@@ -252,118 +240,120 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
     final secondColor  = isPast ? _textMuted.withOpacity(0.6) : _textSecond;
     final cardBg       = isPast ? const Color(0xFFEDEDED) : _cardColor;
 
-    return GestureDetector(
-      onTap: () => _openEditForm(alarm),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 120),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
+    return Container(
+      height: 130,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 1행: 시간 + 오른쪽(삭제 아이콘 + 뱃지) ──
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 상단: 큰 시간 + "지난 알람" 배지 + 삭제/다시예약
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // AM/PM + 시간
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          ampm,
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: primaryColor, height: 1.0),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          timeStr,
-                          style: TextStyle(fontSize: 44, fontWeight: FontWeight.w300, color: primaryColor, height: 1.0, letterSpacing: -1.5),
-                        ),
-                        if (isPast) ...[
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: _red.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                            child: const Text('지난 알람', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _red)),
-                          ),
-                        ],
-                      ],
+              // AM/PM + 시간
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      ampm,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: primaryColor, height: 1.0),
                     ),
-                  ),
-                  // 삭제 + (지난 알람일 때) 다시 예약
-                  Column(
-                    children: [
-                      GestureDetector(
-                        onTap: () => _deleteAlarm(alarmId),
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Icon(Icons.delete_outline_rounded, size: 22, color: isPast ? _textMuted.withOpacity(0.4) : _textMuted),
-                        ),
-                      ),
-                      if (isPast) ...[
-                        const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: () => _openEditForm(alarm),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(8)),
-                            child: const Text('다시 예약', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // 하단: 날짜 + 콘텐츠 정보
-              Row(
-                children: [
-                  Text(
-                    dateStr,
-                    style: TextStyle(fontSize: 13, color: secondColor, fontWeight: FontWeight.w400),
-                  ),
-                  if (dateStr.isNotEmpty) ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      width: 1,
-                      height: 12,
-                      color: _divider,
+                    const SizedBox(width: 6),
+                    Text(
+                      timeStr,
+                      style: TextStyle(fontSize: 44, fontWeight: FontWeight.w300, color: primaryColor, height: 1.0, letterSpacing: -1.5),
                     ),
                   ],
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Opacity(
-                      opacity: isPast ? 0.4 : 1.0,
-                      child: Image.asset(typeAsset, width: 16, height: 16),
+                ),
+              ),
+              // 삭제 아이콘 + 예약알람/지난알람 뱃지
+              Column(
+                children: [
+                  GestureDetector(
+                    onTap: () => _deleteAlarm(alarmId),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Icon(Icons.delete_outline_rounded, size: 22, color: isPast ? _textMuted.withOpacity(0.4) : _textMuted),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    typeLabel,
-                    style: TextStyle(fontSize: 12, color: secondColor, fontWeight: FontWeight.w500),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isPast ? _red.withOpacity(0.12) : _accent.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      isPast ? '지난알람' : '예약알람',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isPast ? _red : _accent),
+                    ),
                   ),
                 ],
-              ),
-              // 알람 내용 (항상 공간 확보 — 내용 없으면 빈 줄)
-              const SizedBox(height: 6),
-              Text(
-                contentText.isNotEmpty ? contentText : ' ',
-                style: TextStyle(fontSize: 13, color: secondColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-        ),
+          const Spacer(),
+          // ── 2행: 날짜 + 콘텐츠 + (지난알람) 다시예약 ──
+          Row(
+            children: [
+              // 날짜 + 타입 아이콘/라벨 + 내용
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(dateStr, style: TextStyle(fontSize: 13, color: secondColor, fontWeight: FontWeight.w400)),
+                    if (dateStr.isNotEmpty) Container(margin: const EdgeInsets.symmetric(horizontal: 8), width: 1, height: 12, color: _divider),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Opacity(opacity: isPast ? 0.4 : 1.0, child: Image.asset(typeAsset, width: 16, height: 16)),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        contentText.isNotEmpty ? '$typeLabel · $contentText' : typeLabel,
+                        style: TextStyle(fontSize: 12, color: secondColor, fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 다시 예약 버튼 (지난 알람만)
+              if (isPast) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _openRescheduleForm(alarm),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(8)),
+                    child: const Text('다시 예약', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  /// 지난 알람 → 데이터 복사하여 새 알람 추가 폼 열기
+  Future<void> _openRescheduleForm(Map<String, dynamic> alarm) async {
+    final result = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => _AlarmAddFormScreen(
+        channelId: widget.channelId,
+        channelName: widget.channelName,
+        prefillData: alarm,
+      ),
+    ));
+    if (result == true) await _loadAlarms();
   }
 
   @override
@@ -460,8 +450,8 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
 class _AlarmAddFormScreen extends StatefulWidget {
   final String channelId;
   final String channelName;
-  final Map<String, dynamic>? editAlarm;  // null이면 새로 추가, 있으면 수정
-  const _AlarmAddFormScreen({required this.channelId, required this.channelName, this.editAlarm});
+  final Map<String, dynamic>? prefillData;  // 지난 알람 '다시 예약' 시 콘텐츠 복사용 (항상 신규 POST)
+  const _AlarmAddFormScreen({required this.channelId, required this.channelName, this.prefillData});
 
   @override
   State<_AlarmAddFormScreen> createState() => _AlarmAddFormScreenState();
@@ -491,11 +481,9 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
   bool get _hasYoutube => _youtubeCtrl.text.isNotEmpty;
   bool get _hasFile    => _pickedFile != null || _existingFileUrl != null;
 
-  String? _existingFileUrl;  // 수정 모드: 기존 파일 URL
+  String? _existingFileUrl;  // 다시 예약: 기존 파일 URL 복사
 
   static const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일'];
-
-  bool get _isEditMode => widget.editAlarm != null;
 
   @override
   void initState() {
@@ -511,9 +499,9 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
     _hourCtrl   = FixedExtentScrollController(initialItem: _hourIndex);
     _minuteCtrl = FixedExtentScrollController(initialItem: _minuteIndex);
 
-    // 수정 모드: 기존 알람 데이터 채우기 (날짜/시간 제외)
-    if (_isEditMode) {
-      final a = widget.editAlarm!;
+    // 다시 예약: 기존 알람 콘텐츠 복사 (날짜/시간은 항상 오늘+10분)
+    if (widget.prefillData != null) {
+      final a = widget.prefillData!;
       final msgType  = a['msg_type']?.toString() ?? '';
       final msgValue = a['msg_value']?.toString() ?? '';
       final linkUrl  = a['link_url']?.toString() ?? '';
@@ -677,7 +665,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
           final ext = _pickedFile!.name.split('.').last.toLowerCase();
           msgType = ['mp4', 'mov', 'mkv'].contains(ext) ? 'video' : 'audio';
         } else {
-          msgType = widget.editAlarm?['msg_type']?.toString() ?? 'audio';
+          msgType = widget.prefillData?['msg_type']?.toString() ?? 'audio';
         }
         msgValue = _uploadedFileUrl!;
       }
@@ -688,25 +676,15 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
         if (_contentTextCtrl.text.trim().isNotEmpty) 'content_text': _contentTextCtrl.text.trim(),
       };
 
-      http.Response res;
-      if (_isEditMode) {
-        final alarmId = widget.editAlarm!['id']?.toString() ?? '';
-        res = await http.put(
-          Uri.parse('$kBaseUrl/api/alarms/$alarmId'),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 15));
-      } else {
-        res = await http.post(
-          Uri.parse('$kBaseUrl/api/alarms'),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 15));
-      }
+      final res = await http.post(
+        Uri.parse('$kBaseUrl/api/alarms'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 15));
       final resBody = jsonDecode(res.body) as Map<String, dynamic>;
       if (mounted) {
         if (resBody['success'] == true) {
-          showCenterToast(context, _isEditMode ? '알람이 수정되었습니다.' : '알람이 예약되었습니다.');
+          showCenterToast(context, '알람이 예약되었습니다.');
           Navigator.pop(context, true);
         } else { setState(() => _saving = false); showCenterToast(context, resBody['error']?.toString() ?? '알람 저장 실패'); }
       }
@@ -919,7 +897,7 @@ class _AlarmAddFormScreenState extends State<_AlarmAddFormScreen> {
                   onPressed: () => Navigator.pop(context),
                 ),
                 const Spacer(),
-                Text(_isEditMode ? '알람 수정' : '알람 추가', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
+                Text('알람 추가', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary)),
                 const Spacer(),
                 const SizedBox(width: 48),  // 밸런스용
               ]),
