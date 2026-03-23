@@ -457,6 +457,7 @@ class NotificationScreenState extends State<NotificationScreen> {
     final channelName = item['channel_name']?.toString()  ?? '';
     final channelImg  = item['channel_image']?.toString() ?? '';
     final linkUrl     = item['link_url']?.toString()      ?? '';
+    final contentText = item['content_text']?.toString()  ?? '';
     try {
       await _scheduleChannel.invokeMethod('openContentPlayer', {
         'msg_type':      msgType,
@@ -464,6 +465,7 @@ class NotificationScreenState extends State<NotificationScreen> {
         'channel_name':  channelName,
         'channel_image': channelImg,
         'link_url':      linkUrl,
+        'content_text':  contentText,
       });
     } catch (e) {
       if (mounted) showCenterToast(context, '재생을 시작할 수 없습니다.');
@@ -1160,6 +1162,7 @@ class _AlarmListTile extends StatelessWidget {
     final channelImage = item['channel_image']?.toString();
     final contentType  = item['msg_type']?.toString() ?? item['content_type']?.toString() ?? '';
     final scheduledAt  = item['scheduled_at'] ?? item['received_at'] ?? item['created_at'];
+    final contentText  = item['content_text']?.toString() ?? '';
     final avatarColor  = _avatarColors[colorIndex];
 
     return InkWell(
@@ -1208,13 +1211,30 @@ class _AlarmListTile extends StatelessWidget {
               child: Icon(_typeIcon(contentType), size: 16, color: _typeColor(contentType)),
             ),
             const SizedBox(width: 10),
-            // 채널명
+            // 채널명 + 알람내용 (2줄)
             Expanded(
-              child: Text(
-                channelName.isEmpty ? '(채널 없음)' : channelName,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w500, color: _text),
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    channelName.isEmpty ? '(채널 없음)' : channelName,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w500, color: _text),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (contentText.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        contentText,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF999999)),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 8),

@@ -35,7 +35,8 @@ import java.net.URL
  * │  (YouTube / Audio / Video) │
  * │                            │
  * │ ▓▓▓ 반투명 그라데이션 ▓▓▓▓▓▓ │  ← 하단 오버레이
- * │ [img] 채널명  [▶앱] [🔗] [✕]│  ← 한줄 바
+ * │  알람내용 (마퀴 스크롤)      │  ← 윗줄 (content_text 있을 때만)
+ * │ [img] 채널명  [▶앱] [🔗] [✕]│  ← 아랫줄 바
  * └────────────────────────────┘
  */
 class ContentPlayerActivity : Activity() {
@@ -422,13 +423,37 @@ class ContentPlayerActivity : Activity() {
             }
         })
 
-        // ── 한줄 바 ──
+        // ── 알람내용 윗줄 (content_text 마퀴 — 있을 때만) ──
+        if (contentText.isNotEmpty()) {
+            val contentRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setBackgroundColor(Color.parseColor("#CC000000"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setPadding(dp(16), dp(8), dp(12), dp(4))
+            }
+            contentRow.addView(TextView(this).apply {
+                text = contentText; textSize = 13f
+                setTextColor(Color.parseColor("#FFD700"))  // 골드 색상
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+                marqueeRepeatLimit = -1
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isSelected = true
+                setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            })
+            overlayContainer.addView(contentRow)
+        }
+
+        // ── 아랫줄 바 (채널정보 + 버튼) ──
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.parseColor("#CC000000"))
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60) + navBarHeight)
-            setPadding(dp(16), dp(6), dp(12), dp(6) + navBarHeight)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56) + navBarHeight)
+            setPadding(dp(16), dp(4), dp(12), dp(6) + navBarHeight)
         }
 
         // ── 채널 이미지 (원형, 38dp) ──
@@ -454,35 +479,10 @@ class ContentPlayerActivity : Activity() {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
             setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, if (contentText.isEmpty()) 1f else 0f).also {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
                 it.marginEnd = dp(8)
-                if (contentText.isNotEmpty()) it.marginEnd = dp(4)
-            }
-            if (contentText.isNotEmpty()) {
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
-                    it.marginEnd = dp(4)
-                }
             }
         })
-
-        // ── 알람내용 마퀴 (있을 때만) ──
-        if (contentText.isNotEmpty()) {
-            bottomBar.addView(TextView(this).apply {
-                text = contentText; textSize = 12f
-                setTextColor(Color.parseColor("#FFD700"))  // 골드 색상으로 강조
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
-                marqueeRepeatLimit = -1
-                isFocusable = true
-                isFocusableInTouchMode = true
-                isSelected = true
-                gravity = Gravity.CENTER_VERTICAL
-                setShadowLayer(4f, 0f, 1f, Color.parseColor("#80000000"))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
-                    it.marginEnd = dp(8)
-                }
-            })
-        }
 
         // ── YouTube 앱으로 열기 버튼 (youtube 타입일 때만) ──
         if (effectiveType == "youtube") {
