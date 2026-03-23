@@ -196,12 +196,13 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
 
   /// teal 알람 버튼 클릭 시 AlarmScheduleScreen 직접 열기
   Future<void> _openAlarmSheet(Map<String, dynamic> channel) async {
-    final channelId   = channel['id']?.toString() ?? '';
-    final channelName = channel['name']?.toString() ?? '';
+    final channelId       = channel['id']?.toString() ?? '';
+    final channelName     = channel['name']?.toString() ?? '';
+    final channelImageUrl = channel['image_url']?.toString();
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName),
+        builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName, channelImageUrl: channelImageUrl),
       ),
     );
     _load();
@@ -222,8 +223,9 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
 
   // 길게 눌렀을 때 팝업 메뉴
   void _showLongPressMenu(Map<String, dynamic> channel) {
-    final channelId   = channel['id']?.toString() ?? '';
-    final channelName = channel['name']?.toString() ?? '';
+    final channelId       = channel['id']?.toString() ?? '';
+    final channelName     = channel['name']?.toString() ?? '';
+    final channelImageUrl = channel['image_url']?.toString();
 
     showDialog(
       context: context,
@@ -239,7 +241,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
             await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName),
+                builder: (_) => AlarmScheduleScreen(channelId: channelId, channelName: channelName, channelImageUrl: channelImageUrl),
               ),
             );
             _load();
