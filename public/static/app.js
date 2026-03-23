@@ -1702,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', init)
 // 공지사항 관리
 // =============================================
 let editNoticeId = null
+let noticeQuill = null
 
 async function loadNoticesAdmin() {
   try {
@@ -1712,10 +1713,13 @@ async function loadNoticesAdmin() {
       tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">등록된 공지사항이 없습니다.</td></tr>'
       return
     }
-    tbody.innerHTML = list.map(n => `
+    tbody.innerHTML = list.map(n => {
+      // HTML 태그 제거한 미리보기
+      const preview = (n.content || '').replace(/<[^>]*>/g, '').slice(0, 60)
+      return `
       <tr class="border-b border-slate-700/30 hover:bg-slate-700/20">
-        <td class="px-5 py-3 text-slate-200 font-medium">${n.title}</td>
-        <td class="px-5 py-3 text-slate-400 text-sm">${(n.content || '').slice(0, 60)}${n.content?.length > 60 ? '...' : ''}</td>
+        <td class="px-5 py-3 text-slate-200 font-medium">${n.title}${n.image_url ? ' <i class="fas fa-image text-emerald-400 text-xs ml-1"></i>' : ''}</td>
+        <td class="px-5 py-3 text-slate-400 text-sm">${preview}${preview.length >= 60 ? '...' : ''}</td>
         <td class="px-5 py-3 text-center">
           <span class="${n.is_active ? 'badge-completed' : 'badge-failed'} badge">${n.is_active ? '활성' : '비활성'}</span>
         </td>
@@ -1726,20 +1730,21 @@ async function loadNoticesAdmin() {
             <button onclick="deleteNotice(${n.id})" class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
           </div>
         </td>
-      </tr>`).join('')
+      </tr>`
+    }).join('')
   } catch (e) { showToast('공지사항 로드 오류: ' + e.message, 'error') }
 }
 
 async function openNoticeModal(id = null) {
   editNoticeId = id
-  const modal = document.getElementById('modal-notice')
+  let modal = document.getElementById('modal-notice')
   if (!modal) {
-    // 모달 동적 생성
     const div = document.createElement('div')
     div.id = 'modal-notice'
     div.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'
+    div.style.display = 'none'
     div.innerHTML = `
-      <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg">
+      <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h3 class="text-white font-bold text-lg mb-4" id="notice-modal-title">공지사항 추가</h3>
         <div class="space-y-3">
           <div>
@@ -1748,7 +1753,18 @@ async function openNoticeModal(id = null) {
           </div>
           <div>
             <label class="text-slate-400 text-xs font-semibold uppercase mb-1 block">내용 *</label>
-            <textarea id="notice-content" class="input-field w-full" rows="6" placeholder="공지사항 내용을 입력하세요"></textarea>
+            <div id="notice-editor-container"></div>
+          </div>
+          <div>
+            <label class="text-slate-400 text-xs font-semibold uppercase mb-1 block">대표 이미지 (선택)</label>
+            <div class="flex items-center gap-3">
+              <input id="notice-image-url" class="input-field flex-1" placeholder="이미지 URL (업로드하면 자동 입력)">
+              <label class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer whitespace-nowrap">
+                <i class="fas fa-upload mr-1"></i>업로드
+                <input type="file" accept="image/*" onchange="uploadNoticeImage(this)" class="hidden">
+              </label>
+            </div>
+            <div id="notice-image-preview" class="mt-2"></div>
           </div>
           <div class="flex items-center gap-2">
             <input type="checkbox" id="notice-active" checked style="width:16px;height:16px;accent-color:#6366f1;">
@@ -1757,42 +1773,144 @@ async function openNoticeModal(id = null) {
         </div>
         <div class="flex gap-3 mt-5">
           <button onclick="saveNotice()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold flex-1">저장</button>
-          <button onclick="document.getElementById('modal-notice').remove()" class="bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex-1">취소</button>
+          <button onclick="closeNoticeModal()" class="bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex-1">취소</button>
         </div>
       </div>`
     document.body.appendChild(div)
+    modal = div
   }
+
+  // Quill 에디터 초기화
+  const editorContainer = document.getElementById('notice-editor-container')
+  editorContainer.innerHTML = '<div id="notice-quill-editor"></div>'
+  noticeQuill = new Quill('#notice-quill-editor', {
+    theme: 'snow',
+    placeholder: '공지사항 내용을 입력하세요...',
+    modules: {
+      toolbar: {
+        container: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['link', 'image'],
+          ['clean']
+        ],
+        handlers: {
+          image: noticeImageHandler
+        }
+      }
+    }
+  })
+
+  // 모달 리셋
   document.getElementById('notice-modal-title').textContent = id ? '공지사항 수정' : '공지사항 추가'
   document.getElementById('notice-title').value = ''
-  document.getElementById('notice-content').value = ''
+  document.getElementById('notice-image-url').value = ''
+  document.getElementById('notice-image-preview').innerHTML = ''
   document.getElementById('notice-active').checked = true
+  noticeQuill.root.innerHTML = ''
+
   if (id) {
     try {
       const { data } = await API.get('/notices/' + id)
       const n = data.data
       document.getElementById('notice-title').value = n.title || ''
-      document.getElementById('notice-content').value = n.content || ''
       document.getElementById('notice-active').checked = !!n.is_active
+      if (n.image_url) {
+        document.getElementById('notice-image-url').value = n.image_url
+        document.getElementById('notice-image-preview').innerHTML = '<img src="' + n.image_url + '" style="max-height:100px;border-radius:8px;margin-top:4px;">'
+      }
+      // content가 HTML이면 그대로, 플레인텍스트면 줄바꿈을 <p>로 변환
+      const content = n.content || ''
+      if (content.includes('<')) {
+        noticeQuill.root.innerHTML = content
+      } else {
+        noticeQuill.root.innerHTML = content.split('\n').map(line => '<p>' + (line || '<br>') + '</p>').join('')
+      }
     } catch (e) { showToast('공지사항 로드 실패', 'error') }
   }
-  document.getElementById('modal-notice').style.display = 'flex'
+  modal.style.display = 'flex'
+}
+
+function closeNoticeModal() {
+  const modal = document.getElementById('modal-notice')
+  if (modal) modal.style.display = 'none'
+  noticeQuill = null
+}
+
+// Quill 툴바 이미지 버튼 핸들러
+function noticeImageHandler() {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'image/*')
+  input.click()
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (!file) return
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/notices/upload-image', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.success && data.url) {
+        const range = noticeQuill.getSelection(true)
+        noticeQuill.insertEmbed(range.index, 'image', data.url)
+        noticeQuill.setSelection(range.index + 1)
+        showToast('이미지가 삽입되었습니다')
+      } else {
+        showToast(data.error || '이미지 업로드 실패', 'error')
+      }
+    } catch (e) {
+      showToast('이미지 업로드 오류: ' + e.message, 'error')
+    }
+  }
+}
+
+// 대표 이미지 업로드 (별도)
+async function uploadNoticeImage(input) {
+  const file = input.files[0]
+  if (!file) return
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch('/api/notices/upload-image', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (data.success && data.url) {
+      document.getElementById('notice-image-url').value = data.url
+      document.getElementById('notice-image-preview').innerHTML = '<img src="' + data.url + '" style="max-height:100px;border-radius:8px;margin-top:4px;">'
+      showToast('대표 이미지 업로드 완료')
+    } else {
+      showToast(data.error || '업로드 실패', 'error')
+    }
+  } catch (e) {
+    showToast('업로드 오류: ' + e.message, 'error')
+  }
+  input.value = ''
 }
 
 async function saveNotice() {
-  const title   = document.getElementById('notice-title').value.trim()
-  const content = document.getElementById('notice-content').value.trim()
+  const title = document.getElementById('notice-title').value.trim()
+  const content = noticeQuill ? noticeQuill.root.innerHTML.trim() : ''
+  const imageUrl = document.getElementById('notice-image-url').value.trim()
   const isActive = document.getElementById('notice-active').checked ? 1 : 0
+
   if (!title) { showToast('제목을 입력하세요', 'error'); return }
-  if (!content) { showToast('내용을 입력하세요', 'error'); return }
+  // 빈 에디터 체크 (Quill은 빈 상태에서 <p><br></p>를 생성)
+  const textOnly = (noticeQuill ? noticeQuill.getText().trim() : '')
+  if (!textOnly) { showToast('내용을 입력하세요', 'error'); return }
+
   try {
+    const payload = { title, content, is_active: isActive, image_url: imageUrl || null }
     if (editNoticeId) {
-      await API.put('/notices/' + editNoticeId, { title, content, is_active: isActive })
+      await API.put('/notices/' + editNoticeId, payload)
       showToast('공지사항이 수정되었습니다')
     } else {
-      await API.post('/notices', { title, content, is_active: isActive })
+      await API.post('/notices', payload)
       showToast('공지사항이 등록되었습니다')
     }
-    document.getElementById('modal-notice')?.remove()
+    closeNoticeModal()
     loadNoticesAdmin()
   } catch (e) { showToast('저장 실패: ' + e.message, 'error') }
 }
