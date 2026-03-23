@@ -217,7 +217,11 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AlarmScheduleScreen(channelId: widget.channelId, channelName: _channel?['name']?.toString() ?? ''),
+        builder: (_) => AlarmScheduleScreen(
+          channelId: widget.channelId,
+          channelName: _channel?['name']?.toString() ?? '',
+          channelImageUrl: _channel?['image_url']?.toString(),
+        ),
       ),
     ).then((_) {
       // 알람 화면 닫힌 후 카운트 새로고침
