@@ -35,6 +35,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
   String? _nameError;
   String? _descError;
   String? _homepageError;
+  String? _imageError;
   final _passwordCtrl    = TextEditingController();
   bool _showPassword     = false;
 
@@ -73,6 +74,13 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
       ok = false;
     } else {
       setState(() => _descError = null);
+    }
+    // 채널 대표이미지 필수
+    if (_selectedImage == null) {
+      setState(() => _imageError = '채널 대표이미지는 필수입니다.');
+      ok = false;
+    } else {
+      setState(() => _imageError = null);
     }
     // homepage_url 정규화 (http(s):// 없으면 https:// 자동 추가) + 형식 검증
     final hp = _homepageCtrl.text.trim();
@@ -243,18 +251,21 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             ),
             const SizedBox(height: 12),
 
-            // 채널 대표이미지 선택
-            const Text('채널 대표이미지 선택', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
+            // 채널 대표이미지 선택 (필수)
+            const Text('채널 대표이미지 (필수)', style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             GestureDetector(
-              onTap: _pickImage,
+              onTap: () {
+                _pickImage();
+                setState(() => _imageError = null);
+              },
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _border),
+                  border: Border.all(color: _imageError != null ? _red : _border),
                 ),
                 child: Row(
                   children: [
@@ -278,7 +289,10 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('미선택시 기본 이미지 적용', style: TextStyle(fontSize: 11, color: _text2)),
+                    Text(
+                      _imageError != null ? _imageError! : '탭하여 이미지를 선택하세요',
+                      style: TextStyle(fontSize: 11, color: _imageError != null ? _red : _text2),
+                    ),
                   ],
                 ),
               ),

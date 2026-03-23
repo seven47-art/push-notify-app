@@ -365,6 +365,10 @@ channels.post('/', async (c) => {
     if (image_url && !safeImageUrl) {
       return c.json({ success: false, error: '이미지 크기가 너무 큽니다. 더 작은 이미지를 사용해주세요.' }, 400)
     }
+    // 채널 대표이미지 필수
+    if (!safeImageUrl) {
+      return c.json({ success: false, error: '채널 대표이미지는 필수입니다' }, 400)
+    }
 
     const publicId = generatePublicId()
     const passwordHash = (isSecret && password) ? await hashPassword(password.trim()) : null
