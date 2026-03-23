@@ -68,7 +68,13 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true && mounted) {
           final list = (body['data'] as List? ?? []);
-          setState(() => _alarmCount = list.length);
+          final now = DateTime.now();
+          final futureCount = list.where((a) {
+            final s = (a as Map<String, dynamic>)['scheduled_at']?.toString();
+            if (s == null) return false;
+            try { return DateTime.parse(s).toLocal().isAfter(now); } catch (_) { return false; }
+          }).length;
+          setState(() => _alarmCount = futureCount);
         }
       }
     } catch (_) {}
