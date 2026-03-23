@@ -351,11 +351,48 @@ class _HtmlRenderer extends StatelessWidget {
         .replaceAll('</div>', '</div>\n')
         .replaceAll('</li>', '</li>\n');
 
-    // <ul>...</ul> 블록 추출
-    final parts = cleaned.split(RegExp(r'(<ul[^>]*>.*?</ul>)', dotAll: true));
+    // <img> 태그 패턴
+    final imgPattern = RegExp(r'<img\s[^>]*src="([^"]*)"[^>]*/?\s*>', caseSensitive: false);
+
+    // <ul>...</ul> 블록과 <img> 태그 추출
+    final parts = cleaned.split(RegExp(r'(<ul[^>]*>.*?</ul>|<img\s[^>]*>)', dotAll: true));
 
     for (final part in parts) {
       if (part.trim().isEmpty) continue;
+
+      // 이미지 태그 처리
+      final imgMatch = imgPattern.firstMatch(part);
+      if (imgMatch != null) {
+        final imgUrl = imgMatch.group(1) ?? '';
+        if (imgUrl.isNotEmpty) {
+          widgets.add(Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                imgUrl,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    height: 150,
+                    alignment: Alignment.center,
+                    child: const CircularProgressIndicator(color: _primary, strokeWidth: 2),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  height: 80,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.broken_image_outlined, size: 36, color: _text2),
+                ),
+              ),
+            ),
+          ));
+        }
+        continue;
+      }
 
       if (part.contains('<ul') && part.contains('</ul>')) {
         // 리스트 처리
@@ -397,14 +434,16 @@ class _HtmlRenderer extends StatelessWidget {
   TextSpan _buildRichSpan(String html, TextStyle baseStyle) {
     final spans = <InlineSpan>[];
     final tagPattern = RegExp(
-      r'<(b|strong|i|em|u|a|font|/b|/strong|/i|/em|/u|/a|/font)[^>]*>',
+      r'<(b|strong|i|em|u|s|strike|a|font|span|/b|/strong|/i|/em|/u|/s|/strike|/a|/font|/span|h[1-3]|/h[1-3])[^>]*>',
       caseSensitive: false,
     );
 
-    bool bold = false, italic = false, underline = false;
+    bool bold = false, italic = false, underline = false, strikethrough = false;
     double? fontSize;
+    Color? textColor;
     String? linkUrl;
     int lastEnd = 0;
+    int headerLevel = 0;
 
     final matches = tagPattern.allMatches(html).toList();
 
@@ -413,7 +452,7 @@ class _HtmlRenderer extends StatelessWidget {
       if (m.start > lastEnd) {
         final text = _decodeHtmlEntities(html.substring(lastEnd, m.start));
         if (text.isNotEmpty) {
-          spans.add(_makeSpan(text, baseStyle, bold, italic, underline, fontSize, linkUrl));
+          spans.add(_makeSpan(text, baseStyle, bold || headerLevel > 0, italic, underline, strikethrough, fontSize ?? _headerFontSize(headerLevel), textColor, linkUrl));
         }
       }
 
@@ -430,11 +469,20 @@ class _HtmlRenderer extends StatelessWidget {
         underline = true;
       } else if (tag.startsWith('</u')) {
         underline = false;
+      } else if (tag.startsWith('<s') && (tag.startsWith('<s>') || tag.startsWith('<s ') || tag.startsWith('<strike'))) {
+        strikethrough = true;
+      } else if (tag.startsWith('</s') && (tag == '</s>' || tag.startsWith('</strike'))) {
+        strikethrough = false;
       } else if (tag.startsWith('<a ')) {
         final hrefMatch = RegExp(r'href="([^"]*)"').firstMatch(tag);
         linkUrl = hrefMatch?.group(1);
       } else if (tag.startsWith('</a')) {
         linkUrl = null;
+      } else if (tag.startsWith('<h')) {
+        final lvl = int.tryParse(tag.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        if (lvl >= 1 && lvl <= 3) headerLevel = lvl;
+      } else if (tag.startsWith('</h')) {
+        headerLevel = 0;
       } else if (tag.startsWith('<font')) {
         final sizeMatch = RegExp(r'size="(\d)"').firstMatch(tag);
         if (sizeMatch != null) {
@@ -442,6 +490,19 @@ class _HtmlRenderer extends StatelessWidget {
           fontSize = _fontSizeFromHtml(s);
         }
       } else if (tag.startsWith('</font')) {
+        fontSize = null;
+      } else if (tag.startsWith('<span')) {
+        // Quill color/background: style="color: rgb(...);" or style="background-color: ..."
+        final colorMatch = RegExp(r'color:\s*([^;"]+)').firstMatch(tag);
+        if (colorMatch != null) {
+          textColor = _parseCssColor(colorMatch.group(1)!.trim());
+        }
+        // Quill size class: class="ql-size-large" etc
+        if (tag.contains('ql-size-small')) fontSize = 12;
+        else if (tag.contains('ql-size-large')) fontSize = 20;
+        else if (tag.contains('ql-size-huge')) fontSize = 26;
+      } else if (tag.startsWith('</span')) {
+        textColor = null;
         fontSize = null;
       }
 
@@ -452,7 +513,7 @@ class _HtmlRenderer extends StatelessWidget {
     if (lastEnd < html.length) {
       final text = _decodeHtmlEntities(_stripAllTags(html.substring(lastEnd)));
       if (text.isNotEmpty) {
-        spans.add(_makeSpan(text, baseStyle, bold, italic, underline, fontSize, linkUrl));
+        spans.add(_makeSpan(text, baseStyle, bold || headerLevel > 0, italic, underline, strikethrough, fontSize ?? _headerFontSize(headerLevel), textColor, linkUrl));
       }
     }
 
@@ -464,12 +525,17 @@ class _HtmlRenderer extends StatelessWidget {
     return TextSpan(children: spans);
   }
 
-  InlineSpan _makeSpan(String text, TextStyle base, bool bold, bool italic, bool underline, double? fontSize, String? linkUrl) {
+  InlineSpan _makeSpan(String text, TextStyle base, bool bold, bool italic, bool underline, bool strikethrough, double? fontSize, Color? textColor, String? linkUrl) {
     var style = base.copyWith(
       fontWeight: bold ? FontWeight.bold : null,
       fontStyle: italic ? FontStyle.italic : null,
-      decoration: underline ? TextDecoration.underline : null,
+      decoration: underline
+          ? TextDecoration.underline
+          : strikethrough
+              ? TextDecoration.lineThrough
+              : null,
       fontSize: fontSize,
+      color: textColor,
     );
 
     if (linkUrl != null) {
@@ -496,6 +562,40 @@ class _HtmlRenderer extends StatelessWidget {
       case 7: return 28;
       default: return 15;
     }
+  }
+
+  double? _headerFontSize(int level) {
+    switch (level) {
+      case 1: return 26;
+      case 2: return 22;
+      case 3: return 18;
+      default: return null;
+    }
+  }
+
+  Color? _parseCssColor(String css) {
+    // rgb(r, g, b)
+    final rgbMatch = RegExp(r'rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)').firstMatch(css);
+    if (rgbMatch != null) {
+      final r = int.tryParse(rgbMatch.group(1)!) ?? 0;
+      final g = int.tryParse(rgbMatch.group(2)!) ?? 0;
+      final b = int.tryParse(rgbMatch.group(3)!) ?? 0;
+      return Color.fromARGB(255, r, g, b);
+    }
+    // #hex
+    final hexMatch = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(css);
+    if (hexMatch != null) {
+      return Color(int.parse('FF${hexMatch.group(1)!}', radix: 16));
+    }
+    // 기본 색상 이름
+    final named = <String, Color>{
+      'red': const Color(0xFFFF0000), 'blue': const Color(0xFF0000FF),
+      'green': const Color(0xFF008000), 'orange': const Color(0xFFFFA500),
+      'purple': const Color(0xFF800080), 'black': const Color(0xFF000000),
+      'white': const Color(0xFFFFFFFF), 'gray': const Color(0xFF808080),
+      'grey': const Color(0xFF808080), 'yellow': const Color(0xFFFFFF00),
+    };
+    return named[css.toLowerCase()];
   }
 
   String _stripTags(String html) {

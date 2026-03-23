@@ -322,6 +322,8 @@ function adminDashboardHTML() {
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <style>
   :root { --primary:#6366f1; }
   body { background:#0f172a; color:#e2e8f0; font-family:'Segoe UI',sans-serif; }
@@ -380,6 +382,24 @@ function adminDashboardHTML() {
   /* 설정 모달 */
   .settings-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; }
   .settings-modal.open { display:flex; }
+  /* Quill 에디터 다크 테마 */
+  .ql-toolbar.ql-snow { background:#1e293b; border-color:#334155 !important; border-radius:8px 8px 0 0; }
+  .ql-toolbar.ql-snow .ql-stroke { stroke:#94a3b8 !important; }
+  .ql-toolbar.ql-snow .ql-fill { fill:#94a3b8 !important; }
+  .ql-toolbar.ql-snow .ql-picker-label { color:#94a3b8 !important; }
+  .ql-toolbar.ql-snow .ql-picker-options { background:#1e293b !important; border-color:#334155 !important; }
+  .ql-toolbar.ql-snow .ql-picker-item { color:#94a3b8 !important; }
+  .ql-toolbar.ql-snow button:hover .ql-stroke,
+  .ql-toolbar.ql-snow button.ql-active .ql-stroke { stroke:#a5b4fc !important; }
+  .ql-toolbar.ql-snow button:hover .ql-fill,
+  .ql-toolbar.ql-snow button.ql-active .ql-fill { fill:#a5b4fc !important; }
+  .ql-container.ql-snow { background:#0f172a; border-color:#334155 !important; border-radius:0 0 8px 8px; color:#e2e8f0; min-height:200px; font-size:14px; }
+  .ql-editor { min-height:200px; }
+  .ql-editor.ql-blank::before { color:#475569 !important; font-style:normal !important; }
+  .ql-snow .ql-tooltip { background:#1e293b !important; border-color:#334155 !important; color:#e2e8f0 !important; box-shadow:0 4px 12px rgba(0,0,0,0.4) !important; }
+  .ql-snow .ql-tooltip input[type=text] { background:#0f172a !important; border-color:#334155 !important; color:#e2e8f0 !important; }
+  .ql-snow .ql-tooltip a.ql-action::after, .ql-snow .ql-tooltip a.ql-remove::before { color:#a5b4fc !important; }
+  .ql-editor img { max-width:100%; border-radius:8px; margin:8px 0; }
 </style>
 </head>
 <body class="flex h-screen overflow-hidden">
