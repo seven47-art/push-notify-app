@@ -150,7 +150,7 @@ alarms.post('/', async (c) => {
     if (!linkNorm.ok) return c.json({ success: false, error: linkNorm.error }, 400)
 
     // 채널 존재 확인 (public_id 포함)
-    const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
+    const channel = await c.env.DB.prepare('SELECT id, name, public_id, homepage_url, image_url FROM channels WHERE id = ? AND is_active = 1').bind(channel_id).first()
     if (!channel) return c.json({ success: false, error: '채널을 찾을 수 없습니다' }, 404)
 
     // 예약 시간이 이미 지난 pending 알람을 triggered로 자동 전환
@@ -268,6 +268,7 @@ alarms.post('/', async (c) => {
         alarm_id:       String(alarmId),
         channel_name:   (channel as any).name,
         channel_public_id: (channel as any).public_id || '',
+        channel_image:  (channel as any).image_url || '',
         msg_type:       msg_type,
         msg_value:      safeValue,
         content_url:    contentUrl,
@@ -480,6 +481,7 @@ alarms.post('/trigger', async (c) => {
     const { results: dueAlarms } = await c.env.DB.prepare(`
       SELECT a.*, ch.name as channel_name, ch.owner_id as channel_owner_id,
              ch.homepage_url as channel_homepage_url, ch.public_id as channel_public_id,
+             ch.image_url as channel_image_url,
              a.link_url as alarm_link_url, a.content_text as alarm_content_text
       FROM alarm_schedules a
       JOIN channels ch ON a.channel_id = ch.id
@@ -605,6 +607,7 @@ alarms.post('/trigger', async (c) => {
             type:         'alarm',
             channel_name: alarm.channel_name || '알람',
             channel_public_id: alarm.channel_public_id || '',
+            channel_image: alarm.channel_image_url || '',
             msg_type:     alarm.msg_type     || 'youtube',
             msg_value:    alarm.msg_value    || '',
             alarm_id:     String(alarm.id),
@@ -739,6 +742,7 @@ alarms.post('/trigger', async (c) => {
         alarm_id:          alarm.id,
         channel_name:      alarm.channel_name,
         channel_public_id: alarm.channel_public_id || '',
+        channel_image:     alarm.channel_image_url || '',
         scheduled_at:      alarm.scheduled_at,
         msg_type:          alarm.msg_type,
         msg_value:         alarm.msg_value,
@@ -1118,14 +1122,14 @@ alarms.get('/inbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 삭제된 채널도 포함 (alarm_logs에 저장된 이름 사용)
+    // 필터 칩용 채널 목록: 삭제된 채널 제외 (INNER JOIN)
     const channels = offset === 0 ? (() => {
       return c.env.DB.prepare(
         `SELECT DISTINCT l.channel_id as id,
-                COALESCE(ch.name, l.channel_name) as name,
+                ch.name as name,
                 ch.image_url
          FROM alarm_logs l
-         LEFT JOIN channels ch ON ch.id = l.channel_id
+         INNER JOIN channels ch ON ch.id = l.channel_id
          WHERE l.receiver_id = ?
            AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
          ORDER BY name ASC`
@@ -1220,14 +1224,14 @@ alarms.get('/outbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 삭제된 채널도 포함 (alarm_logs에 저장된 이름 사용)
+    // 필터 칩용 채널 목록: 삭제된 채널 제외 (INNER JOIN)
     const chResult = offset === 0
       ? await c.env.DB.prepare(
           `SELECT DISTINCT l.channel_id as id,
-                  COALESCE(ch.name, l.channel_name) as name,
+                  ch.name as name,
                   ch.image_url
            FROM alarm_logs l
-           LEFT JOIN channels ch ON ch.id = l.channel_id
+           INNER JOIN channels ch ON ch.id = l.channel_id
            WHERE l.sender_id = ?
              AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
            ORDER BY name ASC`

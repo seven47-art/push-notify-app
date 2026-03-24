@@ -41,6 +41,7 @@ class MainScreen extends StatefulWidget {
 class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   bool _hasUnreadNotice = false;
+  DateTime? _lastBackPressed;
 
   // 각 네이티브 화면 reload를 위한 GlobalKey
   final GlobalKey<SubscribedChannelsScreenState> _subscribedKey  = GlobalKey<SubscribedChannelsScreenState>();
@@ -450,14 +451,44 @@ class MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgWhite,
-      appBar: _buildAppBar(context),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+
+        // 검색 탭(5) 또는 다른 탭 → 홈 탭(0)으로 이동
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return;
+        }
+
+        // 홈 탭에서 2초 이내 두 번째 뒤로가기 → 앱 종료
+        final now = DateTime.now();
+        if (_lastBackPressed != null &&
+            now.difference(_lastBackPressed!) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+          return;
+        }
+
+        _lastBackPressed = now;
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('뒤로 버튼을 한번 더 누르시면 종료됩니다'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      child: Scaffold(
+        backgroundColor: _bgWhite,
+        appBar: _buildAppBar(context),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
