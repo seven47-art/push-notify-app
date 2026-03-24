@@ -73,7 +73,7 @@ class NotificationScreen extends StatefulWidget {
 
 // 퍼블릭 State - 외부(MainScreenState)에서 GlobalKey로 reload() 호출 가능
 class NotificationScreenState extends State<NotificationScreen> {
-  // ── "전체" 탭 전용 상태 ──
+  // ── 데이터 ──
   List<Map<String, dynamic>> _items = [];
   bool _loading     = true;
   bool _loadingMore = false;
@@ -86,25 +86,12 @@ class NotificationScreenState extends State<NotificationScreen> {
   List<Map<String, dynamic>> _channels = [];
   String _selectedChannel = '전체';
 
-  // ── 채널별 캐시 (필터칩 선택 시 사용) ──
-  final Map<String, List<Map<String, dynamic>>> _channelCache  = {};
-  final Map<String, bool>   _channelHasMore = {};
-  final Map<String, int>    _channelOffset  = {};
-  final Set<String>         _loadingChannels = {};  // 중복 요청 방지
-
-
   // 선택 모드
   bool _selectMode         = false;
   Set<String> _selectedIds = {};
 
   // 스크롤 컨트롤러 (무한스크롤)
   final ScrollController _scrollController = ScrollController();
-
-  // 캐시 키 (수신함/발신함 별도)
-  String get _cacheKey => widget.mode == NotificationMode.inbox
-      ? 'cache_notif_inbox' : 'cache_notif_outbox';
-  String get _cacheKeyChannels => widget.mode == NotificationMode.inbox
-      ? 'cache_notif_inbox_ch' : 'cache_notif_outbox_ch';
 
   // 외부에서 reload 호출 가능하도록 public 메서드
   void reload() => _load(refresh: true);
@@ -113,7 +100,7 @@ class NotificationScreenState extends State<NotificationScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadCacheThenFetch();
+    _load();
   }
 
   @override
@@ -122,102 +109,42 @@ class NotificationScreenState extends State<NotificationScreen> {
     super.dispose();
   }
 
-  // 캐시 먼저 표시 → 백그라운드 API 갱신
-  Future<void> _loadCacheThenFetch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getString(_cacheKey);
-    if (cached != null && cached.isNotEmpty) {
-      try {
-        final list = (jsonDecode(cached) as List).map((e) => Map<String, dynamic>.from(e)).toList();
-        final cachedCh = prefs.getString(_cacheKeyChannels);
-        List<Map<String, dynamic>> channels = [];
-        if (cachedCh != null && cachedCh.isNotEmpty) {
-          channels = (jsonDecode(cachedCh) as List).map((e) => Map<String, dynamic>.from(e)).toList();
-        }
-        if (mounted && list.isNotEmpty) {
-          setState(() {
-            _items = list;
-            _channels = channels;
-            _loading = false;
-          });
-        }
-      } catch (_) {}
-    }
-    _load(refresh: true);
-  }
-
-  // 캐시 저장
-  Future<void> _saveCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    try {
-      await prefs.setString(_cacheKey, jsonEncode(_items));
-      await prefs.setString(_cacheKeyChannels, jsonEncode(_channels));
-    } catch (_) {}
-  }
-
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      if (_selectedChannel == '전체') {
-        if (!_loadingMore && _hasMore) _loadMore();
-      } else {
-        final chId = _filterChannelId;
-        if (chId.isNotEmpty && !_loadingChannels.contains(chId) &&
-            (_channelHasMore[chId] ?? false)) {
-          _loadMoreChannel(chId);
-        }
-      }
+      if (!_loadingMore && _hasMore) _loadMore();
     }
   }
 
-  // ── 초기/새로고침 로드 (전체 탭) ──────────────────────
+  // ── 초기/새로고침 로드 ──────────────────────────────
   Future<void> _load({bool refresh = false}) async {
-    if (refresh) {
-      // 채널 캐시 전체 클리어
-      _channelCache.clear();
-      _channelHasMore.clear();
-      _channelOffset.clear();
-      _loadingChannels.clear();
-
-      if (_items.isEmpty) {
-        setState(() {
-          _loading     = true;
-          _error       = null;
-          _selectMode  = false;
-          _selectedIds = {};
-          _offset      = 0;
-          _hasMore     = false;
-          _selectedChannel = '전체';
-        });
-      } else {
-        setState(() {
-          _error       = null;
-          _selectMode  = false;
-          _selectedIds = {};
-          _offset      = 0;
-          _hasMore     = false;
-          _selectedChannel = '전체';
-        });
-      }
-    }
+    setState(() {
+      _loading     = true;
+      _error       = null;
+      _selectMode  = false;
+      _selectedIds = {};
+      _offset      = 0;
+      _hasMore     = false;
+      if (refresh) _selectedChannel = '전체';
+    });
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
 
-      final result = await _fetchPage(offset: 0);
+      final result = await _fetchPage(offset: 0, channelId: _filterChannelId);
       if (!mounted) return;
 
       if (result != null) {
-        final newChannels = result['channels'] as List<Map<String, dynamic>>? ?? [];
         setState(() {
           _items   = result['data'] as List<Map<String, dynamic>>;
           _hasMore = result['hasMore'] as bool;
           _offset  = _items.length;
           _loading = false;
-          // 첫 페이지 응답 시 채널 목록 항상 갱신 (비어있어도 반영)
-          _channels = newChannels;
+          final newChannels = result['channels'] as List<Map<String, dynamic>>? ?? [];
+          if (newChannels.isNotEmpty) _channels = newChannels;
+          // 데이터 0건이면 채널 목록도 클리어
+          if (_items.isEmpty && _selectedChannel == '전체') _channels = newChannels;
         });
-        _saveCache();
       } else {
         setState(() { _loading = false; _error = '목록을 불러올 수 없습니다.'; });
       }
@@ -226,12 +153,12 @@ class NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // ── 추가 페이지 로드 – 전체 탭 (무한스크롤) ──────────
+  // ── 추가 페이지 로드 (무한스크롤) ──────────────────
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
     try {
-      final result = await _fetchPage(offset: _offset);
+      final result = await _fetchPage(offset: _offset, channelId: _filterChannelId);
       if (!mounted) return;
       if (result != null) {
         setState(() {
@@ -304,98 +231,8 @@ class NotificationScreenState extends State<NotificationScreen> {
       _selectMode  = false;
       _selectedIds = {};
     });
-    // "전체"가 아니면 채널별 캐시 확인 → 없으면 로드
-    if (name != '전체') {
-      final chId = _channels
-          .where((c) => c['name'] == name)
-          .map((c) => c['id']?.toString() ?? '')
-          .firstOrNull ?? '';
-      if (chId.isNotEmpty && !_channelCache.containsKey(chId)) {
-        // ★ _items에서 선행 필터링 → 즉시 표시 (스켈레톤 방지)
-        final preview = _items
-            .where((item) => item['channel_id']?.toString() == chId)
-            .toList();
-        if (preview.isNotEmpty) {
-          setState(() {
-            _channelCache[chId] = preview;
-            _channelHasMore[chId] = true; // 서버에 더 있을 수 있으므로
-            _channelOffset[chId] = 0;     // 서버 응답으로 덮어쓸 예정
-          });
-        }
-        // 백그라운드로 서버에서 정확한 데이터 가져와서 교체
-        _loadChannelPage(chId);
-      }
-    }
-  }
-
-  // ── 채널별 첫 페이지 로드 (백그라운드) ─────────────────
-  Future<void> _loadChannelPage(String channelId) async {
-    if (_loadingChannels.contains(channelId)) return; // 중복 방지
-    _loadingChannels.add(channelId);
-    // preview 없으면 스피너 표시를 위해 setState
-    if (!_channelCache.containsKey(channelId) || _channelCache[channelId]!.isEmpty) {
-      setState(() {});
-    }
-    try {
-      final result = await _fetchPage(offset: 0, channelId: channelId);
-      if (!mounted) return;
-      if (result != null) {
-        setState(() {
-          _channelCache[channelId]   = result['data'] as List<Map<String, dynamic>>;
-          _channelHasMore[channelId] = result['hasMore'] as bool;
-          _channelOffset[channelId]  = (result['data'] as List).length;
-        });
-      } else {
-        // 서버 실패 시 preview 데이터가 있으면 유지
-        if (!(_channelCache.containsKey(channelId) && _channelCache[channelId]!.isNotEmpty)) {
-          setState(() {
-            _channelCache[channelId]   = [];
-            _channelHasMore[channelId] = false;
-            _channelOffset[channelId]  = 0;
-          });
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        if (!(_channelCache.containsKey(channelId) && _channelCache[channelId]!.isNotEmpty)) {
-          setState(() {
-            _channelCache[channelId]   = [];
-            _channelHasMore[channelId] = false;
-          });
-        }
-      }
-    } finally {
-      _loadingChannels.remove(channelId);
-      if (mounted) setState(() {});  // 스피너 → 데이터/빈 화면 전환
-    }
-  }
-
-  // ── 채널별 추가 페이지 로드 (무한스크롤) ──────────────
-  Future<void> _loadMoreChannel(String channelId) async {
-    if (_loadingChannels.contains(channelId)) return;
-    if (!(_channelHasMore[channelId] ?? false)) return;
-    _loadingChannels.add(channelId);
-    setState(() => _loadingMore = true);
-    try {
-      final offset = _channelOffset[channelId] ?? 0;
-      final result = await _fetchPage(offset: offset, channelId: channelId);
-      if (!mounted) return;
-      if (result != null) {
-        final newData = result['data'] as List<Map<String, dynamic>>;
-        setState(() {
-          _channelCache[channelId] = [...(_channelCache[channelId] ?? []), ...newData];
-          _channelHasMore[channelId] = result['hasMore'] as bool;
-          _channelOffset[channelId]  = (_channelCache[channelId]?.length ?? 0);
-          _loadingMore = false;
-        });
-      } else {
-        setState(() => _loadingMore = false);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingMore = false);
-    } finally {
-      _loadingChannels.remove(channelId);
-    }
+    // 서버에서 해당 채널 데이터를 새로 로드
+    _load();
   }
 
   // ── 날짜 포맷 ──────────────────────────────────────
@@ -587,38 +424,8 @@ class NotificationScreenState extends State<NotificationScreen> {
         .firstOrNull ?? '';
   }
 
-  List<Map<String, dynamic>> get _displayed {
-    if (_selectedChannel == '전체') return _items;
-    final chId = _filterChannelId;
-    if (chId.isEmpty) return _items;
-    return _channelCache[chId] ?? [];
-  }
-
-  // 현재 탭의 "더 보기" 여부
-  bool get _currentHasMore {
-    if (_selectedChannel == '전체') return _hasMore;
-    final chId = _filterChannelId;
-    return _channelHasMore[chId] ?? false;
-  }
-
-  // 채널 필터 로딩 중 (preview 없고 서버 호출 중)
-  bool get _isChannelLoading {
-    if (_selectedChannel == '전체') return false;
-    final chId = _filterChannelId;
-    if (chId.isEmpty) return false;
-    return _loadingChannels.contains(chId);
-  }
-
-  // 채널 데이터가 한 건도 없는 상태 (서버 응답 완료 후 진짜 비어있는 경우)
-  bool get _isChannelEmpty {
-    if (_selectedChannel == '전체') return false;
-    final chId = _filterChannelId;
-    if (chId.isEmpty) return false;
-    // 로딩 중이면 아직 비어있는지 판단 불가
-    if (_loadingChannels.contains(chId)) return false;
-    // 캐시에 데이터가 있으면 비어있지 않음
-    return _channelCache.containsKey(chId) && _channelCache[chId]!.isEmpty;
-  }
+  // _items가 곧 현재 표시 데이터 (서버에서 channel_id 필터링해서 가져옴)
+  List<Map<String, dynamic>> get _displayed => _items;
 
   @override
   Widget build(BuildContext context) {
@@ -750,23 +557,8 @@ class NotificationScreenState extends State<NotificationScreen> {
                           ],
                         ),
                       )
-                    // 채널 필터: 데이터 없고 로딩 중 → 중앙 스피너
-                    : (_displayed.isEmpty && _isChannelLoading)
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: 40),
-                              child: SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                  color: _primary,
-                                  strokeWidth: 2.5,
-                                ),
-                              ),
-                            ),
-                          )
-                    // 채널 필터: 서버 응답 완료 후 진짜 비어있음 (RefreshIndicator 포함)
-                    : (_displayed.isEmpty && (_selectedChannel == '전체' || _isChannelEmpty))
+                    // 데이터 없음 (당겨서 새로고침 가능)
+                    : _displayed.isEmpty
                         ? RefreshIndicator(
                             color: _primary,
                             onRefresh: () => _load(refresh: true),
@@ -798,27 +590,13 @@ class NotificationScreenState extends State<NotificationScreen> {
                               ],
                             ),
                           )
-                    // 채널 필터: 아직 판단 불가 (캐시도 없고 로딩도 아닌 과도기) → 스피너
-                    : _displayed.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: 40),
-                              child: SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                  color: _primary,
-                                  strokeWidth: 2.5,
-                                ),
-                              ),
-                            ),
-                          )
+                        // 데이터 있음 (당겨서 새로고침 + 무한스크롤)
                         : RefreshIndicator(
                             color: _primary,
                             onRefresh: () => _load(refresh: true),
                             child: ListView.builder(
                               controller: _scrollController,
-                              itemCount: _displayed.length + (_currentHasMore ? 1 : 0),
+                              itemCount: _displayed.length + (_hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == _displayed.length) {
                                   return const Padding(
