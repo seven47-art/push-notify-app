@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import '../utils/toast_helper.dart';
 import 'home_screen_main.dart';
 import 'terms_screen.dart';
 import 'my_channels_screen.dart';
@@ -471,14 +472,7 @@ class MainScreenState extends State<MainScreen> {
         }
 
         _lastBackPressed = now;
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('뒤로 버튼을 한번 더 누르시면 종료됩니다'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showCenterToast(context, '뒤로 버튼을 한번 더 누르시면 종료됩니다');
       },
       child: Scaffold(
         backgroundColor: _bgWhite,
