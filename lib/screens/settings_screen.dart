@@ -24,7 +24,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
-  bool _isDark = false;
   Map<String, dynamic>? _companyInfo;
 
   @override
@@ -35,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadInfo() async {
-    if (mounted) setState(() => _version = 'v3.5.0');
+    if (mounted) setState(() => _version = 'v$kAppVersion');
   }
 
   Future<void> _loadCompanyInfo() async {
@@ -180,28 +179,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text('메뉴', style: TextStyle(fontSize: 12, color: _text, fontWeight: FontWeight.w600)),
           ),
-          // 모드 선택
-          _SettingsRow(
-            icon: Icons.dark_mode_outlined,
-            iconColor: _primary,
-            label: '모드 선택',
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('라이트', style: TextStyle(fontSize: 13, color: _isDark ? _text2 : _text)),
-                const SizedBox(width: 8),
-                Switch(
-                  value: _isDark,
-                  onChanged: (v) => setState(() => _isDark = v),
-                  activeColor: _primary,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                const SizedBox(width: 4),
-                Text('다크', style: TextStyle(fontSize: 13, color: _isDark ? _text : _text2)),
-              ],
-            ),
-          ),
-          const Divider(height: 1, indent: 56, color: _border),
           // 개인정보보호정책
           _SettingsRow(
             icon: Icons.shield_outlined,
