@@ -241,6 +241,12 @@ alarms.post('/', async (c) => {
     // audio/video/file은 Firebase Storage URL(msg_value)을 직접 사용
     let contentUrl = safeValue
 
+    // ★ channel_image: base64 데이터 URI는 FCM 4KB 제한 초과 → 프록시 URL로 변환
+    const rawImageUrl = (channel as any).image_url || ''
+    const channelImageForFcm = rawImageUrl.startsWith('data:') 
+      ? `${webhookBase}/api/channels/${channel_id}/image`
+      : rawImageUrl
+
     // 구독자 + 채널 운영자 FCM 토큰 수집
     const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
     const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
@@ -268,7 +274,7 @@ alarms.post('/', async (c) => {
         alarm_id:       String(alarmId),
         channel_name:   (channel as any).name,
         channel_public_id: (channel as any).public_id || '',
-        channel_image:  (channel as any).image_url || '',
+        channel_image:  channelImageForFcm,
         msg_type:       msg_type,
         msg_value:      safeValue,
         content_url:    contentUrl,
@@ -607,7 +613,7 @@ alarms.post('/trigger', async (c) => {
             type:         'alarm',
             channel_name: alarm.channel_name || '알람',
             channel_public_id: alarm.channel_public_id || '',
-            channel_image: alarm.channel_image_url || '',
+            channel_image: (alarm.channel_image_url || '').startsWith('data:') ? `${webhookBase}/api/channels/${alarm.channel_id}/image` : (alarm.channel_image_url || ''),
             msg_type:     alarm.msg_type     || 'youtube',
             msg_value:    alarm.msg_value    || '',
             alarm_id:     String(alarm.id),
@@ -742,7 +748,7 @@ alarms.post('/trigger', async (c) => {
         alarm_id:          alarm.id,
         channel_name:      alarm.channel_name,
         channel_public_id: alarm.channel_public_id || '',
-        channel_image:     alarm.channel_image_url || '',
+        channel_image:     (alarm.channel_image_url || '').startsWith('data:') ? `${webhookBase}/api/channels/${alarm.channel_id}/image` : (alarm.channel_image_url || ''),
         scheduled_at:      alarm.scheduled_at,
         msg_type:          alarm.msg_type,
         msg_value:         alarm.msg_value,
