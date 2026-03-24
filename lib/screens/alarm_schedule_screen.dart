@@ -409,11 +409,19 @@ class _AlarmScheduleScreenState extends State<AlarmScheduleScreen> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (!isMaxReached)
-                      IconButton(
-                        icon: const Icon(Icons.add, size: 26, color: _textPrimary),
-                        onPressed: _openAddForm,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                      GestureDetector(
+                        onTap: _openAddForm,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF00BCD4), width: 1.5),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            '+알람',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF00BCD4)),
+                          ),
+                        ),
                       ),
                   ],
                 ),
