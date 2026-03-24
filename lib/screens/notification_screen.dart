@@ -214,9 +214,8 @@ class NotificationScreenState extends State<NotificationScreen> {
           _hasMore = result['hasMore'] as bool;
           _offset  = _items.length;
           _loading = false;
-          if (newChannels.isNotEmpty) {
-            _channels = newChannels;
-          }
+          // 첫 페이지 응답 시 채널 목록 항상 갱신 (비어있어도 반영)
+          _channels = newChannels;
         });
         _saveCache();
       } else {
@@ -420,34 +419,78 @@ class NotificationScreenState extends State<NotificationScreen> {
   Future<void> _deleteSelected() async {
     if (_selectedIds.isEmpty) return;
     final count = _selectedIds.length;
-    await _deleteLogIds(_selectedIds.toList());
-    if (mounted) {
-      showCenterToast(context, '$count개 항목이 삭제되었습니다.');
+    // 전체 선택 상태이고 서버에 더 있을 수 있으면 → 서버 전체삭제 API 사용
+    final allDisplayedSelected = _displayed.isNotEmpty &&
+        _displayed.every((i) => _selectedIds.contains(i['id']?.toString() ?? ''));
+    bool ok;
+    if (allDisplayedSelected) {
+      ok = await _deleteAll();
+    } else {
+      ok = await _deleteLogIds(_selectedIds.toList());
+    }
+    if (!mounted) return;
+    if (ok) {
+      showCenterToast(context, allDisplayedSelected ? '전체 삭제되었습니다.' : '$count개 항목이 삭제되었습니다.');
       _load(refresh: true);
+    } else {
+      showCenterToast(context, '삭제에 실패했습니다. 다시 시도해주세요.');
     }
   }
 
   // ── 단건 삭제 (다이얼로그에서 호출) ────────────────
   Future<void> _deleteSingle(String logId) async {
-    await _deleteLogIds([logId]);
-    if (mounted) {
+    final ok = await _deleteLogIds([logId]);
+    if (!mounted) return;
+    if (ok) {
       showCenterToast(context, '삭제되었습니다.');
       _load(refresh: true);
+    } else {
+      showCenterToast(context, '삭제에 실패했습니다.');
+    }
+  }
+
+  // ── 전체삭제 API 호출 ─────────────────────────────
+  Future<bool> _deleteAll() async {
+    final endpoint = widget.mode == NotificationMode.inbox
+        ? '$kBaseUrl/api/alarms/inbox/delete-all'
+        : '$kBaseUrl/api/alarms/outbox/delete-all';
+    try {
+      final res = await http.delete(
+        Uri.parse(endpoint),
+        headers: {'Authorization': 'Bearer $_token'},
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return body['success'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
   // ── bulk-delete 공통 호출 ──────────────────────────
-  Future<void> _deleteLogIds(List<String> ids) async {
+  Future<bool> _deleteLogIds(List<String> ids) async {
     final endpoint = widget.mode == NotificationMode.inbox
         ? '$kBaseUrl/api/alarms/inbox/bulk-delete'
         : '$kBaseUrl/api/alarms/outbox/bulk-delete';
     try {
-      await http.post(
+      // String → int 변환하여 서버 타입과 일치시킴
+      final intIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toList();
+      if (intIds.isEmpty) return false;
+      final res = await http.post(
         Uri.parse(endpoint),
         headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
-        body: jsonEncode({'log_ids': ids}),
+        body: jsonEncode({'log_ids': intIds}),
       ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return body['success'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ── 알람 재생 (Kotlin ContentPlayerActivity) ───────
@@ -722,23 +765,35 @@ class NotificationScreenState extends State<NotificationScreen> {
                               ),
                             ),
                           )
-                    // 채널 필터: 서버 응답 완료 후 진짜 비어있음
+                    // 채널 필터: 서버 응답 완료 후 진짜 비어있음 (RefreshIndicator 포함)
                     : (_displayed.isEmpty && (_selectedChannel == '전체' || _isChannelEmpty))
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                        ? RefreshIndicator(
+                            color: _primary,
+                            onRefresh: () => _load(refresh: true),
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
                               children: [
-                                Icon(
-                                  widget.mode == NotificationMode.inbox
-                                      ? Icons.inbox : Icons.send,
-                                  size: 56, color: Colors.grey[300],
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  widget.mode == NotificationMode.inbox
-                                      ? '받은 알람이 없습니다.'
-                                      : '보낸 알람이 없습니다.',
-                                  style: const TextStyle(color: _text2),
+                                SizedBox(
+                                  height: MediaQuery.of(context).size.height * 0.5,
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          widget.mode == NotificationMode.inbox
+                                              ? Icons.inbox : Icons.send,
+                                          size: 56, color: Colors.grey[300],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          widget.mode == NotificationMode.inbox
+                                              ? '받은 알람이 없습니다.'
+                                              : '보낸 알람이 없습니다.',
+                                          style: const TextStyle(color: _text2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),

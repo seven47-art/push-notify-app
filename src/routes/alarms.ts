@@ -999,6 +999,43 @@ alarms.post('/inbox/bulk-delete', async (c) => {
 })
 
 // =============================================
+// DELETE /api/alarms/inbox/delete-all  - 수신함 전체 삭제 (본인 것만)
+// =============================================
+alarms.delete('/inbox/delete-all', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    // 미래 알람 제외: 현재 표시 중인 것만 삭제 (삭제된 채널 로그도 포함)
+    const result = await c.env.DB.prepare(
+      `DELETE FROM alarm_logs WHERE receiver_id = ? AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
+    ).bind(user.id).run()
+
+    return c.json({ success: true, deleted: result.meta?.changes || 0 })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// DELETE /api/alarms/outbox/delete-all  - 발신함 전체 삭제 (본인 것만)
+// =============================================
+alarms.delete('/outbox/delete-all', async (c) => {
+  try {
+    const user = await getUserFromSession(c)
+    if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const result = await c.env.DB.prepare(
+      `DELETE FROM alarm_logs WHERE sender_id = ? AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
+    ).bind(user.id).run()
+
+    return c.json({ success: true, deleted: result.meta?.changes || 0 })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
 // POST /api/alarms/outbox/bulk-delete  - 발신함 로그 선택 삭제 (본인 것만)
 // =============================================
 alarms.post('/outbox/bulk-delete', async (c) => {
