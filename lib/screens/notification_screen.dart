@@ -118,8 +118,11 @@ class NotificationScreenState extends State<NotificationScreen> {
 
   // ── 초기/새로고침 로드 ──────────────────────────────
   Future<void> _load({bool refresh = false}) async {
+    // refresh: 기존 데이터 유지한 채 백그라운드 갱신 (당겨서 새로고침)
+    // 최초 로드: 스켈레톤 표시
+    final isFirstLoad = _items.isEmpty && !refresh;
     setState(() {
-      _loading     = true;
+      if (isFirstLoad) _loading = true;
       _error       = null;
       _selectMode  = false;
       _selectedIds = {};

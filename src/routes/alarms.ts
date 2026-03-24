@@ -1089,15 +1089,16 @@ alarms.get('/inbox', async (c) => {
     const offset = Number(c.req.query('offset') || 0)
     const params: any[] = [user.id]
 
-    // INNER JOIN channels: 삭제된 채널 로그 자동 제외
+    // LEFT JOIN channels: 삭제된 채널 로그도 표시 (channel_name은 alarm_logs에 저장된 값 사용)
     // 미래 알람 제외: scheduled_at <= 현재시각인 것만 표시
     let query = `
       SELECT
-        l.id, l.alarm_id, l.channel_id, ch.name as channel_name,
+        l.id, l.alarm_id, l.channel_id,
+        COALESCE(ch.name, l.channel_name) as channel_name,
         l.msg_type, l.msg_value, l.status, l.received_at,
         l.scheduled_at, l.link_url, l.content_text, ch.image_url as channel_image
       FROM alarm_logs l
-      INNER JOIN channels ch ON ch.id = l.channel_id
+      LEFT JOIN channels ch ON ch.id = l.channel_id
       WHERE l.receiver_id = ?
         AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
     `
@@ -1108,7 +1109,7 @@ alarms.get('/inbox', async (c) => {
 
     // 전체 카운트 (미래 알람 제외)
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id WHERE l.receiver_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')${channelId ? ' AND l.channel_id = ?' : ''}`
+      `SELECT COUNT(*) as total FROM alarm_logs l WHERE l.receiver_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')${channelId ? ' AND l.channel_id = ?' : ''}`
     ).bind(...params).first() as any
     const total = countResult?.total || 0
 
@@ -1117,15 +1118,17 @@ alarms.get('/inbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 미래 알람 제외)
+    // 필터 칩용 채널 목록: 삭제된 채널도 포함 (alarm_logs에 저장된 이름 사용)
     const channels = offset === 0 ? (() => {
       return c.env.DB.prepare(
-        `SELECT DISTINCT ch.id, ch.name, ch.image_url
+        `SELECT DISTINCT l.channel_id as id,
+                COALESCE(ch.name, l.channel_name) as name,
+                ch.image_url
          FROM alarm_logs l
-         INNER JOIN channels ch ON ch.id = l.channel_id
+         LEFT JOIN channels ch ON ch.id = l.channel_id
          WHERE l.receiver_id = ?
            AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
-         ORDER BY ch.name ASC`
+         ORDER BY name ASC`
       ).bind(user.id).all()
     })() : Promise.resolve({ results: [] })
 
@@ -1178,7 +1181,7 @@ alarms.get('/outbox', async (c) => {
     const channelId = c.req.query('channel_id') || ''
 
     // alarm_logs는 수신자마다 1행 → GROUP BY alarm_id 로 묶어 발신 단위로 1건만 표시
-    // INNER JOIN channels: 삭제된 채널 로그 자동 제외
+    // LEFT JOIN channels: 삭제된 채널 로그도 표시 (channel_name은 alarm_logs에 저장된 값 사용)
     // 미래 알람 제외: scheduled_at <= 현재시각인 것만 표시
     let whereClause = `WHERE l.sender_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')`
     const params: any[] = [user.id]
@@ -1189,16 +1192,17 @@ alarms.get('/outbox', async (c) => {
     const limit  = Math.min(Number(c.req.query('limit')  || 20), 100)
     const offset = Number(c.req.query('offset') || 0)
 
-    // 전체 카운트 (alarm_id 기준 중복 제거, 삭제된 채널 제외)
+    // 전체 카운트 (alarm_id 기준 중복 제거, 삭제된 채널도 포함)
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT l.alarm_id) as total FROM alarm_logs l INNER JOIN channels ch ON ch.id = l.channel_id ${whereClause}`
+      `SELECT COUNT(DISTINCT l.alarm_id) as total FROM alarm_logs l ${whereClause}`
     ).bind(...params).first() as any
     const total = countResult?.total || 0
 
-    // GROUP BY alarm_id + INNER JOIN channels: 삭제된 채널 자동 제외
+    // GROUP BY alarm_id + LEFT JOIN channels: 삭제된 채널도 표시
     const query = `
       SELECT
-        MIN(l.id) as id, l.alarm_id, l.channel_id, ch.name as channel_name,
+        MIN(l.id) as id, l.alarm_id, l.channel_id,
+        COALESCE(ch.name, l.channel_name) as channel_name,
         l.msg_type, l.msg_value,
         MAX(l.status) as status,
         MIN(l.received_at) as received_at,
@@ -1206,7 +1210,7 @@ alarms.get('/outbox', async (c) => {
         ch.image_url as channel_image,
         COUNT(l.id) as receiver_count
       FROM alarm_logs l
-      INNER JOIN channels ch ON ch.id = l.channel_id
+      LEFT JOIN channels ch ON ch.id = l.channel_id
       ${whereClause}
       GROUP BY l.alarm_id
       ORDER BY MIN(l.received_at) DESC
@@ -1216,15 +1220,17 @@ alarms.get('/outbox', async (c) => {
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all() as { results: any[] }
 
-    // 필터 칩용 채널 목록: 항상 전체 반환 (삭제된 채널 제외, 미래 알람 제외)
+    // 필터 칩용 채널 목록: 삭제된 채널도 포함 (alarm_logs에 저장된 이름 사용)
     const chResult = offset === 0
       ? await c.env.DB.prepare(
-          `SELECT DISTINCT ch.id, ch.name, ch.image_url
+          `SELECT DISTINCT l.channel_id as id,
+                  COALESCE(ch.name, l.channel_name) as name,
+                  ch.image_url
            FROM alarm_logs l
-           INNER JOIN channels ch ON ch.id = l.channel_id
+           LEFT JOIN channels ch ON ch.id = l.channel_id
            WHERE l.sender_id = ?
              AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
-           ORDER BY ch.name ASC`
+           ORDER BY name ASC`
         ).bind(user.id).all() as { results: any[] }
       : { results: [] }
 
