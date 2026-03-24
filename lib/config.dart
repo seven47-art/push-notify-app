@@ -5,4 +5,4 @@ const String kBaseUrl =
     'https://ringo.run';
 
 // 앱 버전 (pubspec.yaml version 과 동기화)
-const String kAppVersion = '3.7.148';
+const String kAppVersion = '3.7.151';
