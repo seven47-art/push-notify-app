@@ -392,8 +392,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overf
 .nav.scrolled{box-shadow:var(--shadow)}
 .nav-inner{max-width:1080px;margin:0 auto;padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between}
 .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.nav-logo img{width:36px;height:36px;border-radius:10px}
-.nav-logo span{font-weight:800;font-size:20px;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.nav-logo img{height:32px;width:auto;object-fit:contain}
 .nav-links{display:flex;align-items:center;gap:24px}
 .nav-links a{text-decoration:none;font-size:14px;font-weight:500;color:var(--text2);transition:color .2s}
 .nav-links a:hover{color:var(--primary)}
@@ -491,8 +490,7 @@ section{padding:100px 20px}
 <nav class="nav" id="nav">
   <div class="nav-inner">
     <a href="/" class="nav-logo">
-      <img src="/static/ringo-icon-r.png" alt="RinGo">
-      <span>RinGo</span>
+      <img src="/static/ringo-logo-color.png" alt="RinGo">
     </a>
     <div class="nav-links">
       <a href="#features">기능</a>
@@ -512,26 +510,8 @@ section{padding:100px 20px}
     <div class="section-badge fade-up">🔔 채널 기반 알람 서비스</div>
     <h1 class="section-title fade-up">채널을 만들고,<br>알람을 예약하세요</h1>
     <p class="section-sub fade-up">RinGo는 채널을 만들어 구독자에게 원하는 시간에 알람을 보내는 서비스입니다.<br>유튜브, 오디오, 영상 콘텐츠를 알람과 함께 전달하세요.</p>
-    <div class="hero-btns fade-up">
-      <a href="#download" class="btn-primary">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/></svg>
-        Google Play 다운로드
-      </a>
-      <a href="/download" class="btn-secondary">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        APK 직접 다운로드
-      </a>
-    </div>
-    <div class="hero-badge fade-up">⏳ Google Play 출시 준비 중</div>
-    <div style="height:48px"></div>
-    <div class="hero-mockup fade-up">
-      <div class="hero-mockup-frame">
-        <div class="hero-mockup-notch"></div>
-        <div class="hero-mockup-screen">
-          <img src="/static/ringo-logo.png" alt="RinGo App" style="width:60%;height:auto;object-fit:contain">
-        </div>
-      </div>
-      <div class="hero-glow"></div>
+    <div class="hero-banner fade-up" style="margin-top:48px">
+      <img src="/static/hero-banner.png" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:800px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.12)">
     </div>
   </div>
 </section>
