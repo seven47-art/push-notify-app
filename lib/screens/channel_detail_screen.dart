@@ -544,6 +544,22 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                     ],
                   ),
                 ),
+                // 운영자 전용: +알람 버튼 (프로필 헤더 오른쪽)
+                if (widget.isOwner)
+                  GestureDetector(
+                    onTap: _openAlarmSchedule,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _teal, width: 1.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '+알람',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _teal),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -561,35 +577,6 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                         icon: _isFavorite ? Icons.star : Icons.star_border,
                         color: const Color(0xFFFFC107),
                         onTap: _toggleFavorite,
-                      ),
-                      const SizedBox(width: 8),
-                      // 알람 버튼 + 카운트 배지
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          _ActionBtn(icon: Icons.alarm, color: const Color(0xFFF59E0B), onTap: _openAlarmSchedule),
-                          if (_alarmCount > 0)
-                            Positioned(
-                              top: -4,
-                              right: -4,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFF4444),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white, width: 1.5),
-                                ),
-                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                child: Center(
-                                  child: Text(
-                                    '$_alarmCount',
-                                    style: const TextStyle(
-                                      fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
                       ),
                       const SizedBox(width: 8),
                       _ActionBtn(icon: Icons.share_outlined, color: const Color(0xFF3B82F6), onTap: _shareChannel),
