@@ -45,12 +45,13 @@ object AlarmScheduler {
         homepageUrl: String = "",
         channelPublicId: String = "",
         linkUrl: String = "",
-        contentText: String = ""
+        contentText: String = "",
+        channelImage: String = ""
     ) {
         val nowMs = System.currentTimeMillis()
         if (scheduledMs <= nowMs) {
             Log.w(TAG, "예약 시간이 이미 지남: alarmId=$alarmId, scheduledMs=$scheduledMs, now=$nowMs")
-            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText)
+            AlarmPollingService.triggerAlarm(context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage)
             return
         }
 
@@ -59,6 +60,7 @@ object AlarmScheduler {
             putExtra(AlarmReceiver.EXTRA_ALARM_ID,          alarmId)
             putExtra(AlarmReceiver.EXTRA_CHANNEL_NAME,      channelName)
             putExtra(AlarmReceiver.EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
+            putExtra(AlarmReceiver.EXTRA_CHANNEL_IMAGE,     channelImage)
             putExtra(AlarmReceiver.EXTRA_MSG_TYPE,          msgType)
             putExtra(AlarmReceiver.EXTRA_MSG_VALUE,         msgValue)
             putExtra(AlarmReceiver.EXTRA_CONTENT_URL,       contentUrl)

@@ -108,7 +108,8 @@ class AlarmPollingService : Service() {
             context: Context,
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = "",
-            channelPublicId: String = "", linkUrl: String = "", contentText: String = ""
+            channelPublicId: String = "", linkUrl: String = "", contentText: String = "",
+            channelImage: String = ""
         ) {
             if (alarmId > 0) {
                 synchronized(fcmLock) {
@@ -131,7 +132,8 @@ class AlarmPollingService : Service() {
                 )
                 FakeCallActivity.start(
                     context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
-                    channelPublicId = channelPublicId, linkUrl = linkUrl, contentText = contentText
+                    channelPublicId = channelPublicId, linkUrl = linkUrl, contentText = contentText,
+                    channelImage = channelImage
                 )
             } else {
                 // 이후 알람 → 상태바 알림
@@ -330,12 +332,13 @@ class AlarmPollingService : Service() {
                 val homepageUrl     = alarm.optString("channel_homepage_url", "").ifEmpty { alarm.optString("homepage_url", "") }
                 val linkUrl         = alarm.optString("link_url", "")
                 val contentText     = alarm.optString("content_text", "")
+                val channelImage    = alarm.optString("channel_image", "")
 
                 Log.d(TAG, "polling alarm: $channelName (id=$alarmId)")
 
                 triggerAlarm(
                     this@AlarmPollingService,
-                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText
+                    channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage
                 )
             }
 

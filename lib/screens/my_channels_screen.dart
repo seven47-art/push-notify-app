@@ -259,9 +259,9 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
         channelName: channelName,
         items: [
           _PopupItem(
-            icon: isFav ? Icons.favorite : Icons.favorite_border,
+            icon: isFav ? Icons.star : Icons.star_border,
             label: isFav ? '즐겨찾기 해제' : '즐겨찾기',
-            color: const Color(0xFFFF4081),
+            color: const Color(0xFFFFC107),
             onTap: () async {
               Navigator.pop(context);
               await _toggleFavorite(channel);
@@ -785,7 +785,7 @@ class _ChannelListTile extends StatelessWidget {
             if (isFavorite)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child: Icon(Icons.favorite, size: 18, color: Color(0xFFFF4081)),
+                child: Icon(Icons.star, size: 18, color: Color(0xFFFFC107)),
               ),
           ],
         ),

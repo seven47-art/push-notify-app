@@ -35,6 +35,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_ALARM_ID          = "alarm_id"
         const val EXTRA_CHANNEL_NAME      = "channel_name"
         const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
+        const val EXTRA_CHANNEL_IMAGE     = "channel_image"
         const val EXTRA_MSG_TYPE          = "msg_type"
         const val EXTRA_MSG_VALUE         = "msg_value"
         const val EXTRA_CONTENT_URL       = "content_url"
@@ -55,6 +56,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val alarmId         = intent.getIntExtra(EXTRA_ALARM_ID,             0)
         val channelName     = intent.getStringExtra(EXTRA_CHANNEL_NAME)      ?: "알람"
         val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
+        val channelImage    = intent.getStringExtra(EXTRA_CHANNEL_IMAGE)     ?: ""
         val msgType         = intent.getStringExtra(EXTRA_MSG_TYPE)          ?: "youtube"
         val msgValue        = intent.getStringExtra(EXTRA_MSG_VALUE)         ?: ""
         val contentUrl      = intent.getStringExtra(EXTRA_CONTENT_URL)       ?: ""
@@ -69,7 +71,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         AlarmPollingService.triggerAlarm(
-            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText
+            context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage
         )
 
         Log.d(TAG, "알람 처리 완료: $channelName (id=$alarmId)")

@@ -21,6 +21,9 @@ Uint8List? base64ToBytes(String dataUrl) {
 }
 
 /// 채널 아바타 위젯 (base64 / http URL / 이니셜 모두 처리)
+/// - base64: 즉시 표시 (DecorationImage)
+/// - http URL: fade-in 로딩 (Image.network + frameBuilder)
+/// - 이미지 없음: 이니셜 표시
 Widget channelAvatar({
   required String? imageUrl,
   required String name,
@@ -31,30 +34,45 @@ Widget channelAvatar({
   final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
   final bg = bgColor ?? const Color(0xFF6C63FF);
 
-  ImageProvider? provider;
-
-  if (imageUrl != null && imageUrl.isNotEmpty) {
-    if (isBase64Image(imageUrl)) {
-      final bytes = base64ToBytes(imageUrl);
-      if (bytes != null) provider = MemoryImage(bytes);
-    } else {
-      provider = NetworkImage(imageUrl);
+  // base64 이미지: 즉시 표시 (메모리에서 바로 디코딩)
+  if (imageUrl != null && imageUrl.isNotEmpty && isBase64Image(imageUrl)) {
+    final bytes = base64ToBytes(imageUrl);
+    if (bytes != null) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          image: DecorationImage(image: MemoryImage(bytes), fit: BoxFit.cover),
+        ),
+        clipBehavior: Clip.antiAlias,
+      );
     }
   }
 
-  return Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: provider == null ? bg.withOpacity(0.2) : null,
-      borderRadius: BorderRadius.circular(borderRadius),
-      image: provider != null
-          ? DecorationImage(image: provider, fit: BoxFit.cover)
-          : null,
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: provider == null
-        ? Center(
+  // http URL 이미지: fade-in 로딩 (로딩 중 빈 배경 → 로드 완료 시 부드럽게 전환)
+  if (imageUrl != null && imageUrl.isNotEmpty) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bg.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) return child;
+          // 로딩 중: 빈 컨테이너 (배경색만 보임)
+          return const SizedBox.shrink();
+        },
+        errorBuilder: (context, error, stackTrace) {
+          // 로드 실패: 이니셜 표시
+          return Center(
             child: Text(
               initial,
               style: TextStyle(
@@ -63,7 +81,30 @@ Widget channelAvatar({
                 fontWeight: FontWeight.bold,
               ),
             ),
-          )
-        : null,
+          );
+        },
+      ),
+    );
+  }
+
+  // 이미지 없음: 이니셜 표시
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: bg.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(borderRadius),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Center(
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: bg,
+          fontSize: size * 0.4,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
   );
 }

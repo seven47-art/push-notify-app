@@ -43,6 +43,7 @@ class RinGoFCMService : FirebaseMessagingService() {
         val scheduledMs     = data["scheduled_time"]?.toLongOrNull() ?: return
         val channelName     = data["channel_name"]     ?: "알람"
         val channelPublicId = data["channel_public_id"] ?: ""
+        val channelImage    = data["channel_image"]     ?: ""
         val msgType         = data["msg_type"]          ?: "youtube"
         val msgValue        = data["msg_value"]         ?: ""
         val contentUrl      = data["content_url"]       ?: ""
@@ -53,7 +54,7 @@ class RinGoFCMService : FirebaseMessagingService() {
         Log.d(TAG, "알람 예약: $channelName (id=$alarmId) at $scheduledMs")
         AlarmScheduler.schedule(
             this, alarmId, scheduledMs,
-            channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText
+            channelName, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage
         )
     }
 
@@ -67,6 +68,7 @@ class RinGoFCMService : FirebaseMessagingService() {
         val alarmId         = data["alarm_id"]?.toIntOrNull()  ?: 0
         val channelName     = data["channel_name"]     ?: "알람"
         val channelPublicId = data["channel_public_id"] ?: ""
+        val channelImage    = data["channel_image"]     ?: ""
         val msgType         = data["msg_type"]          ?: "youtube"
         val msgValue        = data["msg_value"]         ?: ""
         val contentUrl      = data["content_url"]       ?: ""
@@ -77,7 +79,7 @@ class RinGoFCMService : FirebaseMessagingService() {
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
         Log.d(TAG, "FCM 즉시 알람: $channelName (id=$alarmId)")
         AlarmPollingService.triggerAlarm(
-            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText
+            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage
         )
     }
 }

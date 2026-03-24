@@ -56,6 +56,7 @@ class FakeCallActivity : Activity() {
         const val EXTRA_LINK_URL          = "link_url"
         const val EXTRA_CONTENT_TEXT       = "content_text"
         const val EXTRA_AUTO_ACCEPT       = "auto_accept"
+        const val EXTRA_CHANNEL_IMAGE     = "channel_image"
 
         fun start(
             context: Context,
@@ -64,7 +65,8 @@ class FakeCallActivity : Activity() {
             channelPublicId: String = "",
             autoAccept: Boolean = false,
             linkUrl: String = "",
-            contentText: String = ""
+            contentText: String = "",
+            channelImage: String = ""
         ) {
             val intent = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -80,6 +82,7 @@ class FakeCallActivity : Activity() {
                 putExtra(EXTRA_LINK_URL,          linkUrl)
                 putExtra(EXTRA_CONTENT_TEXT,      contentText)
                 putExtra(EXTRA_AUTO_ACCEPT,       autoAccept)
+                putExtra(EXTRA_CHANNEL_IMAGE,     channelImage)
             }
             context.startActivity(intent)
         }
@@ -104,6 +107,7 @@ class FakeCallActivity : Activity() {
     private var linkUrl         = ""
     private var contentText     = ""
     private var autoAccept      = false
+    private var channelImage    = ""
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
@@ -169,12 +173,17 @@ class FakeCallActivity : Activity() {
         linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
         contentText     = intent.getStringExtra(EXTRA_CONTENT_TEXT)       ?: ""
         autoAccept      = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
+        channelImage    = intent.getStringExtra(EXTRA_CHANNEL_IMAGE)      ?: ""
 
         buildUi()
         startRinging()
 
-        // 채널 이미지 로드
-        loadChannelImage(channelPublicId)
+        // 채널 이미지 로드: Intent에 URL이 있으면 바로 로드, 없으면 API fallback
+        if (channelImage.isNotEmpty()) {
+            loadImageFromUrl(channelImage)
+        } else {
+            loadChannelImage(channelPublicId)
+        }
 
         if (autoAccept) {
             autoDeclineHandler.postDelayed({ handleAccept() }, 300L)
@@ -212,7 +221,48 @@ class FakeCallActivity : Activity() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 채널 이미지 비동기 로드 (API 호출)
+    // 채널 이미지 URL에서 직접 로드 (API 호출 불필요 — FCM payload에서 전달받은 URL 사용)
+    // ─────────────────────────────────────────────────────────────────────
+    private fun loadImageFromUrl(imageUrl: String) {
+        if (imageUrl.isEmpty()) return
+
+        scope.launch {
+            try {
+                val bitmap = if (imageUrl.startsWith("data:")) {
+                    val base64Part = imageUrl.substringAfter(",")
+                    val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } else {
+                    val imgResponse = http.newCall(
+                        Request.Builder().url(imageUrl).get().build()
+                    ).execute()
+                    val imgBytes = imgResponse.body?.bytes() ?: return@launch
+                    BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size)
+                }
+
+                if (bitmap != null) {
+                    val circularBitmap = toCircularBitmap(bitmap)
+                    withContext(Dispatchers.Main) {
+                        profileInitialText?.visibility = View.GONE
+                        profileIcon?.apply {
+                            alpha = 0f
+                            setImageBitmap(circularBitmap)
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                            background = null
+                            animate().alpha(1f).setDuration(300).start()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "이미지 URL 직접 로드 실패, API fallback: ${e.message}")
+                // fallback: API로 채널 이미지 로드
+                loadChannelImage(channelPublicId)
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 채널 이미지 비동기 로드 - API fallback (public_id로 채널 정보 조회)
     // ─────────────────────────────────────────────────────────────────────
     private fun loadChannelImage(publicId: String) {
         if (publicId.isEmpty()) return  // 이니셜 표시 유지

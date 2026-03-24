@@ -556,10 +556,10 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      // 즐겨찾기 하트 버튼
+                      // 즐겨찾기 별 버튼
                       _ActionBtn(
-                        icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: const Color(0xFFFF4081),
+                        icon: _isFavorite ? Icons.star : Icons.star_border,
+                        color: const Color(0xFFFFC107),
                         onTap: _toggleFavorite,
                       ),
                       const SizedBox(width: 8),
@@ -605,8 +605,8 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           _ActionBtn(
-                            icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: const Color(0xFFFF4081),
+                            icon: _isFavorite ? Icons.star : Icons.star_border,
+                            color: const Color(0xFFFFC107),
                             onTap: _toggleFavorite,
                           ),
                           const SizedBox(width: 8),

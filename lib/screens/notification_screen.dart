@@ -537,15 +537,25 @@ class NotificationScreenState extends State<NotificationScreen> {
 
           if (_channels.isNotEmpty) const SizedBox(height: 4),
 
-          // ── 목록 ──
+          // ── 목록 (RefreshIndicator 최상위 → 모든 상태에서 당겨서 새로고침) ──
           Expanded(
-            child: _loading
-                ? ListView.builder(
-                    itemCount: 8,
-                    itemBuilder: (_, __) => const _NotifSkeletonTile(),
-                  )
-                : _error != null
-                    ? Center(
+            child: RefreshIndicator(
+              color: _primary,
+              onRefresh: () => _load(refresh: true),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                controller: _scrollController,
+                slivers: [
+                  if (_loading)
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, __) => const _NotifSkeletonTile(),
+                        childCount: 8,
+                      ),
+                    )
+                  else if (_error != null)
+                    SliverFillRemaining(
+                      child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -559,70 +569,62 @@ class NotificationScreenState extends State<NotificationScreen> {
                             ),
                           ],
                         ),
-                      )
-                    // 데이터 없음 (당겨서 새로고침 가능)
-                    : _displayed.isEmpty
-                        ? RefreshIndicator(
-                            color: _primary,
-                            onRefresh: () => _load(refresh: true),
-                            child: ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              children: [
-                                SizedBox(
-                                  height: MediaQuery.of(context).size.height * 0.5,
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          widget.mode == NotificationMode.inbox
-                                              ? Icons.inbox : Icons.send,
-                                          size: 56, color: Colors.grey[300],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          widget.mode == NotificationMode.inbox
-                                              ? '받은 알람이 없습니다.'
-                                              : '보낸 알람이 없습니다.',
-                                          style: const TextStyle(color: _text2),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      ),
+                    )
+                  else if (_displayed.isEmpty)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.mode == NotificationMode.inbox
+                                  ? Icons.inbox : Icons.send,
+                              size: 56, color: Colors.grey[300],
                             ),
-                          )
-                        // 데이터 있음 (당겨서 새로고침 + 무한스크롤)
-                        : RefreshIndicator(
-                            color: _primary,
-                            onRefresh: () => _load(refresh: true),
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              itemCount: _displayed.length + (_hasMore ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (index == _displayed.length) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                          color: _primary, strokeWidth: 2),
-                                    ),
-                                  );
-                                }
-                                final item = _displayed[index];
-                                final ci   = index % _avatarColors.length;
-                                return _AlarmListTile(
-                                  item:       item,
-                                  colorIndex: ci,
-                                  selectMode: _selectMode,
-                                  selected:   _selectedIds.contains(item['id']?.toString() ?? ''),
-                                  onTap:      () => _onItemTap(item, ci),
-                                  formatDate: _formatDate,
-                                );
-                              },
+                            const SizedBox(height: 12),
+                            Text(
+                              widget.mode == NotificationMode.inbox
+                                  ? '받은 알람이 없습니다.'
+                                  : '보낸 알람이 없습니다.',
+                              style: const TextStyle(color: _text2),
                             ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final item = _displayed[index];
+                          final ci   = index % _avatarColors.length;
+                          return _AlarmListTile(
+                            item:       item,
+                            colorIndex: ci,
+                            selectMode: _selectMode,
+                            selected:   _selectedIds.contains(item['id']?.toString() ?? ''),
+                            onTap:      () => _onItemTap(item, ci),
+                            formatDate: _formatDate,
+                          );
+                        },
+                        childCount: _displayed.length,
+                      ),
+                    ),
+                    if (_hasMore)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                                color: _primary, strokeWidth: 2),
                           ),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ],
       ),
