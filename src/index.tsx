@@ -356,10 +356,339 @@ app.get('/join/:token', async (c) => {
 })
 
 // =============================================
-// ringo.run → /download 리다이렉트
+// ringo.run 홈페이지 (랜딩 페이지)
 // =============================================
 app.get('/', (c) => {
-  return c.redirect('/download')
+  return c.html(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RinGo - 채널을 만들고, 알람을 예약하세요</title>
+<meta name="description" content="RinGo는 채널 기반 알람 예약 서비스입니다. 채널을 만들고, 구독하고, 원하는 시간에 알람을 예약하세요.">
+<meta property="og:title" content="RinGo - 채널 기반 알람 예약 서비스">
+<meta property="og:description" content="채널을 만들고, 구독하고, 원하는 시간에 알람을 예약하세요.">
+<meta property="og:image" content="https://ringo.run/static/ringo-logo.png">
+<meta property="og:url" content="https://ringo.run">
+<link rel="icon" href="/static/ringo-icon.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#6C63FF;--primary-light:#8B83FF;--primary-dark:#5A52E0;
+  --teal:#00BCD4;--teal-light:#4DD0E1;
+  --bg:#FAFBFF;--surface:#FFFFFF;--surface-glass:rgba(255,255,255,0.7);
+  --text:#1A1A2E;--text2:#64648C;--text3:#9E9EBF;
+  --border:rgba(108,99,255,0.08);
+  --gradient:linear-gradient(135deg,#6C63FF 0%,#00BCD4 100%);
+  --shadow:0 4px 24px rgba(108,99,255,0.08);
+  --shadow-lg:0 12px 48px rgba(108,99,255,0.12);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── Sticky Nav ─────────────────── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:var(--surface-glass);border-bottom:1px solid var(--border);transition:box-shadow .3s}
+.nav.scrolled{box-shadow:var(--shadow)}
+.nav-inner{max-width:1080px;margin:0 auto;padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo img{width:36px;height:36px;border-radius:10px}
+.nav-logo span{font-weight:800;font-size:20px;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.nav-links{display:flex;align-items:center;gap:24px}
+.nav-links a{text-decoration:none;font-size:14px;font-weight:500;color:var(--text2);transition:color .2s}
+.nav-links a:hover{color:var(--primary)}
+.nav-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--gradient);color:#fff;border:none;border-radius:50px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(108,99,255,0.3)}
+@media(max-width:768px){.nav-links{display:none}}
+
+/* ── Section common ──────────────── */
+section{padding:100px 20px}
+.container{max-width:1080px;margin:0 auto}
+.section-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:50px;font-size:12px;font-weight:600;color:var(--primary);background:rgba(108,99,255,0.08);margin-bottom:16px}
+.section-title{font-size:clamp(28px,5vw,42px);font-weight:800;line-height:1.25;letter-spacing:-0.5px;margin-bottom:16px}
+.section-sub{font-size:clamp(15px,2.5vw,18px);color:var(--text2);line-height:1.6;max-width:540px}
+
+/* ── Hero ────────────────────────── */
+.hero{padding:140px 20px 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(ellipse at 30% 20%,rgba(108,99,255,0.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,188,212,0.05) 0%,transparent 60%);pointer-events:none}
+.hero .container{position:relative}
+.hero .section-sub{margin:0 auto 32px}
+.hero-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-bottom:48px}
+.btn-primary{display:inline-flex;align-items:center;gap:10px;padding:16px 32px;background:var(--gradient);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.btn-primary svg{width:24px;height:24px}
+.btn-secondary{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;background:var(--surface);color:var(--text);border:1.5px solid var(--border);border-radius:16px;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;transition:all .2s}
+.btn-secondary:hover{border-color:var(--primary);color:var(--primary);transform:translateY(-1px)}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(255,152,0,0.1);color:#F59E0B;border-radius:50px;font-size:11px;font-weight:600;margin-top:4px}
+.hero-mockup{position:relative;max-width:320px;margin:0 auto}
+.hero-mockup-frame{background:linear-gradient(145deg,#1a1a2e 0%,#2d2d4e 100%);border-radius:40px;padding:12px;box-shadow:var(--shadow-lg),0 0 0 1px rgba(255,255,255,0.1) inset}
+.hero-mockup-screen{background:#111;border-radius:30px;overflow:hidden;aspect-ratio:9/19.5;display:flex;align-items:center;justify-content:center}
+.hero-mockup-screen img{width:100%;height:100%;object-fit:cover}
+.hero-mockup-notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:28px;background:#1a1a2e;border-radius:0 0 16px 16px;z-index:2}
+.hero-glow{position:absolute;bottom:-60px;left:50%;transform:translateX(-50%);width:280px;height:120px;background:radial-gradient(ellipse,rgba(108,99,255,0.15),transparent 70%);filter:blur(40px);pointer-events:none}
+
+/* ── Features ────────────────────── */
+.features{background:var(--surface)}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px}
+.feature-card{padding:32px 28px;border-radius:20px;background:var(--bg);border:1px solid var(--border);transition:transform .3s,box-shadow .3s}
+.feature-card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.feature-icon{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:20px}
+.feature-card h3{font-size:18px;font-weight:700;margin-bottom:10px}
+.feature-card p{font-size:14px;color:var(--text2);line-height:1.65}
+@media(max-width:768px){.features-grid{grid-template-columns:1fr;gap:16px}}
+
+/* ── Steps ───────────────────────── */
+.steps-list{display:flex;flex-direction:column;gap:64px;margin-top:56px}
+.step-item{display:flex;align-items:center;gap:48px}
+.step-item:nth-child(even){flex-direction:row-reverse}
+.step-visual{flex:1;position:relative}
+.step-visual-box{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.step-visual-box::after{content:'';position:absolute;top:0;right:0;width:100px;height:100px;border-radius:0 24px 0 60px;opacity:0.06}
+.step-content{flex:1}
+.step-number{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:var(--gradient);color:#fff;font-size:16px;font-weight:800;margin-bottom:16px}
+.step-content h3{font-size:22px;font-weight:700;margin-bottom:12px}
+.step-content p{font-size:15px;color:var(--text2);line-height:1.7}
+.step-emoji{font-size:64px;text-align:center;line-height:1}
+@media(max-width:768px){.step-item,.step-item:nth-child(even){flex-direction:column;gap:24px;text-align:center}}
+
+/* ── Screenshots ─────────────────── */
+.screenshots{background:var(--surface);text-align:center}
+.screenshots-row{display:flex;justify-content:center;gap:24px;margin-top:48px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
+.screenshot-card{flex-shrink:0;width:220px;background:linear-gradient(145deg,#1a1a2e,#2d2d4e);border-radius:28px;padding:8px;box-shadow:var(--shadow);scroll-snap-align:center}
+.screenshot-inner{background:#111;border-radius:22px;overflow:hidden;aspect-ratio:9/19.5;display:flex;align-items:center;justify-content:center}
+.screenshot-inner .placeholder{color:var(--text3);font-size:13px;padding:20px;text-align:center}
+.screenshot-label{color:var(--text3);font-size:12px;font-weight:500;margin-top:12px;padding-bottom:4px}
+@media(max-width:768px){.screenshot-card{width:180px}}
+
+/* ── CTA ─────────────────────────── */
+.cta-section{text-align:center}
+.cta-box{background:var(--gradient);border-radius:32px;padding:64px 32px;color:#fff;position:relative;overflow:hidden}
+.cta-box::before{content:'';position:absolute;top:-50%;right:-30%;width:80%;height:200%;background:radial-gradient(circle,rgba(255,255,255,0.08),transparent 60%);pointer-events:none}
+.cta-box h2{font-size:clamp(26px,4vw,36px);font-weight:800;margin-bottom:12px;position:relative}
+.cta-box p{font-size:16px;opacity:0.85;margin-bottom:32px;position:relative}
+.cta-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;position:relative}
+.btn-white{display:inline-flex;align-items:center;gap:10px;padding:16px 32px;background:#fff;color:var(--primary);border:none;border-radius:16px;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.btn-white:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.15)}
+.btn-ghost{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;backdrop-filter:blur(8px);transition:all .2s}
+.btn-ghost:hover{background:rgba(255,255,255,0.25);transform:translateY(-1px)}
+
+/* ── Footer ──────────────────────── */
+.footer{background:var(--surface);border-top:1px solid var(--border);padding:40px 20px;text-align:center}
+.footer-links{display:flex;justify-content:center;flex-wrap:wrap;gap:24px;margin-bottom:16px}
+.footer-links a{text-decoration:none;font-size:13px;color:var(--text2);transition:color .2s}
+.footer-links a:hover{color:var(--primary)}
+.footer-copy{font-size:12px;color:var(--text3)}
+
+/* ── Animations ──────────────────── */
+.fade-up{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.fade-up{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<!-- ═══ Nav ═══ -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <img src="/static/ringo-icon.png" alt="RinGo">
+      <span>RinGo</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features">기능</a>
+      <a href="#how">사용법</a>
+      <a href="#screenshots">스크린샷</a>
+      <a href="#download" class="nav-cta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        다운로드
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══ Hero ═══ -->
+<section class="hero">
+  <div class="container">
+    <div class="section-badge fade-up">🔔 채널 기반 알람 서비스</div>
+    <h1 class="section-title fade-up">채널을 만들고,<br>알람을 예약하세요</h1>
+    <p class="section-sub fade-up">RinGo는 채널을 만들어 구독자에게 원하는 시간에 알람을 보내는 서비스입니다.<br>유튜브, 오디오, 영상 콘텐츠를 알람과 함께 전달하세요.</p>
+    <div class="hero-btns fade-up">
+      <a href="#download" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/></svg>
+        Google Play 다운로드
+      </a>
+      <a href="/download" class="btn-secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        APK 직접 다운로드
+      </a>
+    </div>
+    <div class="hero-badge fade-up">⏳ Google Play 출시 준비 중</div>
+    <div style="height:48px"></div>
+    <div class="hero-mockup fade-up">
+      <div class="hero-mockup-frame">
+        <div class="hero-mockup-notch"></div>
+        <div class="hero-mockup-screen">
+          <img src="/static/ringo-logo.png" alt="RinGo App" style="width:60%;height:auto;object-fit:contain">
+        </div>
+      </div>
+      <div class="hero-glow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Features ═══ -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-badge fade-up">✨ 주요 기능</div>
+    <h2 class="section-title fade-up">쉽고 강력한 알람 예약</h2>
+    <p class="section-sub fade-up">복잡한 설정 없이, 채널을 만들고 구독자에게 알람을 보내세요.</p>
+    <div class="features-grid">
+      <div class="feature-card fade-up">
+        <div class="feature-icon" style="background:rgba(108,99,255,0.1)">📢</div>
+        <h3>채널 생성</h3>
+        <p>나만의 채널을 만들고 초대 링크로 구독자를 모으세요. 공개/비밀 채널 모두 지원합니다.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon" style="background:rgba(0,188,212,0.1)">⏰</div>
+        <h3>알람 예약</h3>
+        <p>원하는 날짜와 시간에 알람을 예약하세요. 유튜브 링크, 오디오, 영상 파일을 함께 전달할 수 있습니다.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon" style="background:rgba(245,158,11,0.1)">🔔</div>
+        <h3>알람 수신</h3>
+        <p>구독한 채널에서 알람이 울리면 전화처럼 알림을 받고, 바로 콘텐츠를 재생할 수 있습니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ How it works ═══ -->
+<section id="how">
+  <div class="container">
+    <div style="text-align:center">
+      <div class="section-badge fade-up">🚀 사용 방법</div>
+      <h2 class="section-title fade-up">3단계로 시작하세요</h2>
+    </div>
+    <div class="steps-list">
+      <div class="step-item fade-up">
+        <div class="step-visual">
+          <div class="step-visual-box" style="text-align:center">
+            <div class="step-emoji">📱</div>
+            <div style="margin-top:16px;font-size:14px;color:var(--text2)">앱 설치 후 간편 가입</div>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="step-number">1</div>
+          <h3>앱 설치 & 가입</h3>
+          <p>RinGo 앱을 설치하고 간단한 가입 절차를 완료하세요. 이메일 하나로 바로 시작할 수 있습니다.</p>
+        </div>
+      </div>
+      <div class="step-item fade-up">
+        <div class="step-visual">
+          <div class="step-visual-box" style="text-align:center">
+            <div class="step-emoji">🎯</div>
+            <div style="margin-top:16px;font-size:14px;color:var(--text2)">채널을 만들거나 구독</div>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="step-number">2</div>
+          <h3>채널 생성 또는 구독</h3>
+          <p>내가 운영하는 채널을 만들거나, 초대 링크를 통해 다른 채널을 구독하세요.</p>
+        </div>
+      </div>
+      <div class="step-item fade-up">
+        <div class="step-visual">
+          <div class="step-visual-box" style="text-align:center">
+            <div class="step-emoji">🔔</div>
+            <div style="margin-top:16px;font-size:14px;color:var(--text2)">시간을 정해 알람 예약</div>
+          </div>
+        </div>
+        <div class="step-content">
+          <div class="step-number">3</div>
+          <h3>알람 예약 & 수신</h3>
+          <p>원하는 시간에 알람을 예약하면, 구독자에게 전화처럼 알림이 울립니다. 콘텐츠도 함께 전달됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Screenshots ═══ -->
+<section class="screenshots" id="screenshots">
+  <div class="container">
+    <div class="section-badge fade-up">📸 앱 미리보기</div>
+    <h2 class="section-title fade-up">이렇게 사용해요</h2>
+    <p class="section-sub fade-up" style="margin:0 auto">실제 앱 화면을 확인해보세요.</p>
+    <div class="screenshots-row fade-up">
+      <div class="screenshot-card">
+        <div class="screenshot-inner"><div class="placeholder">🏠<br><br>홈 화면<br><small>내 채널과 구독 채널을 한눈에</small></div></div>
+        <div class="screenshot-label">홈</div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-inner"><div class="placeholder">⏰<br><br>알람 설정<br><small>날짜, 시간, 콘텐츠 선택</small></div></div>
+        <div class="screenshot-label">알람 예약</div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-inner"><div class="placeholder">🔔<br><br>알람 수신<br><small>전화처럼 울리는 알람</small></div></div>
+        <div class="screenshot-label">수신 화면</div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-inner"><div class="placeholder">📢<br><br>채널 관리<br><small>구독자, 알람, 설정 관리</small></div></div>
+        <div class="screenshot-label">채널 관리</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Download CTA ═══ -->
+<section class="cta-section" id="download">
+  <div class="container">
+    <div class="cta-box fade-up">
+      <h2>지금 RinGo를 시작하세요</h2>
+      <p>채널을 만들고, 구독자에게 알람을 보내보세요.</p>
+      <div class="cta-btns">
+        <a href="#" class="btn-white" onclick="alert('Google Play 출시 준비 중입니다!');return false">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/></svg>
+          Google Play (출시 예정)
+        </a>
+        <a href="/download" class="btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          APK 직접 다운로드
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Footer ═══ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-links">
+      <a href="/terms">이용약관</a>
+      <a href="/privacy">개인정보처리방침</a>
+      <a href="mailto:formaasiacorp@gmail.com">문의</a>
+    </div>
+    <div class="footer-copy">&copy; 2025 RinGo. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+// Nav scroll effect
+const nav = document.getElementById('nav')
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 10)
+})
+
+// Scroll animation (Intersection Observer)
+const faders = document.querySelectorAll('.fade-up')
+const obsOpts = { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target) }})
+}, obsOpts)
+faders.forEach(el => observer.observe(el))
+</script>
+</body>
+</html>`)
 })
 
 // 기존 관리자 대시보드 (하위 호환용 - 직접 접근 불가)
