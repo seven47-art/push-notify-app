@@ -63,8 +63,8 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
 
   bool _validate() {
     bool ok = true;
-    if (_nameCtrl.text.trim().isEmpty || _nameCtrl.text.trim().length > 10) {
-      setState(() => _nameError = '채널명을 10자 이내로 입력해주세요.');
+    if (_nameCtrl.text.trim().isEmpty || _nameCtrl.text.trim().length > 15) {
+      setState(() => _nameError = '채널명을 15자 이내로 입력해주세요.');
       ok = false;
     } else {
       setState(() => _nameError = null);
@@ -183,11 +183,11 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
             const SizedBox(height: 4),
             TextField(
               controller: _nameCtrl,
-              maxLength: 10,
+              maxLength: 15,
               style: const TextStyle(fontSize: 14, color: _text),
               onChanged: (_) => setState(() => _nameError = null),
               decoration: InputDecoration(
-                hintText: '10자 내로 적어주세요',
+                hintText: '15자 내로 적어주세요',
                 errorText: _nameError,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -198,7 +198,7 @@ class _CreateChannelSheetState extends State<CreateChannelSheet> {
                   borderSide: const BorderSide(color: _primary),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                counterText: '${_nameCtrl.text.length}/10',
+                counterText: '${_nameCtrl.text.length}/15',
               ),
             ),
             const SizedBox(height: 12),

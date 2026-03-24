@@ -245,6 +245,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
         context: context,
         backgroundColor: Colors.transparent,
         isScrollControlled: true,
+        enableDrag: false,
         builder: (_) => _InviteCodeSheet(channelName: channelName, inviteLink: inviteLink),
       );
     } catch (e) {
@@ -259,6 +260,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => ChannelDetailScreen(
         channelId: channelId,

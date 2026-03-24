@@ -172,6 +172,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(

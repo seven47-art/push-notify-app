@@ -223,6 +223,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => InviteCodeSheet(channelName: name.toString(), inviteLink: inviteLink),
     );
@@ -285,6 +286,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => ChannelSettingsSheet(channel: _channel!, token: _token, onSaved: _load),
     );
@@ -406,6 +408,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _ReportSheet(channelId: widget.channelId, channelName: name.toString(), token: _token),
     );
