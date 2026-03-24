@@ -370,7 +370,7 @@ app.get('/', (c) => {
 <meta property="og:description" content="채널을 만들고, 구독하고, 원하는 시간에 알람을 예약하세요.">
 <meta property="og:image" content="https://ringo.run/static/ringo-logo.png">
 <meta property="og:url" content="https://ringo.run">
-<link rel="icon" href="/static/ringo-icon.png" type="image/png">
+<link rel="icon" href="/static/ringo-icon-r.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -491,7 +491,7 @@ section{padding:100px 20px}
 <nav class="nav" id="nav">
   <div class="nav-inner">
     <a href="/" class="nav-logo">
-      <img src="/static/ringo-icon.png" alt="RinGo">
+      <img src="/static/ringo-icon-r.png" alt="RinGo">
       <span>RinGo</span>
     </a>
     <div class="nav-links">
