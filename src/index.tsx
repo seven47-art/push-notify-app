@@ -507,12 +507,13 @@ section{padding:100px 20px}
 <!-- ═══ Hero ═══ -->
 <section class="hero">
   <div class="container">
+    <div class="hero-banner fade-up">
+      <img src="/static/hero-banner.png" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:800px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.12)">
+    </div>
+    <div style="height:40px"></div>
     <div class="section-badge fade-up">🔔 채널 기반 알람 서비스</div>
     <h1 class="section-title fade-up">채널을 만들고,<br>알람을 예약하세요</h1>
     <p class="section-sub fade-up">RinGo는 채널을 만들어 구독자에게 원하는 시간에 알람을 보내는 서비스입니다.<br>유튜브, 오디오, 영상 콘텐츠를 알람과 함께 전달하세요.</p>
-    <div class="hero-banner fade-up" style="margin-top:48px">
-      <img src="/static/hero-banner.png" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:800px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.12)">
-    </div>
   </div>
 </section>
 
