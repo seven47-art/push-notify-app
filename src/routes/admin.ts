@@ -1007,11 +1007,12 @@ function adminDashboardHTML() {
                   <th class="px-4 py-3 text-center">수신자</th>
                   <th class="px-4 py-3 text-left">타입</th>
                   <th class="px-4 py-3 text-left">컨텐츠</th>
+                  <th class="px-4 py-3 text-left">연결URL</th>
                   <th class="px-4 py-3 text-left">상태</th>
                   <th class="px-4 py-3 text-left">시간</th>
                 </tr>
               </thead>
-              <tbody id="alarmLogsTableBody"><tr><td colspan="9" class="text-center py-8 text-slate-500">로딩 중...</td></tr></tbody>
+              <tbody id="alarmLogsTableBody"><tr><td colspan="10" class="text-center py-8 text-slate-500">로딩 중...</td></tr></tbody>
             </table>
           </div>
           <div id="alarmLogsPagination" class="px-5 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400"></div>

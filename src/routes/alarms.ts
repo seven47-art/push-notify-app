@@ -959,14 +959,15 @@ alarms.get('/logs', async (c) => {
         l.msg_type,
         l.msg_value,
         MAX(l.status)                   AS status,
-        MIN(l.received_at)              AS scheduled_at,
+        MIN(l.scheduled_at)             AS scheduled_at,
+        l.link_url,
         CASE WHEN b.email IS NOT NULL THEN 1 ELSE 0 END AS sender_is_blocked
       FROM alarm_logs l
       LEFT JOIN users u ON u.user_id = l.sender_id
       LEFT JOIN blocked_emails b ON LOWER(b.email) = LOWER(u.email)
       ${whereClause}
       GROUP BY l.alarm_id
-      ORDER BY MIN(l.received_at) DESC
+      ORDER BY MIN(l.scheduled_at) DESC
       LIMIT ? OFFSET ?
     `).bind(...whereParams, limit, offset).all() as { results: any[] }
 
