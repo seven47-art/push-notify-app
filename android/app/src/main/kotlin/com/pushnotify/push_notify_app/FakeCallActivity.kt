@@ -454,7 +454,7 @@ class FakeCallActivity : Activity() {
         }
         profileContainer.addView(profileIcon)
 
-        // 채널명 첫 글자 이니셜 (이미지 없을 때 표시)
+        // 채널명 첫 글자 이니셜 (이미지 URL이 없을 때만 표시)
         profileInitialText = TextView(this).apply {
             text = channelName.firstOrNull()?.toString() ?: "?"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 48f)
@@ -462,6 +462,8 @@ class FakeCallActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             layoutParams = FrameLayout.LayoutParams(profileSize, profileSize, Gravity.CENTER)
+            // 이미지 URL이 있으면 처음부터 숨김 → 다크 원형만 보이다가 이미지 페이드인
+            if (channelImage.isNotEmpty()) visibility = View.GONE
         }
         profileContainer.addView(profileInitialText)
 
