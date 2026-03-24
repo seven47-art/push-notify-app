@@ -130,10 +130,35 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
     }
   }
 
+  // 즐겨찾기 토글
+  Future<void> _toggleFavorite(Map<String, dynamic> channel) async {
+    final channelId = (channel['channel_id'] ?? channel['id'])?.toString() ?? '';
+    final current = channel['is_favorite'] == 1 || channel['is_favorite'] == true;
+    final newVal = !current;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
+      final res = await http.patch(
+        Uri.parse('$kBaseUrl/api/subscribers/favorite'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': userId, 'channel_id': channelId, 'is_favorite': newVal}),
+      ).timeout(const Duration(seconds: 10));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (body['success'] == true && mounted) {
+        showCenterToast(context, newVal ? '즐겨찾기에 추가되었습니다.' : '즐겨찾기가 해제되었습니다.');
+        _load();
+      }
+    } catch (e) {
+      if (mounted) showCenterToast(context, '오류가 발생했습니다.');
+    }
+  }
+
   // 길게 눌렀을 때 팝업 메뉴
   void _showLongPressMenu(Map<String, dynamic> channel) {
     final channelId   = (channel['channel_id'] ?? channel['id'])?.toString() ?? '';
     final channelName = (channel['channel_name'] ?? channel['name'])?.toString() ?? '';
+    final isFav = channel['is_favorite'] == 1 || channel['is_favorite'] == true;
 
     showDialog(
       context: context,
@@ -144,6 +169,15 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
         child: _ChannelPopupMenu(
           channelName: channelName,
           items: [
+            _PopupItem(
+              icon: isFav ? Icons.favorite : Icons.favorite_border,
+              label: isFav ? '즐겨찾기 해제' : '즐겨찾기',
+              color: const Color(0xFFFF4081),
+              onTap: () async {
+                Navigator.pop(context);
+                await _toggleFavorite(channel);
+              },
+            ),
             _PopupItem(icon: Icons.link, label: '초대코드', onTap: () async {
               Navigator.pop(context);
               await _showInviteCode(channelId, channelName);
@@ -375,6 +409,7 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
                     return _ChannelListTile(
                       channel: ch,
                       colorIndex: index % _avatarColors.length,
+                      isFavorite: ch['is_favorite'] == 1 || ch['is_favorite'] == true,
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -404,12 +439,14 @@ class SubscribedChannelsScreenState extends State<SubscribedChannelsScreen> {
 class _ChannelListTile extends StatelessWidget {
   final Map<String, dynamic> channel;
   final int colorIndex;
+  final bool isFavorite;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   const _ChannelListTile({
     required this.channel,
     required this.colorIndex,
     required this.onTap,
+    this.isFavorite = false,
     this.onLongPress,
   });
 
@@ -476,6 +513,11 @@ class _ChannelListTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isFavorite)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(Icons.favorite, size: 18, color: Color(0xFFFF4081)),
+              ),
           ],
         ),
       ),
