@@ -86,6 +86,9 @@ class NotificationScreenState extends State<NotificationScreen> {
   List<Map<String, dynamic>> _channels = [];
   String _selectedChannel = '전체';
 
+  // 필터 칩 전환 로딩 (스켈레톤과 별도)
+  bool _filterLoading = false;
+
   // 선택 모드
   bool _selectMode         = false;
   Set<String> _selectedIds = {};
@@ -234,8 +237,34 @@ class NotificationScreenState extends State<NotificationScreen> {
       _selectMode  = false;
       _selectedIds = {};
     });
-    // 서버에서 해당 채널 데이터를 새로 로드
-    _load();
+    // 필터 전용 로드 (기존 리스트 유지 + 프로그레스 바)
+    _loadFiltered();
+  }
+
+  // ── 필터 칩 전용 로드 (기존 리스트 유지, 스켈레톤 X) ──
+  Future<void> _loadFiltered() async {
+    setState(() => _filterLoading = true);
+    try {
+      if (_token.isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        _token = prefs.getString('session_token') ?? '';
+      }
+      final result = await _fetchPage(offset: 0, channelId: _filterChannelId);
+      if (!mounted) return;
+      if (result != null) {
+        setState(() {
+          _items        = result['data'] as List<Map<String, dynamic>>;
+          _hasMore      = result['hasMore'] as bool;
+          _offset       = _items.length;
+          _filterLoading = false;
+          // 채널 목록은 갱신하지 않음 (필터 칩 유지)
+        });
+      } else {
+        setState(() => _filterLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _filterLoading = false);
+    }
   }
 
   // ── 날짜 포맷 ──────────────────────────────────────
@@ -536,6 +565,14 @@ class NotificationScreenState extends State<NotificationScreen> {
             ),
 
           if (_channels.isNotEmpty) const SizedBox(height: 4),
+
+          // ── 필터 칩 전환 로딩 바 ──
+          if (_filterLoading)
+            const LinearProgressIndicator(
+              color: _primary,
+              backgroundColor: _border,
+              minHeight: 2,
+            ),
 
           // ── 목록 (RefreshIndicator 최상위 → 모든 상태에서 당겨서 새로고침) ──
           Expanded(
