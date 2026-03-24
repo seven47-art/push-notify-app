@@ -1001,7 +1001,7 @@ alarms.post('/inbox/bulk-delete', async (c) => {
       return c.json({ success: false, error: 'log_ids 필수' }, 400)
     const placeholders = log_ids.map(() => '?').join(',')
     await c.env.DB.prepare(
-      `DELETE FROM alarm_logs WHERE id IN (${placeholders}) AND receiver_id = ?`
+      `UPDATE alarm_logs SET deleted_by_receiver = 1 WHERE id IN (${placeholders}) AND receiver_id = ?`
     ).bind(...log_ids, user.id).run()
     return c.json({ success: true, deleted: log_ids.length })
   } catch (e: any) {
@@ -1017,10 +1017,14 @@ alarms.delete('/inbox/delete-all', async (c) => {
     const user = await getUserFromSession(c)
     if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
-    // 미래 알람 제외: 현재 표시 중인 것만 삭제 (삭제된 채널 로그도 포함)
-    const result = await c.env.DB.prepare(
-      `DELETE FROM alarm_logs WHERE receiver_id = ? AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
-    ).bind(user.id).run()
+    const channelId = c.req.query('channel_id') || ''
+    let query = `UPDATE alarm_logs SET deleted_by_receiver = 1 WHERE receiver_id = ? AND deleted_by_receiver = 0 AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
+    const params: any[] = [user.id]
+    if (channelId) {
+      query += ` AND channel_id = ?`
+      params.push(Number(channelId))
+    }
+    const result = await c.env.DB.prepare(query).bind(...params).run()
 
     return c.json({ success: true, deleted: result.meta?.changes || 0 })
   } catch (e: any) {
@@ -1036,9 +1040,14 @@ alarms.delete('/outbox/delete-all', async (c) => {
     const user = await getUserFromSession(c)
     if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
-    const result = await c.env.DB.prepare(
-      `DELETE FROM alarm_logs WHERE sender_id = ? AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
-    ).bind(user.id).run()
+    const channelId = c.req.query('channel_id') || ''
+    let query = `UPDATE alarm_logs SET deleted_by_sender = 1 WHERE sender_id = ? AND deleted_by_sender = 0 AND replace(substr(scheduled_at,1,19),'T',' ') <= datetime('now')`
+    const params: any[] = [user.id]
+    if (channelId) {
+      query += ` AND channel_id = ?`
+      params.push(Number(channelId))
+    }
+    const result = await c.env.DB.prepare(query).bind(...params).run()
 
     return c.json({ success: true, deleted: result.meta?.changes || 0 })
   } catch (e: any) {
@@ -1058,7 +1067,7 @@ alarms.post('/outbox/bulk-delete', async (c) => {
       return c.json({ success: false, error: 'log_ids 필수' }, 400)
     const placeholders = log_ids.map(() => '?').join(',')
     await c.env.DB.prepare(
-      `DELETE FROM alarm_logs WHERE id IN (${placeholders}) AND sender_id = ?`
+      `UPDATE alarm_logs SET deleted_by_sender = 1 WHERE id IN (${placeholders}) AND sender_id = ?`
     ).bind(...log_ids, user.id).run()
     return c.json({ success: true, deleted: log_ids.length })
   } catch (e: any) {
@@ -1111,6 +1120,7 @@ alarms.get('/inbox', async (c) => {
       FROM alarm_logs l
       LEFT JOIN channels ch ON ch.id = l.channel_id
       WHERE l.receiver_id = ?
+        AND l.deleted_by_receiver = 0
         AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
     `
     if (channelId) {
@@ -1120,7 +1130,7 @@ alarms.get('/inbox', async (c) => {
 
     // 전체 카운트 (미래 알람 제외)
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as total FROM alarm_logs l WHERE l.receiver_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')${channelId ? ' AND l.channel_id = ?' : ''}`
+      `SELECT COUNT(*) as total FROM alarm_logs l WHERE l.receiver_id = ? AND l.deleted_by_receiver = 0 AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')${channelId ? ' AND l.channel_id = ?' : ''}`
     ).bind(...params).first() as any
     const total = countResult?.total || 0
 
@@ -1138,6 +1148,7 @@ alarms.get('/inbox', async (c) => {
          FROM alarm_logs l
          INNER JOIN channels ch ON ch.id = l.channel_id
          WHERE l.receiver_id = ?
+           AND l.deleted_by_receiver = 0
            AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
          ORDER BY name ASC`
       ).bind(user.id).all()
@@ -1194,7 +1205,7 @@ alarms.get('/outbox', async (c) => {
     // alarm_logs는 수신자마다 1행 → GROUP BY alarm_id 로 묶어 발신 단위로 1건만 표시
     // LEFT JOIN channels: 삭제된 채널 로그도 표시 (channel_name은 alarm_logs에 저장된 값 사용)
     // 미래 알람 제외: scheduled_at <= 현재시각인 것만 표시
-    let whereClause = `WHERE l.sender_id = ? AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')`
+    let whereClause = `WHERE l.sender_id = ? AND l.deleted_by_sender = 0 AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')`
     const params: any[] = [user.id]
     if (channelId) {
       whereClause += ` AND l.channel_id = ?`
@@ -1240,6 +1251,7 @@ alarms.get('/outbox', async (c) => {
            FROM alarm_logs l
            INNER JOIN channels ch ON ch.id = l.channel_id
            WHERE l.sender_id = ?
+             AND l.deleted_by_sender = 0
              AND replace(substr(l.scheduled_at,1,19),'T',' ') <= datetime('now')
            ORDER BY name ASC`
         ).bind(user.id).all() as { results: any[] }
