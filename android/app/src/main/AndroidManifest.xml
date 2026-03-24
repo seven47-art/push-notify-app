@@ -172,6 +172,11 @@
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/LaunchTheme"/>
 
+        <!-- FCM 기본 알림 아이콘 (Small Icon) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_ringo"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>

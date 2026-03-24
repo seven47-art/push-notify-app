@@ -198,7 +198,7 @@ class AlarmPollingService : Service() {
             // ── Summary(그룹) 알림 갱신 ───────────────────────────────────
             // 항상 GROUP_NOTIF_ID 하나만 사용 → 새 알람마다 덮어쓰기(갱신)
             val summaryNotif = NotificationCompat.Builder(context, NOTIF_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_ringo)
                 .setLargeIcon(largeIcon)
                 .setContentTitle(timeStr)
                 .setContentText(currentNames.joinToString(", ") { "📢$it" })
@@ -364,7 +364,7 @@ class AlarmPollingService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, FG_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_ringo)
             .setContentTitle("RinGo")
             .setContentText("알람 수신 대기 중")
             .setContentIntent(pi)
