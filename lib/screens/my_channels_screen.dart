@@ -221,11 +221,33 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
     _load();
   }
 
+  // 즐겨찾기 토글
+  Future<void> _toggleFavorite(Map<String, dynamic> channel) async {
+    final channelId = channel['id']?.toString() ?? '';
+    final current = channel['is_favorite'] == 1 || channel['is_favorite'] == true;
+    final newVal = !current;
+    try {
+      final res = await http.patch(
+        Uri.parse('$kBaseUrl/api/channels/$channelId/favorite'),
+        headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'is_favorite': newVal}),
+      ).timeout(const Duration(seconds: 10));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (body['success'] == true && mounted) {
+        showCenterToast(context, newVal ? '즐겨찾기에 추가되었습니다.' : '즐겨찾기가 해제되었습니다.');
+        _load();
+      }
+    } catch (e) {
+      if (mounted) showCenterToast(context, '오류가 발생했습니다.');
+    }
+  }
+
   // 길게 눌렀을 때 팝업 메뉴
   void _showLongPressMenu(Map<String, dynamic> channel) {
     final channelId       = channel['id']?.toString() ?? '';
     final channelName     = channel['name']?.toString() ?? '';
     final channelImageUrl = channel['image_url']?.toString();
+    final isFav = channel['is_favorite'] == 1 || channel['is_favorite'] == true;
 
     showDialog(
       context: context,
@@ -236,6 +258,15 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
         child: _ChannelPopupMenu(
         channelName: channelName,
         items: [
+          _PopupItem(
+            icon: isFav ? Icons.favorite : Icons.favorite_border,
+            label: isFav ? '즐겨찾기 해제' : '즐겨찾기',
+            color: const Color(0xFFFF4081),
+            onTap: () async {
+              Navigator.pop(context);
+              await _toggleFavorite(channel);
+            },
+          ),
           _PopupItem(icon: Icons.alarm_outlined, label: '알람예약', onTap: () async {
             Navigator.pop(context);
             await Navigator.push(
@@ -533,6 +564,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
                       channel: ch,
                       colorIndex: index % _avatarColors.length,
                       alarmCount: alarmCount,
+                      isFavorite: ch['is_favorite'] == 1 || ch['is_favorite'] == true,
                       onTap: () => _openChannel(ch),
                       onLongPress: () => _showLongPressMenu(ch),
                       onAlarmTap: alarmCount > 0
@@ -613,6 +645,7 @@ class _ChannelListTile extends StatelessWidget {
   final Map<String, dynamic> channel;
   final int colorIndex;
   final int alarmCount;
+  final bool isFavorite;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onAlarmTap; // teal 알람 버튼 탭 콜백
@@ -621,6 +654,7 @@ class _ChannelListTile extends StatelessWidget {
     required this.colorIndex,
     required this.onTap,
     this.alarmCount = 0,
+    this.isFavorite = false,
     this.onLongPress,
     this.onAlarmTap,
   });
@@ -748,6 +782,11 @@ class _ChannelListTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isFavorite)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(Icons.favorite, size: 18, color: Color(0xFFFF4081)),
+              ),
           ],
         ),
       ),

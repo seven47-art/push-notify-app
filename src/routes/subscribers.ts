@@ -14,6 +14,7 @@ subscribers.get('/', async (c) => {
     let query = `
       SELECT s.id, s.channel_id, s.user_id, s.display_name, s.fcm_token, s.platform,
              s.is_active, s.subscribed_at, s.accepted_count, s.rejected_count,
+             s.is_favorite,
              ch.name as channel_name, ch.description as channel_description,
              ch.image_url, ch.owner_id, ch.is_secret,
              il.label as invite_label, il.invite_token as invite_token,
@@ -35,11 +36,29 @@ subscribers.get('/', async (c) => {
       query += ' AND s.user_id = ?'
       params.push(userId)
     }
-    query += ' ORDER BY s.subscribed_at DESC'
+    query += ' ORDER BY s.is_favorite DESC, s.subscribed_at DESC'
 
     const stmt = c.env.DB.prepare(query)
     const { results } = params.length ? await stmt.bind(...params).all() : await stmt.all()
     return c.json({ success: true, data: results })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// PATCH /api/subscribers/favorite  — 구독 채널 즐겨찾기 토글
+subscribers.patch('/favorite', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { user_id, channel_id, is_favorite } = body
+    if (!user_id || !channel_id) {
+      return c.json({ success: false, error: 'user_id and channel_id are required' }, 400)
+    }
+    const val = is_favorite ? 1 : 0
+    await c.env.DB.prepare(
+      'UPDATE subscribers SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND channel_id = ? AND is_active = 1'
+    ).bind(val, user_id, channel_id).run()
+    return c.json({ success: true, is_favorite: val })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

@@ -47,6 +47,7 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
   bool _loading = true;
   String _token = '';
   int _alarmCount = 0; // 이 채널의 알람 예약 개수
+  bool _isFavorite = false; // 즐겨찾기 상태
 
   @override
   void initState() {
@@ -85,16 +86,24 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('session_token') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
       final res = await http.get(
-        Uri.parse('$kBaseUrl/api/channels/${widget.channelId}'),
+        Uri.parse('$kBaseUrl/api/channels/${widget.channelId}?user_id=${Uri.encodeComponent(userId)}'),
         headers: {'Authorization': 'Bearer $_token'},
       ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         if (body['success'] == true && mounted) {
+          final ch = body['data'] as Map<String, dynamic>?;
           setState(() {
-            _channel = body['data'] as Map<String, dynamic>?;
+            _channel = ch;
             _loading = false;
+            // 즐겨찾기 상태 결정: 오너면 channels.is_favorite, 구독자면 subscriber_is_favorite
+            if (widget.isOwner) {
+              _isFavorite = (ch?['is_favorite'] == 1 || ch?['is_favorite'] == true);
+            } else {
+              _isFavorite = (ch?['subscriber_is_favorite'] == 1 || ch?['subscriber_is_favorite'] == true);
+            }
           });
           return;
         }
@@ -233,6 +242,42 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
       // 알람 화면 닫힌 후 카운트 새로고침
       if (widget.isOwner) _loadAlarmCount();
     });
+  }
+
+  /// 즐겨찾기 토글
+  Future<void> _toggleFavorite() async {
+    final newVal = !_isFavorite;
+    try {
+      if (widget.isOwner) {
+        // 내 채널 즐겨찾기
+        final res = await http.patch(
+          Uri.parse('$kBaseUrl/api/channels/${widget.channelId}/favorite'),
+          headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'is_favorite': newVal}),
+        ).timeout(const Duration(seconds: 10));
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && mounted) {
+          setState(() => _isFavorite = newVal);
+          showCenterToast(context, newVal ? '즐겨찾기에 추가되었습니다.' : '즐겨찾기가 해제되었습니다.');
+        }
+      } else {
+        // 구독 채널 즐겨찾기
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('user_id') ?? '';
+        final res = await http.patch(
+          Uri.parse('$kBaseUrl/api/subscribers/favorite'),
+          headers: {'Authorization': 'Bearer $_token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'user_id': userId, 'channel_id': widget.channelId, 'is_favorite': newVal}),
+        ).timeout(const Duration(seconds: 10));
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['success'] == true && mounted) {
+          setState(() => _isFavorite = newVal);
+          showCenterToast(context, newVal ? '즐겨찾기에 추가되었습니다.' : '즐겨찾기가 해제되었습니다.');
+        }
+      }
+    } catch (e) {
+      if (mounted) showCenterToast(context, '오류가 발생했습니다.');
+    }
   }
 
   void _openChannelSettings() {
@@ -507,10 +552,17 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: widget.isOwner
-                // 오너: 알람/공유/편집/삭제
+                // 오너: 즐겨찾기/알람/공유/편집/삭제
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      // 즐겨찾기 하트 버튼
+                      _ActionBtn(
+                        icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: const Color(0xFFFF4081),
+                        onTap: _toggleFavorite,
+                      ),
+                      const SizedBox(width: 8),
                       // 알람 버튼 + 카운트 배지
                       Stack(
                         clipBehavior: Clip.none,
@@ -548,10 +600,16 @@ class _ChannelDetailScreenState extends State<ChannelDetailScreen> {
                     ],
                   )
                 : widget.isSubscribed
-                    // 구독자: 공유/신고/나가기
+                    // 구독자: 즐겨찾기/공유/신고/나가기
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          _ActionBtn(
+                            icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: const Color(0xFFFF4081),
+                            onTap: _toggleFavorite,
+                          ),
+                          const SizedBox(width: 8),
                           _ActionBtn(icon: Icons.share_outlined, color: const Color(0xFF3B82F6), onTap: _shareChannel),
                           const SizedBox(width: 8),
                           _ActionBtn(icon: Icons.flag_outlined, color: const Color(0xFFEF4444), onTap: _openReport),

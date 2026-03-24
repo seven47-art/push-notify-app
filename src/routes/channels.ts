@@ -124,6 +124,7 @@ channels.get('/', async (c) => {
         ch.id, ch.name, ch.description, ch.image_url, ch.owner_id, ch.is_active, ch.created_at,
         ch.homepage_url, ch.public_id, ch.is_popular,
         ch.is_secret,
+        ch.is_favorite,
         u.email as owner_email,
         CASE WHEN b.email IS NOT NULL THEN 1 ELSE 0 END AS owner_is_blocked,
         COUNT(DISTINCT s.id)  as subscriber_count,
@@ -140,7 +141,7 @@ channels.get('/', async (c) => {
       LEFT JOIN alarm_schedules a ON ch.id = a.channel_id
       ${where}
       GROUP BY ch.id
-      ORDER BY last_alarm_at DESC NULLS LAST, ch.created_at DESC
+      ORDER BY ch.is_favorite DESC, ch.created_at DESC
     `
 
     const stmt = c.env.DB.prepare(query)
@@ -188,6 +189,23 @@ channels.get('/best', async (c) => {
       LIMIT 10
     `).all()
     return c.json({ success: true, data: results })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// PATCH /api/channels/:id/favorite  — 내 채널 즐겨찾기 토글
+channels.patch('/:id/favorite', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const isFavorite = body.is_favorite ? 1 : 0
+
+    await c.env.DB.prepare(
+      'UPDATE channels SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(isFavorite, id).run()
+
+    return c.json({ success: true, is_favorite: isFavorite })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
@@ -292,6 +310,7 @@ channels.get('/:id/image', async (c) => {
 channels.get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
+    const userId = c.req.query('user_id')
     const channel = await c.env.DB.prepare(`
       SELECT 
         ch.*,
@@ -311,7 +330,17 @@ channels.get('/:id', async (c) => {
     `).bind(id).first()
 
     if (!channel) return c.json({ success: false, error: 'Channel not found' }, 404)
-    return c.json({ success: true, data: channel })
+
+    // 구독자의 즐겨찾기 상태 포함 (user_id 파라미터가 있을 경우)
+    let subscriberFavorite = 0
+    if (userId) {
+      const sub: any = await c.env.DB.prepare(
+        'SELECT is_favorite FROM subscribers WHERE channel_id = ? AND user_id = ? AND is_active = 1'
+      ).bind(id, userId).first()
+      if (sub) subscriberFavorite = sub.is_favorite || 0
+    }
+
+    return c.json({ success: true, data: { ...channel as any, subscriber_is_favorite: subscriberFavorite } })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }
