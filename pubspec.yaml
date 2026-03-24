@@ -4,7 +4,7 @@ publish_to: 'none'
 
 
 
-version: 3.7.143+192
+version: 3.7.144+193
 
 
 environment:
