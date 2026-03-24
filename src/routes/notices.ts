@@ -126,7 +126,6 @@ notices.post('/upload-image', async (c) => {
     const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }
     const ct = mimeMap[ext] || file.type || 'application/octet-stream'
 
-    // 1) 파일 업로드
     const upRes = await fetch(
       `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodedPath}`,
       {
@@ -141,28 +140,47 @@ notices.post('/upload-image', async (c) => {
     )
     if (!upRes.ok) return c.json({ success: false, error: `Storage 업로드 실패: ${upRes.status}` }, 500)
 
-    // 2) metadata에 firebaseStorageDownloadTokens 설정 → 공개 접근 가능
-    const downloadToken = crypto.randomUUID()
-    const patchRes = await fetch(
-      `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodedPath}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ metadata: { firebaseStorageDownloadTokens: downloadToken } }),
-      }
-    )
-    if (!patchRes.ok) {
-      console.error('[notices/upload-image] metadata patch 실패:', patchRes.status)
-    }
-
-    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media&token=${downloadToken}`
+    // 프록시 URL로 반환 — Firebase Security Rules 우회
+    const url = `/api/notices/image/${storagePath}`
     return c.json({ success: true, url })
   } catch (e: any) {
     console.error('[notices/upload-image 오류]', e)
     return c.json({ success: false, error: e.message || '업로드 실패' }, 500)
+  }
+})
+
+// GET /api/notices/image/* - 이미지 프록시 (Firebase Storage → 클라이언트)
+notices.get('/image/*', async (c) => {
+  try {
+    const saJson = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    if (!saJson) return c.json({ success: false, error: '서비스 계정 미설정' }, 500)
+
+    const storagePath = c.req.path.replace('/api/notices/image/', '')
+    if (!storagePath) return c.json({ success: false, error: '경로 없음' }, 400)
+
+    const sa = JSON.parse(saJson)
+    const bucket = `${sa.project_id || c.env.FCM_PROJECT_ID}.firebasestorage.app`
+    const encodedPath = encodeURIComponent(storagePath)
+    const token = await getStorageToken(saJson)
+
+    const gcsRes = await fetch(
+      `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodedPath}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!gcsRes.ok) return c.json({ success: false, error: `이미지 로드 실패: ${gcsRes.status}` }, gcsRes.status as any)
+
+    const contentType = gcsRes.headers.get('content-type') || 'image/jpeg'
+    return new Response(gcsRes.body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  } catch (e: any) {
+    console.error('[notices/image proxy 오류]', e)
+    return c.json({ success: false, error: e.message || '이미지 프록시 실패' }, 500)
   }
 })
 

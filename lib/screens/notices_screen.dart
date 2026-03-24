@@ -206,7 +206,11 @@ class _NoticeDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = notice['title']?.toString() ?? '';
     final content = notice['content']?.toString() ?? '';
-    final imageUrl = notice['image_url']?.toString();
+    // 상대 경로 → 절대 URL 변환 (서버 프록시 이미지)
+    var imageUrl = notice['image_url']?.toString();
+    if (imageUrl != null && imageUrl.startsWith('/')) {
+      imageUrl = '$kBaseUrl$imageUrl';
+    }
     final date = _formatDate(notice['created_at']);
 
     return Scaffold(
@@ -449,7 +453,11 @@ class _HtmlRenderer extends StatelessWidget {
   void _addImage(List<Widget> widgets, String imgUrl) {
     if (imgUrl.isEmpty) return;
     // Quill이 &를 &amp;로 인코딩할 수 있음 → 디코딩
-    final decodedUrl = imgUrl.replaceAll('&amp;', '&');
+    var decodedUrl = imgUrl.replaceAll('&amp;', '&');
+    // 상대 경로 → 절대 URL 변환 (서버 프록시 이미지)
+    if (decodedUrl.startsWith('/')) {
+      decodedUrl = '$kBaseUrl$decodedUrl';
+    }
     widgets.add(Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ClipRRect(
