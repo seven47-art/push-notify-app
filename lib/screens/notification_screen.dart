@@ -391,6 +391,7 @@ class NotificationScreenState extends State<NotificationScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _ReportSheet(
         channelId:   channelId,

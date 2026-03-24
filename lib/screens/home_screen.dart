@@ -66,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(
@@ -180,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: ctx,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _DrawerSheet(
         onCreateChannel: () { Navigator.pop(ctx); _goCreate(); },
@@ -194,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final chId = ch['id'];
     showModalBottomSheet(
       context: context,
+      enableDrag: false,
       backgroundColor: _bg2,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -206,6 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final chId = ch['id'] as int;
     showModalBottomSheet(
       context: context,
+      enableDrag: false,
       backgroundColor: _bg2,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -218,6 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: _bg2,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),

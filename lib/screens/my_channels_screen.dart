@@ -177,6 +177,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
         initialChildSize: 0.88,
@@ -325,6 +326,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
+        enableDrag: false,
         backgroundColor: Colors.transparent,
         builder: (_) => ChannelSettingsSheet(
           channel: channel,
@@ -383,6 +385,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
         context: context,
         backgroundColor: Colors.transparent,
         isScrollControlled: true,
+        enableDrag: false,
         builder: (_) => InviteCodeSheet(channelName: channelName, inviteLink: inviteLink),
       );
     } catch (e) {
@@ -435,6 +438,7 @@ class MyChannelsScreenState extends State<MyChannelsScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => const CreateChannelSheet(),
     );

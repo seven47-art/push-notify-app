@@ -20,6 +20,7 @@ Future<void> showJoinChannelSheet(BuildContext context, {String? inviteToken}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    enableDrag: false,
     backgroundColor: Colors.transparent,
     builder: (_) => JoinChannelSheet(inviteToken: inviteToken),
   );
