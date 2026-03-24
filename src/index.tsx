@@ -1037,12 +1037,13 @@ app.get('/_legacy_dashboard', (c) => {
                   <th class="px-4 py-3 text-center">수신자</th>
                   <th class="px-4 py-3 text-left">타입</th>
                   <th class="px-4 py-3 text-left">컨텐츠</th>
+                  <th class="px-4 py-3 text-left">연결URL</th>
                   <th class="px-4 py-3 text-left">상태</th>
                   <th class="px-4 py-3 text-left">시간</th>
                 </tr>
               </thead>
               <tbody id="alarmLogsTableBody">
-                <tr><td colspan="9" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
+                <tr><td colspan="10" class="text-center py-8 text-slate-500">로딩 중...</td></tr>
               </tbody>
             </table>
           </div>

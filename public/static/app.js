@@ -1214,7 +1214,7 @@ async function loadAlarmLogs(offset = 0) {
   const tbody = document.getElementById('alarmLogsTableBody')
   const pagination = document.getElementById('alarmLogsPagination')
   if (!tbody) return
-  tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-slate-500"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>'
   try {
     const dateFrom = document.getElementById('alarmLogsDateFrom')?.value || ''
     const dateTo   = document.getElementById('alarmLogsDateTo')?.value   || ''
@@ -1236,7 +1236,7 @@ async function loadAlarmLogs(offset = 0) {
     const res = await API.get('/alarms/logs', { params })
     const { data, total } = res.data
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-slate-500">로그가 없습니다.</td></tr>'
       if (pagination) pagination.innerHTML = ''
       return
     }
@@ -1247,7 +1247,8 @@ async function loadAlarmLogs(offset = 0) {
       const stColor = statusColor[st] || 'text-slate-400'
       const stLabel = statusLabel[st] || st
       const msgVal = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : '-'
-      const scheduledAt = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ko-KR') : '-'
+      const scheduledAt = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'
+      const linkUrl = row.link_url ? `<a href="${row.link_url}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-[160px] inline-block" title="${row.link_url}">${row.link_url.substring(0, 30)}${row.link_url.length > 30 ? '...' : ''}</a>` : '-'
       const isChecked = selectedAlarmLogIds.has(row.id)
       return `<tr class="border-t border-slate-700 hover:bg-slate-700/30">
         <td class="px-4 py-3 text-center"><input type="checkbox" class="alarm-log-check accent-indigo-500 cursor-pointer" data-id="${row.id}" onchange="onAlarmLogCheck(this)" ${isChecked ? 'checked' : ''}></td>
@@ -1262,6 +1263,7 @@ async function loadAlarmLogs(offset = 0) {
           <span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-700 text-slate-300">${(row.msg_type || '-').toUpperCase()}</span>
         </td>
         <td class="px-4 py-3 text-slate-300 text-xs">${msgVal}</td>
+        <td class="px-4 py-3 text-slate-300 text-xs">${linkUrl}</td>
         <td class="px-4 py-3"><span class="font-semibold text-xs ${stColor}">${stLabel}</span></td>
         <td class="px-4 py-3 text-slate-400 text-xs">${scheduledAt}</td>
       </tr>`
@@ -1281,7 +1283,7 @@ async function loadAlarmLogs(offset = 0) {
         </div>`
     }
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-red-400">오류: ${e.message}</td></tr>`
   }
 }
 
