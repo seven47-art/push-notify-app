@@ -602,20 +602,20 @@ section{padding:100px 20px}
     <p class="section-sub fade-up" style="margin:0 auto">실제 앱 화면을 확인해보세요.</p>
     <div class="screenshots-row fade-up">
       <div class="screenshot-card">
-        <div class="screenshot-inner"><div class="placeholder">🏠<br><br>홈 화면<br><small>내 채널과 구독 채널을 한눈에</small></div></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-home.png" alt="홈 화면" style="width:100%;height:100%;object-fit:cover"></div>
         <div class="screenshot-label">홈</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><div class="placeholder">⏰<br><br>알람 설정<br><small>날짜, 시간, 콘텐츠 선택</small></div></div>
-        <div class="screenshot-label">알람 예약</div>
+        <div class="screenshot-inner"><img src="/static/screenshot-channel.png" alt="내 채널" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-label">내 채널</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><div class="placeholder">🔔<br><br>알람 수신<br><small>전화처럼 울리는 알람</small></div></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-alarm.png" alt="알람 수신" style="width:100%;height:100%;object-fit:cover"></div>
         <div class="screenshot-label">수신 화면</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><div class="placeholder">📢<br><br>채널 관리<br><small>구독자, 알람, 설정 관리</small></div></div>
-        <div class="screenshot-label">채널 관리</div>
+        <div class="screenshot-inner"><img src="/static/screenshot-content.png" alt="콘텐츠 재생" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-label">콘텐츠 재생</div>
       </div>
     </div>
   </div>
