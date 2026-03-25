@@ -26,6 +26,32 @@ import { deleteFromFirebaseStorage } from './uploads'
 
 const alarms = new Hono<{ Bindings: Bindings }>()
 
+// ── 자동 마이그레이션: deleted_by_sender / deleted_by_receiver 컬럼 ──
+// DB 마이그레이션이 수동이라 누락될 수 있으므로, 첫 요청 시 컬럼 존재 여부 확인 후 자동 추가
+let _migrationChecked = false
+alarms.use('*', async (c, next) => {
+  if (!_migrationChecked) {
+    try {
+      const info = await c.env.DB.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='alarm_logs'"
+      ).first() as any
+      if (info?.sql && !info.sql.includes('deleted_by_sender')) {
+        await c.env.DB.exec(
+          'ALTER TABLE alarm_logs ADD COLUMN deleted_by_sender INTEGER NOT NULL DEFAULT 0'
+        )
+        await c.env.DB.exec(
+          'ALTER TABLE alarm_logs ADD COLUMN deleted_by_receiver INTEGER NOT NULL DEFAULT 0'
+        )
+      }
+      _migrationChecked = true
+    } catch (e) {
+      // 이미 컬럼이 있거나 다른 에러 → 무시하고 계속 진행
+      _migrationChecked = true
+    }
+  }
+  await next()
+})
+
 // =============================================
 // Twilio Voice Call 유틸리티
 // 알람을 받은 회원이 통화버튼 누르면 메시지 소스(YouTube/오디오/비디오) 실행
