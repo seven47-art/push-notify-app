@@ -356,6 +356,92 @@ app.get('/join/:token', async (c) => {
 })
 
 // =============================================
+// 서비스 이용약관
+// =============================================
+app.get('/terms', async (c) => {
+  let content = '<p>서비스 이용약관이 아직 등록되지 않았습니다.</p>'
+  try {
+    const row = await c.env.DB.prepare("SELECT value FROM app_settings WHERE key = 'terms'").first() as { value: string } | null
+    if (row && row.value) content = row.value
+  } catch {}
+  return c.html(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서비스 이용약관 - RinGo</title>
+<link rel="icon" href="/static/ringo-icon-r.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#FAFBFF;color:#1A1A2E;line-height:1.8}
+.header{background:#fff;border-bottom:1px solid rgba(108,99,255,0.08);padding:16px 20px}
+.header-inner{max-width:800px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.header a{text-decoration:none;display:flex;align-items:center;gap:8px}
+.header img{height:28px}
+.header span{font-size:14px;color:#64648C}
+.content{max-width:800px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:28px;font-weight:700;margin-bottom:8px}
+.date{font-size:13px;color:#9E9EBF;margin-bottom:32px}
+.body{font-size:15px;color:#333;line-height:1.8;white-space:pre-wrap}
+.body h2,.body h3{margin-top:24px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="header"><div class="header-inner"><a href="/"><img src="/static/ringo-logo-color.png" alt="RinGo"></a><span>/ 서비스 이용약관</span></div></div>
+<div class="content">
+<h1>서비스 이용약관</h1>
+<div class="date">RinGo 서비스</div>
+<div class="body">${content}</div>
+</div>
+</body>
+</html>`)
+})
+
+// =============================================
+// 개인정보 처리방침
+// =============================================
+app.get('/privacy', async (c) => {
+  let content = '<p>개인정보 처리방침이 아직 등록되지 않았습니다.</p>'
+  try {
+    const row = await c.env.DB.prepare("SELECT value FROM app_settings WHERE key = 'privacy'").first() as { value: string } | null
+    if (row && row.value) content = row.value
+  } catch {}
+  return c.html(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>개인정보 처리방침 - RinGo</title>
+<link rel="icon" href="/static/ringo-icon-r.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#FAFBFF;color:#1A1A2E;line-height:1.8}
+.header{background:#fff;border-bottom:1px solid rgba(108,99,255,0.08);padding:16px 20px}
+.header-inner{max-width:800px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.header a{text-decoration:none;display:flex;align-items:center;gap:8px}
+.header img{height:28px}
+.header span{font-size:14px;color:#64648C}
+.content{max-width:800px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:28px;font-weight:700;margin-bottom:8px}
+.date{font-size:13px;color:#9E9EBF;margin-bottom:32px}
+.body{font-size:15px;color:#333;line-height:1.8;white-space:pre-wrap}
+.body h2,.body h3{margin-top:24px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="header"><div class="header-inner"><a href="/"><img src="/static/ringo-logo-color.png" alt="RinGo"></a><span>/ 개인정보 처리방침</span></div></div>
+<div class="content">
+<h1>개인정보 처리방침</h1>
+<div class="date">RinGo 서비스</div>
+<div class="body">${content}</div>
+</div>
+</body>
+</html>`)
+})
+
+// =============================================
 // ringo.run 홈페이지 (랜딩 페이지)
 // =============================================
 app.get('/', (c) => {
