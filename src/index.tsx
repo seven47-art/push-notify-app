@@ -469,22 +469,35 @@ app.get('/', (c) => {
   --gradient:linear-gradient(135deg,#6C63FF 0%,#00BCD4 100%);
   --shadow:0 4px 24px rgba(108,99,255,0.08);
   --shadow-lg:0 12px 48px rgba(108,99,255,0.12);
+  --dark-bg:#0F0E1A;--dark-surface:#1A1A2E;
 }
 html{scroll-behavior:smooth}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
 
-/* ── Sticky Nav ─────────────────── */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:var(--surface-glass);border-bottom:1px solid var(--border);transition:box-shadow .3s}
-.nav.scrolled{box-shadow:var(--shadow)}
+/* ── Sticky Nav (Dark) ─────────────────── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(15,14,26,0.85);border-bottom:1px solid rgba(108,99,255,0.15);transition:box-shadow .3s}
+.nav.scrolled{box-shadow:0 4px 24px rgba(0,0,0,0.3)}
 .nav-inner{max-width:1080px;margin:0 auto;padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between}
 .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
 .nav-logo img{height:32px;width:auto;object-fit:contain}
 .nav-links{display:flex;align-items:center;gap:24px}
-.nav-links a{text-decoration:none;font-size:14px;font-weight:500;color:var(--text2);transition:color .2s}
-.nav-links a:hover{color:var(--primary)}
+.nav-links a{text-decoration:none;font-size:14px;font-weight:500;color:rgba(255,255,255,0.7);transition:color .2s}
+.nav-links a:hover{color:#fff}
 .nav-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--gradient);color:#fff;border:none;border-radius:50px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}
 .nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(108,99,255,0.3)}
-@media(max-width:768px){.nav-links{display:none}}
+
+/* ── Mobile Hamburger Menu ─────── */
+.nav-hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;color:rgba(255,255,255,0.8)}
+.nav-hamburger svg{width:24px;height:24px}
+.nav-mobile{display:none;position:absolute;top:64px;left:0;right:0;background:rgba(15,14,26,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(108,99,255,0.15);padding:16px 20px;flex-direction:column;gap:4px}
+.nav-mobile.open{display:flex}
+.nav-mobile a{text-decoration:none;font-size:15px;font-weight:500;color:rgba(255,255,255,0.7);padding:12px 16px;border-radius:12px;transition:all .2s}
+.nav-mobile a:hover{color:#fff;background:rgba(108,99,255,0.15)}
+@media(max-width:768px){
+  .nav-links{display:none}
+  .nav-hamburger{display:block}
+}
+@media(min-width:769px){.nav-mobile{display:none !important}}
 
 /* ── Section common ──────────────── */
 section{padding:100px 20px}
@@ -493,11 +506,13 @@ section{padding:100px 20px}
 .section-title{font-size:clamp(28px,5vw,42px);font-weight:800;line-height:1.25;letter-spacing:-0.5px;margin-bottom:16px}
 .section-sub{font-size:clamp(15px,2.5vw,18px);color:var(--text2);line-height:1.6;max-width:540px}
 
-/* ── Hero ────────────────────────── */
-.hero{padding:80px 20px 80px;text-align:center;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(ellipse at 30% 20%,rgba(108,99,255,0.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,188,212,0.05) 0%,transparent 60%);pointer-events:none}
+/* ── Hero (Dark) ────────────────────────── */
+.hero{padding:80px 20px 80px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--dark-bg) 0%,var(--dark-surface) 60%,var(--bg) 100%)}
+.hero::before{content:'';position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(ellipse at 30% 20%,rgba(108,99,255,0.12) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,188,212,0.08) 0%,transparent 60%);pointer-events:none}
 .hero .container{position:relative}
-.hero .section-sub{margin:0 auto 32px}
+.hero .section-badge{color:#8B83FF;background:rgba(108,99,255,0.2)}
+.hero .section-title{color:#fff}
+.hero .section-sub{color:rgba(255,255,255,0.65);margin:0 auto 32px}
 .hero-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-bottom:48px}
 .btn-primary{display:inline-flex;align-items:center;gap:10px;padding:16px 32px;background:var(--gradient);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
@@ -536,14 +551,26 @@ section{padding:100px 20px}
 .step-emoji{font-size:64px;text-align:center;line-height:1}
 @media(max-width:768px){.step-item,.step-item:nth-child(even){flex-direction:column;gap:24px;text-align:center}}
 
-/* ── Screenshots ─────────────────── */
+/* ── Screenshots (Swipe) ─────────────────── */
 .screenshots{background:var(--surface);text-align:center}
-.screenshots-row{display:flex;justify-content:center;gap:24px;margin-top:48px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
-.screenshot-card{flex-shrink:0;width:220px;background:linear-gradient(145deg,#1a1a2e,#2d2d4e);border-radius:28px;padding:8px;box-shadow:var(--shadow);scroll-snap-align:center}
+.screenshots-row{display:flex;justify-content:center;gap:24px;margin-top:48px}
+.screenshot-card{flex-shrink:0;width:220px;background:linear-gradient(145deg,#1a1a2e,#2d2d4e);border-radius:28px;padding:8px;box-shadow:var(--shadow)}
 .screenshot-inner{background:#111;border-radius:22px;overflow:hidden;aspect-ratio:9/19.5;display:flex;align-items:center;justify-content:center}
+.screenshot-inner img{width:100%;height:100%;object-fit:cover}
 .screenshot-inner .placeholder{color:var(--text3);font-size:13px;padding:20px;text-align:center}
 .screenshot-label{color:var(--text3);font-size:12px;font-weight:500;margin-top:12px;padding-bottom:4px}
-@media(max-width:768px){.screenshot-card{width:180px}}
+/* Mobile: swipe carousel */
+.screenshots-swipe{display:none}
+.swipe-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;gap:16px;padding:0 calc(50% - 120px);scrollbar-width:none}
+.swipe-track::-webkit-scrollbar{display:none}
+.swipe-track .screenshot-card{scroll-snap-align:center;width:240px;flex-shrink:0}
+.swipe-dots{display:flex;justify-content:center;gap:8px;margin-top:20px}
+.swipe-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);opacity:0.3;border:none;padding:0;cursor:pointer;transition:all .3s}
+.swipe-dot.active{opacity:1;background:var(--primary);transform:scale(1.3)}
+@media(max-width:768px){
+  .screenshots-row{display:none}
+  .screenshots-swipe{display:block;margin-top:48px}
+}
 
 /* ── CTA ─────────────────────────── */
 .cta-section{text-align:center}
@@ -576,7 +603,7 @@ section{padding:100px 20px}
 <nav class="nav" id="nav">
   <div class="nav-inner">
     <a href="/" class="nav-logo">
-      <img src="/static/ringo-logo-color.png" alt="RinGo">
+      <img src="/static/ringo-logo.png" alt="RinGo">
     </a>
     <div class="nav-links">
       <a href="#features">기능</a>
@@ -587,6 +614,16 @@ section{padding:100px 20px}
         다운로드
       </a>
     </div>
+    <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileMenu()" aria-label="메뉴">
+      <svg id="hamburgerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg id="closeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-mobile" id="navMobile">
+    <a href="#features" onclick="closeMobileMenu()">기능</a>
+    <a href="#how" onclick="closeMobileMenu()">사용법</a>
+    <a href="#screenshots" onclick="closeMobileMenu()">스크린샷</a>
+    <a href="#download" onclick="closeMobileMenu()">다운로드</a>
   </div>
 </nav>
 
@@ -686,22 +723,50 @@ section{padding:100px 20px}
     <div class="section-badge fade-up">📸 앱 미리보기</div>
     <h2 class="section-title fade-up">이렇게 사용해요</h2>
     <p class="section-sub fade-up" style="margin:0 auto">실제 앱 화면을 확인해보세요.</p>
+    <!-- Desktop: 4장 가로 나열 -->
     <div class="screenshots-row fade-up">
       <div class="screenshot-card">
-        <div class="screenshot-inner"><img src="/static/screenshot-home.png" alt="홈 화면" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-home.png" alt="홈 화면"></div>
         <div class="screenshot-label">홈</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><img src="/static/screenshot-channel.png" alt="내 채널" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-channel.png" alt="내 채널"></div>
         <div class="screenshot-label">내 채널</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><img src="/static/screenshot-alarm.png" alt="알람 수신" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-alarm.png" alt="알람 수신"></div>
         <div class="screenshot-label">수신 화면</div>
       </div>
       <div class="screenshot-card">
-        <div class="screenshot-inner"><img src="/static/screenshot-content.png" alt="콘텐츠 재생" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="screenshot-inner"><img src="/static/screenshot-content.png" alt="콘텐츠 재생"></div>
         <div class="screenshot-label">콘텐츠 재생</div>
+      </div>
+    </div>
+    <!-- Mobile: 스와이프 캐러셀 -->
+    <div class="screenshots-swipe fade-up">
+      <div class="swipe-track" id="swipeTrack">
+        <div class="screenshot-card" data-index="0">
+          <div class="screenshot-inner"><img src="/static/screenshot-home.png" alt="홈 화면"></div>
+          <div class="screenshot-label">홈</div>
+        </div>
+        <div class="screenshot-card" data-index="1">
+          <div class="screenshot-inner"><img src="/static/screenshot-channel.png" alt="내 채널"></div>
+          <div class="screenshot-label">내 채널</div>
+        </div>
+        <div class="screenshot-card" data-index="2">
+          <div class="screenshot-inner"><img src="/static/screenshot-alarm.png" alt="알람 수신"></div>
+          <div class="screenshot-label">수신 화면</div>
+        </div>
+        <div class="screenshot-card" data-index="3">
+          <div class="screenshot-inner"><img src="/static/screenshot-content.png" alt="콘텐츠 재생"></div>
+          <div class="screenshot-label">콘텐츠 재생</div>
+        </div>
+      </div>
+      <div class="swipe-dots" id="swipeDots">
+        <button class="swipe-dot active" data-index="0"></button>
+        <button class="swipe-dot" data-index="1"></button>
+        <button class="swipe-dot" data-index="2"></button>
+        <button class="swipe-dot" data-index="3"></button>
       </div>
     </div>
   </div>
@@ -745,6 +810,52 @@ const nav = document.getElementById('nav')
 window.addEventListener('scroll', () => {
   nav.classList.toggle('scrolled', window.scrollY > 10)
 })
+
+// Mobile hamburger menu
+function toggleMobileMenu() {
+  const mobile = document.getElementById('navMobile')
+  const hIcon = document.getElementById('hamburgerIcon')
+  const cIcon = document.getElementById('closeIcon')
+  const isOpen = mobile.classList.toggle('open')
+  hIcon.style.display = isOpen ? 'none' : 'block'
+  cIcon.style.display = isOpen ? 'block' : 'none'
+}
+function closeMobileMenu() {
+  const mobile = document.getElementById('navMobile')
+  const hIcon = document.getElementById('hamburgerIcon')
+  const cIcon = document.getElementById('closeIcon')
+  mobile.classList.remove('open')
+  hIcon.style.display = 'block'
+  cIcon.style.display = 'none'
+}
+
+// Screenshot swipe dots
+;(function(){
+  const track = document.getElementById('swipeTrack')
+  const dots = document.querySelectorAll('.swipe-dot')
+  if (!track || !dots.length) return
+  function updateDots() {
+    const cards = track.querySelectorAll('.screenshot-card')
+    const trackRect = track.getBoundingClientRect()
+    const center = trackRect.left + trackRect.width / 2
+    let closest = 0, minDist = Infinity
+    cards.forEach(function(card, i) {
+      const cardRect = card.getBoundingClientRect()
+      const cardCenter = cardRect.left + cardRect.width / 2
+      const dist = Math.abs(cardCenter - center)
+      if (dist < minDist) { minDist = dist; closest = i }
+    })
+    dots.forEach(function(d, i) { d.classList.toggle('active', i === closest) })
+  }
+  track.addEventListener('scroll', updateDots, { passive: true })
+  dots.forEach(function(dot) {
+    dot.addEventListener('click', function() {
+      var idx = parseInt(this.getAttribute('data-index'))
+      var cards = track.querySelectorAll('.screenshot-card')
+      if (cards[idx]) { cards[idx].scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' }) }
+    })
+  })
+})()
 
 // Scroll animation (Intersection Observer)
 const faders = document.querySelectorAll('.fade-up')
