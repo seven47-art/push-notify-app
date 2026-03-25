@@ -5,11 +5,24 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
     id "com.google.gms.google-services"
 }
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
 
 android {
     namespace = "com.pushnotify.push_notify_app"
     compileSdk = 35
     ndkVersion = flutter.ndkVersion
+    signingConfigs {
+        release {
+            keyAlias = keystoreProperties['keyAlias']
+            keyPassword = keystoreProperties['keyPassword']
+            storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword = keystoreProperties['storePassword']
+        }
+    }
 
     compileOptions {
         coreLibraryDesugaringEnabled true
@@ -41,7 +54,7 @@ android {
             applicationIdSuffix ""
         }
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }
