@@ -320,9 +320,14 @@ class NotificationScreenState extends State<NotificationScreen> {
 
   // ── 전체삭제 API 호출 ─────────────────────────────
   Future<bool> _deleteAll() async {
-    final endpoint = widget.mode == NotificationMode.inbox
+    final baseEndpoint = widget.mode == NotificationMode.inbox
         ? '$kBaseUrl/api/alarms/inbox/delete-all'
         : '$kBaseUrl/api/alarms/outbox/delete-all';
+    // 채널 필터가 걸려있으면 channel_id 전달 → 해당 채널만 삭제
+    final chId = _filterChannelId;
+    final endpoint = chId.isNotEmpty
+        ? '$baseEndpoint?channel_id=$chId'
+        : baseEndpoint;
     try {
       final res = await http.delete(
         Uri.parse(endpoint),
