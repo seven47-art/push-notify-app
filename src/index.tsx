@@ -1885,7 +1885,7 @@ app.get('/_legacy_dashboard', (c) => {
   </div>
 </div>
 
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=${Date.now()}"></script>
 </body>
 </html>`)
 })
