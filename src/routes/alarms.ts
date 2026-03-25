@@ -504,7 +504,7 @@ alarms.post('/trigger', async (c) => {
     const twilioSid   = (c.env as any).TWILIO_ACCOUNT_SID || ''
     const twilioToken = (c.env as any).TWILIO_AUTH_TOKEN  || ''
     const twilioFrom  = (c.env as any).TWILIO_FROM_NUMBER || ''
-    const webhookBase = (c.env as any).WEBHOOK_BASE_URL   || 'https://3000-innmpvejrl9mjla0aavux-c07dda5e.sandbox.novita.ai'
+    const webhookBase = (c.env as any).WEBHOOK_BASE_URL   || 'https://ringo.run'
     const useTwilio   = !!(twilioSid && twilioToken && twilioFrom)
 
     const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
