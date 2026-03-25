@@ -408,7 +408,7 @@ section{padding:100px 20px}
 .section-sub{font-size:clamp(15px,2.5vw,18px);color:var(--text2);line-height:1.6;max-width:540px}
 
 /* ── Hero ────────────────────────── */
-.hero{padding:140px 20px 80px;text-align:center;position:relative;overflow:hidden}
+.hero{padding:80px 20px 80px;text-align:center;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(ellipse at 30% 20%,rgba(108,99,255,0.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,188,212,0.05) 0%,transparent 60%);pointer-events:none}
 .hero .container{position:relative}
 .hero .section-sub{margin:0 auto 32px}
@@ -510,7 +510,7 @@ section{padding:100px 20px}
     <div class="hero-banner fade-up">
       <img src="/static/hero-banner.png" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:800px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.12)">
     </div>
-    <div style="height:40px"></div>
+    <div style="height:24px"></div>
     <div class="section-badge fade-up">🔔 채널 기반 알람 서비스</div>
     <h1 class="section-title fade-up">채널을 만들고,<br>알람을 예약하세요</h1>
     <p class="section-sub fade-up">RinGo는 채널을 만들어 구독자에게 원하는 시간에 알람을 보내는 서비스입니다.<br>유튜브, 오디오, 영상 콘텐츠를 알람과 함께 전달하세요.</p>
