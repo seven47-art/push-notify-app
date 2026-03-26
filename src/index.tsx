@@ -196,7 +196,7 @@ app.get('/join/:token', async (c) => {
   const remaining   = linkData?.max_uses ? linkData.max_uses - linkData.use_count : null
 
   // APK 다운로드 URL
-  const INSTALL_URL = 'https://ringo.run/download'
+  const INSTALL_URL = 'https://play.google.com/store/apps/details?id=com.pushnotify.push_notify_app'
   const DEEP_LINK   = 'pushapp://join?token=' + token
 
   // 채널 이미지 HTML
