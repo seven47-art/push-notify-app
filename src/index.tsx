@@ -631,7 +631,7 @@ section{padding:100px 20px}
 <section class="hero">
   <div class="container">
     <div class="hero-banner fade-up">
-      <img src="/static/hero-banner.png" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:800px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.12)">
+      <img src="/static/hero-banner.jpg" alt="RinGo - 전화 수신 방식의 미디어 알람 앱" style="width:100%;max-width:960px;height:auto;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
     </div>
     <div style="height:24px"></div>
     <div class="section-badge fade-up">🔔 채널 기반 알람 서비스</div>
