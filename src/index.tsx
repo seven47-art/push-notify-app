@@ -348,7 +348,7 @@ app.get('/join/:token', async (c) => {
       '  });' +
       '  window.location.href=intentUrl;' +
       '  setTimeout(function(){if(!document.hidden){showScreen("screen-join");}},2000);' +
-      '}else{showScreen("screen-join");}' 
+      '}else{window.location.href=INSTALL_URL;}' 
     ) : '') +
     '<\/script>' +
     '</body></html>'
