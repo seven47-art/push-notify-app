@@ -507,7 +507,7 @@ section{padding:100px 20px}
 .section-sub{font-size:clamp(15px,2.5vw,18px);color:var(--text2);line-height:1.6;max-width:540px}
 
 /* ── Hero (Dark) ────────────────────────── */
-.hero{padding:80px 20px 80px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--dark-bg) 0%,var(--dark-surface) 60%,var(--bg) 100%)}
+.hero{padding:80px 20px 80px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--dark-bg) 0%,var(--dark-surface) 85%,var(--bg) 100%)}
 .hero::before{content:'';position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(ellipse at 30% 20%,rgba(108,99,255,0.12) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,188,212,0.08) 0%,transparent 60%);pointer-events:none}
 .hero .container{position:relative}
 .hero .section-badge{color:#8B83FF;background:rgba(108,99,255,0.2)}
@@ -783,10 +783,7 @@ section{padding:100px 20px}
           <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/></svg>
           Google Play (출시 예정)
         </a>
-        <a href="/download" class="btn-ghost">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          APK 직접 다운로드
-        </a>
+
       </div>
     </div>
   </div>
