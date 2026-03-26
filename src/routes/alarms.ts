@@ -958,6 +958,7 @@ alarms.get('/logs', async (c) => {
         COUNT(l.id)                     AS receiver_count,
         l.msg_type,
         l.msg_value,
+        l.content_text,
         MAX(l.status)                   AS status,
         MIN(l.scheduled_at)             AS scheduled_at,
         l.link_url,

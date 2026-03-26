@@ -1246,7 +1246,9 @@ async function loadAlarmLogs(offset = 0) {
       const st = row.status || 'received'
       const stColor = statusColor[st] || 'text-slate-400'
       const stLabel = statusLabel[st] || st
-      const msgVal = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : '-'
+      const contentText = row.content_text ? `<div class="text-white text-xs mb-1">${row.content_text}</div>` : ''
+      const msgLink = row.msg_value ? `<a href="${row.msg_value}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-xs inline-block" title="${row.msg_value}">${row.msg_value.substring(0, 40)}${row.msg_value.length > 40 ? '...' : ''}</a>` : ''
+      const msgVal = (contentText || msgLink) ? contentText + msgLink : '-'
       const scheduledAt = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'
       const linkUrl = row.link_url ? `<a href="${row.link_url}" target="_blank" class="text-indigo-400 hover:underline truncate max-w-[160px] inline-block" title="${row.link_url}">${row.link_url.substring(0, 30)}${row.link_url.length > 30 ? '...' : ''}</a>` : '-'
       const isChecked = selectedAlarmLogIds.has(row.id)
