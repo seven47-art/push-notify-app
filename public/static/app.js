@@ -2075,6 +2075,7 @@ let adminLeftSearch = ''        // 왼쪽 검색어
 let adminLeftSearchTimer = null // 검색 디바운스 타이머
 let adminRightSearch = ''       // 오른쪽 검색어
 let adminRightSearchTimer = null
+let adminAllLeftUserIds = []    // 전체선택용: 서버에서 가져온 전체 회원 ID
 let adminSelectedMsgType = 'youtube' // 선택된 컨텐츠 타입
 
 // ── 탭 전환 ────────────────────────────────
@@ -2354,7 +2355,28 @@ function adminRightSearchDebounce() {
 }
 
 // ── 전체 선택/해제 ─────────────────────────
-function adminToggleAllLeft(checked) {
+async function adminToggleAllLeft(checked) {
+  if (checked) {
+    // 서버에서 전체 회원 ID 목록 조회 (현재 필터 조건 적용)
+    const chId   = document.getElementById('admin-member-channel-select').value
+    const filter = document.getElementById('admin-left-filter').value
+    const search = document.getElementById('admin-left-search').value.trim()
+    try {
+      let url = `/users?limit=10000&page=1&exclude_channel_id=${chId}`
+      if (filter === 'fcm') url += '&has_fcm=1'
+      if (search) url += '&search=' + encodeURIComponent(search)
+      const res   = await API.get(url)
+      const users = res.data?.data || []
+      adminAllLeftUserIds = users.map(u => u.user_id)
+      showToast(`전체 ${adminAllLeftUserIds.length}명 선택됨 ✅`)
+    } catch (e) {
+      showToast('전체 회원 목록 로드 실패', 'error')
+      adminAllLeftUserIds = []
+    }
+  } else {
+    adminAllLeftUserIds = []
+  }
+  // 현재 페이지 체크박스도 동기화
   document.querySelectorAll('.admin-left-check').forEach(cb => cb.checked = checked)
 }
 function adminToggleAllRight(checked) {
@@ -2364,12 +2386,15 @@ function adminToggleAllRight(checked) {
 // ── 강제 구독 ─────────────────────────────
 async function adminForceSubscribe() {
   const chId     = document.getElementById('admin-member-channel-select').value
-  const selected = [...document.querySelectorAll('.admin-left-check:checked')].map(cb => cb.value)
+  // 전체선택된 경우 서버에서 가져온 전체 ID 사용, 아니면 현재 페이지 체크박스
+  const pageSelected = [...document.querySelectorAll('.admin-left-check:checked')].map(cb => cb.value)
+  const selected = adminAllLeftUserIds.length > 0 ? adminAllLeftUserIds : pageSelected
   if (!chId)          { showToast('채널을 선택하세요', 'error'); return }
   if (!selected.length){ showToast('회원을 선택하세요', 'error'); return }
   try {
     const res = await API.post('/subscribers/force', { channel_id: parseInt(chId), user_ids: selected })
     showToast(`${res.data?.added || 0}명 가입 완료 ✅`)
+    adminAllLeftUserIds = []
     document.getElementById('admin-left-all').checked  = false
     document.getElementById('admin-right-all').checked = false
     await adminLoadMemberPanels()
