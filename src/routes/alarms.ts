@@ -208,25 +208,31 @@ alarms.post('/', async (c) => {
       WHERE s.channel_id = ? AND s.is_active = 1
     `).bind(channel_id).all() as { results: any[] }
 
-    for (const sub of allSubs) {
-      try {
-        await c.env.DB.prepare(`
-          INSERT OR IGNORE INTO alarm_logs
-            (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
-        `).bind(
-          alarmId,
-          channel_id,
-          (channel as any).name || '알람',
-          sub.user_id,
-          msg_type,
-          safeValue,
-          created_by,
-          scheduled_at,
-          safeLinkUrl,
-          safeContentText
-        ).run()
-      } catch (_) {}
+    // 배치 INSERT: D1 batch API로 한 번에 처리 (순차 await 제거 → 타임아웃 방지)
+    if (allSubs.length > 0) {
+      const BATCH_SIZE = 50  // D1 batch 최대 권장 단위
+      for (let i = 0; i < allSubs.length; i += BATCH_SIZE) {
+        const chunk = allSubs.slice(i, i + BATCH_SIZE)
+        const stmts = chunk.map(sub =>
+          c.env.DB.prepare(`
+            INSERT OR IGNORE INTO alarm_logs
+              (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+          `).bind(
+            alarmId,
+            channel_id,
+            (channel as any).name || '알람',
+            sub.user_id,
+            msg_type,
+            safeValue,
+            created_by,
+            scheduled_at,
+            safeLinkUrl,
+            safeContentText
+          )
+        )
+        try { await c.env.DB.batch(stmts) } catch (_) {}
+      }
     }
     // ─────────────────────────────────────────────────────────────────
     // 알람 시간 5분 전에 각 앱에 "예약 신호(type=alarm_schedule)"를 FCM으로 전송
@@ -688,22 +694,28 @@ alarms.post('/trigger', async (c) => {
         ).bind(alarm.id, ...toUpdate.map(r => r.user_id)).all() as { results: any[] }
         const existingSet = new Set(existingRows.map((r: any) => r.receiver_id))
 
-        for (const r of toUpdate) {
-          if (existingSet.has(r.user_id)) continue  // 이미 존재 → UPDATE로 처리됨
-          try {
-            await c.env.DB.prepare(`
-              INSERT OR IGNORE INTO alarm_logs
-                (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(
-              alarm.id, alarm.channel_id, alarm.channel_name || '알람',
-              r.user_id, alarm.msg_type || 'youtube', alarm.msg_value || '',
-              r.success ? 'received' : 'failed',
-              alarm.created_by || null, alarm.scheduled_at || null,
-              alarm.alarm_link_url || alarm.channel_homepage_url || null,
-              alarm.alarm_content_text || null
-            ).run()
-          } catch (_) {}
+        // 배치 INSERT: 누락분을 D1 batch API로 한 번에 처리
+        const missingRecipients = toUpdate.filter(r => !existingSet.has(r.user_id))
+        if (missingRecipients.length > 0) {
+          const BATCH_SIZE = 50
+          for (let bi = 0; bi < missingRecipients.length; bi += BATCH_SIZE) {
+            const chunk = missingRecipients.slice(bi, bi + BATCH_SIZE)
+            const stmts = chunk.map(r =>
+              c.env.DB.prepare(`
+                INSERT OR IGNORE INTO alarm_logs
+                  (alarm_id, channel_id, channel_name, receiver_id, msg_type, msg_value, status, sender_id, scheduled_at, link_url, content_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                alarm.id, alarm.channel_id, alarm.channel_name || '알람',
+                r.user_id, alarm.msg_type || 'youtube', alarm.msg_value || '',
+                r.success ? 'received' : 'failed',
+                alarm.created_by || null, alarm.scheduled_at || null,
+                alarm.alarm_link_url || alarm.channel_homepage_url || null,
+                alarm.alarm_content_text || null
+              )
+            )
+            try { await c.env.DB.batch(stmts) } catch (_) {}
+          }
         }
       }
 
