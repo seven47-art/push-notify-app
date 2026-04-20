@@ -177,13 +177,21 @@ subscribers.delete('/force', async (c) => {
     if (!channel_id || !Array.isArray(user_ids) || user_ids.length === 0) {
       return c.json({ success: false, error: 'channel_id, user_ids 필수' }, 400)
     }
+    // D1 batch API로 배치 UPDATE (50건씩)
     let removed = 0
-    for (const user_id of user_ids) {
-      await c.env.DB.prepare(`
-        UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-        WHERE channel_id = ? AND user_id = ?
-      `).bind(channel_id, user_id).run()
-      removed++
+    const BATCH_SIZE = 50
+    for (let i = 0; i < user_ids.length; i += BATCH_SIZE) {
+      const chunk = user_ids.slice(i, i + BATCH_SIZE)
+      const stmts = chunk.map((user_id: string) =>
+        c.env.DB.prepare(`
+          UPDATE subscribers SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+          WHERE channel_id = ? AND user_id = ?
+        `).bind(channel_id, user_id)
+      )
+      try {
+        await c.env.DB.batch(stmts)
+        removed += chunk.length
+      } catch (_) {}
     }
     return c.json({ success: true, removed })
   } catch (e: any) {
@@ -211,10 +219,18 @@ subscribers.post('/bulk-delete', async (c) => {
     if (!Array.isArray(ids) || ids.length === 0)
       return c.json({ success: false, error: 'ids 배열이 필요합니다' }, 400)
 
+    // D1 batch API로 배치 DELETE (50건씩)
     let deleted = 0
-    for (const id of ids) {
-      await c.env.DB.prepare('DELETE FROM subscribers WHERE id = ?').bind(id).run()
-      deleted++
+    const BATCH_SIZE = 50
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const chunk = ids.slice(i, i + BATCH_SIZE)
+      const stmts = chunk.map((id: number) =>
+        c.env.DB.prepare('DELETE FROM subscribers WHERE id = ?').bind(id)
+      )
+      try {
+        await c.env.DB.batch(stmts)
+        deleted += chunk.length
+      } catch (_) {}
     }
     return c.json({ success: true, deleted })
   } catch (e: any) {
@@ -230,24 +246,37 @@ subscribers.post('/force', async (c) => {
     if (!channel_id || !Array.isArray(user_ids) || user_ids.length === 0) {
       return c.json({ success: false, error: 'channel_id, user_ids 필수' }, 400)
     }
+    // 1단계: 전체 user 정보를 배치 조회 (IN 절)
+    const BATCH_SIZE = 50
+    const allUsers: { user_id: string; display_name: string; fcm_token: string }[] = []
+    for (let i = 0; i < user_ids.length; i += BATCH_SIZE) {
+      const chunk = user_ids.slice(i, i + BATCH_SIZE)
+      const ph = chunk.map(() => '?').join(',')
+      const { results } = await c.env.DB.prepare(
+        `SELECT user_id, display_name, fcm_token FROM users WHERE user_id IN (${ph})`
+      ).bind(...chunk).all() as { results: any[] }
+      allUsers.push(...results)
+    }
+
+    // 2단계: UPSERT를 D1 batch API로 배치 처리
     let added = 0
-    for (const user_id of user_ids) {
-      // users 테이블에서 fcm_token, display_name 조회
-      const user = await c.env.DB.prepare(
-        'SELECT user_id, display_name, fcm_token FROM users WHERE user_id = ?'
-      ).bind(user_id).first<{ user_id: string; display_name: string; fcm_token: string }>()
-      if (!user) continue
-      // UPSERT: 이미 존재하면 is_active=1로 재활성화
-      await c.env.DB.prepare(`
-        INSERT INTO subscribers (channel_id, user_id, display_name, fcm_token, platform)
-        VALUES (?, ?, ?, ?, 'android')
-        ON CONFLICT(channel_id, user_id) DO UPDATE SET
-          is_active = 1,
-          fcm_token = COALESCE(excluded.fcm_token, fcm_token),
-          display_name = COALESCE(excluded.display_name, display_name),
-          updated_at = CURRENT_TIMESTAMP
-      `).bind(channel_id, user.user_id, user.display_name || null, user.fcm_token || '').run()
-      added++
+    for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
+      const chunk = allUsers.slice(i, i + BATCH_SIZE)
+      const stmts = chunk.map(user =>
+        c.env.DB.prepare(`
+          INSERT INTO subscribers (channel_id, user_id, display_name, fcm_token, platform)
+          VALUES (?, ?, ?, ?, 'android')
+          ON CONFLICT(channel_id, user_id) DO UPDATE SET
+            is_active = 1,
+            fcm_token = COALESCE(excluded.fcm_token, fcm_token),
+            display_name = COALESCE(excluded.display_name, display_name),
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(channel_id, user.user_id, user.display_name || null, user.fcm_token || '')
+      )
+      try {
+        await c.env.DB.batch(stmts)
+        added += chunk.length
+      } catch (_) {}
     }
     return c.json({ success: true, added })
   } catch (e: any) {
