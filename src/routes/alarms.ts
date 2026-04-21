@@ -291,21 +291,19 @@ alarms.post('/', async (c) => {
         notify_delay_s: String(delaySeconds),   // 디버그용: 몇 초 후 발송인지
       }
 
-      // FCM Multicast 발송 (fire-and-forget) - 500명씩 자동 분할
+      // FCM Multicast 발송 (await 대기) - 50개씩 순차 병렬, 응답 전 발송 완료 보장
       const tokenList = Array.from(fcmTargets.values())
-      const multicastPromise = sendFCMMulticast(tokenList, schedulePayload, fcmServiceAccount, fcmProjectId)
-        .then(async (res) => {
-          // invalid token 즉시 비활성화
-          if (res.invalidTokens.length > 0) {
-            for (const badToken of res.invalidTokens) {
-              await c.env.DB.prepare(
-                "UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?"
-              ).bind(badToken).run().catch(() => {})
-            }
+      try {
+        const fcmResult = await sendFCMMulticast(tokenList, schedulePayload, fcmServiceAccount, fcmProjectId)
+        // invalid token 즉시 비활성화
+        if (fcmResult.invalidTokens.length > 0) {
+          for (const badToken of fcmResult.invalidTokens) {
+            await c.env.DB.prepare(
+              "UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?"
+            ).bind(badToken).run().catch(() => {})
           }
-        })
-        .catch(() => {})
-      c.executionCtx?.waitUntil(multicastPromise)
+        }
+      } catch (_) {}
     }
     // ─────────────────────────────────────────────────────────────────
 
