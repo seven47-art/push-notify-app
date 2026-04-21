@@ -588,8 +588,7 @@ alarms.post('/trigger', async (c) => {
       const callResults: any[] = []
 
       // ── 중복 수신자 배치 조회 (개별 루프 → 청크 분할 IN 쿼리로 최적화) ──────
-      // 이미 alarm_logs에 "발송 완료" 상태로 기록된 receiver_id를 조회
-      // ★ pending 상태는 아직 미발송이므로 제외 → 발송 대상으로 유지
+      // 이미 alarm_logs에 기록된 receiver_id를 조회 (상태 무관 - 존재하면 skip)
       const allUserIds = recipients.map(r => r.user_id).filter(Boolean)
       const alreadySentSet = new Set<string>()
       if (!isPollingMode && allUserIds.length > 0) {
@@ -599,7 +598,7 @@ alarms.post('/trigger', async (c) => {
           const chunk = allUserIds.slice(ci, ci + CHUNK)
           const placeholders = chunk.map(() => '?').join(',')
           const { results: sentRows } = await c.env.DB.prepare(
-            `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${placeholders}) AND status NOT IN ('pending')`
+            `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${placeholders})`
           ).bind(alarm.id, ...chunk).all() as { results: any[] }
           for (const row of sentRows) alreadySentSet.add(row.receiver_id)
         }
