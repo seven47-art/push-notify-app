@@ -157,44 +157,54 @@ export async function sendFCMMulticast(
     try {
       const accessToken = await getFirebaseAccessToken(serviceAccountJson)
 
-      // FCM V1 sendEach (배치) - 각 토큰에 개별 메시지 병렬 전송
-      const sendPromises = chunk.map(async (token) => {
-        const message = {
-          message: {
-            token,
-            data,
-            android: {
-              priority: 'high',
-              ttl: '60s',
-            },
-          },
-        }
+      // FCM V1 sendEach - 50개씩 순차 병렬 전송 (동시 발송 제한으로 안정성 확보)
+      const CONCURRENT = 50
+      const chunkResults: { token: string; success: boolean; isInvalid?: boolean; error?: string }[] = []
 
-        const res = await fetch(
-          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
+      for (let ci = 0; ci < chunk.length; ci += CONCURRENT) {
+        const batch = chunk.slice(ci, ci + CONCURRENT)
+
+        const batchResults = await Promise.all(batch.map(async (token) => {
+          const message = {
+            message: {
+              token,
+              data,
+              android: {
+                priority: 'high',
+                ttl: '60s',
+              },
             },
-            body: JSON.stringify(message),
           }
-        )
 
-        const result: any = await res.json()
+          try {
+            const res = await fetch(
+              `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(message),
+              }
+            )
 
-        if (res.ok && result.name) {
-          return { token, success: true }
-        } else {
-          // invalid token 감지 (UNREGISTERED, INVALID_ARGUMENT)
-          const errCode = result.error?.details?.[0]?.errorCode || result.error?.status || ''
-          const isInvalid = errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT'
-          return { token, success: false, isInvalid, error: result.error?.message }
-        }
-      })
+            const result: any = await res.json()
 
-      const chunkResults = await Promise.all(sendPromises)
+            if (res.ok && result.name) {
+              return { token, success: true }
+            } else {
+              const errCode = result.error?.details?.[0]?.errorCode || result.error?.status || ''
+              const isInvalid = errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT'
+              return { token, success: false, isInvalid, error: result.error?.message }
+            }
+          } catch (e: any) {
+            return { token, success: false, isInvalid: false, error: e.message }
+          }
+        }))
+
+        chunkResults.push(...batchResults)
+      }
 
       for (const r of chunkResults) {
         if (r.success) {
