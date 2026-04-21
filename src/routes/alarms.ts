@@ -334,6 +334,7 @@ alarms.post('/', async (c) => {
           failed: fcmScheduleResult.failureCount,
           invalid_tokens: fcmScheduleResult.invalidTokens.length,
           failed_user_ids: failedUserIds,
+          failed_errors: (fcmScheduleResult as any).failedDetails?.slice(0, 20) || [],
         } : null,
       }
     }, 201)
@@ -657,7 +658,7 @@ alarms.post('/trigger', async (c) => {
           const tokenList = withToken.map(r => r.fcm_token as string)
           const multiRes = tokenList.length > 0
             ? await sendFCMMulticast(tokenList, fcmPayload, fcmServiceAccount, fcmProjectId)
-            : { successCount: 0, failureCount: 0, invalidTokens: [] }
+            : { successCount: 0, failureCount: 0, invalidTokens: [], failedDetails: [] }
 
           sentCount  += multiRes.successCount
           failedCount += multiRes.failureCount
@@ -674,10 +675,17 @@ alarms.post('/trigger', async (c) => {
             }
           }
 
-          // callResults 구성 (토큰 있는 수신자)
+          // callResults 구성 (토큰 있는 수신자) - 실패 상세 포함
+          const failedTokenSet = new Set(multiRes.invalidTokens)
+          const failedDetailMap = new Map<string, string>()
+          for (const fd of (multiRes as any).failedDetails || []) {
+            failedDetailMap.set(fd.token, fd.error)
+          }
           for (const r of withToken) {
-            const isInvalid = multiRes.invalidTokens.includes(r.fcm_token as string)
-            callResults.push({ user_id: r.user_id, display_name: r.display_name, role: r.role, mode: 'fcm', success: !isInvalid })
+            const token = r.fcm_token as string
+            const isFailed = failedTokenSet.has(token) || failedDetailMap.has(token)
+            const errMsg = failedDetailMap.get(token) || ''
+            callResults.push({ user_id: r.user_id, display_name: r.display_name, role: r.role, mode: 'fcm', success: !isFailed, error: errMsg || undefined })
           }
 
           // 토큰 없는 수신자는 폴링 방식

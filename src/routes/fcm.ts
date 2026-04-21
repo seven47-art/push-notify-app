@@ -142,13 +142,14 @@ export async function sendFCMMulticast(
   data: Record<string, string>,
   serviceAccountJson: string,
   projectId: string
-): Promise<{ successCount: number; failureCount: number; invalidTokens: string[] }> {
-  if (tokens.length === 0) return { successCount: 0, failureCount: 0, invalidTokens: [] }
+): Promise<{ successCount: number; failureCount: number; invalidTokens: string[]; failedDetails: { token: string; error: string }[] }> {
+  if (tokens.length === 0) return { successCount: 0, failureCount: 0, invalidTokens: [], failedDetails: [] }
 
   const CHUNK_SIZE = 500
   let successCount = 0
   let failureCount = 0
   const invalidTokens: string[] = []
+  const failedDetails: { token: string; error: string }[] = []
 
   // 500명씩 청크 분할
   for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
@@ -157,8 +158,8 @@ export async function sendFCMMulticast(
     try {
       const accessToken = await getFirebaseAccessToken(serviceAccountJson)
 
-      // FCM V1 sendEach - 50개씩 순차 병렬 전송 (동시 발송 제한으로 안정성 확보)
-      const CONCURRENT = 50
+      // FCM V1 sendEach - 20개씩 순차 병렬 전송 (50개 동시 시 실패율 증가 → 20개로 안정화)
+      const CONCURRENT = 20
       const chunkResults: { token: string; success: boolean; isInvalid?: boolean; error?: string }[] = []
 
       for (let ci = 0; ci < chunk.length; ci += CONCURRENT) {
@@ -196,7 +197,7 @@ export async function sendFCMMulticast(
             } else {
               const errCode = result.error?.details?.[0]?.errorCode || result.error?.status || ''
               const isInvalid = errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT'
-              return { token, success: false, isInvalid, error: result.error?.message }
+              return { token, success: false, isInvalid, error: result.error?.message || errCode || 'unknown' }
             }
           } catch (e: any) {
             return { token, success: false, isInvalid: false, error: e.message }
@@ -214,15 +215,17 @@ export async function sendFCMMulticast(
           if ((r as any).isInvalid) {
             invalidTokens.push(r.token)
           }
+          failedDetails.push({ token: r.token, error: r.error || 'unknown' })
         }
       }
     } catch (e: any) {
       // 청크 전체 실패 시 해당 청크 수만큼 failureCount 증가
       failureCount += chunk.length
+      failedDetails.push({ token: '_chunk_error_', error: e.message })
     }
   }
 
-  return { successCount, failureCount, invalidTokens }
+  return { successCount, failureCount, invalidTokens, failedDetails }
 }
 
 // =============================================
