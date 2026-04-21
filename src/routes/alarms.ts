@@ -570,18 +570,22 @@ alarms.post('/trigger', async (c) => {
       let sentCount = 0, failedCount = 0
       const callResults: any[] = []
 
-      // ── 중복 수신자 배치 조회 (개별 루프 → 1회 IN 쿼리로 최적화) ──────
-      // 이미 alarm_logs에 기록된 receiver_id를 한 번에 조회
+      // ── 중복 수신자 배치 조회 (개별 루프 → 청크 분할 IN 쿼리로 최적화) ──────
+      // 이미 alarm_logs에 "발송 완료" 상태로 기록된 receiver_id를 조회
+      // ★ pending 상태는 아직 미발송이므로 제외 → 발송 대상으로 유지
       const allUserIds = recipients.map(r => r.user_id).filter(Boolean)
       const alreadySentSet = new Set<string>()
       if (!isPollingMode && allUserIds.length > 0) {
-        // D1은 prepared statement 파라미터 바인딩을 지원하므로
-        // IN 절을 동적으로 생성 (최대 수천 개 처리 가능)
-        const placeholders = allUserIds.map(() => '?').join(',')
-        const { results: sentRows } = await c.env.DB.prepare(
-          `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${placeholders})`
-        ).bind(alarm.id, ...allUserIds).all() as { results: any[] }
-        for (const row of sentRows) alreadySentSet.add(row.receiver_id)
+        // D1 SQL 변수 제한(~100개) 대응: 99개씩 청크 분할
+        const CHUNK = 99
+        for (let ci = 0; ci < allUserIds.length; ci += CHUNK) {
+          const chunk = allUserIds.slice(ci, ci + CHUNK)
+          const placeholders = chunk.map(() => '?').join(',')
+          const { results: sentRows } = await c.env.DB.prepare(
+            `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${placeholders}) AND status NOT IN ('pending')`
+          ).bind(alarm.id, ...chunk).all() as { results: any[] }
+          for (const row of sentRows) alreadySentSet.add(row.receiver_id)
+        }
       }
       // ────────────────────────────────────────────────────────────────────
 
@@ -642,12 +646,16 @@ alarms.post('/trigger', async (c) => {
           sentCount  += multiRes.successCount
           failedCount += multiRes.failureCount
 
-          // invalid token 즉시 비활성화 (배치 처리)
+          // invalid token 즉시 비활성화 (청크 분할)
           if (multiRes.invalidTokens.length > 0) {
-            const ph = multiRes.invalidTokens.map(() => '?').join(',')
-            await c.env.DB.prepare(
-              `UPDATE subscribers SET fcm_token = NULL WHERE fcm_token IN (${ph})`
-            ).bind(...multiRes.invalidTokens).run().catch(() => {})
+            const TK_CHUNK = 99
+            for (let ti = 0; ti < multiRes.invalidTokens.length; ti += TK_CHUNK) {
+              const tkChunk = multiRes.invalidTokens.slice(ti, ti + TK_CHUNK)
+              const ph = tkChunk.map(() => '?').join(',')
+              await c.env.DB.prepare(
+                `UPDATE subscribers SET fcm_token = NULL WHERE fcm_token IN (${ph})`
+              ).bind(...tkChunk).run().catch(() => {})
+            }
           }
 
           // callResults 구성 (토큰 있는 수신자)
@@ -678,21 +686,32 @@ alarms.post('/trigger', async (c) => {
         const receivedIds = toUpdate.filter(r => r.success).map(r => r.user_id)
         const failedIds   = toUpdate.filter(r => !r.success).map(r => r.user_id)
 
-        // 그룹별 배치 UPDATE
-        for (const [ids, status] of [[receivedIds, 'received'], [failedIds, 'failed']] as [string[], string][]) {
+        // 그룹별 배치 UPDATE (99개씩 청크 분할)
+        for (const [ids, st] of [[receivedIds, 'received'], [failedIds, 'failed']] as [string[], string][]) {
           if (ids.length === 0) continue
-          const ph = ids.map(() => '?').join(',')
-          await c.env.DB.prepare(
-            `UPDATE alarm_logs SET status = ? WHERE alarm_id = ? AND receiver_id IN (${ph}) AND status = 'pending'`
-          ).bind(status, alarm.id, ...ids).run().catch(() => {})
+          const UPD_CHUNK = 98 // alarm_id 1개 + status 1개 + receiver_ids
+          for (let ui = 0; ui < ids.length; ui += UPD_CHUNK) {
+            const uChunk = ids.slice(ui, ui + UPD_CHUNK)
+            const ph = uChunk.map(() => '?').join(',')
+            await c.env.DB.prepare(
+              `UPDATE alarm_logs SET status = ? WHERE alarm_id = ? AND receiver_id IN (${ph}) AND status = 'pending'`
+            ).bind(st, alarm.id, ...uChunk).run().catch(() => {})
+          }
         }
 
         // UPDATE로 변경 안 된 행(alarm_logs에 없는 신규 수신자) → 배치 INSERT
         // 알람 생성 시 alarm_logs 껍데기를 미리 INSERT하므로 여기서는 누락분만 처리
-        const { results: existingRows } = await c.env.DB.prepare(
-          `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${toUpdate.map(() => '?').join(',')})`
-        ).bind(alarm.id, ...toUpdate.map(r => r.user_id)).all() as { results: any[] }
-        const existingSet = new Set(existingRows.map((r: any) => r.receiver_id))
+        const existingSet = new Set<string>()
+        const toUpdateUserIds = toUpdate.map(r => r.user_id)
+        const EX_CHUNK = 99
+        for (let ei = 0; ei < toUpdateUserIds.length; ei += EX_CHUNK) {
+          const eChunk = toUpdateUserIds.slice(ei, ei + EX_CHUNK)
+          const eph = eChunk.map(() => '?').join(',')
+          const { results: existingRows } = await c.env.DB.prepare(
+            `SELECT receiver_id FROM alarm_logs WHERE alarm_id = ? AND receiver_id IN (${eph})`
+          ).bind(alarm.id, ...eChunk).all() as { results: any[] }
+          for (const row of existingRows) existingSet.add((row as any).receiver_id)
+        }
 
         // 배치 INSERT: 누락분을 D1 batch API로 한 번에 처리
         const missingRecipients = toUpdate.filter(r => !existingSet.has(r.user_id))
@@ -1012,10 +1031,15 @@ alarms.post('/inbox/bulk-delete', async (c) => {
     const { log_ids } = await c.req.json() as { log_ids: number[] }
     if (!Array.isArray(log_ids) || log_ids.length === 0)
       return c.json({ success: false, error: 'log_ids 필수' }, 400)
-    const placeholders = log_ids.map(() => '?').join(',')
-    await c.env.DB.prepare(
-      `UPDATE alarm_logs SET deleted_by_receiver = 1 WHERE id IN (${placeholders}) AND receiver_id = ?`
-    ).bind(...log_ids, user.id).run()
+    // 청크 분할 (D1 SQL 변수 제한 대응)
+    const BD_CHUNK = 98
+    for (let bi = 0; bi < log_ids.length; bi += BD_CHUNK) {
+      const chunk = log_ids.slice(bi, bi + BD_CHUNK)
+      const placeholders = chunk.map(() => '?').join(',')
+      await c.env.DB.prepare(
+        `UPDATE alarm_logs SET deleted_by_receiver = 1 WHERE id IN (${placeholders}) AND receiver_id = ?`
+      ).bind(...chunk, user.id).run()
+    }
     return c.json({ success: true, deleted: log_ids.length })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
@@ -1078,10 +1102,15 @@ alarms.post('/outbox/bulk-delete', async (c) => {
     const { log_ids } = await c.req.json() as { log_ids: number[] }
     if (!Array.isArray(log_ids) || log_ids.length === 0)
       return c.json({ success: false, error: 'log_ids 필수' }, 400)
-    const placeholders = log_ids.map(() => '?').join(',')
-    await c.env.DB.prepare(
-      `UPDATE alarm_logs SET deleted_by_sender = 1 WHERE id IN (${placeholders}) AND sender_id = ?`
-    ).bind(...log_ids, user.id).run()
+    // 청크 분할 (D1 SQL 변수 제한 대응)
+    const BD_CHUNK2 = 98
+    for (let bi = 0; bi < log_ids.length; bi += BD_CHUNK2) {
+      const chunk = log_ids.slice(bi, bi + BD_CHUNK2)
+      const placeholders = chunk.map(() => '?').join(',')
+      await c.env.DB.prepare(
+        `UPDATE alarm_logs SET deleted_by_sender = 1 WHERE id IN (${placeholders}) AND sender_id = ?`
+      ).bind(...chunk, user.id).run()
+    }
     return c.json({ success: true, deleted: log_ids.length })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
@@ -1097,10 +1126,15 @@ alarms.post('/logs/bulk-delete', async (c) => {
     if (!Array.isArray(alarm_ids) || alarm_ids.length === 0)
       return c.json({ success: false, error: 'alarm_ids 필수' }, 400)
 
-    const placeholders = alarm_ids.map(() => '?').join(',')
-    await c.env.DB.prepare(
-      `DELETE FROM alarm_logs WHERE alarm_id IN (${placeholders})`
-    ).bind(...alarm_ids).run()
+    // 청크 분할 (D1 SQL 변수 제한 대응)
+    const AD_CHUNK = 99
+    for (let ai = 0; ai < alarm_ids.length; ai += AD_CHUNK) {
+      const chunk = alarm_ids.slice(ai, ai + AD_CHUNK)
+      const placeholders = chunk.map(() => '?').join(',')
+      await c.env.DB.prepare(
+        `DELETE FROM alarm_logs WHERE alarm_id IN (${placeholders})`
+      ).bind(...chunk).run()
+    }
 
     return c.json({ success: true, deleted: alarm_ids.length })
   } catch (e: any) {
