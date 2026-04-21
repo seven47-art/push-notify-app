@@ -158,8 +158,8 @@ export async function sendFCMMulticast(
     try {
       const accessToken = await getFirebaseAccessToken(serviceAccountJson)
 
-      // FCM V1 sendEach - 20개씩 순차 병렬 전송 (50개 동시 시 실패율 증가 → 20개로 안정화)
-      const CONCURRENT = 20
+      // FCM V1 sendEach - 50개씩 순차 병렬 전송 (Workers Paid 플랜: subrequest 10,000개)
+      const CONCURRENT = 50
       const chunkResults: { token: string; success: boolean; isInvalid?: boolean; error?: string }[] = []
 
       for (let ci = 0; ci < chunk.length; ci += CONCURRENT) {
