@@ -257,6 +257,10 @@ alarms.post('/', async (c) => {
     const fcmServiceAccount = (c.env as any).FCM_SERVICE_ACCOUNT_JSON || ''
     const fcmProjectId      = (c.env as any).FCM_PROJECT_ID           || ''
 
+    let fcmScheduleResult: { successCount: number; failureCount: number; invalidTokens: string[] } | null = null
+    let fcmTokenCount = 0
+    const failedUserIds: string[] = []
+
     if (fcmServiceAccount && fcmProjectId) {
       // 구독자 목록 조회 (채널 생성 시 운영자도 자동 등록되므로 별도 조회 불필요)
       const { results: subs } = await c.env.DB.prepare(`
@@ -273,6 +277,7 @@ alarms.post('/', async (c) => {
         const token = s.fcm_token  // COALESCE(s.fcm_token, u.fcm_token) 결과
         if (token) fcmTargets.set(s.user_id, token)
       }
+      fcmTokenCount = fcmTargets.size
 
       // 각 기기에 예약 신호 전송 (비동기, 결과 무시 — 실패해도 폴링 폴백 동작)
       const schedulePayload: Record<string, string> = {
@@ -294,13 +299,19 @@ alarms.post('/', async (c) => {
       // FCM Multicast 발송 (await 대기) - 50개씩 순차 병렬, 응답 전 발송 완료 보장
       const tokenList = Array.from(fcmTargets.values())
       try {
-        const fcmResult = await sendFCMMulticast(tokenList, schedulePayload, fcmServiceAccount, fcmProjectId)
+        fcmScheduleResult = await sendFCMMulticast(tokenList, schedulePayload, fcmServiceAccount, fcmProjectId)
         // invalid token 즉시 비활성화
-        if (fcmResult.invalidTokens.length > 0) {
-          for (const badToken of fcmResult.invalidTokens) {
+        if (fcmScheduleResult.invalidTokens.length > 0) {
+          for (const badToken of fcmScheduleResult.invalidTokens) {
             await c.env.DB.prepare(
               "UPDATE subscribers SET fcm_token = NULL WHERE fcm_token = ?"
             ).bind(badToken).run().catch(() => {})
+          }
+          // 실패 토큰 → user_id 역매핑 (디버그용)
+          for (const [userId, token] of fcmTargets.entries()) {
+            if (fcmScheduleResult.invalidTokens.includes(token)) {
+              failedUserIds.push(userId)
+            }
           }
         }
       } catch (_) {}
@@ -316,7 +327,14 @@ alarms.post('/', async (c) => {
         scheduled_at,
         msg_type,
         total_targets: subCount?.cnt || 0,
-        status: 'pending'
+        status: 'pending',
+        fcm_schedule: fcmScheduleResult ? {
+          total_tokens: fcmTokenCount,
+          success: fcmScheduleResult.successCount,
+          failed: fcmScheduleResult.failureCount,
+          invalid_tokens: fcmScheduleResult.invalidTokens.length,
+          failed_user_ids: failedUserIds,
+        } : null,
       }
     }, 201)
   } catch (e: any) {
