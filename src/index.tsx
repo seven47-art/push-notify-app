@@ -22,6 +22,8 @@ import admin from './routes/admin'
 import uploads from './routes/uploads'
 import reports from './routes/reports'
 import blocked from './routes/blocked'
+import rewardAds from './routes/reward_ads'
+import cookieMall from './routes/cookie_mall'
 import { deleteFromFirebaseStorage } from './routes/uploads'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -50,6 +52,8 @@ app.route('/api/settings', settings)
 app.route('/api/uploads', uploads)
 app.route('/api/reports', reports)
 app.route('/api/blocked', blocked)
+app.route('/api/reward-ads', rewardAds)
+app.route('/api/cookie-mall', cookieMall)
 
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Push Notification Admin API' })

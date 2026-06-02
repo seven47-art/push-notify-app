@@ -109,7 +109,9 @@ class AlarmPollingService : Service() {
             channelName: String, msgType: String, msgValue: String,
             alarmId: Int, contentUrl: String, homepageUrl: String = "",
             channelPublicId: String = "", linkUrl: String = "", contentText: String = "",
-            channelImage: String = ""
+            channelImage: String = "",
+            // ── 4단계: 광고 리워드 전화(reward_ad) 옵션 (ADD ONLY, 기본값으로 기존 호출부 보존) ──
+            isRewardAd: Boolean = false, rewardQkey: Int = 0, campaignId: String = ""
         ) {
             if (alarmId > 0) {
                 synchronized(fcmLock) {
@@ -133,7 +135,8 @@ class AlarmPollingService : Service() {
                 FakeCallActivity.start(
                     context, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl,
                     channelPublicId = channelPublicId, linkUrl = linkUrl, contentText = contentText,
-                    channelImage = channelImage
+                    channelImage = channelImage,
+                    isRewardAd = isRewardAd, rewardQkey = rewardQkey, campaignId = campaignId
                 )
             } else {
                 // 이후 알람 → 상태바 알림

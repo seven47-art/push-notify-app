@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../utils/toast_helper.dart';
 import 'policy_screen.dart';
+import 'reward_ad_optin_screen.dart';
+import 'cookie_mall_screen.dart';
 
 const _primary = Color(0xFF6C63FF);
 const _text    = Color(0xFF222222);
@@ -179,6 +181,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text('메뉴', style: TextStyle(fontSize: 12, color: _text, fontWeight: FontWeight.w600)),
           ),
+          // 광고 리워드 참여하기 (선택 사항 — 미참여해도 기존 기능 정상 사용)
+          _SettingsRow(
+            icon: Icons.card_giftcard_outlined,
+            iconColor: _primary,
+            label: '광고 리워드 참여하기',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RewardAdOptInScreen()),
+            ),
+          ),
+          const Divider(height: 1, indent: 56, color: _border),
+          // 쿠키몰 — QKEY로 기프티콘/쿠폰 교환 (Phase 7)
+          _SettingsRow(
+            icon: Icons.cookie_outlined,
+            iconColor: const Color(0xFFF59E0B),
+            label: '쿠키몰',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CookieMallScreen()),
+            ),
+          ),
+          const Divider(height: 1, indent: 56, color: _border),
           // 개인정보보호정책
           _SettingsRow(
             icon: Icons.shield_outlined,
