@@ -24,6 +24,7 @@ import reports from './routes/reports'
 import blocked from './routes/blocked'
 import rewardAds from './routes/reward_ads'
 import cookieMall from './routes/cookie_mall'
+import advertiser from './routes/advertiser'
 import { deleteFromFirebaseStorage } from './routes/uploads'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -2098,6 +2099,9 @@ app.get('/app', (c) => {
 
 // 관리자 페이지
 app.route('/admin', admin)
+
+// 광고주 전용 포털 (PC) — 신규 추가, 기존 링고 영향 없음
+app.route('/advertiser', advertiser)
 
 // =============================================
 // Cleanup API - cron-job.org 에서 매일 UTC 15:00 호출
