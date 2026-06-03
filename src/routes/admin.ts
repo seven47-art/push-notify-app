@@ -1493,6 +1493,12 @@ function adminDashboardHTML() {
             <input type="text" id="advContact" class="input-field text-sm" placeholder="연락처 (선택)">
             <input type="text" id="advMemo" class="input-field text-sm" placeholder="메모 (선택)">
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            <input type="email" id="advEmail" class="input-field text-sm" placeholder="로그인 이메일 (포털용)">
+            <input type="text" id="advWallet" class="input-field text-sm" placeholder="로그인 지갑주소 (포털용)">
+            <input type="number" id="advBalance" min="0" class="input-field text-sm" placeholder="충전 QKEY (선택)">
+          </div>
+          <p class="text-slate-500 text-xs mt-2"><i class="fas fa-circle-info mr-1"></i>이메일 + 지갑주소는 광고주가 <b>/advertiser/portal</b> 에 로그인할 때 사용됩니다.</p>
           <button onclick="saveAdvertiser()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-semibold mt-3">
             <i class="fas fa-plus mr-1"></i>광고주 추가
           </button>
@@ -1510,6 +1516,8 @@ function adminDashboardHTML() {
                 <tr>
                   <th class="text-left px-5 py-3 text-slate-400 font-semibold">광고주명</th>
                   <th class="text-left px-5 py-3 text-slate-400 font-semibold">연락처</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">로그인(이메일/지갑)</th>
+                  <th class="text-right px-5 py-3 text-slate-400 font-semibold">잔액(QKEY)</th>
                   <th class="text-left px-5 py-3 text-slate-400 font-semibold">메모</th>
                   <th class="text-center px-5 py-3 text-slate-400 font-semibold">상태</th>
                   <th class="text-right px-5 py-3 text-slate-400 font-semibold">관리</th>
@@ -2257,14 +2265,21 @@ async function loadAdvertisers() {
       sel.innerHTML = '<option value="">광고주 선택...</option>' +
         items.filter(a=>a.active!==false).map(a=>'<option value="'+_escAd(a._id)+'" data-name="'+_escAd(a.name)+'">'+_escAd(a.name)+'</option>').join('')
     }
-    if (!items.length) { tb.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">등록된 광고주가 없습니다.</td></tr>'; return }
+    if (!items.length) { tb.innerHTML = '<tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">등록된 광고주가 없습니다.</td></tr>'; return }
     tb.innerHTML = items.map(a => {
       const badge = a.active!==false
         ? '<span class="badge badge-active">활성</span>'
         : '<span class="badge badge-inactive">비활성</span>'
+      const wallet = a.walletAddress ? (String(a.walletAddress).length>14 ? String(a.walletAddress).slice(0,8)+'…'+String(a.walletAddress).slice(-4) : a.walletAddress) : ''
+      const loginInfo = (a.email||wallet)
+        ? '<div class="text-xs text-slate-300">'+_escAd(a.email||'-')+'</div><div class="text-xs text-slate-500">'+_escAd(wallet||'-')+'</div>'
+        : '<span class="text-slate-600 text-xs">미설정</span>'
+      const bal = Number(a.balanceQkey||0).toLocaleString('ko-KR')
       return '<tr class="table-row border-b border-slate-800">'
         + '<td class="px-5 py-3 text-white">'+_escAd(a.name)+'</td>'
         + '<td class="px-5 py-3 text-slate-400">'+_escAd(a.contact||'-')+'</td>'
+        + '<td class="px-5 py-3">'+loginInfo+'</td>'
+        + '<td class="px-5 py-3 text-right text-indigo-300 font-semibold">'+bal+'</td>'
         + '<td class="px-5 py-3 text-slate-400">'+_escAd(a.memo||'-')+'</td>'
         + '<td class="px-5 py-3 text-center">'+badge+'</td>'
         + '<td class="px-5 py-3 text-right whitespace-nowrap">'
@@ -2273,7 +2288,7 @@ async function loadAdvertisers() {
         + '</td></tr>'
     }).join('')
   } catch(e) {
-    tb.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-red-400">불러오기 실패: '+_escAd(e.message)+'</td></tr>'
+    tb.innerHTML = '<tr><td colspan="7" class="px-5 py-8 text-center text-red-400">불러오기 실패: '+_escAd(e.message)+'</td></tr>'
   }
 }
 
@@ -2281,11 +2296,14 @@ async function saveAdvertiser() {
   const name = (document.getElementById('advName').value||'').trim()
   const contact = (document.getElementById('advContact').value||'').trim()
   const memo = (document.getElementById('advMemo').value||'').trim()
+  const email = (document.getElementById('advEmail').value||'').trim()
+  const walletAddress = (document.getElementById('advWallet').value||'').trim()
+  const balanceQkey = Number(document.getElementById('advBalance').value||0)
   if (!name) { showToast('광고주명을 입력하세요.', 'error'); return }
   try {
     const res = await fetch('/admin/ad-advertisers', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name, contact, memo })
+      body: JSON.stringify({ name, contact, memo, email, walletAddress, balanceQkey })
     })
     const data = await res.json()
     if (data.success) {
@@ -2293,6 +2311,9 @@ async function saveAdvertiser() {
       document.getElementById('advName').value=''
       document.getElementById('advContact').value=''
       document.getElementById('advMemo').value=''
+      document.getElementById('advEmail').value=''
+      document.getElementById('advWallet').value=''
+      document.getElementById('advBalance').value=''
       loadAdvertisers()
     } else showToast('추가 실패: '+(data.error||''), 'error')
   } catch(e){ showToast('오류: '+e.message, 'error') }
@@ -2811,11 +2832,19 @@ admin.post('/ad-advertisers', async (c) => {
     const pid = getAdProjectId(c)
     const id = genId('adv')
     const ts = nowIso()
+    // 광고주 전용 로그인 자격증명: email + walletAddress (소문자/trim 정규화)
+    const email  = String(body.email || '').trim().toLowerCase()
+    const wallet = String(body.walletAddress || '').trim()
     const data = {
       advertiserId: id,
       name,
       contact: String(body.contact || '').trim(),
       memo: String(body.memo || '').trim(),
+      // ── 광고주 포털 로그인용 (email + walletAddress) ──
+      email,
+      walletAddress: wallet,
+      // ── 정산용 잔액(QKEY) — 어드민이 충전 ──
+      balanceQkey: Number.isFinite(Number(body.balanceQkey)) ? Math.floor(Number(body.balanceQkey)) : 0,
       active: body.active === false ? false : true,
       createdAt: ts,
       updatedAt: ts,
@@ -2838,6 +2867,11 @@ admin.put('/ad-advertisers/:id', async (c) => {
     if (body.name !== undefined)    patch.name = String(body.name || '').trim()
     if (body.contact !== undefined) patch.contact = String(body.contact || '').trim()
     if (body.memo !== undefined)    patch.memo = String(body.memo || '').trim()
+    if (body.email !== undefined)         patch.email = String(body.email || '').trim().toLowerCase()
+    if (body.walletAddress !== undefined) patch.walletAddress = String(body.walletAddress || '').trim()
+    if (body.balanceQkey !== undefined && Number.isFinite(Number(body.balanceQkey))) {
+      patch.balanceQkey = Math.floor(Number(body.balanceQkey))
+    }
     if (body.active !== undefined)  patch.active = !!body.active
     if (patch.name !== undefined && patch.name === '') {
       return c.json({ success: false, error: '광고주명은 비울 수 없습니다.' }, 400)
