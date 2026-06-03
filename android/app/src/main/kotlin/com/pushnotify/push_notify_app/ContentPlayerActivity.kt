@@ -21,8 +21,13 @@ import android.view.animation.DecelerateInterpolator
 import android.webkit.*
 import android.widget.*
 import kotlinx.coroutines.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.TimeUnit
 
 /**
  * ContentPlayerActivity
@@ -53,6 +58,11 @@ class ContentPlayerActivity : Activity() {
         const val EXTRA_LINK_URL          = "link_url"
         const val EXTRA_CHANNEL_PUBLIC_ID = "channel_public_id"
         const val EXTRA_CONTENT_TEXT      = "content_text"
+        // ── 5단계: 광고 리워드 전화(reward_ad) 추가 EXTRA (ADD ONLY) ──
+        const val EXTRA_IS_REWARD_AD      = "is_reward_ad"
+        const val EXTRA_REWARD_QKEY       = "reward_qkey"
+        const val EXTRA_CAMPAIGN_ID       = "campaign_id"
+        const val EXTRA_ALARM_ID          = "alarm_id"
 
         fun start(
             context: Context,
@@ -64,7 +74,12 @@ class ContentPlayerActivity : Activity() {
             homepageUrl: String = "",
             channelPublicId: String = "",
             linkUrl: String = "",
-            contentText: String = ""
+            contentText: String = "",
+            // ── 5단계: 광고 리워드 전화 옵션 (기본값으로 기존 호출부 보존) ──
+            isRewardAd: Boolean = false,
+            rewardQkey: Int = 0,
+            campaignId: String = "",
+            alarmId: Int = 0
         ) {
             val intent = Intent(context, ContentPlayerActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -78,6 +93,10 @@ class ContentPlayerActivity : Activity() {
                 putExtra(EXTRA_LINK_URL,          linkUrl)
                 putExtra(EXTRA_CHANNEL_PUBLIC_ID, channelPublicId)
                 putExtra(EXTRA_CONTENT_TEXT,      contentText)
+                putExtra(EXTRA_IS_REWARD_AD,      isRewardAd)
+                putExtra(EXTRA_REWARD_QKEY,       rewardQkey)
+                putExtra(EXTRA_CAMPAIGN_ID,       campaignId)
+                putExtra(EXTRA_ALARM_ID,          alarmId)
             }
             context.startActivity(intent)
         }
@@ -86,6 +105,11 @@ class ContentPlayerActivity : Activity() {
     private var webView: WebView? = null
     private var audioWebView: WebView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    // ── 6단계: QKEY 지급 요청용 OkHttp (ADD ONLY) ──
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,8 +136,14 @@ class ContentPlayerActivity : Activity() {
         val linkUrl         = intent.getStringExtra(EXTRA_LINK_URL)          ?: ""
         val channelPublicId = intent.getStringExtra(EXTRA_CHANNEL_PUBLIC_ID) ?: ""
         val contentText     = intent.getStringExtra(EXTRA_CONTENT_TEXT)      ?: ""
+        // ── 5단계: 광고 리워드 전화 추가 필드 ──
+        val isRewardAd      = intent.getBooleanExtra(EXTRA_IS_REWARD_AD, false)
+        val rewardQkey      = intent.getIntExtra(EXTRA_REWARD_QKEY, 0)
+        val campaignId      = intent.getStringExtra(EXTRA_CAMPAIGN_ID)      ?: ""
+        val rewardAlarmId   = intent.getIntExtra(EXTRA_ALARM_ID, 0)
 
-        setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText))
+        setContentView(buildUI(channelName, channelImage, msgType, msgValue, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText,
+            isRewardAd = isRewardAd, rewardQkey = rewardQkey, campaignId = campaignId, rewardAlarmId = rewardAlarmId))
     }
 
 
@@ -127,7 +157,12 @@ class ContentPlayerActivity : Activity() {
         homepageUrl: String,
         channelPublicId: String,
         linkUrl: String = "",
-        contentText: String = ""
+        contentText: String = "",
+        // ── 5단계: 광고 리워드 전화 옵션 (기본값으로 기존 경로 보존) ──
+        isRewardAd: Boolean = false,
+        rewardQkey: Int = 0,
+        campaignId: String = "",
+        rewardAlarmId: Int = 0
     ): View {
 
         // ── 루트: FrameLayout (콘텐츠 풀스크린 + 하단 오버레이) ──
@@ -447,7 +482,120 @@ class ContentPlayerActivity : Activity() {
             overlayContainer.addView(contentRow)
         }
 
-        // ── 아랫줄 바 (채널정보 + 버튼) ──
+        // ─────────────────────────────────────────────────────────────────
+        // 5단계: 광고 리워드 전화(reward_ad) — 전용 하단 바
+        //  - "{rewardQkey} QKEY 적립 예정" 골드 인디케이터
+        //  - "광고주 링크 방문" 눈에 잘 띄는 버튼 (클릭 시 브라우저 + 추적)
+        //  - 닫기 버튼
+        //  - 비디오 시청 + 링크 클릭 상태를 SharedPreferences에 기록 (6단계 지급 판정용)
+        // 기존 일반 알람의 아랫줄 바(else 블록)는 일절 변경하지 않음.
+        // ─────────────────────────────────────────────────────────────────
+        if (isRewardAd) {
+            // 비디오 시청 기록 (수락→ContentPlayerActivity 진입 = 시청 시작으로 간주)
+            val prefs = getSharedPreferences("ringo_reward_ad_prefs", MODE_PRIVATE)
+            prefs.edit()
+                .putBoolean("reward_ad_watched_$rewardAlarmId", true)
+                .putLong("reward_ad_watched_at_$rewardAlarmId", System.currentTimeMillis())
+                .putString("reward_ad_campaign_$rewardAlarmId", campaignId)
+                .apply()
+
+            val rewardBar = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.parseColor("#DD000000"))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(dp(16), dp(12), dp(16), dp(12) + navBarHeight)
+            }
+
+            // QKEY 적립 예정 인디케이터
+            rewardBar.addView(TextView(this).apply {
+                text = "$rewardQkey QKEY 적립 예정"
+                textSize = 16f
+                setTextColor(Color.parseColor("#FFD54F"))  // 골드 톤
+                setTypeface(typeface, Typeface.BOLD)
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, dp(10))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            })
+
+            // 버튼 행 (광고주 링크 + 닫기)
+            val rewardBtnRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            // 광고주 링크 방문 버튼 (눈에 잘 띄는 큰 버튼)
+            val effectiveAdLinkUrl = when {
+                linkUrl.isNotEmpty() -> linkUrl
+                homepageUrl.isNotEmpty() -> homepageUrl
+                else -> ""
+            }
+            if (effectiveAdLinkUrl.isNotEmpty()) {
+                val fullAdLink = if (effectiveAdLinkUrl.startsWith("http")) effectiveAdLinkUrl else "https://$effectiveAdLinkUrl"
+                rewardBtnRow.addView(TextView(this).apply {
+                    text = "🔗 광고주 링크 방문"
+                    textSize = 15f
+                    setTextColor(Color.WHITE)
+                    setTypeface(typeface, Typeface.BOLD)
+                    gravity = Gravity.CENTER
+                    setPadding(dp(24), dp(14), dp(24), dp(14))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(28).toFloat()
+                        setColor(Color.parseColor("#7C3AED"))  // 보라색 강조
+                        setStroke(dp(1), Color.parseColor("#A78BFA"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                        it.marginEnd = dp(10)
+                    }
+                    setOnClickListener {
+                        // 링크 클릭 기록 (6단계 QKEY 지급 판정용)
+                        prefs.edit()
+                            .putBoolean("reward_ad_link_clicked_$rewardAlarmId", true)
+                            .putLong("reward_ad_link_clicked_at_$rewardAlarmId", System.currentTimeMillis())
+                            .apply()
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fullAdLink)).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            })
+                        } catch (e: Exception) {
+                            Log.e(TAG, "광고주 링크 열기 실패: ${e.message}")
+                        }
+                        // ── 6단계: 비디오 시청(수락 시점) + 링크 클릭 조건 충족 → QKEY 지급 요청 ──
+                        claimQkeyReward(rewardAlarmId, campaignId)
+                    }
+                })
+            }
+
+            // 닫기 버튼
+            rewardBtnRow.addView(ImageView(this).apply {
+                setImageResource(R.drawable.close_icon)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(9), dp(9), dp(9), dp(9))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(22).toFloat()
+                    setColor(Color.parseColor("#55FF4444"))
+                    setStroke(dp(1), Color.parseColor("#44FF6666"))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+                setOnClickListener { closePlayer() }
+            })
+
+            rewardBar.addView(rewardBtnRow)
+            overlayContainer.addView(rewardBar)
+            root.addView(overlayContainer)
+            return root
+        }
+
+        // ── 아랫줄 바 (채널정보 + 버튼) — 기존 일반 알람 전용 ──
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -658,6 +806,60 @@ class ContentPlayerActivity : Activity() {
         if (url.length == 11 && !url.startsWith("http")) return url
         val m = Regex("(?:v=|youtu\\.be/|embed/|shorts/|live/)([A-Za-z0-9_-]{11})").find(url)
         return m?.groupValues?.get(1) ?: ""
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 6단계: QKEY 지급 요청 (서버 POST /api/reward-ads/claim)
+    // - 비디오 시청 + 광고주 링크 클릭 완료 후 호출
+    // - 멱등성: 서버에서 qkey_reward_idempotency/{uid}_{alarmId} 으로 중복 방지
+    // - 실패해도 앱 UX에 영향 없음 (다음 앱 실행 시 재시도 가능)
+    // ─────────────────────────────────────────────────────────────────────
+    private fun claimQkeyReward(rewardAlarmId: Int, campaignId: String) {
+        val prefs = getSharedPreferences("ringo_alarm_prefs", MODE_PRIVATE)
+        val baseUrl = prefs.getString("base_url", "")
+            ?.takeIf { it.isNotEmpty() } ?: "https://ringo-server.pages.dev"
+        val token = prefs.getString("session_token", "") ?: ""
+        if (token.isEmpty()) {
+            Log.w(TAG, "QKEY 지급 요청 스킵: 세션 토큰 없음")
+            return
+        }
+
+        // 이미 이 alarmId에 대해 claim 요청을 보냈으면 스킵 (로컬 중복 방지)
+        val rewardPrefs = getSharedPreferences("ringo_reward_ad_prefs", MODE_PRIVATE)
+        if (rewardPrefs.getBoolean("reward_ad_claimed_$rewardAlarmId", false)) {
+            Log.d(TAG, "QKEY 지급 이미 요청됨 (alarmId=$rewardAlarmId)")
+            return
+        }
+
+        scope.launch {
+            try {
+                val body = """{"alarmId":$rewardAlarmId,"campaignId":"$campaignId"}"""
+                    .toRequestBody("application/json".toMediaType())
+                val response = withContext(Dispatchers.IO) {
+                    http.newCall(
+                        Request.Builder()
+                            .url("$baseUrl/api/reward-ads/claim")
+                            .post(body)
+                            .addHeader("Authorization", "Bearer $token")
+                            .build()
+                    ).execute()
+                }
+                val respBody = response.body?.string() ?: ""
+                response.close()
+
+                if (response.isSuccessful) {
+                    Log.d(TAG, "QKEY 지급 성공: $respBody")
+                    rewardPrefs.edit()
+                        .putBoolean("reward_ad_claimed_$rewardAlarmId", true)
+                        .putLong("reward_ad_claimed_at_$rewardAlarmId", System.currentTimeMillis())
+                        .apply()
+                } else {
+                    Log.e(TAG, "QKEY 지급 실패(${response.code}): $respBody")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "QKEY 지급 요청 오류: ${e.message}")
+            }
+        }
     }
 
     private fun closePlayer() {

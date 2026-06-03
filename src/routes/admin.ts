@@ -2,6 +2,16 @@
 import { Hono } from 'hono'
 import { setCookie, getCookie } from 'hono/cookie'
 import type { Bindings } from '../types'
+import {
+  listDocuments,
+  getDocument,
+  setDocument,
+  patchDocument,
+  deleteDocument,
+  genId,
+  nowIso,
+} from '../lib/firestore'
+import { sendFCMMulticast } from './fcm'
 
 const admin = new Hono<{ Bindings: Bindings }>()
 
@@ -468,6 +478,12 @@ function adminDashboardHTML() {
     </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('admin-alarm')">
       <i class="fas fa-satellite-dish w-4 text-center text-red-400"></i> 관리자 알람발송
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('ad-campaigns')">
+      <i class="fas fa-bullhorn w-4 text-center text-fuchsia-400"></i> 광고 캠페인
+    </a>
+    <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('cookie-mall')">
+      <i class="fas fa-cookie-bite w-4 text-center text-amber-400"></i> 쿠키몰
     </a>
     <a href="#" class="nav-item flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 cursor-pointer" onclick="showPage('download-mgmt')">
       <i class="fas fa-download w-4 text-center text-emerald-400"></i> 다운로드 관리
@@ -1461,6 +1477,238 @@ function adminDashboardHTML() {
       </div>
     </div>
 
+    <!-- ===== 광고 캠페인 (3단계) ===== -->
+    <div id="page-ad-campaigns" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-fuchsia-600/20 flex items-center justify-center"><i class="fas fa-bullhorn text-fuchsia-400"></i></div>
+          <div><h2 class="text-xl font-bold text-white">광고 캠페인</h2><p class="text-slate-400 text-sm">광고주와 광고 리워드 캠페인을 등록·관리합니다 (발송은 추후 단계)</p></div>
+        </div>
+
+        <!-- 광고주 등록 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-briefcase mr-2 text-fuchsia-400"></i>광고주 등록</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input type="text" id="advName" class="input-field text-sm" placeholder="광고주명 *">
+            <input type="text" id="advContact" class="input-field text-sm" placeholder="연락처 (선택)">
+            <input type="text" id="advMemo" class="input-field text-sm" placeholder="메모 (선택)">
+          </div>
+          <button onclick="saveAdvertiser()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-semibold mt-3">
+            <i class="fas fa-plus mr-1"></i>광고주 추가
+          </button>
+        </div>
+
+        <!-- 광고주 목록 -->
+        <div class="card rounded-xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="text-white font-semibold text-sm"><i class="fas fa-list mr-2 text-slate-400"></i>광고주 목록</h3>
+            <button onclick="loadAdvertisers()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-800 border-b border-slate-700">
+                <tr>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">광고주명</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">연락처</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">메모</th>
+                  <th class="text-center px-5 py-3 text-slate-400 font-semibold">상태</th>
+                  <th class="text-right px-5 py-3 text-slate-400 font-semibold">관리</th>
+                </tr>
+              </thead>
+              <tbody id="advTableBody"><tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">불러오는 중...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 캠페인 등록 -->
+        <div class="card rounded-xl p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-clapperboard mr-2 text-fuchsia-400"></i>캠페인 등록</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">광고주 *</label>
+              <select id="campAdvertiser" class="input-field text-sm"><option value="">광고주 선택...</option></select>
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">캠페인명 *</label>
+              <input type="text" id="campTitle" class="input-field text-sm" placeholder="예: 여름 신메뉴 광고">
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">영상 유형</label>
+              <select id="campVideoType" class="input-field text-sm">
+                <option value="youtube">YouTube</option>
+                <option value="video">동영상(mp4 등)</option>
+                <option value="audio">오디오</option>
+                <option value="file">파일</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">지급 QKEY *</label>
+              <input type="number" id="campReward" class="input-field text-sm" placeholder="예: 100" min="1">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">광고 영상 URL *</label>
+              <input type="url" id="campVideoUrl" class="input-field text-sm" placeholder="https://...">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 block">광고주 링크 URL * <span class="text-slate-500 font-normal normal-case">(영상 완주 + 이 링크 1회 클릭 시 QKEY 지급)</span></label>
+              <input type="url" id="campLinkUrl" class="input-field text-sm" placeholder="https://...">
+            </div>
+          </div>
+          <button onclick="saveCampaign()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-semibold mt-4">
+            <i class="fas fa-plus mr-1"></i>캠페인 추가
+          </button>
+        </div>
+
+        <!-- 캠페인 목록 -->
+        <div class="card rounded-xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="text-white font-semibold text-sm"><i class="fas fa-list mr-2 text-slate-400"></i>캠페인 목록</h3>
+            <button onclick="loadCampaigns()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-800 border-b border-slate-700">
+                <tr>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">캠페인명</th>
+                  <th class="text-left px-5 py-3 text-slate-400 font-semibold">광고주</th>
+                  <th class="text-center px-5 py-3 text-slate-400 font-semibold">유형</th>
+                  <th class="text-right px-5 py-3 text-slate-400 font-semibold">QKEY</th>
+                  <th class="text-center px-5 py-3 text-slate-400 font-semibold">상태</th>
+                  <th class="text-right px-5 py-3 text-slate-400 font-semibold">관리</th>
+                </tr>
+              </thead>
+              <tbody id="campTableBody"><tr><td colspan="6" class="px-5 py-8 text-center text-slate-500">불러오는 중...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 쿠키몰 (7단계) ===== -->
+    <div id="page-cookie-mall" class="page">
+      <div class="space-y-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-600/20 flex items-center justify-center"><i class="fas fa-cookie-bite text-amber-400"></i></div>
+          <div><h2 class="text-xl font-bold text-white">쿠키몰</h2><p class="text-slate-400 text-sm">QKEY로 교환 가능한 기프티콘·쿠폰 상품을 관리합니다 (1 QKEY = 10원)</p></div>
+        </div>
+
+        <!-- 탭 네비게이션 -->
+        <div class="flex gap-2">
+          <button id="cmTab-products" onclick="switchCmTab('products')" class="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white">상품 관리</button>
+          <button id="cmTab-categories" onclick="switchCmTab('categories')" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600">카테고리 관리</button>
+          <button id="cmTab-orders" onclick="switchCmTab('orders')" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600">주문 내역</button>
+        </div>
+
+        <!-- 상품 관리 탭 -->
+        <div id="cmPanel-products">
+          <div class="card rounded-xl p-5">
+            <h3 class="text-white font-semibold mb-4"><i class="fas fa-plus-circle mr-2 text-amber-400"></i>상품 등록</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input type="text" id="cmProdName" class="input-field text-sm" placeholder="상품명 *">
+              <input type="text" id="cmProdBrand" class="input-field text-sm" placeholder="브랜드 *">
+              <select id="cmProdCategory" class="input-field text-sm"><option value="">카테고리 선택 *</option></select>
+              <input type="number" id="cmProdPriceKrw" class="input-field text-sm" placeholder="가격 (원) *" oninput="cmCalcQkey()">
+              <input type="number" id="cmProdPriceQkey" class="input-field text-sm" placeholder="QKEY 자동계산" readonly>
+              <input type="text" id="cmProdImageUrl" class="input-field text-sm" placeholder="이미지 URL (선택)">
+              <input type="number" id="cmProdSortOrder" class="input-field text-sm" placeholder="정렬 순서 (0)" value="0">
+            </div>
+            <button onclick="cmSaveProduct()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-semibold mt-3">
+              <i class="fas fa-plus mr-1"></i>상품 추가
+            </button>
+          </div>
+
+          <div class="card rounded-xl overflow-hidden mt-4">
+            <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+              <h3 class="text-white font-semibold text-sm"><i class="fas fa-list mr-2 text-slate-400"></i>상품 목록</h3>
+              <button onclick="cmLoadProducts()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-800 border-b border-slate-700">
+                  <tr>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">상품명</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">브랜드</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">카테고리</th>
+                    <th class="text-right px-4 py-3 text-slate-400 font-semibold">가격(원)</th>
+                    <th class="text-right px-4 py-3 text-slate-400 font-semibold">QKEY</th>
+                    <th class="text-center px-4 py-3 text-slate-400 font-semibold">상태</th>
+                    <th class="text-right px-4 py-3 text-slate-400 font-semibold">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="cmProdTableBody"><tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">불러오는 중...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 카테고리 관리 탭 -->
+        <div id="cmPanel-categories" style="display:none">
+          <div class="card rounded-xl p-5">
+            <h3 class="text-white font-semibold mb-4"><i class="fas fa-tags mr-2 text-amber-400"></i>카테고리 등록</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <input type="text" id="cmCatId" class="input-field text-sm" placeholder="카테고리 ID *">
+              <input type="text" id="cmCatLabel" class="input-field text-sm" placeholder="표시명 *">
+              <input type="text" id="cmCatEmoji" class="input-field text-sm" placeholder="이모지 (예: ☕)">
+              <input type="number" id="cmCatSortOrder" class="input-field text-sm" placeholder="정렬 순서" value="0">
+            </div>
+            <input type="text" id="cmCatDesc" class="input-field text-sm mt-3" placeholder="설명 (선택)">
+            <button onclick="cmSaveCategory()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-semibold mt-3">
+              <i class="fas fa-plus mr-1"></i>카테고리 추가
+            </button>
+          </div>
+
+          <div class="card rounded-xl overflow-hidden mt-4">
+            <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+              <h3 class="text-white font-semibold text-sm"><i class="fas fa-tags mr-2 text-slate-400"></i>카테고리 목록</h3>
+              <button onclick="cmLoadCategories()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-800 border-b border-slate-700">
+                  <tr>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">ID</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">이모지</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">표시명</th>
+                    <th class="text-center px-4 py-3 text-slate-400 font-semibold">정렬</th>
+                    <th class="text-center px-4 py-3 text-slate-400 font-semibold">상태</th>
+                    <th class="text-right px-4 py-3 text-slate-400 font-semibold">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="cmCatTableBody"><tr><td colspan="6" class="px-5 py-8 text-center text-slate-500">불러오는 중...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 주문 내역 탭 -->
+        <div id="cmPanel-orders" style="display:none">
+          <div class="card rounded-xl overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between">
+              <h3 class="text-white font-semibold text-sm"><i class="fas fa-receipt mr-2 text-slate-400"></i>전체 주문 내역</h3>
+              <button onclick="cmLoadOrders()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-sm"><i class="fas fa-rotate-right"></i></button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-800 border-b border-slate-700">
+                  <tr>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">주문ID</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">사용자</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">상품명</th>
+                    <th class="text-right px-4 py-3 text-slate-400 font-semibold">QKEY</th>
+                    <th class="text-center px-4 py-3 text-slate-400 font-semibold">상태</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">쿠폰코드</th>
+                    <th class="text-left px-4 py-3 text-slate-400 font-semibold">일시</th>
+                  </tr>
+                </thead>
+                <tbody id="cmOrderTableBody"><tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">불러오는 중...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1982,6 +2230,373 @@ async function submitChangePassword(e) {
     errEl.style.display = 'block'
   }
 }
+
+// =============================================
+// 광고 캠페인 관리 (3단계) — Firestore advertisers / ad_campaigns
+// =============================================
+let _adAdvertisers = []
+
+function _escAd(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') }
+
+async function loadAdCampaignsPage() {
+  await loadAdvertisers()
+  await loadCampaigns()
+}
+
+// ── 광고주 ──────────────────────────────────────
+async function loadAdvertisers() {
+  const tb = document.getElementById('advTableBody')
+  try {
+    const res = await fetch('/admin/ad-advertisers')
+    const data = await res.json()
+    const items = data.data || []
+    _adAdvertisers = items
+    // 캠페인 등록용 select 갱신
+    const sel = document.getElementById('campAdvertiser')
+    if (sel) {
+      sel.innerHTML = '<option value="">광고주 선택...</option>' +
+        items.filter(a=>a.active!==false).map(a=>'<option value="'+_escAd(a._id)+'" data-name="'+_escAd(a.name)+'">'+_escAd(a.name)+'</option>').join('')
+    }
+    if (!items.length) { tb.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-slate-500">등록된 광고주가 없습니다.</td></tr>'; return }
+    tb.innerHTML = items.map(a => {
+      const badge = a.active!==false
+        ? '<span class="badge badge-active">활성</span>'
+        : '<span class="badge badge-inactive">비활성</span>'
+      return '<tr class="table-row border-b border-slate-800">'
+        + '<td class="px-5 py-3 text-white">'+_escAd(a.name)+'</td>'
+        + '<td class="px-5 py-3 text-slate-400">'+_escAd(a.contact||'-')+'</td>'
+        + '<td class="px-5 py-3 text-slate-400">'+_escAd(a.memo||'-')+'</td>'
+        + '<td class="px-5 py-3 text-center">'+badge+'</td>'
+        + '<td class="px-5 py-3 text-right whitespace-nowrap">'
+          + '<button onclick="toggleAdvertiser(\\''+_escAd(a._id)+'\\','+(a.active!==false)+')" class="text-amber-400 hover:text-amber-300 mr-3" title="활성/비활성"><i class="fas fa-power-off"></i></button>'
+          + '<button onclick="deleteAdvertiser(\\''+_escAd(a._id)+'\\')" class="text-rose-400 hover:text-rose-300" title="삭제"><i class="fas fa-trash"></i></button>'
+        + '</td></tr>'
+    }).join('')
+  } catch(e) {
+    tb.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-red-400">불러오기 실패: '+_escAd(e.message)+'</td></tr>'
+  }
+}
+
+async function saveAdvertiser() {
+  const name = (document.getElementById('advName').value||'').trim()
+  const contact = (document.getElementById('advContact').value||'').trim()
+  const memo = (document.getElementById('advMemo').value||'').trim()
+  if (!name) { showToast('광고주명을 입력하세요.', 'error'); return }
+  try {
+    const res = await fetch('/admin/ad-advertisers', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, contact, memo })
+    })
+    const data = await res.json()
+    if (data.success) {
+      showToast('광고주가 추가되었습니다.')
+      document.getElementById('advName').value=''
+      document.getElementById('advContact').value=''
+      document.getElementById('advMemo').value=''
+      loadAdvertisers()
+    } else showToast('추가 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+async function toggleAdvertiser(id, currentActive) {
+  try {
+    const res = await fetch('/admin/ad-advertisers/'+encodeURIComponent(id), {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ active: !currentActive })
+    })
+    const data = await res.json()
+    if (data.success) loadAdvertisers()
+    else showToast('변경 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+async function deleteAdvertiser(id) {
+  if (!confirm('이 광고주를 삭제할까요? (관련 캠페인은 별도로 남습니다)')) return
+  try {
+    const res = await fetch('/admin/ad-advertisers/'+encodeURIComponent(id), { method:'DELETE' })
+    const data = await res.json()
+    if (data.success) { showToast('삭제되었습니다.'); loadAdvertisers() }
+    else showToast('삭제 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+// ── 캠페인 ──────────────────────────────────────
+async function loadCampaigns() {
+  const tb = document.getElementById('campTableBody')
+  try {
+    const res = await fetch('/admin/ad-campaigns')
+    const data = await res.json()
+    const items = data.data || []
+    if (!items.length) { tb.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-slate-500">등록된 캠페인이 없습니다.</td></tr>'; return }
+    tb.innerHTML = items.map(ca => {
+      const badge = ca.active!==false
+        ? '<span class="badge badge-active">활성</span>'
+        : '<span class="badge badge-inactive">비활성</span>'
+      return '<tr class="table-row border-b border-slate-800">'
+        + '<td class="px-5 py-3 text-white">'+_escAd(ca.title)+'</td>'
+        + '<td class="px-5 py-3 text-slate-400">'+_escAd(ca.advertiserName||'-')+'</td>'
+        + '<td class="px-5 py-3 text-center text-slate-400">'+_escAd((ca.videoType||'').toUpperCase())+'</td>'
+        + '<td class="px-5 py-3 text-right text-fuchsia-300 font-semibold">'+_escAd(ca.rewardQkey)+'</td>'
+        + '<td class="px-5 py-3 text-center">'+badge+'</td>'
+        + '<td class="px-5 py-3 text-right whitespace-nowrap">'
+          + '<a href="'+_escAd(ca.videoUrl)+'" target="_blank" class="text-blue-400 hover:text-blue-300 mr-3" title="영상"><i class="fas fa-film"></i></a>'
+          + '<a href="'+_escAd(ca.linkUrl)+'" target="_blank" class="text-emerald-400 hover:text-emerald-300 mr-3" title="링크"><i class="fas fa-link"></i></a>'
+          + '<button onclick="dispatchCampaign(\\''+_escAd(ca._id)+'\\',\\''+_escAd(ca.title)+'\\')" class="text-fuchsia-400 hover:text-fuchsia-300 mr-3" title="광고 리워드 전화 발송"><i class="fas fa-paper-plane"></i></button>'
+          + '<button onclick="toggleCampaign(\\''+_escAd(ca._id)+'\\','+(ca.active!==false)+')" class="text-amber-400 hover:text-amber-300 mr-3" title="활성/비활성"><i class="fas fa-power-off"></i></button>'
+          + '<button onclick="deleteCampaign(\\''+_escAd(ca._id)+'\\')" class="text-rose-400 hover:text-rose-300" title="삭제"><i class="fas fa-trash"></i></button>'
+        + '</td></tr>'
+    }).join('')
+  } catch(e) {
+    tb.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-red-400">불러오기 실패: '+_escAd(e.message)+'</td></tr>'
+  }
+}
+
+async function saveCampaign() {
+  const sel = document.getElementById('campAdvertiser')
+  const advertiserId = sel.value
+  const advertiserName = sel.options[sel.selectedIndex]?.dataset?.name || ''
+  const title = (document.getElementById('campTitle').value||'').trim()
+  const videoType = document.getElementById('campVideoType').value
+  const videoUrl = (document.getElementById('campVideoUrl').value||'').trim()
+  const linkUrl = (document.getElementById('campLinkUrl').value||'').trim()
+  const rewardQkey = parseInt(document.getElementById('campReward').value||'0', 10)
+
+  if (!advertiserId) { showToast('광고주를 선택하세요.', 'error'); return }
+  if (!title) { showToast('캠페인명을 입력하세요.', 'error'); return }
+  if (!videoUrl) { showToast('영상 URL을 입력하세요.', 'error'); return }
+  if (!linkUrl) { showToast('링크 URL을 입력하세요.', 'error'); return }
+  if (!(rewardQkey > 0)) { showToast('지급 QKEY는 1 이상이어야 합니다.', 'error'); return }
+
+  try {
+    const res = await fetch('/admin/ad-campaigns', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ advertiserId, advertiserName, title, videoType, videoUrl, linkUrl, rewardQkey })
+    })
+    const data = await res.json()
+    if (data.success) {
+      showToast('캠페인이 추가되었습니다.')
+      document.getElementById('campTitle').value=''
+      document.getElementById('campVideoUrl').value=''
+      document.getElementById('campLinkUrl').value=''
+      document.getElementById('campReward').value=''
+      loadCampaigns()
+    } else showToast('추가 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+async function toggleCampaign(id, currentActive) {
+  try {
+    const res = await fetch('/admin/ad-campaigns/'+encodeURIComponent(id), {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ active: !currentActive })
+    })
+    const data = await res.json()
+    if (data.success) loadCampaigns()
+    else showToast('변경 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+async function deleteCampaign(id) {
+  if (!confirm('이 캠페인을 삭제할까요?')) return
+  try {
+    const res = await fetch('/admin/ad-campaigns/'+encodeURIComponent(id), { method:'DELETE' })
+    const data = await res.json()
+    if (data.success) { showToast('삭제되었습니다.'); loadCampaigns() }
+    else showToast('삭제 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+// 광고 리워드 전화 발송 (4단계) — 옵트인 사용자에게 reward_ad FCM 전송
+async function dispatchCampaign(id, title) {
+  if (!confirm('["'+(title||'캠페인')+'"] 광고 리워드 전화를\\n광고 리워드 참여(옵트인) 사용자에게 발송할까요?')) return
+  try {
+    const res = await fetch('/admin/ad-campaigns/'+encodeURIComponent(id)+'/dispatch', { method:'POST' })
+    const data = await res.json()
+    if (data.success) {
+      const d = data.data || {}
+      showToast('발송 완료 — 대상 '+(d.targetCount||0)+'명 / 토큰 '+(d.tokenCount||0)+'개 / 성공 '+(d.sentCount||0)+' / 실패 '+(d.failedCount||0))
+      loadCampaigns()
+    } else showToast('발송 실패: '+(data.error||''), 'error')
+  } catch(e){ showToast('오류: '+e.message, 'error') }
+}
+
+// =============================================
+// 쿠키몰 관리 (7단계)
+// =============================================
+let _cmCategories = []
+let _cmProducts = []
+
+function _escCm(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\\''/g,'&#39;') }
+
+function switchCmTab(tab) {
+  ['products','categories','orders'].forEach(t => {
+    const panel = document.getElementById('cmPanel-'+t)
+    const btn = document.getElementById('cmTab-'+t)
+    if (panel) panel.style.display = t===tab ? '' : 'none'
+    if (btn) { btn.className = t===tab ? 'px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white' : 'px-4 py-2 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600' }
+  })
+  if (tab==='products') cmLoadProducts()
+  else if (tab==='categories') cmLoadCategories()
+  else if (tab==='orders') cmLoadOrders()
+}
+
+function cmCalcQkey() {
+  const krw = parseInt(document.getElementById('cmProdPriceKrw')?.value||'0',10)
+  const qkeyEl = document.getElementById('cmProdPriceQkey')
+  if (qkeyEl) qkeyEl.value = krw>0 ? Math.ceil(krw/10) : ''
+}
+
+async function cmLoadProducts() {
+  const tb = document.getElementById('cmProdTableBody')
+  try {
+    const res = await fetch('/api/cookie-mall/admin/products')
+    const data = await res.json()
+    _cmProducts = data.data || []
+    if (!_cmProducts.length) { tb.innerHTML='<tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">등록된 상품이 없습니다.</td></tr>'; return }
+    tb.innerHTML = _cmProducts.map(p =>
+      '<tr class="border-b border-slate-700/50 hover:bg-slate-800/50">' +
+      '<td class="px-4 py-3 text-white font-medium">' + (p.imageUrl ? '<img src="'+_escCm(p.imageUrl)+'" class="w-8 h-8 rounded inline mr-2 align-middle object-cover">' : '') + _escCm(p.name) + '</td>' +
+      '<td class="px-4 py-3 text-slate-300">' + _escCm(p.brand) + '</td>' +
+      '<td class="px-4 py-3 text-slate-300">' + _escCm(p.category) + '</td>' +
+      '<td class="px-4 py-3 text-right text-slate-300">' + Number(p.priceKrw||0).toLocaleString() + '</td>' +
+      '<td class="px-4 py-3 text-right text-amber-400 font-semibold">' + Number(p.priceQkey||0).toLocaleString() + '</td>' +
+      '<td class="px-4 py-3 text-center">' + (p.active ? '<span class="text-emerald-400 text-xs font-bold">ON</span>' : '<span class="text-slate-500 text-xs font-bold">OFF</span>') + '</td>' +
+      '<td class="px-4 py-3 text-right space-x-1">' +
+        '<button onclick="cmToggleProduct(\\'' + _escCm(p.id) + '\\', ' + (!!p.active) + ')" class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">' + (p.active?'OFF':'ON') + '</button>' +
+        '<button onclick="cmDeleteProduct(\\'' + _escCm(p.id) + '\\')" class="text-xs px-2 py-1 rounded bg-red-900/50 hover:bg-red-800/50 text-red-400">삭제</button>' +
+      '</td></tr>'
+    ).join('')
+  } catch(e) { tb.innerHTML='<tr><td colspan="7" class="px-5 py-8 text-center text-red-400">오류: '+_escCm(e.message)+'</td></tr>' }
+}
+
+async function cmSaveProduct() {
+  const name = document.getElementById('cmProdName')?.value?.trim()
+  const brand = document.getElementById('cmProdBrand')?.value?.trim()
+  const category = document.getElementById('cmProdCategory')?.value
+  const priceKrw = parseInt(document.getElementById('cmProdPriceKrw')?.value||'0',10)
+  const imageUrl = document.getElementById('cmProdImageUrl')?.value?.trim() || ''
+  const sortOrder = parseInt(document.getElementById('cmProdSortOrder')?.value||'0',10)
+  if (!name||!brand||!category||!priceKrw) { showToast('필수 항목을 모두 입력하세요.','error'); return }
+  try {
+    const res = await fetch('/api/cookie-mall/admin/products', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, brand, category, priceKrw, imageUrl, sortOrder })
+    })
+    const data = await res.json()
+    if (data.success) {
+      showToast('상품이 등록되었습니다.')
+      ;['cmProdName','cmProdBrand','cmProdPriceKrw','cmProdPriceQkey','cmProdImageUrl'].forEach(id => { const el=document.getElementById(id); if(el) el.value='' })
+      document.getElementById('cmProdSortOrder').value='0'
+      cmLoadProducts()
+    } else showToast('등록 실패: '+(data.error||''),'error')
+  } catch(e){ showToast('오류: '+e.message,'error') }
+}
+
+async function cmToggleProduct(id, currentActive) {
+  try {
+    const res = await fetch('/api/cookie-mall/admin/products/'+encodeURIComponent(id)+'/toggle', { method:'POST' })
+    const data = await res.json()
+    if (data.success) cmLoadProducts()
+    else showToast('변경 실패: '+(data.error||''),'error')
+  } catch(e){ showToast('오류: '+e.message,'error') }
+}
+
+async function cmDeleteProduct(id) {
+  if (!confirm('이 상품을 삭제할까요?')) return
+  try {
+    const res = await fetch('/api/cookie-mall/admin/products/'+encodeURIComponent(id), { method:'DELETE' })
+    const data = await res.json()
+    if (data.success) { showToast('삭제되었습니다.'); cmLoadProducts() }
+    else showToast('삭제 실패: '+(data.error||''),'error')
+  } catch(e){ showToast('오류: '+e.message,'error') }
+}
+
+// ── 카테고리 ──
+async function cmLoadCategories() {
+  const tb = document.getElementById('cmCatTableBody')
+  try {
+    const res = await fetch('/api/cookie-mall/admin/categories')
+    const data = await res.json()
+    _cmCategories = data.data || []
+    // 카테고리 select 업데이트
+    const sel = document.getElementById('cmProdCategory')
+    if (sel) {
+      sel.innerHTML = '<option value="">카테고리 선택 *</option>' + _cmCategories.filter(c=>c.active!==false).map(c => '<option value="'+_escCm(c.id)+'">'+_escCm(c.emoji||'')+' '+_escCm(c.label)+'</option>').join('')
+    }
+    if (!_cmCategories.length) { tb.innerHTML='<tr><td colspan="6" class="px-5 py-8 text-center text-slate-500">등록된 카테고리가 없습니다.</td></tr>'; return }
+    tb.innerHTML = _cmCategories.map(c =>
+      '<tr class="border-b border-slate-700/50 hover:bg-slate-800/50">' +
+      '<td class="px-4 py-3 text-white font-mono text-xs">' + _escCm(c.id) + '</td>' +
+      '<td class="px-4 py-3 text-center text-lg">' + _escCm(c.emoji||'-') + '</td>' +
+      '<td class="px-4 py-3 text-white">' + _escCm(c.label) + '</td>' +
+      '<td class="px-4 py-3 text-center text-slate-300">' + (c.sortOrder||0) + '</td>' +
+      '<td class="px-4 py-3 text-center">' + (c.active!==false ? '<span class="text-emerald-400 text-xs font-bold">ON</span>' : '<span class="text-slate-500 text-xs font-bold">OFF</span>') + '</td>' +
+      '<td class="px-4 py-3 text-right">' +
+        '<button onclick="cmDeleteCategory(\\'' + _escCm(c.id) + '\\')" class="text-xs px-2 py-1 rounded bg-red-900/50 hover:bg-red-800/50 text-red-400">삭제</button>' +
+      '</td></tr>'
+    ).join('')
+  } catch(e) { tb.innerHTML='<tr><td colspan="6" class="px-5 py-8 text-center text-red-400">오류: '+_escCm(e.message)+'</td></tr>' }
+}
+
+async function cmSaveCategory() {
+  const id = document.getElementById('cmCatId')?.value?.trim()
+  const label = document.getElementById('cmCatLabel')?.value?.trim()
+  const emoji = document.getElementById('cmCatEmoji')?.value?.trim() || ''
+  const sortOrder = parseInt(document.getElementById('cmCatSortOrder')?.value||'0',10)
+  const description = document.getElementById('cmCatDesc')?.value?.trim() || ''
+  if (!id||!label) { showToast('ID와 표시명을 입력하세요.','error'); return }
+  try {
+    const res = await fetch('/api/cookie-mall/admin/categories', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, label, emoji, sortOrder, description })
+    })
+    const data = await res.json()
+    if (data.success) {
+      showToast('카테고리가 등록되었습니다.')
+      ;['cmCatId','cmCatLabel','cmCatEmoji','cmCatDesc'].forEach(id => { const el=document.getElementById(id); if(el) el.value='' })
+      document.getElementById('cmCatSortOrder').value='0'
+      cmLoadCategories()
+    } else showToast('등록 실패: '+(data.error||''),'error')
+  } catch(e){ showToast('오류: '+e.message,'error') }
+}
+
+async function cmDeleteCategory(id) {
+  if (!confirm('카테고리 "'+id+'"를 삭제할까요?')) return
+  try {
+    const res = await fetch('/api/cookie-mall/admin/categories/'+encodeURIComponent(id), { method:'DELETE' })
+    const data = await res.json()
+    if (data.success) { showToast('삭제되었습니다.'); cmLoadCategories() }
+    else showToast('삭제 실패: '+(data.error||''),'error')
+  } catch(e){ showToast('오류: '+e.message,'error') }
+}
+
+// ── 주문 ──
+async function cmLoadOrders() {
+  const tb = document.getElementById('cmOrderTableBody')
+  try {
+    const res = await fetch('/api/cookie-mall/admin/orders')
+    const data = await res.json()
+    const orders = data.data || []
+    if (!orders.length) { tb.innerHTML='<tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">주문 내역이 없습니다.</td></tr>'; return }
+    const statusColors = { pending:'text-yellow-400', issued:'text-emerald-400', failed:'text-red-400', refunded:'text-blue-400', cancelled:'text-slate-400' }
+    tb.innerHTML = orders.map(o =>
+      '<tr class="border-b border-slate-700/50 hover:bg-slate-800/50">' +
+      '<td class="px-4 py-3 text-xs text-slate-400 font-mono">' + _escCm(o.orderId||'').slice(0,8) + '</td>' +
+      '<td class="px-4 py-3 text-xs text-slate-300">' + _escCm(o.userId||'').slice(0,10) + '</td>' +
+      '<td class="px-4 py-3 text-white">' + _escCm(o.productName) + '</td>' +
+      '<td class="px-4 py-3 text-right text-amber-400 font-semibold">' + Number(o.priceQkey||0).toLocaleString() + '</td>' +
+      '<td class="px-4 py-3 text-center"><span class="text-xs font-bold '+(statusColors[o.status]||'text-slate-400')+'">' + _escCm(o.status||'unknown').toUpperCase() + '</span></td>' +
+      '<td class="px-4 py-3 text-xs text-slate-300 font-mono">' + _escCm(o.couponCode||'-') + '</td>' +
+      '<td class="px-4 py-3 text-xs text-slate-400">' + (o.createdAt ? new Date(o.createdAt).toLocaleString('ko-KR') : '-') + '</td>' +
+      '</tr>'
+    ).join('')
+  } catch(e) { tb.innerHTML='<tr><td colspan="7" class="px-5 py-8 text-center text-red-400">오류: '+_escCm(e.message)+'</td></tr>' }
+}
+
+async function loadCookieMallPage() {
+  await cmLoadCategories()
+  await cmLoadProducts()
+}
 </script>
 <script>
 // ── 5분 비활동 자동 로그아웃 ──
@@ -2146,6 +2761,375 @@ admin.post('/banner', async (c) => {
       "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('banner', ?)"
     ).bind(value).run()
     return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =====================================================================
+// 광고 캠페인 관리 (3단계) — 본사 관리자 전용
+// - 저장: Firestore (advertisers, ad_campaigns). D1 미사용.
+// - 인증: 기존 관리자 쿠키 세션(verifySession)만 허용.
+// - 발송(전화 dispatch)은 4단계. 여기서는 등록/조회/수정/삭제(CRUD)만.
+// =====================================================================
+
+// 서비스 계정 JSON에서 Firestore project_id 추출
+function getAdProjectId(c: any): string {
+  try {
+    const sa = JSON.parse(c.env.FCM_SERVICE_ACCOUNT_JSON)
+    return sa.project_id
+  } catch {
+    return c.env.FCM_PROJECT_ID || 'ringo-app-7b6d6'
+  }
+}
+
+const COL_ADVERTISERS = 'advertisers'
+const COL_CAMPAIGNS   = 'ad_campaigns'
+
+// ── 광고주 목록 ──────────────────────────────────────
+admin.get('/ad-advertisers', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const pid = getAdProjectId(c)
+    const items = await listDocuments(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, COL_ADVERTISERS, { pageSize: 500 })
+    // 최신순 정렬(createdAt 내림차순)
+    items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    return c.json({ success: true, data: items })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 광고주 생성 ──────────────────────────────────────
+admin.post('/ad-advertisers', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const body = await c.req.json()
+    const name = String(body.name || '').trim()
+    if (!name) return c.json({ success: false, error: '광고주명을 입력하세요.' }, 400)
+
+    const pid = getAdProjectId(c)
+    const id = genId('adv')
+    const ts = nowIso()
+    const data = {
+      advertiserId: id,
+      name,
+      contact: String(body.contact || '').trim(),
+      memo: String(body.memo || '').trim(),
+      active: body.active === false ? false : true,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    await setDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_ADVERTISERS}/${id}`, data)
+    return c.json({ success: true, data })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 광고주 수정 ──────────────────────────────────────
+admin.put('/ad-advertisers/:id', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const pid = getAdProjectId(c)
+    const patch: Record<string, any> = { updatedAt: nowIso() }
+    if (body.name !== undefined)    patch.name = String(body.name || '').trim()
+    if (body.contact !== undefined) patch.contact = String(body.contact || '').trim()
+    if (body.memo !== undefined)    patch.memo = String(body.memo || '').trim()
+    if (body.active !== undefined)  patch.active = !!body.active
+    if (patch.name !== undefined && patch.name === '') {
+      return c.json({ success: false, error: '광고주명은 비울 수 없습니다.' }, 400)
+    }
+    const saved = await patchDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_ADVERTISERS}/${id}`, patch)
+    return c.json({ success: true, data: saved })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 광고주 삭제 ──────────────────────────────────────
+admin.delete('/ad-advertisers/:id', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const id = c.req.param('id')
+    const pid = getAdProjectId(c)
+    await deleteDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_ADVERTISERS}/${id}`)
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 캠페인 목록 ──────────────────────────────────────
+admin.get('/ad-campaigns', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const pid = getAdProjectId(c)
+    const items = await listDocuments(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, COL_CAMPAIGNS, { pageSize: 500 })
+    items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    return c.json({ success: true, data: items })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 캠페인 생성 ──────────────────────────────────────
+admin.post('/ad-campaigns', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const body = await c.req.json()
+    const advertiserId   = String(body.advertiserId || '').trim()
+    const advertiserName = String(body.advertiserName || '').trim()
+    const title          = String(body.title || '').trim()
+    const videoUrl       = String(body.videoUrl || '').trim()
+    const linkUrl        = String(body.linkUrl || '').trim()
+    const rewardQkey     = Number(body.rewardQkey)
+
+    if (!advertiserName) return c.json({ success: false, error: '광고주명을 입력/선택하세요.' }, 400)
+    if (!title)          return c.json({ success: false, error: '캠페인명을 입력하세요.' }, 400)
+    if (!videoUrl)       return c.json({ success: false, error: '광고 영상 URL을 입력하세요.' }, 400)
+    if (!linkUrl)        return c.json({ success: false, error: '광고주 링크 URL을 입력하세요.' }, 400)
+    if (!Number.isFinite(rewardQkey) || rewardQkey <= 0) {
+      return c.json({ success: false, error: '지급 QKEY는 1 이상의 숫자여야 합니다.' }, 400)
+    }
+    // URL 형식 간단 검증 (https 권장)
+    if (!/^https?:\/\//i.test(videoUrl)) return c.json({ success: false, error: '영상 URL 형식이 올바르지 않습니다.' }, 400)
+    if (!/^https?:\/\//i.test(linkUrl))  return c.json({ success: false, error: '링크 URL 형식이 올바르지 않습니다.' }, 400)
+
+    const pid = getAdProjectId(c)
+    const id = genId('camp')
+    const ts = nowIso()
+    const data = {
+      campaignId: id,
+      advertiserId,
+      advertiserName,
+      title,
+      videoType: String(body.videoType || 'youtube'),  // youtube|video|audio|file
+      videoUrl,
+      linkUrl,
+      rewardQkey: Math.floor(rewardQkey),
+      // 타깃(선택) — 4단계 발송에서 사용
+      targetRegion: body.targetRegion || null,
+      targetAgeBand: body.targetAgeBand || null,
+      targetGender: body.targetGender || null,
+      status: 'draft',          // draft|active|paused (발송은 4단계)
+      active: body.active === false ? false : true,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    await setDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_CAMPAIGNS}/${id}`, data)
+    return c.json({ success: true, data })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 캠페인 수정 ──────────────────────────────────────
+admin.put('/ad-campaigns/:id', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const pid = getAdProjectId(c)
+    const patch: Record<string, any> = { updatedAt: nowIso() }
+
+    if (body.advertiserId !== undefined)   patch.advertiserId = String(body.advertiserId || '').trim()
+    if (body.advertiserName !== undefined) patch.advertiserName = String(body.advertiserName || '').trim()
+    if (body.title !== undefined)          patch.title = String(body.title || '').trim()
+    if (body.videoType !== undefined)      patch.videoType = String(body.videoType || 'youtube')
+    if (body.videoUrl !== undefined)       patch.videoUrl = String(body.videoUrl || '').trim()
+    if (body.linkUrl !== undefined)        patch.linkUrl = String(body.linkUrl || '').trim()
+    if (body.rewardQkey !== undefined) {
+      const rq = Number(body.rewardQkey)
+      if (!Number.isFinite(rq) || rq <= 0) return c.json({ success: false, error: '지급 QKEY는 1 이상이어야 합니다.' }, 400)
+      patch.rewardQkey = Math.floor(rq)
+    }
+    if (body.targetRegion !== undefined)  patch.targetRegion = body.targetRegion || null
+    if (body.targetAgeBand !== undefined) patch.targetAgeBand = body.targetAgeBand || null
+    if (body.targetGender !== undefined)  patch.targetGender = body.targetGender || null
+    if (body.status !== undefined)        patch.status = String(body.status || 'draft')
+    if (body.active !== undefined)        patch.active = !!body.active
+
+    const saved = await patchDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_CAMPAIGNS}/${id}`, patch)
+    return c.json({ success: true, data: saved })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// ── 캠페인 삭제 ──────────────────────────────────────
+admin.delete('/ad-campaigns/:id', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const id = c.req.param('id')
+    const pid = getAdProjectId(c)
+    await deleteDocument(c.env.FCM_SERVICE_ACCOUNT_JSON, pid, `${COL_CAMPAIGNS}/${id}`)
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
+// =============================================
+// POST /admin/ad-campaigns/:id/dispatch  — 명세서 4단계
+// 등록된 광고 캠페인을 "광고 리워드 참여(opt-in)" 사용자에게
+// "광고 리워드 전화(reward_ad)"로 발송한다.
+//
+// 핵심 원칙(절대 기존 기능 손상 금지):
+//  - 기존 알람 발송 인프라(sendFCMMulticast) 그대로 재사용
+//  - FCM payload는 type='alarm' 유지(기존 라우팅 분기 변경 없음)
+//    + reward_ad='1' 플래그 + advertiser_name + reward_qkey 만 ADD
+//  - 수신측(RinGoFCMService)은 reward_ad 플래그가 있을 때만 광고 분기로 표시
+//  - 수락→영상은 5단계, QKEY 지급은 6단계(여기서는 발송만)
+//
+// 대상 선정:
+//  - Firestore ad_users 중 adRewardOptIn=true 인 uid 수집
+//  - 캠페인에 타깃(지역/연령/성별)이 지정되어 있으면 일치하는 사용자만
+//  - uid(=D1 users.user_id) → D1 users.fcm_token 매핑 후 멀티캐스트
+// =============================================
+admin.post('/ad-campaigns/:id/dispatch', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const id  = c.req.param('id')
+    const pid = getAdProjectId(c)
+    const sa  = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    const fcmProjectId = (c.env as any).FCM_PROJECT_ID || pid
+    if (!sa || !fcmProjectId) {
+      return c.json({ success: false, error: 'FCM 설정(서비스계정/프로젝트ID)이 없습니다.' }, 400)
+    }
+
+    // 1) 캠페인 로드
+    const camp = await getDocument(sa, pid, `${COL_CAMPAIGNS}/${id}`)
+    if (!camp) return c.json({ success: false, error: '캠페인을 찾을 수 없습니다.' }, 404)
+
+    const advertiserName = String(camp.advertiserName || '광고')
+    const rewardQkey     = Math.max(1, Math.floor(Number(camp.rewardQkey) || 0))
+    const videoType      = String(camp.videoType || 'youtube')
+    const videoUrl       = String(camp.videoUrl || '')
+    const linkUrl        = String(camp.linkUrl || '')
+
+    // 2) 옵트인 사용자 수집 (adRewardOptIn=true)
+    const adUsers = await listDocuments(sa, pid, 'ad_users', { pageSize: 1000 })
+    const tgtRegion = camp.targetRegion || null   // { sido, sigungu } | null
+    const tgtAge    = camp.targetAgeBand || null
+    const tgtGender = camp.targetGender || null
+
+    const matchTarget = (u: any): boolean => {
+      if (u.adRewardOptIn !== true) return false
+      // 타깃이 지정된 항목만 비교(미지정 타깃은 전체 허용)
+      if (tgtAge && u.adTargetAgeBand && u.adTargetAgeBand !== tgtAge) return false
+      if (tgtGender && u.adTargetGender && u.adTargetGender !== tgtGender) return false
+      if (tgtRegion && typeof tgtRegion === 'object' && tgtRegion.sido) {
+        const us = u.adTargetRegion || {}
+        if (us.sido && us.sido !== tgtRegion.sido) return false
+        if (tgtRegion.sigungu && us.sigungu && us.sigungu !== tgtRegion.sigungu) return false
+      }
+      return true
+    }
+
+    const optInUids: string[] = adUsers
+      .filter(matchTarget)
+      .map((u: any) => String(u.uid || u._id || ''))
+      .filter((x: string) => !!x)
+
+    if (optInUids.length === 0) {
+      return c.json({ success: true, data: { targetCount: 0, sentCount: 0, failedCount: 0, message: '대상(옵트인) 사용자가 없습니다.' } })
+    }
+
+    // 3) uid(=D1 user_id) → D1 fcm_token 매핑 (99개씩 IN 분할)
+    const tokenMap = new Map<string, string>()
+    const UID_CHUNK = 99
+    for (let i = 0; i < optInUids.length; i += UID_CHUNK) {
+      const chunk = optInUids.slice(i, i + UID_CHUNK)
+      const ph = chunk.map(() => '?').join(',')
+      const rows = await c.env.DB.prepare(
+        `SELECT user_id, fcm_token FROM users WHERE user_id IN (${ph}) AND fcm_token IS NOT NULL AND fcm_token != ''`
+      ).bind(...chunk).all()
+      for (const r of (rows.results as any[]) || []) {
+        if (r.fcm_token) tokenMap.set(String(r.user_id), String(r.fcm_token))
+      }
+    }
+
+    const tokenList = Array.from(tokenMap.values())
+    // dispatch 단위 dedup용 numeric alarm_id (음수/0 회피)
+    const dispatchAlarmId = (Math.floor(Date.now() / 1000) % 2000000000)
+
+    // 4) reward_ad FCM payload (type='alarm' 유지 + 광고 플래그 ADD)
+    //    - channel_name 에 광고주명을 실어 수신화면 큰 글씨로 표시(기존 필드 재사용)
+    //    - msg_type/msg_value/content_url 은 5단계 영상재생을 위해 미리 실어둠
+    const fcmPayload: Record<string, string> = {
+      type:            'alarm',          // 기존 라우팅 분기 그대로
+      reward_ad:       '1',              // ← 광고 리워드 전화 플래그 (수신측 분기)
+      advertiser_name: advertiserName,
+      reward_qkey:     String(rewardQkey),
+      campaign_id:     String(id),
+      channel_name:    advertiserName,   // 수신화면 큰 글씨(광고주명)
+      channel_public_id: '',
+      channel_image:   '',
+      msg_type:        videoType,        // youtube|video|audio|file (5단계 재생용)
+      msg_value:       videoUrl,
+      alarm_id:        String(dispatchAlarmId),
+      content_url:     videoUrl,
+      homepage_url:    '',
+      link_url:        linkUrl,          // 광고주 링크(5~6단계 사용)
+      content_text:    '',
+    }
+
+    const multiRes = tokenList.length > 0
+      ? await sendFCMMulticast(tokenList, fcmPayload, sa, fcmProjectId)
+      : { successCount: 0, failureCount: 0, invalidTokens: [], failedDetails: [] }
+
+    // invalid token 즉시 비활성화
+    if (multiRes.invalidTokens.length > 0) {
+      const TK_CHUNK = 99
+      for (let ti = 0; ti < multiRes.invalidTokens.length; ti += TK_CHUNK) {
+        const tkChunk = multiRes.invalidTokens.slice(ti, ti + TK_CHUNK)
+        const ph = tkChunk.map(() => '?').join(',')
+        await c.env.DB.prepare(
+          `UPDATE users SET fcm_token = NULL WHERE fcm_token IN (${ph})`
+        ).bind(...tkChunk).run().catch(() => {})
+      }
+    }
+
+    // 5) 발송 이력 기록 (Firestore ad_dispatches/{dispatchId}) — 6단계 지급 추적용 ADD
+    const dispatchId = genId('disp')
+    const dispatchedAt = nowIso()
+    await setDocument(sa, pid, `ad_dispatches/${dispatchId}`, {
+      dispatchId,
+      campaignId: id,
+      advertiserName,
+      rewardQkey,
+      alarmId: dispatchAlarmId,
+      targetCount: optInUids.length,
+      tokenCount: tokenList.length,
+      sentCount: multiRes.successCount,
+      failedCount: multiRes.failureCount,
+      targetUids: optInUids,
+      dispatchedAt,
+    }).catch(() => {})
+
+    // 캠페인 상태/마지막 발송 시각 업데이트 (active 표시)
+    await patchDocument(sa, pid, `${COL_CAMPAIGNS}/${id}`, {
+      status: 'active',
+      lastDispatchId: dispatchId,
+      lastDispatchedAt: dispatchedAt,
+      lastSentCount: multiRes.successCount,
+      updatedAt: dispatchedAt,
+    }).catch(() => {})
+
+    return c.json({
+      success: true,
+      data: {
+        dispatchId,
+        alarmId: dispatchAlarmId,
+        targetCount: optInUids.length,
+        tokenCount: tokenList.length,
+        sentCount: multiRes.successCount,
+        failedCount: multiRes.failureCount,
+      },
+    })
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500)
   }

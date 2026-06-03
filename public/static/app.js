@@ -100,7 +100,9 @@ function showPage(page) {
     notifications: '알림 발송', notices: '공지사항 관리',
     logs: '발송 로그', members: '회원 관리', terms: '서비스 이용약관', privacy: '개인정보보호정책',
     'admin-alarm': '관리자 알람발송', 'alarm-logs': '알람 로그', 'download-mgmt': '다운로드 관리',
-    'banner-mgmt': '배너 관리', 'reports': '신고 관리', 'blocked': '계정 차단 관리', 'company': '회사정보 관리'
+    'banner-mgmt': '배너 관리', 'reports': '신고 관리', 'blocked': '계정 차단 관리', 'company': '회사정보 관리',
+    'ad-campaigns': '광고 캠페인',
+    'cookie-mall': '쿠키몰'
   }
   document.getElementById('pageTitle').textContent = titles[page] || page
   currentPage = page
@@ -124,6 +126,8 @@ function showPage(page) {
   else if (page === 'company') loadCompany()
   else if (page === 'reports') loadReports()
   else if (page === 'blocked') loadBlockedAccounts()
+  else if (page === 'ad-campaigns') loadAdCampaignsPage()
+  else if (page === 'cookie-mall') loadCookieMallPage()
 }
 
 function refreshCurrentPage() { showPage(currentPage) }

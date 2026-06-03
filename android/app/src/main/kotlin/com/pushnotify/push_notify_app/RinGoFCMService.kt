@@ -76,10 +76,20 @@ class RinGoFCMService : FirebaseMessagingService() {
         val linkUrl         = data["link_url"]          ?: ""
         val contentText     = data["content_text"]      ?: ""
 
+        // ── 4단계: 광고 리워드 전화(reward_ad) 분기용 추가 필드 (ADD ONLY) ──
+        // reward_ad="1" 일 때만 광고 수신화면(2줄)로 표시. 기존 일반 알람은 영향 없음.
+        val isRewardAd      = data["reward_ad"] == "1"
+        val rewardQkey      = data["reward_qkey"]?.toIntOrNull() ?: 0
+        val campaignId      = data["campaign_id"] ?: ""
+        // 광고주명은 channel_name 으로도 실려오지만 advertiser_name 우선
+        val advertiserName  = data["advertiser_name"]
+        val rewardChannelName = if (isRewardAd && !advertiserName.isNullOrEmpty()) advertiserName else channelName
+
         // v1.0.42: 중복 방지는 triggerAlarm() 내부 synchronized 블록에서 처리
-        Log.d(TAG, "FCM 즉시 알람: $channelName (id=$alarmId)")
+        Log.d(TAG, "FCM 즉시 알람: $rewardChannelName (id=$alarmId, rewardAd=$isRewardAd, qkey=$rewardQkey, camp=$campaignId)")
         AlarmPollingService.triggerAlarm(
-            this, channelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage
+            this, rewardChannelName, msgType, msgValue, alarmId, contentUrl, homepageUrl, channelPublicId, linkUrl, contentText, channelImage,
+            isRewardAd = isRewardAd, rewardQkey = rewardQkey, campaignId = campaignId
         )
     }
 }

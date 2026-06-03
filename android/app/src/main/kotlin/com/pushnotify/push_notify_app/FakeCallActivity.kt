@@ -57,6 +57,10 @@ class FakeCallActivity : Activity() {
         const val EXTRA_CONTENT_TEXT       = "content_text"
         const val EXTRA_AUTO_ACCEPT       = "auto_accept"
         const val EXTRA_CHANNEL_IMAGE     = "channel_image"
+        // ── 4단계: 광고 리워드 전화(reward_ad) 추가 EXTRA (ADD ONLY) ──
+        const val EXTRA_IS_REWARD_AD      = "is_reward_ad"
+        const val EXTRA_REWARD_QKEY       = "reward_qkey"
+        const val EXTRA_CAMPAIGN_ID       = "campaign_id"
 
         fun start(
             context: Context,
@@ -66,7 +70,11 @@ class FakeCallActivity : Activity() {
             autoAccept: Boolean = false,
             linkUrl: String = "",
             contentText: String = "",
-            channelImage: String = ""
+            channelImage: String = "",
+            // ── 4단계: 광고 리워드 전화 옵션 (기본값으로 기존 호출부 보존) ──
+            isRewardAd: Boolean = false,
+            rewardQkey: Int = 0,
+            campaignId: String = ""
         ) {
             val intent = Intent(context, FakeCallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -83,6 +91,9 @@ class FakeCallActivity : Activity() {
                 putExtra(EXTRA_CONTENT_TEXT,      contentText)
                 putExtra(EXTRA_AUTO_ACCEPT,       autoAccept)
                 putExtra(EXTRA_CHANNEL_IMAGE,     channelImage)
+                putExtra(EXTRA_IS_REWARD_AD,      isRewardAd)
+                putExtra(EXTRA_REWARD_QKEY,       rewardQkey)
+                putExtra(EXTRA_CAMPAIGN_ID,       campaignId)
             }
             context.startActivity(intent)
         }
@@ -108,6 +119,10 @@ class FakeCallActivity : Activity() {
     private var contentText     = ""
     private var autoAccept      = false
     private var channelImage    = ""
+    // ── 4단계: 광고 리워드 전화(reward_ad) 상태 (ADD ONLY) ──
+    private var isRewardAd      = false
+    private var rewardQkey      = 0
+    private var campaignId      = ""
 
     private val autoDeclineHandler  = Handler(Looper.getMainLooper())
     private var autoDeclineRunnable: Runnable? = null
@@ -174,6 +189,10 @@ class FakeCallActivity : Activity() {
         contentText     = intent.getStringExtra(EXTRA_CONTENT_TEXT)       ?: ""
         autoAccept      = intent.getBooleanExtra(EXTRA_AUTO_ACCEPT, false)
         channelImage    = intent.getStringExtra(EXTRA_CHANNEL_IMAGE)      ?: ""
+        // ── 4단계: 광고 리워드 전화 플래그 추출 (ADD ONLY) ──
+        isRewardAd      = intent.getBooleanExtra(EXTRA_IS_REWARD_AD, false)
+        rewardQkey      = intent.getIntExtra(EXTRA_REWARD_QKEY, 0)
+        campaignId      = intent.getStringExtra(EXTRA_CAMPAIGN_ID) ?: ""
 
         buildUi()
         startRinging()
@@ -369,6 +388,56 @@ class FakeCallActivity : Activity() {
             setPadding(dp(24).toInt(), dp(48).toInt(), dp(24).toInt(), dp(40).toInt())
         }
 
+        // ─────────────────────────────────────────────────────────────────
+        // 4단계: 광고 리워드 전화(reward_ad) — 2줄만 크게 표시
+        //   1줄: 광고주명(channelName)
+        //   2줄: "{rewardQkey} QKEY"
+        // 기존 일반 알람 화면(아래 else 블록)은 일절 변경하지 않음.
+        // ─────────────────────────────────────────────────────────────────
+        if (isRewardAd) {
+            // 상단 작은 라벨
+            topCard.addView(TextView(this).apply {
+                text = "광고 리워드 전화"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextColor(textGray)
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, dp(28).toInt())
+            })
+
+            // 1줄: 광고주명 (크게)
+            topCard.addView(TextView(this).apply {
+                text = channelName
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 34f)
+                setTextColor(textWhite)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(0, dp(40).toInt(), 0, dp(20).toInt())
+            })
+
+            // 2줄: "{rewardQkey} QKEY" (크게, 강조색)
+            topCard.addView(TextView(this).apply {
+                text = "$rewardQkey QKEY"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+                setTextColor(Color.parseColor("#FFD54F"))  // 골드 톤 강조
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, dp(8).toInt())
+            })
+
+            // 상단 카드를 루트에 추가 (일반 알람과 동일 높이 비율)
+            val rewardDisplayHeight = resources.displayMetrics.heightPixels
+            val rewardTopParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                (rewardDisplayHeight * 0.72).toInt()
+            ).apply { gravity = Gravity.TOP }
+            root.addView(topCard, rewardTopParams)
+
+            // ── 하단 버튼 영역 (기존 [거절][수락] 그대로 재사용) ──
+            // buildActionButtons 내부에서 setContentView(root) + WindowInsets 처리까지 수행
+            buildActionButtons(root, accentRed, accentGreen, topCard)
+            return
+        }
+
         // "RinGo 알람" 앱 타이틀
         topCard.addView(TextView(this).apply {
             text = "RinGo 알람"
@@ -542,7 +611,16 @@ class FakeCallActivity : Activity() {
         ).apply { gravity = Gravity.TOP }
         root.addView(topCard, topParams)
 
-        // ── 하단 버튼 영역 ──
+        // ── 하단 버튼 영역 ([거절][수락]) + WindowInsets — 공통 헬퍼 ──
+        buildActionButtons(root, accentRed, accentGreen, topCard)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 하단 [거절][수락] 버튼 + WindowInsets 콜백 (일반/광고 공용)
+    //  - 기존 일반 알람과 광고 리워드 전화가 동일한 버튼/동작을 사용
+    //  - handleDecline()/handleAccept() 로직은 변경 없음 (수락→영상은 5단계)
+    // ─────────────────────────────────────────────────────────────────────
+    private fun buildActionButtons(root: FrameLayout, accentRed: Int, accentGreen: Int, topCard: View) {
         val btnLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -719,7 +797,7 @@ class FakeCallActivity : Activity() {
     // 수락 / 거절
     // ─────────────────────────────────────────────────────────────────────
     private fun handleAccept() {
-        Log.d(TAG, "수락 → alarmId=$alarmId, msgType=$msgType, msgValue=$msgValue")
+        Log.d(TAG, "수락 → alarmId=$alarmId, msgType=$msgType, msgValue=$msgValue, rewardAd=$isRewardAd")
         autoDeclineRunnable?.let { autoDeclineHandler.removeCallbacks(it) }
         stopRinging()
         recordAlarmStatus(alarmId, "accepted")
@@ -732,7 +810,12 @@ class FakeCallActivity : Activity() {
             homepageUrl      = homepageUrl,
             channelPublicId  = channelPublicId,
             linkUrl          = linkUrl,
-            contentText      = contentText
+            contentText      = contentText,
+            // ── 5단계: reward_ad 정보 전달 (기존 일반 알람은 기본값) ──
+            isRewardAd       = isRewardAd,
+            rewardQkey       = rewardQkey,
+            campaignId       = campaignId,
+            alarmId          = alarmId
         )
         finishAlarm()
     }
