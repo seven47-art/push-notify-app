@@ -2807,6 +2807,41 @@ function getAdProjectId(c: any): string {
 const COL_ADVERTISERS = 'advertisers'
 const COL_CAMPAIGNS   = 'ad_campaigns'
 
+// ── [진단] 서비스 계정 / Firestore 프로젝트 식별 정보 ──
+// 민감정보(private_key)는 절대 노출하지 않음. 프로젝트 식별용 안전 필드만 반환.
+admin.get('/ad-diagnostics', async (c) => {
+  if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const raw = c.env.FCM_SERVICE_ACCOUNT_JSON || ''
+    let sa: any = {}
+    try { sa = JSON.parse(raw) } catch {}
+    // Firestore 연결 ping (간단 조회)
+    let firestoreOk = false
+    let firestoreError = ''
+    try {
+      await listDocuments(raw, sa.project_id || c.env.FCM_PROJECT_ID, COL_ADVERTISERS, { pageSize: 1 })
+      firestoreOk = true
+    } catch (e: any) {
+      firestoreError = String(e.message || e).slice(0, 200)
+    }
+    return c.json({
+      success: true,
+      data: {
+        project_id: sa.project_id || c.env.FCM_PROJECT_ID || '(none)',
+        client_email: sa.client_email || '(none)',
+        // 서비스 계정 이메일 도메인 = 프로젝트 식별 단서
+        sa_domain: String(sa.client_email || '').split('@')[1] || '(none)',
+        has_private_key: !!sa.private_key,
+        client_id: sa.client_id || '(none)',
+        firestore_enabled: firestoreOk,
+        firestore_error: firestoreError,
+      },
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500)
+  }
+})
+
 // ── 광고주 목록 ──────────────────────────────────────
 admin.get('/ad-advertisers', async (c) => {
   if (!await verifySession(c)) return c.json({ error: 'Unauthorized' }, 401)
