@@ -123,7 +123,7 @@ rewardAds.get('/me', async (c) => {
 // body: {
 //   adRewardOptIn: boolean,           // 참여 동의 여부
 //   quantariumWalletAddress: string,  // 콴타리움 지갑 주소 (참여 시 필수)
-//   adTargetRegion: { sido, sigungu },// 시·도 / 시·군·구 (사용자 선택, GPS 미사용)
+//   adTargetRegion: { sido },        // 광역시·도 1개 (사용자 선택, GPS 미사용)
 //   adTargetAgeBand: string,          // 10대~60대 이상
 //   adTargetGender: string,           // 남성/여성/응답하지 않음
 // }
@@ -179,16 +179,10 @@ rewardAds.put('/me', async (c) => {
       }
     }
     if (body.adTargetRegion !== undefined) {
-      // { sido, sigungu } 형태. GPS 미사용, 사용자 직접 선택.
+      // { sido } 형태 — 광역시·도 1개 선택. GPS 미사용, 시·군·구 미사용.
       const region = body.adTargetRegion
-      if (region && typeof region === 'object') {
-        fields.adTargetRegion = {
-          sido: String(region.sido || '').trim(),
-          sigungu: String(region.sigungu || '').trim(),
-        }
-      } else {
-        fields.adTargetRegion = null
-      }
+      const sido = region && typeof region === 'object' ? String(region.sido || '').trim() : ''
+      fields.adTargetRegion = sido ? { sido } : null
     }
     if (body.adTargetAgeBand !== undefined) {
       fields.adTargetAgeBand = body.adTargetAgeBand || null

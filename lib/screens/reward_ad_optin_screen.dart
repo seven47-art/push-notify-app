@@ -28,6 +28,12 @@ const _consentNotice =
 const _ageBands = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 const _genders  = ['남성', '여성', '응답하지 않음'];
 
+// 관심 지역 — 전국 17개 광역시·도 (직접 입력 X, 선택만, GPS 미사용)
+const _regions = [
+  '서울', '경기', '인천', '강원', '충북', '충남', '대전', '세종',
+  '전북', '전남', '광주', '경북', '경남', '대구', '울산', '부산', '제주',
+];
+
 class RewardAdOptInScreen extends StatefulWidget {
   const RewardAdOptInScreen({super.key});
 
@@ -37,9 +43,8 @@ class RewardAdOptInScreen extends StatefulWidget {
 
 class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
   final _walletCtrl  = TextEditingController();
-  final _sidoCtrl    = TextEditingController();
-  final _sigunguCtrl = TextEditingController();
 
+  String? _region;   // 선택된 광역시·도 1개
   String? _ageBand;
   String? _gender;
   bool _optIn = false;
@@ -56,8 +61,6 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
   @override
   void dispose() {
     _walletCtrl.dispose();
-    _sidoCtrl.dispose();
-    _sigunguCtrl.dispose();
     super.dispose();
   }
 
@@ -83,8 +86,8 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
           _walletCtrl.text = (d['quantariumWalletAddress'] ?? '').toString();
           final region = d['adTargetRegion'];
           if (region is Map) {
-            _sidoCtrl.text    = (region['sido'] ?? '').toString();
-            _sigunguCtrl.text = (region['sigungu'] ?? '').toString();
+            final sido = (region['sido'] ?? '').toString();
+            if (_regions.contains(sido)) _region = sido;
           }
           final ab = d['adTargetAgeBand']?.toString();
           if (ab != null && _ageBands.contains(ab)) _ageBand = ab;
@@ -117,8 +120,7 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
         'adRewardOptIn': _optIn,
         'quantariumWalletAddress': _walletCtrl.text.trim(),
         'adTargetRegion': {
-          'sido': _sidoCtrl.text.trim(),
-          'sigungu': _sigunguCtrl.text.trim(),
+          'sido': _region ?? '',
         },
         'adTargetAgeBand': _ageBand,
         'adTargetGender': _gender,
@@ -219,28 +221,21 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
                     style: TextStyle(fontSize: 12, color: _text2)),
                 const SizedBox(height: 24),
 
-                // 지역 (시·도 / 시·군·구) — 직접 입력, GPS 미사용
+                // 관심 지역 — 광역시·도 선택 (직접 입력 X, GPS 미사용)
                 _label('관심 지역 (선택)'),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _sidoCtrl,
-                        decoration: _inputDeco('시·도'),
-                        style: const TextStyle(fontSize: 14, color: _text),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _sigunguCtrl,
-                        decoration: _inputDeco('시·군·구'),
-                        style: const TextStyle(fontSize: 14, color: _text),
-                      ),
-                    ),
-                  ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _regions.map((r) => _chip(
+                        label: r,
+                        selected: _region == r,
+                        onTap: () => setState(() => _region = _region == r ? null : r),
+                      )).toList(),
                 ),
+                const SizedBox(height: 6),
+                const Text('관심 지역을 선택하면 해당 지역 광고를 우선 받을 수 있습니다.',
+                    style: TextStyle(fontSize: 12, color: _text2)),
                 const SizedBox(height: 24),
 
                 // 연령대
