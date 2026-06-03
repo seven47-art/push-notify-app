@@ -170,7 +170,7 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _primary))
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
                 // 안내 문구
                 Container(
@@ -221,17 +221,40 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
                     style: TextStyle(fontSize: 12, color: _text2)),
                 const SizedBox(height: 24),
 
-                // 관심 지역 — 광역시·도 선택 (직접 입력 X, GPS 미사용)
+                // 관심 지역 — 드롭다운(아래로 펼쳐 선택). 직접 입력 X, GPS 미사용.
                 _label('관심 지역 (선택)'),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _regions.map((r) => _chip(
-                        label: r,
-                        selected: _region == r,
-                        onTap: () => setState(() => _region = _region == r ? null : r),
-                      )).toList(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F8FA),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _border),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _region,
+                      hint: const Text('지역을 선택하세요',
+                          style: TextStyle(fontSize: 14, color: _text2)),
+                      icon: const Icon(Icons.keyboard_arrow_down, color: _text2),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      style: const TextStyle(fontSize: 14, color: _text),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('선택 안 함',
+                              style: TextStyle(fontSize: 14, color: _text2)),
+                        ),
+                        ..._regions.map((r) => DropdownMenuItem<String>(
+                              value: r,
+                              child: Text(r, style: const TextStyle(fontSize: 14, color: _text)),
+                            )),
+                      ],
+                      onChanged: (v) => setState(() => _region = v),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text('관심 지역을 선택하면 해당 지역 광고를 우선 받을 수 있습니다.',
@@ -264,24 +287,28 @@ class _RewardAdOptInScreenState extends State<RewardAdOptInScreen> {
                         onTap: () => setState(() => _gender = _gender == g ? null : g),
                       )).toList(),
                 ),
-                const SizedBox(height: 32),
-
-                // 저장 버튼
-                ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('저장', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                ),
+                const SizedBox(height: 8),
               ],
+            ),
+      // 저장 버튼을 화면 하단에 고정 — 스크롤에 묻히거나 시스템 바에 잘리지 않음
+      bottomNavigationBar: _loading
+          ? null
+          : SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('저장', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
             ),
     );
   }
